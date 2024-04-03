@@ -10,12 +10,40 @@
     - file.put_stream
     - file.get
     - file.get_stream
+    - add_import
+    - remove_import
+    - get_imports
+    - clear_imports
+    - add_packages
+    - add_requirements
+    - clear_packages
+    - remove_package
+    - udf.register
+    - udf.register_from_file
   - snowflake.snowpark.functions
+    - current_database
+    - current_session
+    - date_trunc
     - udf
+    - object_construct
+    - object_construct_keep_null
 - Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
   - `DataFrame.write.json`
   - `DataFrame.write.csv`
   - `DataFrame.write.parquet`
+- Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
+  - snowflake.snowpark.DataFrame:
+    - collect
+    - collect_nowait
+    - to_pandas
+    - count
+    - show
+  - snowflake.snowpark.DataFrameWriter:
+    - save_as_table
+
+### Bug Fixes
+
+- Fixed a bug in local testing that null filled columns for constant functions.
 
 ## 1.14.0 (2024-03-20)
 

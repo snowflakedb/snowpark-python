@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.functions import (
     col,
     lit,
+    object_construct,
     parse_json,
     to_array,
     to_binary,
@@ -651,24 +652,46 @@ class TestData:
 
     @classmethod
     def object1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values('age', 21),('zip', 94401) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21),
+                    ("zip", 94401),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
     def object2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
-            "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
-            "('age', 26, 'zip', 94021, 'name', 'Jay', 'key', 0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21, "zip", 21021, "name", "Joe", "age", 0, True),
+                    ("age", 26, "zip", 94021, "name", "Jay", "key", 0, False),
+                ]
+            )
+            .to_df(["a", "b", "c", "d", "e", "f", "k", "v", "flag"])
+            .select(
+                object_construct("a", "b", "c", "d", "e", "f").alias("obj"),
+                "k",
+                "v",
+                "flag",
+            )
         )
 
     @classmethod
     def object3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values(null, 21),('zip', null) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    (None, 21),
+                    ("zip", None),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
@@ -1112,6 +1135,10 @@ class TestFiles:
     @property
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
+
+    @property
+    def test_another_udf_py_file(self):
+        return os.path.join(self.test_udf_directory, "test_another_udf_file.py")
 
     @property
     def test_udtf_directory(self):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -53,6 +53,7 @@ from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.relational_grouped_dataframe import (
     GroupingSets,

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Callable, Dict, List, Tuple, Union
@@ -378,31 +378,31 @@ class DataFrameAnalyticsFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-        >>> sample_data = [
-        ...     ["2023-01-01", 101, 200],
-        ...     ["2023-01-02", 101, 100],
-        ...     ["2023-01-03", 101, 300],
-        ...     ["2023-01-04", 102, 250],
-        ... ]
-        >>> df = session.create_dataframe(sample_data).to_df(
-        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
-        ... )
-        >>> res = df.analytics.cumulative_agg(
-        ...     aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
-        ...     group_by=["PRODUCTKEY"],
-        ...     order_by=["ORDERDATE"],
-        ...     is_forward=True
-        ... )
-        >>> res.show()
-        ----------------------------------------------------------------------------------------------------------
-        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_SUM"  |"SALESAMOUNT_MIN"  |"SALESAMOUNT_MAX"  |
-        ----------------------------------------------------------------------------------------------------------
-        |2023-01-03   |101           |300            |300                |300                |300                |
-        |2023-01-02   |101           |100            |400                |100                |300                |
-        |2023-01-01   |101           |200            |600                |100                |300                |
-        |2023-01-04   |102           |250            |250                |250                |250                |
-        ----------------------------------------------------------------------------------------------------------
-        <BLANKLINE>
+            >>> sample_data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(sample_data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> res = df.analytics.cumulative_agg(
+            ...     aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]},
+            ...     group_by=["PRODUCTKEY"],
+            ...     order_by=["ORDERDATE"],
+            ...     is_forward=True
+            ... )
+            >>> res.show()
+            ----------------------------------------------------------------------------------------------------------
+            |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_SUM"  |"SALESAMOUNT_MIN"  |"SALESAMOUNT_MAX"  |
+            ----------------------------------------------------------------------------------------------------------
+            |2023-01-03   |101           |300            |300                |300                |300                |
+            |2023-01-02   |101           |100            |400                |100                |300                |
+            |2023-01-01   |101           |200            |600                |100                |300                |
+            |2023-01-04   |102           |250            |250                |250                |250                |
+            ----------------------------------------------------------------------------------------------------------
+            <BLANKLINE>
         """
         # Validate input arguments
         self._validate_aggs_argument(aggs)
@@ -452,31 +452,31 @@ class DataFrameAnalyticsFunctions:
             A Snowflake DataFrame with additional columns corresponding to each specified lag period.
 
         Example:
-        >>> sample_data = [
-        ...     ["2023-01-01", 101, 200],
-        ...     ["2023-01-02", 101, 100],
-        ...     ["2023-01-03", 101, 300],
-        ...     ["2023-01-04", 102, 250],
-        ... ]
-        >>> df = session.create_dataframe(sample_data).to_df(
-        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
-        ... )
-        >>> res = df.analytics.compute_lag(
-        ...     cols=["SALESAMOUNT"],
-        ...     lags=[1, 2],
-        ...     order_by=["ORDERDATE"],
-        ...     group_by=["PRODUCTKEY"],
-        ... )
-        >>> res.show()
-        ------------------------------------------------------------------------------------------
-        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LAG_1"  |"SALESAMOUNT_LAG_2"  |
-        ------------------------------------------------------------------------------------------
-        |2023-01-04   |102           |250            |NULL                 |NULL                 |
-        |2023-01-01   |101           |200            |NULL                 |NULL                 |
-        |2023-01-02   |101           |100            |200                  |NULL                 |
-        |2023-01-03   |101           |300            |100                  |200                  |
-        ------------------------------------------------------------------------------------------
-        <BLANKLINE>
+            >>> sample_data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(sample_data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> res = df.analytics.compute_lag(
+            ...     cols=["SALESAMOUNT"],
+            ...     lags=[1, 2],
+            ...     order_by=["ORDERDATE"],
+            ...     group_by=["PRODUCTKEY"],
+            ... )
+            >>> res.show()
+            ------------------------------------------------------------------------------------------
+            |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LAG_1"  |"SALESAMOUNT_LAG_2"  |
+            ------------------------------------------------------------------------------------------
+            |2023-01-04   |102           |250            |NULL                 |NULL                 |
+            |2023-01-01   |101           |200            |NULL                 |NULL                 |
+            |2023-01-02   |101           |100            |200                  |NULL                 |
+            |2023-01-03   |101           |300            |100                  |200                  |
+            ------------------------------------------------------------------------------------------
+            <BLANKLINE>
         """
         return self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
@@ -506,31 +506,31 @@ class DataFrameAnalyticsFunctions:
             A Snowflake DataFrame with additional columns corresponding to each specified lead period.
 
         Example:
-        >>> sample_data = [
-        ...     ["2023-01-01", 101, 200],
-        ...     ["2023-01-02", 101, 100],
-        ...     ["2023-01-03", 101, 300],
-        ...     ["2023-01-04", 102, 250],
-        ... ]
-        >>> df = session.create_dataframe(sample_data).to_df(
-        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
-        ... )
-        >>> res = df.analytics.compute_lead(
-        ...     cols=["SALESAMOUNT"],
-        ...     leads=[1, 2],
-        ...     order_by=["ORDERDATE"],
-        ...     group_by=["PRODUCTKEY"]
-        ... )
-        >>> res.show()
-        --------------------------------------------------------------------------------------------
-        |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LEAD_1"  |"SALESAMOUNT_LEAD_2"  |
-        --------------------------------------------------------------------------------------------
-        |2023-01-04   |102           |250            |NULL                  |NULL                  |
-        |2023-01-01   |101           |200            |100                   |300                   |
-        |2023-01-02   |101           |100            |300                   |NULL                  |
-        |2023-01-03   |101           |300            |NULL                  |NULL                  |
-        --------------------------------------------------------------------------------------------
-        <BLANKLINE>
+            >>> sample_data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(sample_data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> res = df.analytics.compute_lead(
+            ...     cols=["SALESAMOUNT"],
+            ...     leads=[1, 2],
+            ...     order_by=["ORDERDATE"],
+            ...     group_by=["PRODUCTKEY"]
+            ... )
+            >>> res.show()
+            --------------------------------------------------------------------------------------------
+            |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LEAD_1"  |"SALESAMOUNT_LEAD_2"  |
+            --------------------------------------------------------------------------------------------
+            |2023-01-04   |102           |250            |NULL                  |NULL                  |
+            |2023-01-01   |101           |200            |100                   |300                   |
+            |2023-01-02   |101           |100            |300                   |NULL                  |
+            |2023-01-03   |101           |300            |NULL                  |NULL                  |
+            --------------------------------------------------------------------------------------------
+            <BLANKLINE>
         """
         return self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
@@ -570,36 +570,36 @@ class DataFrameAnalyticsFunctions:
             SnowparkSQLException: If an unsupported aggregration is specified.
 
         Example:
-        >>> sample_data = [
-        ...     ["2023-01-01", 101, 200],
-        ...     ["2023-01-02", 101, 100],
-        ...     ["2023-01-03", 101, 300],
-        ...     ["2023-01-04", 102, 250],
-        ... ]
-        >>> df = session.create_dataframe(sample_data).to_df(
-        ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
-        ... )
-        >>> df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
-        >>> def custom_formatter(input_col, agg, window):
-        ...     return f"{agg}_{input_col}_{window}"
-        >>> res = df.analytics.time_series_agg(
-        ...     time_col="ORDERDATE",
-        ...     group_by=["PRODUCTKEY"],
-        ...     aggs={"SALESAMOUNT": ["SUM", "MAX"]},
-        ...     windows=["1D", "-1D"],
-        ...     sliding_interval="12H",
-        ...     col_formatter=custom_formatter,
-        ... )
-        >>> res.show()
-        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        |"PRODUCTKEY"  |"SLIDING_POINT"      |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
-        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        |101           |2023-01-01 00:00:00  |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
-        |101           |2023-01-02 00:00:00  |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
-        |101           |2023-01-03 00:00:00  |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
-        |102           |2023-01-04 00:00:00  |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
-        --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        <BLANKLINE>
+            >>> sample_data = [
+            ...     ["2023-01-01", 101, 200],
+            ...     ["2023-01-02", 101, 100],
+            ...     ["2023-01-03", 101, 300],
+            ...     ["2023-01-04", 102, 250],
+            ... ]
+            >>> df = session.create_dataframe(sample_data).to_df(
+            ...     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+            ... )
+            >>> df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
+            >>> def custom_formatter(input_col, agg, window):
+            ...     return f"{agg}_{input_col}_{window}"
+            >>> res = df.analytics.time_series_agg(
+            ...     time_col="ORDERDATE",
+            ...     group_by=["PRODUCTKEY"],
+            ...     aggs={"SALESAMOUNT": ["SUM", "MAX"]},
+            ...     windows=["1D", "-1D"],
+            ...     sliding_interval="12H",
+            ...     col_formatter=custom_formatter,
+            ... )
+            >>> res.show()
+            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            |"PRODUCTKEY"  |"SLIDING_POINT"      |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
+            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            |101           |2023-01-01 00:00:00  |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
+            |101           |2023-01-02 00:00:00  |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
+            |101           |2023-01-03 00:00:00  |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
+            |102           |2023-01-04 00:00:00  |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
+            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            <BLANKLINE>
         """
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(group_by, "group_by")

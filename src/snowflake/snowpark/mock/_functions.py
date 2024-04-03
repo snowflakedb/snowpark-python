@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import binascii
@@ -7,6 +7,7 @@ import datetime
 import json
 import math
 import numbers
+import operator
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -15,6 +16,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
+import snowflake.snowpark
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -1085,6 +1087,43 @@ def mock_to_variant(expr: ColumnEmulator):
     return res
 
 
+def _object_construct(exprs, drop_nulls):
+    import pandas
+
+    expr_count = len(exprs)
+    if expr_count % 2 != 0:
+        raise TypeError(
+            f"Cannot construct an object from an odd number ({expr_count}) of values."
+        )
+
+    if expr_count == 0:
+        return ColumnEmulator(data=[dict()])
+
+    def construct_dict(x):
+        return {
+            x[i]: x[i + 1]
+            for i in range(0, expr_count, 2)
+            if x[i] is not None and not (drop_nulls and x[i + 1] is None)
+        }
+
+    combined = pandas.concat(exprs, axis=1)
+    return combined.apply(construct_dict, axis=1)
+
+
+@patch("object_construct")
+def mock_object_construct(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, True)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), False)
+    return result
+
+
+@patch("object_construct_keep_null")
+def mock_object_construct_keep_null(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, False)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), True)
+    return result
+
+
 def cast_to_datetime(date):
     if isinstance(date, datetime.datetime):
         return date
@@ -1233,6 +1272,73 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
     return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
 
 
+@patch("date_trunc")
+def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
+    """
+    SNOW-1183874: Add support for relevant session parameters.
+    https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
+    """
+    import pandas
+
+    # Map snowflake time unit to pandas rounding alias
+    # Not all units have an alias so handle those with a special case
+    SUPPORTED_UNITS = {
+        "day": "D",
+        "hour": "h",
+        "microsecond": "us",
+        "millisecond": "ms",
+        "minute": "min",
+        "month": None,
+        "nanosecond": "ns",
+        "quarter": None,
+        "second": "s",
+        "week": None,
+        "year": None,
+    }
+    time_unit = unalias_datetime_part(part)
+    pandas_unit = SUPPORTED_UNITS.get(time_unit)
+
+    if pandas_unit is not None:
+        truncated = pandas.to_datetime(datetime_expr).dt.floor(pandas_unit)
+    elif time_unit == "month":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "quarter":
+        # Assuming quarters start in Jan/April/July/Oct
+        quarter_map = {i: (((i - 1) // 3) * 3) + 1 for i in range(1, 13)}
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, quarter_map[x.month], 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "week":
+        truncated = pandas.to_datetime(datetime_expr)
+        # Calculate offset from start of week
+        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        # Subtract off offset
+        truncated = truncated.combine(offsets, operator.sub)
+        # Trim data smaller than a day
+        truncated = truncated.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, x.day, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "year":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(x.year, 1, 1, tzinfo=getattr(x, "tzinfo", None))
+        )
+    else:
+        raise ValueError(f"{part} is not a supported time unit for date_trunc.")
+
+    if isinstance(datetime_expr.sf_type.datatype, DateType):
+        truncated = truncated.dt.date
+
+    return ColumnEmulator(truncated, sf_type=datetime_expr.sf_type)
+
+
 CompareType = TypeVar("CompareType")
 
 
@@ -1371,4 +1477,20 @@ def mock_convert_timezone(
             TimestampType(return_type), nullable=source_time.sf_type.nullable
         ),
         dtype=object,
+    )
+
+
+@patch("current_session")
+def mock_current_session():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=str(hash(session)), sf_type=ColumnType(StringType(), False)
+    )
+
+
+@patch("current_database")
+def mock_current_database():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
     )
