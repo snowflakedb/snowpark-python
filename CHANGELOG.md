@@ -23,6 +23,7 @@
   - snowflake.snowpark.functions
     - current_database
     - current_session
+    - date_trunc
     - udf
     - object_construct
     - object_construct_keep_null
