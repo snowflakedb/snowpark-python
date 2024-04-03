@@ -44,6 +44,9 @@ from snowflake.snowpark.version import VERSION
 __version__ = ".".join(str(x) for x in VERSION if x is not None)
 
 
+from snowflake.snowpark._internal.open_telemetry import (  # noqa: F401
+    open_telemetry_context_manager,
+)
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -53,7 +56,6 @@ from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
-from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.relational_grouped_dataframe import (
     GroupingSets,
