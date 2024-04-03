@@ -10,14 +10,27 @@
     - file.put_stream
     - file.get
     - file.get_stream
-  - snowflake.snowpark.functions:
     - add_import
+    - remove_import
+    - get_imports
     - clear_imports
-    - date_trunc
     - udf.register
     - udf.register_from_file
+  - snowflake.snowpark.functions
+    - current_database
+    - current_session
+    - date_trunc
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+- Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
+  - snowflake.snowpark.DataFrame:
+    - collect
+    - collect_nowait
+    - to_pandas
+    - count
+    - show
+  - snowflake.snowpark.DataFrameWriter:
+    - save_as_table
 
 ### Bug Fixes
 
