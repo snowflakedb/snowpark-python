@@ -14,9 +14,16 @@
     - remove_import
     - get_imports
     - clear_imports
+    - add_packages
+    - add_requirements
+    - clear_packages
+    - remove_package
     - udf.register
     - udf.register_from_file
   - snowflake.snowpark.functions
+    - current_database
+    - current_session
+    - date_trunc
     - udf
     - current_database
     - current_session

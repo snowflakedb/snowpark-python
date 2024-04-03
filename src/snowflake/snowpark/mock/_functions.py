@@ -7,6 +7,7 @@ import datetime
 import json
 import math
 import numbers
+import operator
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -1232,6 +1233,73 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
             f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
         )
     return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
+
+
+@patch("date_trunc")
+def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
+    """
+    SNOW-1183874: Add support for relevant session parameters.
+    https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
+    """
+    import pandas
+
+    # Map snowflake time unit to pandas rounding alias
+    # Not all units have an alias so handle those with a special case
+    SUPPORTED_UNITS = {
+        "day": "D",
+        "hour": "h",
+        "microsecond": "us",
+        "millisecond": "ms",
+        "minute": "min",
+        "month": None,
+        "nanosecond": "ns",
+        "quarter": None,
+        "second": "s",
+        "week": None,
+        "year": None,
+    }
+    time_unit = unalias_datetime_part(part)
+    pandas_unit = SUPPORTED_UNITS.get(time_unit)
+
+    if pandas_unit is not None:
+        truncated = pandas.to_datetime(datetime_expr).dt.floor(pandas_unit)
+    elif time_unit == "month":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "quarter":
+        # Assuming quarters start in Jan/April/July/Oct
+        quarter_map = {i: (((i - 1) // 3) * 3) + 1 for i in range(1, 13)}
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, quarter_map[x.month], 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "week":
+        truncated = pandas.to_datetime(datetime_expr)
+        # Calculate offset from start of week
+        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        # Subtract off offset
+        truncated = truncated.combine(offsets, operator.sub)
+        # Trim data smaller than a day
+        truncated = truncated.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, x.day, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "year":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(x.year, 1, 1, tzinfo=getattr(x, "tzinfo", None))
+        )
+    else:
+        raise ValueError(f"{part} is not a supported time unit for date_trunc.")
+
+    if isinstance(datetime_expr.sf_type.datatype, DateType):
+        truncated = truncated.dt.date
+
+    return ColumnEmulator(truncated, sf_type=datetime_expr.sf_type)
 
 
 CompareType = TypeVar("CompareType")
