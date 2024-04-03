@@ -363,8 +363,18 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
+            # if in sandbox, then the connection should be MockServerConnection
             if self._options.get("local_testing", False):
-                session = Session(MockServerConnection(self._options), self._options)
+                session = Session(
+                    MockServerConnection(self._options, local_testing=True),
+                    self._options,
+                )
+                _add_session(session)
+            elif _is_execution_environment_sandboxed:
+                session = Session(
+                    MockServerConnection(self._options, local_testing=False),
+                    self._options,
+                )
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
@@ -444,13 +454,10 @@ class Session:
         self._stage_created = False
 
         # If local testing but no sandbox, then Mock Registration object
-        if (
-            isinstance(conn, MockServerConnection)
-            and not _is_execution_environment_sandboxed
-        ):
+        if isinstance(conn, MockServerConnection) and conn._local_testing:
             self._udf_registration = MockUDFRegistration(self)
         else:
-            # In all other cases, including local testing AND sandbox, use regular object.
+            # In all other cases, including local testing = False AND sandbox, use regular object.
             self._udf_registration = UDFRegistration(self)
 
         self._udtf_registration = UDTFRegistration(self)
@@ -690,18 +697,15 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
 
-        if _is_execution_environment_sandboxed or not isinstance(
-            self._conn, MockServerConnection
-        ):
-            path, checksum, leading_path = self._resolve_import_path(
-                path, import_path, chunk_size, whole_file_hash
-            )
-            self._import_paths[path] = (checksum, leading_path)
-        else:
+        if isinstance(self._conn, MockServerConnection) and self._conn._local_testing:
             self._conn.log_not_supported_error(
                 external_feature_name="Session.add_import",
                 raise_error=NotImplementedError,
             )
+        path, checksum, leading_path = self._resolve_import_path(
+            path, import_path, chunk_size, whole_file_hash
+        )
+        self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -819,6 +823,10 @@ class Session:
     ) -> List[str]:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
+
+        if _is_execution_environment_sandboxed:
+            return resolved_stage_files
+
         stage_file_list = self._list_files_in_stage(
             import_only_stage, statement_params=statement_params
         )
@@ -842,6 +850,7 @@ class Session:
                     else os.path.basename(path)
                 )
                 filename_with_prefix = f"{prefix}/{filename}"
+                # This if-conditional is skipped if stage_file_list is empty, such as in case of sandbox environment
                 if filename_with_prefix in stage_file_list:
                     _logger.debug(
                         f"{filename} exists on {normalized_import_only_location}, skipped"
@@ -893,6 +902,9 @@ class Session:
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Set[str]:
+        if _is_execution_environment_sandboxed:
+            return {}
+
         normalized = normalize_remote_file_or_dir(
             unwrap_single_quote(stage_location)
             if stage_location
@@ -975,18 +987,16 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        if _is_execution_environment_sandboxed or not isinstance(
-            self._conn, MockServerConnection
-        ):
-            self._resolve_packages(
-                parse_positional_args_to_list(*packages),
-                self._packages,
-            )
-        else:
+        # If we are in a true local testing environment created by the user, log the error.
+        if isinstance(self._conn, MockServerConnection) and self._conn._local_testing:
             self._conn.log_not_supported_error(
                 external_feature_name="Session.add_packages",
                 raise_error=NotImplementedError,
             )
+        self._resolve_packages(
+            parse_positional_args_to_list(*packages),
+            self._packages,
+        )
 
     def remove_package(self, package: str) -> None:
         """
@@ -1185,11 +1195,18 @@ class Session:
         package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
         validate_package: bool,
         package_table: str,
-        current_packages: Dict[str, str],
+        current_packages: Dict[
+            str, str
+        ],  # this is actually the result_dict, which can be {} or session._packages
         statement_params: Optional[Dict[str, str]] = None,
     ) -> (List[Exception], Any):
         # Keep track of any package errors
         errors = []
+
+        # If in sandbox, then we should not interact with Snowflake and instead short circuit any related workflow
+        validate_package = (
+            False if _is_execution_environment_sandboxed else validate_package
+        )
 
         valid_packages = self._get_available_versions_for_packages(
             package_names=[v[0] for v in package_dict.values()],
@@ -1197,12 +1214,14 @@ class Session:
             validate_package=validate_package,
             statement_params=statement_params,
         )
+        # At this point, valid_packages may be None, esp if validate_package = False
 
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
             package_version_req = package_req.specs[0][1] if package_req.specs else None
 
+            # This if-conditional is a no-op if validate_package = False
             if validate_package:
                 if package_name not in valid_packages or (
                     package_version_req
@@ -1273,6 +1292,8 @@ class Session:
                             ex,
                         )
 
+            # This if-else conditional happens regardless validate_package boolean.
+            # Check if user-provided package_name is in the result_dict, which may be {} or session.packages
             if package_name in current_packages:
                 if current_packages[package_name] != package:
                     errors.append(
@@ -1282,6 +1303,7 @@ class Session:
                         )
                     )
             else:
+                # If user-provided package_name is not in result_dict, add it to the result_dict.
                 current_packages[package_name] = package
 
         # Raise all exceptions at once so users know all issues in a single invocation.
@@ -1291,6 +1313,8 @@ class Session:
             raise RuntimeError(errors)
 
         dependency_packages: List[pkg_resources.Requirement] = []
+
+        # This if-conditional is a no-op if validate_package = False, because unsupported_packages = [], hence dependecy_packages = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -1322,7 +1346,7 @@ class Session:
                     current_packages,
                 )
 
-        return dependency_packages
+        return dependency_packages  # Which could be []
 
     @staticmethod
     def _get_req_identifiers_list(
@@ -1345,8 +1369,6 @@ class Session:
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
-        # This method should handle the case of local sandbox and regular connection to Snowflake as it is the common method called by both decorators' registration and session.add_packages()
-
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
         if isinstance(self._conn, MockServerConnection):
@@ -1371,6 +1393,10 @@ class Session:
                 raise RuntimeError(errors)
             return list(self._packages.values())
 
+        package_table = "information_schema.packages"
+        if not self.get_current_database():
+            package_table = f"snowflake.{package_table}"
+
         # result_dict is a mapping of package name -> package_spec, example
         # {'pyyaml': 'pyyaml==6.0',
         #  'networkx': 'networkx==3.1',
@@ -1382,27 +1408,19 @@ class Session:
             existing_packages_dict if existing_packages_dict is not None else {}
         )
 
-        # If in a local sandbox, get an unvalidated, simple list of Requirement objects from package_dict without interacting with the Snowflake account
-        if _is_execution_environment_sandboxed:
-            dependency_packages: List[pkg_resources.Requirement] = [
-                package_info[2] for package_info in package_dict.values()
-            ]
-        else:
-            # If not in a local sandbox, then perform steps that involve interacting with the Snowflake account
-            package_table = "information_schema.packages"
-            if not self.get_current_database():
-                package_table = f"snowflake.{package_table}"
+        # Retrieve list of dependencies that need to be added
+        dependency_packages = self._get_dependency_packages(
+            package_dict,
+            validate_package,
+            package_table,
+            result_dict,
+            statement_params=statement_params,
+        )
+        # At this time,
+        # 1. result_dict has been mutated to include packages from package_dict as well, as a side_effect of _get_dependency_packages()
+        # 2. dependency_packages may be []
 
-            # Retrieve list of dependencies that need to be added
-            dependency_packages = self._get_dependency_packages(
-                package_dict,
-                validate_package,
-                package_table,
-                result_dict,
-                statement_params=statement_params,
-            )
-
-        # Add dependency packages
+        # Add dependency packages. No-op if dependency_packages is [], e.g. in case of sandboxed environment
         for package in dependency_packages:
             name = package.name
             version = package.specs[0][1] if package.specs else None
@@ -1419,7 +1437,7 @@ class Session:
             else:
                 result_dict[name] = str(package)
 
-        # Always include cloudpickle, regardless if in local sandbox or not
+        # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
             extra_modules.append("pandas")
@@ -2685,9 +2703,6 @@ class Session:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
         """
-
-        if _is_execution_environment_sandboxed:
-            return ""  # This will fail validation for object name regex in Snowflake, as it should, because local sandbox objects should not be anonymous.
 
         database = self.get_current_database()
         schema = self.get_current_schema()

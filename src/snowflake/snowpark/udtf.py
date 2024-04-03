@@ -879,6 +879,7 @@ class UDTFRegistration:
             code,
             all_imports,
             all_packages,
+            udf_level_imports,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -915,6 +916,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                unresolved_imports=udf_level_imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,

@@ -49,7 +49,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
 )
 from snowflake.snowpark.context import (
-    ObjectRegistrationDecision,
+    _is_execution_environment_sandboxed,
     _should_continue_registration,
 )
 from snowflake.snowpark.types import DataType, StructField, StructType
@@ -124,6 +124,9 @@ class CallableProperties:
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         inline_python_code: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        unresolved_imports: Optional[
+            Dict[str, Tuple[Optional[str], Optional[str]]]
+        ] = None,
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -145,6 +148,7 @@ class CallableProperties:
         self.execute_as = execute_as
         self.inline_python_code = inline_python_code
         self.native_app_params = native_app_params
+        self.unresolved_imports = unresolved_imports
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -873,111 +877,93 @@ def resolve_imports_and_packages(
     is_pandas_udf: bool = False,
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
-    native_app_params: Optional[Dict[str, Any]] = None,
     *,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
-) -> Tuple[Optional[str], Optional[str], Optional[str], str, Optional[str], bool]:
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
+    Optional[str],
+    bool,
+]:
 
     # resolve packages
-    # If the UDF/SPROC is determined as "should not be registered", and we have the native_apps_params dictionary, then use the packages from that dictionary and ignore the rest of session packages
-    # Other packages defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
-    if (
-        snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
-        == ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
-    ) and (native_app_params is not None):
-        resolved_packages = (
-            {"com.snowflake:snowpark:latest"}
-            if object_type == TempObjectType.PROCEDURE
-            else {"snowflake-snowpark-python"}
+    resolved_packages = (
+        session._resolve_packages(
+            packages,
+            include_pandas=is_pandas_udf,
+            statement_params=statement_params,
         )
-        if "packages" in native_app_params:
-            resolved_packages.update(native_app_params["packages"])
-        resolved_packages = list(resolved_packages)
-    else:
-        # The UDF/SPROC may be determined as "should registered" or "should not be registered", but we do not have additional information
-        resolved_packages = (
-            session._resolve_packages(
-                packages,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
-            )
-            if packages is not None
-            else session._resolve_packages(
-                [],
-                session._packages,
-                validate_package=False,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
-            )
+        if packages is not None
+        else session._resolve_packages(
+            [],
+            session._packages,
+            validate_package=False,
+            include_pandas=is_pandas_udf,
+            statement_params=statement_params,
         )
+    )
 
+    # Build packages string
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
 
     # resolve imports
-    # If the UDF/SPROC is determined as "should not be registered", and we have the native_apps_params dictionary, then use the imports from that dictionary without validation, and ignore the rest of session imports
-    # Other imports defined elsewhere in the code file do not have significance as the extension code will be registered in an external Snowflake account.
-    if (
-        snowflake.snowpark.context._get_decision_to_register_udf_or_sproc()
-        == ObjectRegistrationDecision.IN_SANDBOX_DO_NOT_REGISTER_WITH_SNOWFLAKE
-    ) and (native_app_params is not None):
-        all_imports = set()
-        if "imports" in native_app_params:
-            all_imports.update(native_app_params["imports"])
-        all_imports = list(all_imports)
+    # If in sandbox, it will only return the name of the stage but not create one.
+    import_only_stage = (
+        unwrap_stage_location_single_quote(stage_location)
+        if stage_location
+        else session.get_session_stage(statement_params=statement_params)
+    )
+
+    # If in sandbox, it will only return the name of the stage but not create one.
+    upload_and_import_stage = (
+        import_only_stage
+        if is_permanent
+        else session.get_session_stage(statement_params=statement_params)
+    )
+
+    # resolve imports
+    if imports:
+        udf_level_imports = {}
+        for udf_import in imports:
+            if isinstance(udf_import, str):
+                resolved_import_tuple = session._resolve_import_path(udf_import)
+            elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                resolved_import_tuple = session._resolve_import_path(
+                    udf_import[0], udf_import[1]
+                )
+            else:
+                raise TypeError(
+                    f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
+                    "or a tuple of the file path (str) and the import path (str)."
+                )
+            udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+        all_urls = session._resolve_imports(  # _resolve_imports will return an empty list in case of sandbox
+            import_only_stage,
+            upload_and_import_stage,
+            udf_level_imports,
+            statement_params=statement_params,
+        )
+    elif imports is None:
+        all_urls = session._resolve_imports(
+            import_only_stage,
+            upload_and_import_stage,
+            statement_params=statement_params,
+        )
     else:
-        # The UDF/SPROC may be determined as "should registered" or "should not be registered", but we do not have additional information
-        import_only_stage = (
-            unwrap_stage_location_single_quote(stage_location)
-            if stage_location
-            else session.get_session_stage(statement_params=statement_params)
-        )
+        all_urls = []
 
-        upload_and_import_stage = (
-            import_only_stage
-            if is_permanent
-            else session.get_session_stage(statement_params=statement_params)
-        )
+    dest_prefix = get_udf_upload_prefix(udf_name)
 
-        if imports:
-            udf_level_imports = {}
-            for udf_import in imports:
-                if isinstance(udf_import, str):
-                    resolved_import_tuple = session._resolve_import_path(udf_import)
-                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                    resolved_import_tuple = session._resolve_import_path(
-                        udf_import[0], udf_import[1]
-                    )
-                else:
-                    raise TypeError(
-                        f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
-                        "or a tuple of the file path (str) and the import path (str)."
-                    )
-                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-            # TODO: if _is_execution_environment_sandboxed is True, _resolve_imports will throw an error as it attempts to connect to Snowflake.
-            all_urls = session._resolve_imports(
-                import_only_stage,
-                upload_and_import_stage,
-                udf_level_imports,
-                statement_params=statement_params,
-            )
-        elif imports is None:
-            # TODO: if _is_execution_environment_sandboxed is True, _resolve_imports will throw an error as it attempts to connect to Snowflake.
-            all_urls = session._resolve_imports(
-                import_only_stage,
-                upload_and_import_stage,
-                statement_params=statement_params,
-            )
-        else:
-            all_urls = []
-
-        dest_prefix = get_udf_upload_prefix(udf_name)
-
-        # Upload closure to stage if it is beyond inline closure size limit
-        # TODO: if _is_execution_environment_sandboxed is True, the code will throw an error as it attempts to connect to Snowflake.
+    # If not in sandbox, upload closure to stage if it is beyond inline closure size limit
+    handler = inline_code = upload_file_stage_location = None
+    if not _is_execution_environment_sandboxed:
         if isinstance(func, Callable):
             custom_python_runtime_version_allowed = (
                 False  # As cloudpickle is being used, we cannot allow a custom runtime
@@ -1052,17 +1038,22 @@ def resolve_imports_and_packages(
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
                 all_urls.append(upload_file_stage_location)
-
-        # build imports and packages string
-        all_imports = ",".join(
-            [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
+    else:
+        custom_python_runtime_version_allowed = (
+            False if isinstance(func, Callable) else True,
         )
+
+    # build imports string
+    all_imports = ",".join(
+        [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
+    )
 
     return (
         handler,
         inline_code,
         all_imports,
         all_packages,
+        udf_level_imports or session._import_paths,
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     )
@@ -1080,6 +1071,7 @@ def create_python_udf_or_sp(
     is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
+    unresolved_imports: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
@@ -1165,16 +1157,15 @@ $$
         execute_as=execute_as,
         inline_python_code=inline_python_code,
         native_app_params=native_app_params,
+        unresolved_imports=unresolved_imports,
     )
 
-    # FYI: The reason it returns a decision of type ObjectRegistrationDecision is because a boolean T/F may be misunderstood. E.g. if callback returns T, does it mean it wants to proceed with registration or no?
-    continue_registration = (
-        _should_continue_registration(callableProperties)
-        if _should_continue_registration is not None
-        else True
-    )
-    # TODO: should there be an additional check on the return type of callback for validation?
-    if not continue_registration:
+    if _should_continue_registration is None:
+        continue_registration = True
+    else:
+        continue_registration = _should_continue_registration(callableProperties)
+
+    if not bool(continue_registration):
         return
 
     create_query = f"""
@@ -1212,11 +1203,13 @@ def generate_anonymous_python_sp_sql(
     object_name: str,
     all_imports: str,
     all_packages: str,
+    unresolved_imports: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    native_app_params: Optional[Dict[str, Any]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1253,6 +1246,33 @@ $$
         if secrets
         else ""
     )
+
+    callableProperties = CallableProperties(
+        object_type=TempObjectType.PROCEDURE,
+        object_name=object_name,
+        input_args=input_args,
+        input_sql_types=input_sql_types,
+        return_sql=return_sql,
+        strict=strict,
+        runtime_version=runtime_version,
+        all_imports=all_imports,
+        all_packages=all_packages,
+        external_access_integrations=external_access_integrations,
+        secrets=secrets,
+        handler=handler,
+        inline_python_code=inline_python_code,
+        native_app_params=native_app_params,
+        unresolved_imports=unresolved_imports,
+    )
+
+    continue_registration = (
+        _should_continue_registration(callableProperties)
+        if _should_continue_registration is not None
+        else True
+    )
+    # TODO: should there be an additional check on the return type of callback for validation?
+    if not continue_registration:
+        return
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})

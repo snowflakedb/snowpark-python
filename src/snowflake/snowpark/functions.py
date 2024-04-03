@@ -201,7 +201,6 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.session import Session
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import (
     DataType,
@@ -7203,12 +7202,8 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    # If the local sandbox flag is true, then we should not use any session that the user may already have or pass to the decorator.
-    if snowflake.snowpark.context._is_execution_environment_sandboxed:
-        session = Session.builder.config("local_testing", True).create()
-    else:
-        # Continue regular execution that (may) involves connecting to the Snowflake account.
-        session = session or snowflake.snowpark.session._get_active_session()
+
+    session = session or snowflake.snowpark.session._get_active_session()
 
     if func is None:
         return functools.partial(

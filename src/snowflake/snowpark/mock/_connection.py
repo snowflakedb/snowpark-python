@@ -206,7 +206,10 @@ class MockServerConnection:
 
             return log_and_telemetry
 
-    def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self, options: Optional[Dict[str, Any]] = None, local_testing: bool = True
+    ) -> None:
+        self._local_testing = local_testing
         self._conn = Mock()
         self._cursor = Mock()
         self.remove_query_listener = Mock()
@@ -481,6 +484,10 @@ class MockServerConnection:
             object_type = match.group(1)
             object_name = match.group(2)
             setattr(self, f"_active_{object_type}", object_name)
+            return {"data": [("Statement executed successfully.",)], "sfqid": None}
+        elif (
+            not self._local_testing
+        ):  # i.e. we are in a sandbox environment = not a true testing environment
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         else:
             self.log_not_supported_error(

@@ -831,6 +831,7 @@ class UDFRegistration:
             code,
             all_imports,
             all_packages,
+            udf_level_imports,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -846,7 +847,6 @@ class UDFRegistration:
             is_pandas_udf,
             is_dataframe_input,
             max_batch_size,
-            native_app_params,
             statement_params=statement_params,
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
@@ -871,6 +871,7 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                unresolved_imports=udf_level_imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
