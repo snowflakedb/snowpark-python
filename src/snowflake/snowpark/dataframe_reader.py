@@ -602,9 +602,7 @@ class DataFrameReader:
                 )
             stage_files = self._session._conn.run_query(f"LIST '{path}'")["data"]
             if len(stage_files) == 0:
-                raise FileNotFoundError(
-                    f"Given path: '{path}' could not be found or is empty."
-                )
+                raise FileNotFoundError(f"Given path: '{path}' could not be found.")
             results = self._session._conn.run_query(infer_schema_query)["data"]
             new_schema = []
             schema_to_cast = []
