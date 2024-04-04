@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import binascii
@@ -1085,6 +1085,43 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+def _object_construct(exprs, drop_nulls):
+    import pandas
+
+    expr_count = len(exprs)
+    if expr_count % 2 != 0:
+        raise TypeError(
+            f"Cannot construct an object from an odd number ({expr_count}) of values."
+        )
+
+    if expr_count == 0:
+        return ColumnEmulator(data=[dict()])
+
+    def construct_dict(x):
+        return {
+            x[i]: x[i + 1]
+            for i in range(0, expr_count, 2)
+            if x[i] is not None and not (drop_nulls and x[i + 1] is None)
+        }
+
+    combined = pandas.concat(exprs, axis=1)
+    return combined.apply(construct_dict, axis=1)
+
+
+@patch("object_construct")
+def mock_object_construct(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, True)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), False)
+    return result
+
+
+@patch("object_construct_keep_null")
+def mock_object_construct_keep_null(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, False)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), True)
+    return result
 
 
 def cast_to_datetime(date):

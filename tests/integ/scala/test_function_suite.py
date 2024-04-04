@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import json
@@ -1202,7 +1202,7 @@ def test_date_trunc_negative(session, local_testing_mode):
     with pytest.raises(err):
         df.select(date_trunc("dow", "date")).collect()
 
-        
+
 @pytest.mark.localtest
 def test_current_session(session):
     df = TestData.integer1(session)
@@ -2619,6 +2619,7 @@ def test_objectagg(session):
     )
 
 
+@pytest.mark.localtest
 def test_object_construct(session):
     Utils.check_answer(
         TestData.object1(session).select(object_construct(col("key"), col("value"))),
@@ -2639,7 +2640,19 @@ def test_object_construct(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.object2(session),
+        [
+            Row('{\n  "age": 21,\n  "name": "Joe",\n  "zip": 21021\n}', "age", 0, True),
+            Row(
+                '{\n  "age": 26,\n  "name": "Jay",\n  "zip": 94021\n}', "key", 0, False
+            ),
+        ],
+        sort=False,
+    )
 
+
+@pytest.mark.localtest
 def test_object_construct_keep_null(session):
     Utils.check_answer(
         TestData.object3(session).select(
