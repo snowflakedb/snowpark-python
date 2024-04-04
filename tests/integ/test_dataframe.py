@@ -2437,51 +2437,21 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-def test_overwrite_vs_truncate(session):
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
-    # we create the table
-    df.write.save_as_table(table_name, table_type="temp")
-    original_schema = df.schema
-    # we will use overwrite. Because it recreates the table the schema will change
-    df = session.create_dataframe([(5, 5), (6, 6)]).toDF("b", "a")
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    new_schema = df.schema
-    # same length
-    assert len(original_schema.fields) == len(new_schema.fields)
-    # but different fields
-    assert original_schema.fields[0].name != new_schema.fields[0].name
-    # let use a new table
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    # we create the table again
-    df.write.save_as_table(table_name, table_type="temp")
-    original_schema = df.schema
-    # we will use truncate. Because it recreates the table and the schema will change
-    df = session.create_dataframe([(5, 5), (6, 6)]).toDF("b", "a")
-    df.write.save_as_table(table_name, mode="truncate", table_type="temp")
-    new_schema = df.schema
-    # but in this case the schema is kept
-    Utils.is_schema_same(original_schema, new_schema)
-    # however let's see what happens with the overwrite if we add columns
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    original_schema = df.schema
+def test_truncate_preserves_schema(session):
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
+    df2 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=["a", "b", "c"])
 
-    df = df.with_column("new_column", lit(1))
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    new_schema = df.schema
-    # schema is different but works
-    assert len(original_schema.fields) < len(new_schema.fields)
+    df1.write.save_as_table(tmp_table_name, table_type="temp")
 
-    # now lets tests with truncate it will fail
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    original_schema = df.schema
-    df = df.with_column("new_column", lit(1))
-    with pytest.raises(SnowparkSQLException):
-        df.write.save_as_table(table_name, mode="truncate", table_type="temp")
+    # truncate preserves old schema
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+        df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
+
+
+    # overwrite drops old schema
+    df2.write.save_as_table(tmp_table_name, mode="overwrite", table_type="temp")
+    Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
 
 
 def test_truncate_existing_table(session):
@@ -2510,7 +2480,7 @@ def test_table_types_in_save_as_table(
 
 
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_respects_schema(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2565,7 +2535,7 @@ def test_save_as_table_respects_schema(session, save_mode):
     ],
 )
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2590,7 +2560,7 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
 
 
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_nullable_without_create_temp_table_access(session, save_mode):
     original_run_query = session._run_query
@@ -2624,7 +2594,7 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
 @pytest.mark.udf
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
@@ -2648,7 +2618,7 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
         Utils.drop_procedure(session, f"{temp_sp_name}()")
 
 
-@pytest.mark.parametrize("save_mode", ["append", "overwrite"])
+@pytest.mark.parametrize("save_mode", ["append", "overwrite", "truncate"])
 def test_write_table_with_clustering_keys(session, save_mode):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2715,7 +2685,7 @@ def test_write_table_with_clustering_keys(session, save_mode):
 @pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_write_temp_table_no_breaking_change(
     session, save_mode, table_type, caplog, local_testing_mode

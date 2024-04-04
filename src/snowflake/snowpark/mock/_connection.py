@@ -145,6 +145,13 @@ class MockServerConnection:
                     raise SnowparkSQLException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
+            elif mode == SaveMode.TRUNCATE:
+                if name in self.table_registry:
+                    target_table = self.table_registry[name]
+                    if table.columns != target_table.columns:
+                        raise SnowparkSQLException("Column mismatch detected")
+
+                self.table_registry[name] = table
             else:
                 raise ProgrammingError(f"Unrecognized mode: {mode}")
             return [
