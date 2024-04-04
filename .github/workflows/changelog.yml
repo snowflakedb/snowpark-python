@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'src/snowflake/snowpark/**'
+    # TODO: SNOW-1305836 add ignore-paths for src/snowflake/snowpark/modin/**
 
 jobs:
   check_change_log:
