@@ -53,6 +53,11 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 STAGE_PREFIX = "@"
+SNOWURL_PREFIX = "snow://"
+SNOWFLAKE_PATH_PREFIXES = [
+    STAGE_PREFIX,
+    SNOWURL_PREFIX,
+]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
 QUERY_TAG_TRACEBACK_LIMIT = 3
@@ -260,14 +265,14 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    symbol = "file://" if is_local else STAGE_PREFIX
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
         path = path.replace("\\", "/")
     path = path.strip().replace("'", "\\'")
-    if not path.startswith(symbol):
-        path = f"{symbol}{path}"
+    if not any(path.startswith(prefix) for prefix in prefixes):
+        path = f"{prefixes[0]}{path}"
     return f"'{path}'"
 
 
@@ -279,9 +284,15 @@ def normalize_local_file(file: str) -> str:
     return normalize_path(file, is_local=True)
 
 
+def split_path(path: str) -> Tuple[str, str]:
+    """Split a file path into directory and file name."""
+    path = unwrap_single_quote(path)
+    return path.rsplit("/", maxsplit=1)
+
+
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if new_name.startswith(STAGE_PREFIX):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
