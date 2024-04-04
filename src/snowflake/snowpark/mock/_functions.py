@@ -455,15 +455,21 @@ def mock_to_time(
     try_cast: bool = False,
 ):
     """
-    [ ] For string_expr, the result of converting the string to a time.
+    [x] For string_expr, the result of converting the string to a time.
 
-    [ ] For timestamp_expr, the time portion of the input value.
+    [x] For timestamp_expr, the time portion of the input value.
 
-    [ ] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+    [x] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
 
-    [ ] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
+        [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+
+    def convert_int_string_to_time(d: str):
+        return datetime.datetime.utcfromtimestamp(
+            process_numeric_time(d) % 86400
+        ).time()
+
     res = []
 
     if not isinstance(fmt, ColumnEmulator):
@@ -481,45 +487,63 @@ def mock_to_time(
             if data is None:
                 res.append(None)
                 continue
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
-                    ).time()
+            if auto_detect:
+                # handling non-standard string expr cases
+                if isinstance(column.sf_type.datatype, StringType) and data.isnumeric():
+                    # integer timestamp string '1234567890'
+                    res.append(convert_int_string_to_time(data))
+                    continue
+                # timestamp data
+                elif isinstance(column.sf_type.datatype, TimestampType):
+                    res.append(data.time())
+                    continue
+                # if the data doesn't fall into the above two categories, it goes to the string_expr handling
+                elif isinstance(column.sf_type.datatype, VariantType):
+                    """
+                    https://docs.snowflake.com/en/sql-reference/functions/to_time#arguments
+                    For variant_expr:
+                        If the variant contains a string in TIME format (‘HH:MI:SS’), a string conversion is performed.
+                        If the variant contains a string in INTEGER format, a string conversion is performed and the value is treated as the number of seconds since midnight (modulus 86400 if necessary).
+                        If the variant contains JSON null value, the output is NULL.
+                    """
+                    if data.isnumeric():
+                        # handle integer format strings,
+                        # strings in TIME format and JSON null value are handled already by non-VariantType logic
+                        res.append(convert_int_string_to_time(data))
+                        continue
+
+            # handle seconds fraction
+            data_parts = data.split(".")
+            if len(data_parts) == 2:
+                # there is a part of seconds
+                seconds_part = data_parts[1]
+                # find the idx that the seconds part ends
+                idx = 0
+                while seconds_part[idx].isdigit():
+                    idx += 1
+                # truncate to precision
+                seconds_part = (
+                    seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
                 )
-            else:
-                # handle seconds fraction
-                data_parts = data.split(".")
-                if len(data_parts) == 2:
-                    # there is a part of seconds
-                    seconds_part = data_parts[1]
-                    # find the idx that the seconds part ends
-                    idx = 0
-                    while seconds_part[idx].isdigit():
-                        idx += 1
-                    # truncate to precision
-                    seconds_part = (
-                        seconds_part[: min(idx, fractional_seconds)]
-                        + seconds_part[idx:]
-                    )
-                    data = f"{data_parts[0]}.{seconds_part}"
-                res.append(
-                    (
-                        datetime.datetime.strptime(
-                            process_string_time_with_fractional_seconds(
-                                data, fractional_seconds
-                            ),
-                            time_fmt,
-                        )
-                        + datetime.timedelta(hours=hour_delta)
-                    ).time()
-                )
+                data = f"{data_parts[0]}.{seconds_part}"
+
+            target_datetime = datetime.datetime.strptime(
+                process_string_time_with_fractional_seconds(data, fractional_seconds),
+                time_fmt,
+            )
+            # there is a special case that if the time is 12 p.m noon, then no need to adjust
+            if hour_delta == 12 and target_datetime.time().hour == 12:
+                hour_delta = 0
+            res.append((target_datetime + datetime.timedelta(hours=hour_delta)).time())
         except BaseException:
             if try_cast:
                 data.append(None)
             else:
+                # TODO: local test error experience SNOW-1235716
                 raise
 
+    # TODO: TIME_OUTPUT_FORMAT is not supported, by default snowflake outputs time in the format HH24:MI:SS
+    #  check https://snowflakecomputing.atlassian.net/browse/SNOW-1305979
     return ColumnEmulator(
         data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
     )
