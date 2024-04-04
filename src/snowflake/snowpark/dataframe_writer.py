@@ -380,29 +380,16 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             3
         """
-
-        if len(copy_options) == 0:
-            return self.copy_into_location(
-                location,
-                file_format_type="CSV",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                overwrite=False,
-            )
-        else:
-            return self.copy_into_location(
-                location,
-                file_format_type="CSV",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                **copy_options,
-            )
+        return self.copy_into_location(
+            location,
+            file_format_type="CSV",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
 
     def json(
         self,
@@ -440,28 +427,16 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             1
         """
-        if len(copy_options) == 0:
-            return self.copy_into_location(
-                location,
-                file_format_type="JSON",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                overwrite=False,
-            )
-        else:
-            return self.copy_into_location(
-                location,
-                file_format_type="JSON",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                **copy_options,
-            )
+        return self.copy_into_location(
+            location,
+            file_format_type="JSON",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
 
     def parquet(
         self,
@@ -499,27 +474,15 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             3
         """
-        if len(copy_options) == 0:
-            return self.copy_into_location(
-                location,
-                file_format_type="PARQUET",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                overwrite=False,
-            )
-        else:
-            return self.copy_into_location(
-                location,
-                file_format_type="PARQUET",
-                partition_by=partition_by,
-                format_type_options=format_type_options,
-                header=header,
-                statement_params=statement_params,
-                block=block,
-                **copy_options,
-            )
+        return self.copy_into_location(
+            location,
+            file_format_type="PARQUET",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
 
     saveAsTable = save_as_table
