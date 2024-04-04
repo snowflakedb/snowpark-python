@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import functools
 import inspect
 import os
-import time
 from unittest import mock
 
-import snowflake.snowpark.session
-
-from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.open_telemetry import (
-    decorator_count,
-    build_method_chain,
-)
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+import snowflake.snowpark.session
+from snowflake.snowpark._internal.open_telemetry import (
+    build_method_chain,
+    decorator_count,
+)
+from snowflake.snowpark._internal.server_connection import ServerConnection
 
 
 def spans_to_dict(spans):
@@ -46,8 +45,10 @@ def dummy_function2():
     return
 
 
-api_calls = [{'name': 'Session.create_dataframe[values]'},
-             {'name': 'DataFrame.to_df', 'subcalls': [{'name': 'DataFrame.select'}]}]
+api_calls = [
+    {"name": "Session.create_dataframe[values]"},
+    {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+]
 
 resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
 trace_provider = TracerProvider(resource=resource)
@@ -71,7 +72,9 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     assert "DataFrameWriter.save_as_table" in spans
     span = spans["DataFrameWriter.save_as_table"]
     assert span.attributes["method.chain"] == "DataFrame.to_df().save_as_table()"
-    assert os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
     assert span.attributes["code.lineno"] == lineno
     dict_exporter.clear()
 
@@ -89,7 +92,9 @@ def test_open_telemetry_span_from_dataframe_writer():
     assert "DataFrame.collect" in spans
     span = spans["DataFrame.collect"]
     assert span.attributes["method.chain"] == "DataFrame.to_df().collect()"
-    assert os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
     assert span.attributes["code.lineno"] == lineno
 
 
