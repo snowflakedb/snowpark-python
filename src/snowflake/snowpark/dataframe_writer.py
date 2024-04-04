@@ -2,10 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 import sys
 from typing import Dict, List, Literal, Optional, Union, overload
 
