@@ -824,6 +824,7 @@ class Session:
         """Resolve the imports and upload local files (if any) to the stage."""
         resolved_stage_files = []
 
+        # If in sandbox environment, we do not want to interact with Snowflake. Instead, return empty list of resolved files.
         if _is_execution_environment_sandboxed:
             return resolved_stage_files
 

@@ -1136,33 +1136,32 @@ $$
         else ""
     )
 
-    callableProperties = CallableProperties(
-        replace=replace,
-        is_permanent=is_permanent,
-        secure=secure,
-        object_type=object_type,
-        if_not_exists=if_not_exists,
-        object_name=object_name,
-        input_args=input_args,
-        input_sql_types=input_sql_types,
-        return_sql=return_sql,
-        strict=strict,
-        immutable=immutable,
-        runtime_version=runtime_version,
-        all_imports=all_imports,
-        all_packages=all_packages,
-        external_access_integrations=external_access_integrations,
-        secrets=secrets,
-        handler=handler,
-        execute_as=execute_as,
-        inline_python_code=inline_python_code,
-        native_app_params=native_app_params,
-        unresolved_imports=unresolved_imports,
-    )
-
     if _should_continue_registration is None:
         continue_registration = True
     else:
+        callableProperties = CallableProperties(
+            replace=replace,
+            is_permanent=is_permanent,
+            secure=secure,
+            object_type=object_type,
+            if_not_exists=if_not_exists,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            strict=strict,
+            immutable=immutable,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            execute_as=execute_as,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            unresolved_imports=unresolved_imports,
+        )
         continue_registration = _should_continue_registration(callableProperties)
 
     if not bool(continue_registration):
@@ -1247,31 +1246,29 @@ $$
         else ""
     )
 
-    callableProperties = CallableProperties(
-        object_type=TempObjectType.PROCEDURE,
-        object_name=object_name,
-        input_args=input_args,
-        input_sql_types=input_sql_types,
-        return_sql=return_sql,
-        strict=strict,
-        runtime_version=runtime_version,
-        all_imports=all_imports,
-        all_packages=all_packages,
-        external_access_integrations=external_access_integrations,
-        secrets=secrets,
-        handler=handler,
-        inline_python_code=inline_python_code,
-        native_app_params=native_app_params,
-        unresolved_imports=unresolved_imports,
-    )
+    if _should_continue_registration is None:
+        continue_registration = True
+    else:
+        callableProperties = CallableProperties(
+            object_type=TempObjectType.PROCEDURE,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            strict=strict,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            unresolved_imports=unresolved_imports,
+        )
+        continue_registration = _should_continue_registration(callableProperties)
 
-    continue_registration = (
-        _should_continue_registration(callableProperties)
-        if _should_continue_registration is not None
-        else True
-    )
-    # TODO: should there be an additional check on the return type of callback for validation?
-    if not continue_registration:
+    if not bool(continue_registration):
         return
 
     sql = f"""
