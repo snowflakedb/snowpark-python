@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -209,19 +209,31 @@ def test_order(session):
 @pytest.mark.localtest
 def test_current_date_and_time(session):
     max_delta = 1
-    df = session.create_dataframe([1]).select(
-        current_date(), current_time(), current_timestamp()
+    df = (
+        session.create_dataframe([1, 2])
+        .to_df(["a"])
+        .select("a", current_date(), current_time(), current_timestamp())
     )
     rows = df.collect()
 
-    assert len(rows) == 1, "df1 should only contain 1 row"
-    date, time, timestamp = rows[0]
-    time1 = datetime.datetime.combine(date, time).timestamp()
-    time2 = timestamp.timestamp()
+    assert len(rows) == 2, "df should contain 2 rows"
+    for row in rows:
+        assert isinstance(
+            row[1], datetime.date
+        ), f"current_date ({row[1]}) should be datetime.date type"
+        assert isinstance(
+            row[2], datetime.time
+        ), f"current_time ({row[2]}) should be datetime.time type"
+        assert isinstance(
+            row[3], datetime.datetime
+        ), f"current_timestamp ({row[3]}) should be datetime.datetime type"
+        _, date, time, timestamp = row
+        time1 = datetime.datetime.combine(date, time).timestamp()
+        time2 = timestamp.timestamp()
 
-    assert time1 == pytest.approx(
-        time2, max_delta
-    ), f"Times should be within {max_delta} seconds of each other."
+        assert time1 == pytest.approx(
+            time2, max_delta
+        ), f"Times should be within {max_delta} seconds of each other."
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])

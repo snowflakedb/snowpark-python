@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import atexit
@@ -113,7 +113,6 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
-    builtin,
     col,
     column,
     lit,
@@ -138,6 +137,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -218,6 +218,8 @@ def _close_session_atexit():
     This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
     notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
     """
+    if is_in_stored_procedure():
+        return
     with _session_management_lock:
         for session in _active_sessions.copy():
             try:
@@ -437,7 +439,12 @@ class Session:
 """
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
-        self._udf_registration = UDFRegistration(self)
+
+        if isinstance(conn, MockServerConnection):
+            self._udf_registration = MockUDFRegistration(self)
+        else:
+            self._udf_registration = UDFRegistration(self)
+
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
         self._sp_registration = StoredProcedureRegistration(self)
@@ -480,7 +487,8 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if not is_in_stored_procedure():
+            self.close()
 
     def __str__(self):
         return (
@@ -496,7 +504,8 @@ class Session:
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
-            raise SnowparkClientExceptionMessages.DONT_CLOSE_SESSION_IN_SP()
+            _logger.warning("Closing a session in a stored procedure is a no-op.")
+            return
         try:
             if self._conn.is_closed():
                 _logger.debug(
@@ -673,10 +682,8 @@ class Session:
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.add_import",
-                raise_error=NotImplementedError,
-            )
+            self.udf._import_file(path, import_path=import_path)
+
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
@@ -716,6 +723,8 @@ class Session:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
+        if isinstance(self._conn, MockServerConnection):
+            self.udf._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(
@@ -844,6 +853,7 @@ class Session:
                                 overwrite=True,
                                 is_in_udf=True,
                                 skip_upload_on_content_match=True,
+                                statement_params=statement_params,
                             )
                     # local file
                     else:
@@ -951,11 +961,6 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.add_packages",
-                raise_error=NotImplementedError,
-            )
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
@@ -1159,6 +1164,7 @@ class Session:
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> (List[Exception], Any):
         # Keep track of any package errors
         errors = []
@@ -1167,6 +1173,7 @@ class Session:
             package_names=[v[0] for v in package_dict.values()],
             package_table_name=package_table,
             validate_package=validate_package,
+            statement_params=statement_params,
         )
 
         unsupported_packages: List[str] = []
@@ -1314,9 +1321,31 @@ class Session:
         existing_packages_dict: Optional[Dict[str, str]] = None,
         validate_package: bool = True,
         include_pandas: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[str]:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
+        if isinstance(self._conn, MockServerConnection):
+            # in local testing we don't resolve the packages, we just return what is added
+            errors = []
+            for pkg_name, _, pkg_req in package_dict.values():
+                if (
+                    pkg_name in self._packages
+                    and str(pkg_req) != self._packages[pkg_name]
+                ):
+                    errors.append(
+                        ValueError(
+                            f"Cannot add package '{str(pkg_req)}' because {self._packages[pkg_name]} "
+                            "is already added."
+                        )
+                    )
+                else:
+                    self._packages[pkg_name] = str(pkg_req)
+            if len(errors) == 1:
+                raise errors[0]
+            elif len(errors) > 0:
+                raise RuntimeError(errors)
+            return list(self._packages.values())
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -1335,7 +1364,11 @@ class Session:
 
         # Retrieve list of dependencies that need to be added
         dependency_packages = self._get_dependency_packages(
-            package_dict, validate_package, package_table, result_dict
+            package_dict,
+            validate_package,
+            package_table,
+            result_dict,
+            statement_params=statement_params,
         )
 
         # Add dependency packages
@@ -1607,6 +1640,7 @@ class Session:
         package_names: List[str],
         package_table_name: str,
         validate_package: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> Dict[str, List[str]]:
         package_to_version_mapping = (
             {
@@ -1618,7 +1652,7 @@ class Session:
                 )
                 .group_by("package_name")
                 .agg(array_agg("version"))
-                ._internal_collect_with_tag()
+                ._internal_collect_with_tag(statement_params=statement_params)
             }
             if validate_package and len(package_names) > 0
             else None
@@ -2009,17 +2043,22 @@ class Session:
         query: str,
         is_ddl_on_temp_object: bool = False,
         log_on_exception: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
         return self._conn.run_query(
             query,
             is_ddl_on_temp_object=is_ddl_on_temp_object,
             log_on_exception=log_on_exception,
+            _statement_params=statement_params,
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
         return self._conn.get_result_attributes(query)
 
-    def get_session_stage(self) -> str:
+    def get_session_stage(
+        self,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> str:
         """
         Returns the name of the temporary stage created by the Snowpark library
         for uploading and storing temporary artifacts for this session.
@@ -2032,6 +2071,7 @@ class Session:
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
                 stage if not exists {stage_name}",
                 is_ddl_on_temp_object=True,
+                statement_params=statement_params,
             )
             self._stage_created = True
         return f"{STAGE_PREFIX}{stage_name}"
@@ -2738,10 +2778,6 @@ class Session:
         Returns a :class:`udf.UDFRegistration` object that you can use to register UDFs.
         See details of how to use this object in :class:`udf.UDFRegistration`.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.udf", raise_error=NotImplementedError
-            )
         return self._udf_registration
 
     @property

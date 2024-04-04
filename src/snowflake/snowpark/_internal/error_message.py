@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Optional
@@ -421,13 +421,6 @@ class SnowparkClientExceptionMessages:
         return SnowparkSessionException(
             "In a stored procedure, you shouldn't create a session. The stored procedure provides a session.",
             error_code="1410",
-        )
-
-    @staticmethod
-    def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
-        return SnowparkSessionException(
-            "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
-            error_code="1411",
         )
 
     # General Error codes 15XX

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
 import io
@@ -829,22 +829,27 @@ def resolve_imports_and_packages(
     import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
-        else session.get_session_stage()
+        else session.get_session_stage(statement_params=statement_params)
     )
 
     upload_and_import_stage = (
-        import_only_stage if is_permanent else session.get_session_stage()
+        import_only_stage
+        if is_permanent
+        else session.get_session_stage(statement_params=statement_params)
     )
 
     # resolve packages
     resolved_packages = (
-        session._resolve_packages(packages, include_pandas=is_pandas_udf)
+        session._resolve_packages(
+            packages, include_pandas=is_pandas_udf, statement_params=statement_params
+        )
         if packages is not None
         else session._resolve_packages(
             [],
             session._packages,
             validate_package=False,
             include_pandas=is_pandas_udf,
+            statement_params=statement_params,
         )
     )
 
@@ -992,6 +997,7 @@ def create_python_udf_or_sp(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    statement_params: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1059,7 +1065,11 @@ RUNTIME_VERSION={runtime_version}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
 """
-    session._run_query(create_query, is_ddl_on_temp_object=not is_permanent)
+    session._run_query(
+        create_query,
+        is_ddl_on_temp_object=not is_permanent,
+        statement_params=statement_params,
+    )
 
     # fire telemetry after _run_query is successful
     api_call_source = api_call_source or "_internal.create_python_udf_or_sp"

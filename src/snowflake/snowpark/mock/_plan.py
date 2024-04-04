@@ -1,11 +1,15 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import importlib
 import inspect
 import math
+import os
 import re
+import shutil
+import sys
+import tempfile
 import typing
 import uuid
 from enum import Enum
@@ -42,7 +46,8 @@ from snowflake.snowpark.mock._window_utils import (
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
 
-import snowflake.snowpark.mock._file_operation as mock_file_operation
+from contextlib import ExitStack
+
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
@@ -85,6 +90,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     RegExp,
     ScalarSubquery,
+    SnowflakeUDF,
     Star,
     SubfieldInt,
     SubfieldString,
@@ -203,6 +209,7 @@ class MockExecutionPlan(LogicalPlan):
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
         PUT = "put"
+        GET = "get"
         READ_FILE = "read_file"
         # others are not supported yet
 
@@ -324,6 +331,14 @@ def handle_function_expression(
             importlib.import_module("snowflake.snowpark.functions"), func_name
         )
     except AttributeError:
+        udf_name = exp.name.split(".")[-1]
+        # If udf name in the registry then this is a udf, not an actual function
+        if udf_name in analyzer.session.udf._registry:
+            exp.udf_name = udf_name
+            return handle_udf_expression(
+                exp, input_data, analyzer, expr_to_alias, current_row
+            )
+
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
@@ -385,7 +400,124 @@ def handle_function_expression(
             current_row
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
-    return _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+
+    # If none of the args are column emulators and the function result only has one item
+    # assume that the single value should be repeated instead of Null filled. This allows
+    # constant expressions like current_date or current_database to fill a column instead
+    # of just the first row.
+    if (
+        not any(
+            isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in to_pass_args
+        )
+        and len(result) == 1
+    ):
+        resized = result.repeat(len(input_data)).reset_index(drop=True)
+        resized.sf_type = result.sf_type
+        return resized
+
+    return result
+
+
+def handle_udf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Optional[Dict[str, str]],
+    current_row=None,
+):
+    udf_registry = analyzer.session.udf._registry
+    udf_name = exp.udf_name
+
+    if udf_name not in udf_registry:
+        raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
+
+    # Initialize import directory
+    temporary_import_path = tempfile.TemporaryDirectory()
+    analyzer.session.udf._udf_import_directories[udf_name] = temporary_import_path
+    last_import_directory = sys._xoptions.get("snowflake_import_directory")
+    sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
+
+    # Save a copy of module cache
+    frozen_sys_module_keys = set(sys.modules.keys())
+
+    def cleanup_imports():
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            # Remove UDF level imports
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
+        else:
+            # Remove session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path in sys.path:
+                    sys.path.remove(module_path)
+
+        # Clear added entries in sys.modules cache
+        added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+        for key in added_keys:
+            del sys.modules[key]
+
+        # Cleanup import directory
+        analyzer.session.udf._udf_import_directories[udf_name].cleanup()
+
+        # Restore snowflake_import_directory
+        if last_import_directory is not None:
+            sys._xoptions["snowflake_import_directory"] = last_import_directory
+        else:
+            del sys._xoptions["snowflake_import_directory"]
+
+    with ExitStack() as stack:
+        stack.callback(cleanup_imports)
+
+        # Process imports
+        if udf_name in analyzer.session.udf._udf_level_imports:
+            # Add UDF level imports
+            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+                if os.path.isdir(module_path):
+                    shutil.copytree(
+                        module_path, temporary_import_path.name, dirs_exist_ok=True
+                    )
+                else:
+                    shutil.copy2(module_path, temporary_import_path.name)
+        else:
+            # Add session level imports
+            for module_path in analyzer.session.udf._session_level_imports:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+                if os.path.isdir(module_path):
+                    shutil.copytree(
+                        module_path, temporary_import_path.name, dirs_exist_ok=True
+                    )
+                else:
+                    shutil.copy2(module_path, temporary_import_path.name)
+
+        # Resolve handler callable
+        if type(udf_registry[udf_name]) is tuple:
+            module_name, handler_name = udf_registry[udf_name]
+            exec(f"from {module_name} import {handler_name}")
+            udf_handler = eval(handler_name)
+        else:
+            udf_handler = udf_registry[udf_name]
+
+        # Compute
+        function_input = TableEmulator(index=input_data.index)
+        for child in exp.children:
+            col_name = analyzer.analyze(child, expr_to_alias)
+            function_input[col_name] = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        res.sf_type = ColumnType(exp.datatype, exp.nullable)
+        res.name = quote_name(
+            f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+        )
+
+        return res
 
 
 def execute_mock_plan(
@@ -462,6 +594,7 @@ def execute_mock_plan(
                 column_series = calculate_expression(
                     exp, from_df, analyzer, expr_to_alias
                 )
+
                 result_df[column_name] = column_series
 
                 if isinstance(exp, (Alias)):
@@ -1271,7 +1404,7 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
 
             ret.append(
                 Attribute(
-                    quote_name(result[c].name.strip()),
+                    result[c].name,
                     data_type,
                     result[c].sf_type.nullable,
                 )
@@ -1946,7 +2079,8 @@ def calculate_expression(
         res = col.apply(lambda x: None if x is None else x[exp.field])
         res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
         return res
-
+    elif isinstance(exp, SnowflakeUDF):
+        return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,
@@ -1956,11 +2090,17 @@ def calculate_expression(
 
 def execute_file_operation(source_plan: MockFileOperation, analyzer: "MockAnalyzer"):
     if source_plan.operator == MockFileOperation.Operator.PUT:
-        return mock_file_operation.put(
+        return analyzer.session._conn.stage_registry.put(
             source_plan.local_file_name, source_plan.stage_location
         )
-    if source_plan.operator == MockFileOperation.Operator.READ_FILE:
-        return mock_file_operation.read_file(
+    elif source_plan.operator == MockFileOperation.Operator.GET:
+        return analyzer.session._conn.stage_registry.get(
+            stage_location=source_plan.stage_location,
+            target_directory=source_plan.local_file_name,
+            options=source_plan.options,
+        )
+    elif source_plan.operator == MockFileOperation.Operator.READ_FILE:
+        return analyzer.session._conn.stage_registry.read_file(
             source_plan.stage_location,
             source_plan.format,
             source_plan.schema,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -104,32 +104,32 @@ def test_calculate_checksum():
     if IS_WINDOWS:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "dacc9a957e526063c57a9d5c03644b24dfbe0f789efa224ff1b4d88138a2a6d8"
+            == "7ff46b5f3765187c7355852811c92ff232feb2f7207a12f1ab6d0b921319643b"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "c3988b8dcab346a2e8152e06276b4033"
+            == "f6c1984af9ece1bd68edf16ae1a7f992"
         )
     else:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
+            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "728a79922e1b869dc9578c4f8d51cc73"
+            == "b72b61c8d5639fff8aa9a80278dba60f"
         )
         # Validate that hashes are different when reading whole dir.
         # Using a sufficiently small chunk size so that the hashes differ.
         assert (
             calculate_checksum(test_files.test_udf_directory, chunk_size=128)
-            == "c79d76b72bbbc2eaa149bd5d0965296e45323125cb71f3c5a4c63c1f732f9f24"
+            == "c071de824a67c083edad45c2b18729e17c50f1b13be980140437063842ea2469"
         )
         assert (
             calculate_checksum(
                 test_files.test_udf_directory, chunk_size=128, whole_file_hash=True
             )
-            == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
+            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
         )
 
 
@@ -223,6 +223,7 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "test_udf_dir/",
+                "test_udf_dir/test_another_udf_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -236,6 +237,7 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "test_udf_dir/",
+                "test_udf_dir/test_another_udf_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -250,6 +252,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "resources/",
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_another_udf_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
             ],
@@ -298,6 +301,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sp_dir/test_sp_mod3_file.py",
                 "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_another_udf_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/test_udtf_dir/",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -28,7 +28,23 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     quote_name,
 )
-from snowflake.snowpark.functions import col, parse_json, to_variant
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    object_construct,
+    parse_json,
+    to_array,
+    to_binary,
+    to_date,
+    to_decimal,
+    to_double,
+    to_object,
+    to_time,
+    to_timestamp_ltz,
+    to_timestamp_ntz,
+    to_timestamp_tz,
+    to_variant,
+)
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.types import (
     ArrayType,
@@ -335,6 +351,14 @@ class Utils:
             expected_table_kind = table_type.upper()
         assert table_info[0]["kind"] == expected_table_kind
 
+    @staticmethod
+    def assert_rows_count(data: DataFrame, row_number: int):
+        row_counter = len(data.collect())
+
+        assert (
+            row_counter == row_number
+        ), f"Expect {row_number} rows, Got {row_counter} instead"
+
 
 class TestData:
     __test__ = (
@@ -628,24 +652,46 @@ class TestData:
 
     @classmethod
     def object1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values('age', 21),('zip', 94401) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21),
+                    ("zip", 94401),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
     def object2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
-            "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
-            "('age', 26, 'zip', 94021, 'name', 'Jay', 'key', 0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21, "zip", 21021, "name", "Joe", "age", 0, True),
+                    ("age", 26, "zip", 94021, "name", "Jay", "key", 0, False),
+                ]
+            )
+            .to_df(["a", "b", "c", "d", "e", "f", "k", "v", "flag"])
+            .select(
+                object_construct("a", "b", "c", "d", "e", "f").alias("obj"),
+                "k",
+                "v",
+                "flag",
+            )
         )
 
     @classmethod
     def object3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values(null, 21),('zip', null) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    (None, 21),
+                    ("zip", None),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
@@ -661,21 +707,30 @@ class TestData:
 
     @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select to_variant(to_array('Example')) as arr1,"
-            + ' to_variant(to_object(parse_json(\'{"Tree": "Pine"}\'))) as obj1, '
-            + " to_variant(to_binary('snow', 'utf-8')) as bin1,"
-            + " to_variant(true) as bool1,"
-            + " to_variant('X') as str1, "
-            + " to_variant(to_date('2017-02-24')) as date1, "
-            + " to_variant(to_time('20:57:01.123456789+07:00')) as time1, "
-            + " to_variant(to_timestamp_ntz('2017-02-24 12:00:00.456')) as timestamp_ntz1, "
-            + " to_variant(to_timestamp_ltz('2017-02-24 13:00:00.123 +01:00')) as timestamp_ltz1, "
-            + " to_variant(to_timestamp_tz('2017-02-24 13:00:00.123 +01:00')) as timestamp_tz1, "
-            + " to_variant(1.23::decimal(6, 3)) as decimal1, "
-            + " to_variant(3.21::double) as double1, "
-            + " to_variant(15) as num1 "
+        df = session.create_dataframe([1]).select(
+            to_variant(to_array(lit("Example"))).alias("arr1"),
+            to_variant(to_object(parse_json(lit('{"Tree": "Pine"}')))).alias("obj1"),
+            to_variant(to_binary(lit("snow"), "utf-8")).alias("bin1"),
+            to_variant(lit(True)).alias("bool1"),
+            to_variant(lit("X")).alias("str1"),
+            to_variant(to_date(lit("2017-02-24"))).alias("date1"),
+            to_variant(
+                to_time(lit("20:57:01.123456+0700"), "HH24:MI:SS.FFTZHTZM")
+            ).alias("time1"),
+            to_variant(to_timestamp_ntz(lit("2017-02-24 12:00:00.456"))).alias(
+                "timestamp_ntz1"
+            ),
+            to_variant(to_timestamp_ltz(lit("2017-02-24 13:00:00.123 +01:00"))).alias(
+                "timestamp_ltz1"
+            ),
+            to_variant(to_timestamp_tz(lit("2017-02-24 13:00:00.123 +01:00"))).alias(
+                "timestamp_tz1"
+            ),
+            to_variant(to_decimal(lit(1.23), 6, 3)).alias("decimal1"),
+            to_variant(to_double(lit(3.21))).alias("double1"),
+            to_variant(lit(15)).alias("num1"),
         )
+        return df
 
     @classmethod
     def variant2(cls, session: "Session") -> DataFrame:
@@ -1080,6 +1135,10 @@ class TestFiles:
     @property
     def test_udf_py_file(self):
         return os.path.join(self.test_udf_directory, "test_udf_file.py")
+
+    @property
+    def test_another_udf_py_file(self):
+        return os.path.join(self.test_udf_directory, "test_another_udf_file.py")
 
     @property
     def test_udtf_directory(self):

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -602,7 +602,9 @@ class DataFrameReader:
                 )
             results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
-                raise FileNotFoundError(f"Given path: '{path}' could not be found or is empty.")
+                raise FileNotFoundError(
+                    f"Given path: '{path}' could not be found or is empty."
+                )
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []

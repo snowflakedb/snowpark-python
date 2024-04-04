@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -58,6 +58,7 @@ def local_testing_telemetry_setup():
     from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 
     LocalTestOOBTelemetryService.get_instance().enable()
+    LocalTestOOBTelemetryService.get_instance()._is_internal_usage = True
     yield
     LocalTestOOBTelemetryService.get_instance().disable()
 

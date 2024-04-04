@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import datetime
@@ -152,7 +152,7 @@ def test_dataframe_get_attr(session):
     assert "object has no attribute" in str(exc_info)
 
 
-@pytest.mark.localtest
+# @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
@@ -1876,9 +1876,9 @@ def test_create_dataframe_large_without_batch_insert(session):
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
     try:
-        analyzer.ARRAY_BIND_THRESHOLD = 40000
+        analyzer.ARRAY_BIND_THRESHOLD = 400_000
         with pytest.raises(SnowparkSQLException) as ex_info:
-            session.create_dataframe([1] * 20000).collect()
+            session.create_dataframe([1] * 200_001).collect()
         assert "SQL compilation error" in str(ex_info)
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:

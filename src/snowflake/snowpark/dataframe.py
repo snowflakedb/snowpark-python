@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -141,6 +141,7 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -591,12 +592,13 @@ class DataFrame:
         See also:
             :meth:`collect_nowait()`
         """
-        return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params,
-            block=block,
-            log_on_exception=log_on_exception,
-            case_sensitive=case_sensitive,
-        )
+        with open_telemetry_context_manager(self.collect, self):
+            return self._internal_collect_with_tag_no_telemetry(
+                statement_params=statement_params,
+                block=block,
+                log_on_exception=log_on_exception,
+                case_sensitive=case_sensitive,
+            )
 
     @df_collect_api_telemetry
     def collect_nowait(
@@ -618,13 +620,14 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
-        return self._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params,
-            block=False,
-            data_type=_AsyncResultType.ROW,
-            log_on_exception=log_on_exception,
-            case_sensitive=case_sensitive,
-        )
+        with open_telemetry_context_manager(self.collect_nowait, self):
+            return self._internal_collect_with_tag_no_telemetry(
+                statement_params=statement_params,
+                block=False,
+                data_type=_AsyncResultType.ROW,
+                log_on_exception=log_on_exception,
+                case_sensitive=case_sensitive,
+            )
 
     def _internal_collect_with_tag_no_telemetry(
         self,
@@ -792,18 +795,19 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
-        result = self._session._conn.execute(
-            self._plan,
-            to_pandas=True,
-            block=block,
-            data_type=_AsyncResultType.PANDAS,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
-            **kwargs,
-        )
+        with open_telemetry_context_manager(self.to_pandas, self):
+            result = self._session._conn.execute(
+                self._plan,
+                to_pandas=True,
+                block=block,
+                data_type=_AsyncResultType.PANDAS,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
+                ),
+                **kwargs,
+            )
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
@@ -2262,6 +2266,7 @@ class DataFrame:
             -------------------
             <BLANKLINE>
 
+        Examples::
             >>> # asof join examples
             >>> df1 = session.create_dataframe([['A', 1, 15, 3.21],
             ...                                 ['A', 2, 16, 3.22],
@@ -2283,7 +2288,6 @@ class DataFrame:
             |B     |2     |18      |4.23    |16      |3.04    |
             ---------------------------------------------------
             <BLANKLINE>
-
             >>> df1.join(df2, on=(df1.c1 == df2.c1) & (df1.c2 == df2.c2), how="asof",
             ...     match_condition=(df1.c3 >= df2.c3), lsuffix="_L", rsuffix="_R") \\
             ...     .order_by("C1_L", "C2_L").show()
@@ -2296,7 +2300,6 @@ class DataFrame:
             |B       |2       |18      |4.23    |B       |2       |16      |3.04    |
             -------------------------------------------------------------------------
             <BLANKLINE>
-
             >>> df1 = df1.alias("L")
             >>> df2 = df2.alias("R")
             >>> df1.join(df2, using_columns=["c1", "c2"], how="asof",
@@ -2847,14 +2850,15 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        df = self.agg(("*", "count"))
-        add_api_call(df, "DataFrame.count")
-        result = df._internal_collect_with_tag(
-            statement_params=statement_params,
-            block=block,
-            data_type=_AsyncResultType.COUNT,
-        )
-        return result[0][0] if block else result
+        with open_telemetry_context_manager(self.count, self):
+            df = self.agg(("*", "count"))
+            add_api_call(df, "DataFrame.count")
+            result = df._internal_collect_with_tag(
+                statement_params=statement_params,
+                block=block,
+                data_type=_AsyncResultType.COUNT,
+            )
+            return result[0][0] if block else result
 
     @property
     def write(self) -> DataFrameWriter:
@@ -3046,17 +3050,18 @@ class DataFrame:
                 an ellipsis (...) at the end of the column.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
-        print(
-            self._show_string(
-                n,
-                max_width,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params or self._statement_params,
-                    self._session.query_tag,
-                    SKIP_LEVELS_TWO,
-                ),
+        with open_telemetry_context_manager(self.show, self):
+            print(  # noqa: T201: we need to print here.
+                self._show_string(
+                    n,
+                    max_width,
+                    _statement_params=create_or_update_statement_params_with_query_tag(
+                        statement_params or self._statement_params,
+                        self._session.query_tag,
+                        SKIP_LEVELS_TWO,
+                    ),
+                )
             )
-        )
 
     @deprecated(
         version="0.7.0",
@@ -3919,7 +3924,7 @@ class DataFrame:
         For more information about the query execution plan, see the
         `EXPLAIN <https://docs.snowflake.com/en/sql-reference/sql/explain.html>`_ command.
         """
-        print(self._explain_string())
+        print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
         plan = self._plan.replace_repeated_subquery_with_cte()
@@ -4035,7 +4040,7 @@ Query List:
                 for attr in self._plan.attributes
             ]
         )
-        print(f"root\n{schema_tmp_str}")
+        print(f"root\n{schema_tmp_str}")  # noqa: T201: we need to print here.
 
     where = filter
 

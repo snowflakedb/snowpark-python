@@ -1,12 +1,12 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
 import math
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row, Session
+from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (  # count,; is_null,;
     abs,
     asc,
@@ -20,13 +20,10 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     min,
     to_date,
 )
-from snowflake.snowpark.mock._connection import MockServerConnection
-
-session = Session(MockServerConnection())
 
 
 @pytest.mark.localtest
-def test_col():
+def test_col(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, "a", True],
@@ -41,7 +38,7 @@ def test_col():
 
 
 @pytest.mark.localtest
-def test_max():
+def test_max(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["a", "ddd", 11.0, None, None, True, math.nan],
@@ -62,7 +59,7 @@ def test_max():
 
 
 @pytest.mark.localtest
-def test_min():
+def test_min(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["a", "ddd", 11.0, None, None, True, math.nan],
@@ -84,7 +81,7 @@ def test_min():
 
 
 @pytest.mark.localtest
-def test_to_date():
+def test_to_date(session):
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
         schema=["m"],
@@ -97,7 +94,7 @@ def test_to_date():
 
 
 @pytest.mark.localtest
-def test_contains():
+def test_contains(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["1", "2"],
@@ -136,7 +133,7 @@ def test_contains():
 
 
 @pytest.mark.localtest
-def test_abs():
+def test_abs(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, -4],
@@ -149,7 +146,7 @@ def test_abs():
 
 
 @pytest.mark.localtest
-def test_asc_and_desc():
+def test_asc_and_desc(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1],
@@ -168,7 +165,7 @@ def test_asc_and_desc():
 
 
 @pytest.mark.localtest
-def test_count():
+def test_count(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1],
@@ -184,7 +181,7 @@ def test_count():
 
 
 @pytest.mark.localtest
-def test_is_null():
+def test_is_null(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -205,7 +202,7 @@ def test_is_null():
 
 
 @pytest.mark.localtest
-def test_take_first():
+def test_take_first(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -247,7 +244,7 @@ def test_take_first():
 
 
 @pytest.mark.localtest
-def test_show():
+def test_show(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
