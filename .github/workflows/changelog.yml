@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, labeled, unlabeled]
     branches:
       - main
+    paths:
+      - 'src/snowflake/snowpark/**'
 
 jobs:
   check_change_log:
