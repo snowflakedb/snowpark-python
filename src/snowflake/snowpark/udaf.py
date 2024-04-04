@@ -62,6 +62,7 @@ class UserDefinedAggregateFunction:
         name: str,
         return_type: DataType,
         input_types: List[DataType],
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -70,6 +71,8 @@ class UserDefinedAggregateFunction:
 
         self._return_type = return_type
         self._input_types = input_types
+
+        self._packages = packages
 
     def __call__(
         self,
@@ -691,5 +694,5 @@ class UDAFRegistration:
                 )
 
         return UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types
+            handler, udaf_name, return_type, input_types, packages=packages
         )
