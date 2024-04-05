@@ -765,12 +765,18 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
-    else:
+    elif isinstance(source_datatype, VariantType):
+        from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+        # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
+        # double quotes around the output, we strip the beginning and ending double quote.
         func = partial(
             try_convert,
-            lambda x: str(x) if not isinstance(x, bool) else str(x).lower(),
+            lambda x: json.dumps(x, cls=CUSTOM_JSON_ENCODER).strip('"'),
             try_cast,
         )
+    else:
+        func = partial(try_convert, lambda x: str(x), try_cast)
     new_col = column.apply(func)
     new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return new_col

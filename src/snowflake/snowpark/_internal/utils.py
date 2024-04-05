@@ -852,10 +852,10 @@ ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
 
 
-def quote_name(name: str) -> str:
+def quote_name(name: str, keep_case: bool = False) -> str:
     if ALREADY_QUOTED.match(name):
         return validate_quoted_name(name)
-    elif UNQUOTED_CASE_INSENSITIVE.match(name):
+    elif UNQUOTED_CASE_INSENSITIVE.match(name) and not keep_case:
         return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
     else:
         return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
