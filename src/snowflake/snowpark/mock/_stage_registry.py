@@ -17,13 +17,14 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock._functions import mock_to_char
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
-from snowflake.snowpark.types import DecimalType, StringType
+from snowflake.snowpark.types import DecimalType, StringType, VariantType
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -466,7 +467,7 @@ class StageEntity:
                     data=None,
                     dtype=object,
                     name=column_name,
-                    sf_type=ColumnType(schema[0].datatype, schema[0].nullable),
+                    sf_type=ColumnType(VariantType(), True),
                 )
                 result_df[column_name], result_df_sf_types[column_name] = (
                     column_series,
@@ -484,9 +485,14 @@ class StageEntity:
                 for local_file in local_files:
                     with open(local_file) as file:
                         content = json.load(file, cls=CUSTOM_JSON_DECODER)
+                        tmp_content = {}
+                        for key, value in content.items():
+                            tmp_content[f'"{key}"'] = value
+                        content = tmp_content
                         contents.append(content)
                         # extract the schema from the content
                         for column_name, value in content.items():
+                            # snowflake double quote column name read from json file
                             target_datatype = infer_type(value)
                             # multiple json files can be of different schema
                             # if we find an existing schema but type is different from the inferred one
@@ -514,31 +520,16 @@ class StageEntity:
                         content.keys()
                     ):
                         content[miss_key] = None
-                    df = pd.DataFrame([content])
+                    df = TableEmulator([content])
                     result_df = pd.concat([result_df, df], ignore_index=True)
+                # when concat is called, sf_type information gets lost, so we reset the type info in the end
+                result_df.sf_types = result_df_sf_types
 
-                def convert_value_to_str_for_string_type(dataframe):
-                    # in the case that there are values of different types in the same column, snowflake will
-                    # convert data into string
-                    for col_name in dataframe.columns:
-                        if isinstance(
-                            result_df_sf_types[col_name].datatype, StringType
-                        ):
-                            for row_idx in range(len(dataframe[column_name])):
-                                if dataframe.loc[row_idx, col_name] in (True, False):
-                                    # snowflake out prints true, false in lower case
-                                    dataframe.loc[row_idx, col_name] = str(
-                                        dataframe.loc[row_idx, col_name]
-                                    ).lower()
-                                elif dataframe.loc[row_idx, col_name] is None:
-                                    # None remains the None, not "null"
-                                    continue
-                                else:
-                                    dataframe.loc[row_idx, col_name] = str(
-                                        dataframe.loc[row_idx, col_name]
-                                    )
-
-                convert_value_to_str_for_string_type(result_df)
+                # in the case that there are values of different types in the same column, snowflake will
+                # convert data into string
+                for col_name in result_df.columns:
+                    if isinstance(result_df_sf_types[col_name].datatype, StringType):
+                        result_df[col_name] = mock_to_char(result_df[col_name])
                 # snowflake output sorted column names
                 sorted_columns = sorted(list(result_df.columns))
                 result_df = result_df[sorted_columns]

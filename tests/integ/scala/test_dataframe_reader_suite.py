@@ -40,6 +40,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
     TimeType,
+    VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
 
@@ -817,6 +818,11 @@ def test_read_json_with_no_schema(session, mode):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
 
     df1 = get_reader(session, mode).json(json_path)
+    assert (
+        len(df1.schema.fields) == 1
+        and isinstance(df1.schema.fields[0].datatype, VariantType)
+        and df1.schema.fields[0].nullable
+    )
     res = df1.collect()
     assert res == [
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')

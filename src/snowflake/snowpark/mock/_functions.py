@@ -766,7 +766,11 @@ def mock_to_char(
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
     else:
-        func = partial(try_convert, lambda x: str(x), try_cast)
+        func = partial(
+            try_convert,
+            lambda x: str(x) if not isinstance(x, bool) else str(x).lower(),
+            try_cast,
+        )
     new_col = column.apply(func)
     new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return new_col
