@@ -826,6 +826,8 @@ class Session:
         resolved_stage_files = []
 
         # If in sandbox environment, we do not want to interact with Snowflake. Instead, return empty list of resolved files.
+        # This should be True even if the user explicitly created a local testing connection. This is because we only hit
+        # this condition from specific caller environments, and the user's environment is not one of those environments.
         if _is_execution_environment_sandboxed:
             return resolved_stage_files
 
@@ -904,6 +906,10 @@ class Session:
         *,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Set[str]:
+
+        # If in sandbox environment, we do not want to interact with Snowflake. Instead, return an empty set.
+        # This should be True even if the user explicitly created a local testing connection. This is because we only hit
+        # this condition from specific caller environments, and the user's environment is not one of those environments.
         if _is_execution_environment_sandboxed:
             return {}
 
@@ -1372,7 +1378,6 @@ class Session:
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             for pkg_name, _, pkg_req in package_dict.values():
-                logging.error(str(pkg_req))
                 if (
                     pkg_name in self._packages
                     and str(pkg_req) != self._packages[pkg_name]

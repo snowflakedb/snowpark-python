@@ -4,21 +4,14 @@
 #
 
 """Context module for Snowpark."""
-from enum import Enum
 from typing import Callable, Optional
 
 import snowflake.snowpark
 
 _use_scoped_temp_objects = True
 
-
-class ObjectRegistrationDecision(Enum):
-    REGISTER_WITH_SNOWFLAKE = "REGISTER_WITH_SNOWFLAKE"
-    DO_NOT_REGISTER_WITH_SNOWFLAKE = "DO_NOT_REGISTER_WITH_SNOWFLAKE"
-
-
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
-# If this is True, then all sessions will be created using MockServerConnection which mocks connection to Snowflake, instead of creating a real connection
+# If this is True, then all sessions created using Session.builder will be created using MockServerConnection which mocks connection to Snowflake, instead of creating a real connection
 # which allows interacting with Snowflake.
 _is_execution_environment_sandboxed: bool = False
 

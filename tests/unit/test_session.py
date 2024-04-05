@@ -1,12 +1,5 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-<<<<<<< HEAD
-=======
-#
-
-#
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
->>>>>>> 55eb052 (add unit tests round 1)
 #
 import json
 import logging

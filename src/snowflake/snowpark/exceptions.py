@@ -56,10 +56,6 @@ class SnowparkDataframeException(SnowparkClientException):
     pass
 
 
-class SnowparkLocalSandboxExecutionException(SnowparkClientException):
-    """Exception for errors raised during execution in a local sandbox environment."""
-
-
 class SnowparkPlanException(SnowparkClientException):
     """Exception for plan analysis errors.
 

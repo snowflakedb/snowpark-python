@@ -3,7 +3,6 @@
 #
 import collections.abc
 import io
-import logging
 import os
 import pickle
 import sys
@@ -100,7 +99,10 @@ class UDFColumn(NamedTuple):
 
 class CallableProperties:
     """
-    add docstring to explain purpose of the new data class
+    This is a data class to hold all information, resolved or otherwise, about a UDF/UDTF/UDAF/Sproc object
+    that we want to create in a user's Snowflake account.
+    One of the use cases of this class is to be able to pass on information to a callback that may be installed
+    in the execution environment, such as for testing.
     """
 
     def __init__(
@@ -117,15 +119,16 @@ class CallableProperties:
         all_imports: Optional[str],
         all_packages: str,
         handler: Optional[str],
+        strict: bool,
+        external_access_integrations: Optional[List[str]],
+        secrets: Optional[Dict[str, str]],
+        inline_python_code: Optional[str],
+        native_app_params: Optional[Dict[str, Any]],
+        import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
         secure: bool = False,
-        strict: bool = False,
         immutable: bool = False,
-        external_access_integrations: Optional[List[str]] = None,
-        secrets: Optional[Dict[str, str]] = None,
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
-        inline_python_code: Optional[str] = None,
-        native_app_params: Optional[Dict[str, Any]] = None,
-        import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+        is_execution_environment_sandboxed: bool = False,
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -148,6 +151,7 @@ class CallableProperties:
         self.inline_python_code = inline_python_code
         self.native_app_params = native_app_params
         self.import_paths = import_paths
+        self.is_execution_environment_sandboxed = is_execution_environment_sandboxed
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -891,7 +895,6 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-    # logging.error(_is_execution_environment_sandboxed)
 
     # resolve packages
     resolved_packages = (
@@ -910,21 +913,15 @@ def resolve_imports_and_packages(
         )
     )
 
-    # logging.error(resolved_packages)
-
-    # Build packages string
-    all_packages = ",".join([f"'{package}'" for package in resolved_packages])
-    logging.error(all_packages)
-
     # resolve imports
-    # If in sandbox, it will only return the name of the stage but not create one.
+    # If in sandbox, it will only return the name of a random stage but not create one.
     import_only_stage = (
         unwrap_stage_location_single_quote(stage_location)
         if stage_location
         else session.get_session_stage(statement_params=statement_params)
     )
 
-    # If in sandbox, it will only return the name of the stage but not create one.
+    # If in sandbox, it will only return the name of a random stage but not create one.
     upload_and_import_stage = (
         import_only_stage
         if is_permanent
@@ -934,7 +931,6 @@ def resolve_imports_and_packages(
     # resolve imports
     udf_level_imports = {}
     if imports:
-        # logging.error("here")
         for udf_import in imports:
             if isinstance(udf_import, str):
                 resolved_import_tuple = session._resolve_import_path(udf_import)
@@ -1048,11 +1044,11 @@ def resolve_imports_and_packages(
         else:
             custom_python_runtime_version_allowed = True
 
-    # build imports string
+    # build imports and packages string
     all_imports = ",".join(
         [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
-
+    all_packages = ",".join([f"'{package}'" for package in resolved_packages])
     return (
         handler,
         inline_code,
@@ -1088,6 +1084,7 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
 ) -> None:
+
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not session._runtime_version_from_requirement
@@ -1141,6 +1138,7 @@ $$
         else ""
     )
 
+    # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
     if _should_continue_registration is None:
         continue_registration = True
     else:
@@ -1166,11 +1164,12 @@ $$
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
             import_paths=import_paths,
+            is_execution_environment_sandboxed=_is_execution_environment_sandboxed,
         )
         continue_registration = _should_continue_registration(callableProperties)
 
+    # This means the execution environment does not want to continue creating the object in Snowflake
     if not bool(continue_registration):
-        logging.error("here")
         return
 
     create_query = f"""
@@ -1252,6 +1251,7 @@ $$
         else ""
     )
 
+    # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
     if _should_continue_registration is None:
         continue_registration = True
     else:
@@ -1271,9 +1271,11 @@ $$
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
             import_paths=import_paths,
+            is_execution_environment_sandboxed=_is_execution_environment_sandboxed,
         )
         continue_registration = _should_continue_registration(callableProperties)
 
+    # This means the execution environment does not want to continue creating the object in Snowflake
     if not bool(continue_registration):
         return
 

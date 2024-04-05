@@ -3,7 +3,7 @@
 #
 import os
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -111,6 +111,7 @@ class MockUDFRegistration(UDFRegistration):
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,

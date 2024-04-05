@@ -7048,9 +7048,7 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-    native_app_params: Optional[
-        Dict[str, Any]
-    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7059,6 +7057,9 @@ def udf(
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.udf.register`` instead. See examples
     in :class:`~snowflake.snowpark.udf.UDFRegistration`.
+
+    This can also be used to create an extension function in a `Snowflake Native App Framework
+    setup script <https://docs.snowflake.com/en/developer-guide/native-apps/creating-setup-script>`_.
 
     Args:
         func: A Python function used for creating the UDF.
@@ -7135,6 +7136,12 @@ def udf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDF result is deterministic or not for the same input.
+        native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+            as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+            such as schema and application roles.
+            A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+            This parameter is ignored if you are not developing a Snowflake Native App.
+
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7202,9 +7209,7 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-
     session = session or snowflake.snowpark.session._get_active_session()
-
     if func is None:
         return functools.partial(
             session.udf.register,
@@ -7273,9 +7278,7 @@ def udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
-    native_app_params: Optional[
-        Dict[str, Any]
-    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -7284,6 +7287,9 @@ def udtf(
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.udtf.register`` instead. See examples
     in :class:`~snowflake.snowpark.udtf.UDTFRegistration`.
+
+    This can also be used to create an extension function in a `Snowflake Native App Framework
+    setup script <https://docs.snowflake.com/en/developer-guide/native-apps/creating-setup-script>`_.
 
     Args:
         handler: A Python class used for creating the UDTF.
@@ -7346,6 +7352,11 @@ def udtf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDTF result is deterministic or not for the same input.
+        native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+            as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+            such as schema and application roles.
+            A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+            This parameter is ignored if you are not developing a Snowflake Native App.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7489,9 +7500,7 @@ def udaf(
     immutable: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
-    native_app_params: Optional[
-        Dict[str, Any]
-    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7500,6 +7509,9 @@ def udaf(
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.udaf.register`` instead. See examples
     in :class:`~snowflake.snowpark.udaf.UDAFRegistration`.
+
+    This can also be used to create an extension function in a `Snowflake Native App Framework
+    setup script <https://docs.snowflake.com/en/developer-guide/native-apps/creating-setup-script>`_.
 
     Args:
         handler: A Python class used for creating the UDAF.
@@ -7562,6 +7574,11 @@ def udaf(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+            as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+            such as schema and application roles.
+            A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+            This parameter is ignored if you are not developing a Snowflake Native App.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -8140,9 +8157,7 @@ def sproc(
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
-    native_app_params: Optional[
-        Dict[str, Any]
-    ] = None,  # This could look like native_app_params = {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+    native_app_params: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -8156,6 +8171,9 @@ def sproc(
     Note that the first parameter of your function should be a snowpark Session. Also, you need to add
     `snowflake-snowpark-python` package (version >= 0.4.0) to your session before trying to create a
     stored procedure.
+
+    This can also be used to create an extension function in a `Snowflake Native App Framework
+    setup script <https://docs.snowflake.com/en/developer-guide/native-apps/creating-setup-script>`_.
 
     Args:
         func: A Python function used for creating the stored procedure.
@@ -8221,6 +8239,11 @@ def sproc(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+            as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+            such as schema and application roles.
+            A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+            This parameter is ignored if you are not developing a Snowflake Native App.
 
     Returns:
         A stored procedure function that can be called with python value.

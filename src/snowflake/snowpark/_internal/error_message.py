@@ -15,7 +15,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkInvalidObjectNameException,
     SnowparkJoinException,
-    SnowparkLocalSandboxExecutionException,
     SnowparkMissingDbOrSchemaException,
     SnowparkPandasException,
     SnowparkPlanException,
@@ -432,10 +431,4 @@ class SnowparkClientExceptionMessages:
     ) -> SnowparkInvalidObjectNameException:
         return SnowparkInvalidObjectNameException(
             f"The object name '{type_name}' is invalid.", error_code="1500"
-        )
-
-    @staticmethod
-    def LOCAL_SANDBOX_CONNECTION_FAILURE() -> SnowparkLocalSandboxExecutionException:
-        return SnowparkLocalSandboxExecutionException(
-            "When executing Snowpark code in a local sandbox, an active connection Snowflake account cannot be established."
         )
