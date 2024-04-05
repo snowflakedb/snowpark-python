@@ -486,7 +486,9 @@ class StageEntity:
                     with open(local_file) as file:
                         content = json.load(file, cls=CUSTOM_JSON_DECODER)
                         tmp_content = {}
+                        # snowflake escape double quotes by adding extra double quote
                         for key, value in content.items():
+                            key = key.replace('"', '""')
                             tmp_content[f'"{key}"'] = value
                         content = tmp_content
                         contents.append(content)

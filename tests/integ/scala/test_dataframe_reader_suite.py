@@ -852,7 +852,7 @@ def test_read_json_with_no_schema(session, mode):
     res.sort(key=lambda x: x[0])
     assert res == [
         Row(
-            '{\n  "CoLor": 10,\n  "new_field": true,\n  "new_fruit": "NewApple",\n  "new_size": 10\n}'
+            '{\n  "CoLor": 10,\n  "new_field": true,\n  "new_fruit": "NewApple",\n  "new_size": 10,\n  "z\\"\'na\\"me": 0\n}'
         ),
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'),
         Row('{\n  "color": true,\n  "fruit": "Banana",\n  "size": "Small"\n}'),
@@ -911,9 +911,19 @@ def test_read_json_with_infer_schema(session, mode):
     )
     assert len(res) == 3
     assert expected_sorted_ans == [
-        Row(None, "Red", "Apple", None, None, None, "Large"),
-        Row(None, "true", "Banana", None, None, None, "Small"),
-        Row(10, None, None, True, "NewApple", 10, None),
+        Row(None, "Red", "Apple", None, None, None, "Large", None),
+        Row(None, "true", "Banana", None, None, None, "Small", None),
+        Row(10, None, None, True, "NewApple", 10, None, 0),
+    ]
+    assert df3.columns == [
+        '"CoLor"',
+        '"color"',
+        '"fruit"',
+        '"new_field"',
+        '"new_fruit"',
+        '"new_size"',
+        '"size"',
+        '"z""\'na""me"',
     ]
 
 
