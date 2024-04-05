@@ -224,6 +224,7 @@ def test_write_pandas_with_use_logical_type(session, tmp_table_basic):
             table_name=tmp_table_basic,
             overwrite=True,
             use_logical_type=True,
+            auto_create_table=True,
         )
         df = session.table(tmp_table_basic)
         assert df.schema[0].name == '"pandas_datetime"'
