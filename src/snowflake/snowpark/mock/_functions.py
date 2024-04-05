@@ -765,6 +765,8 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
+    elif isinstance(source_datatype, BooleanType):
+        func = partial(try_convert, lambda x: str(x).lower(), try_cast)
     elif isinstance(source_datatype, VariantType):
         from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
