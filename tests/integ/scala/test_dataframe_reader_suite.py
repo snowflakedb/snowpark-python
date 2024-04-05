@@ -915,7 +915,9 @@ def test_read_json_with_infer_schema(session, mode):
         Row(None, "true", "Banana", None, None, None, "Small", None),
         Row(10, None, None, True, "NewApple", 10, None, 0),
     ]
-    assert df3.columns == [
+    # note here through testing that the ordering of returning columns is non-deterministic in snowflake
+    # thus here we sort it
+    assert sorted(df3.columns) == [
         '"CoLor"',
         '"color"',
         '"fruit"',
