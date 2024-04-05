@@ -2448,7 +2448,6 @@ def test_truncate_preserves_schema(session):
     with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
         df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
 
-
     # overwrite drops old schema
     df2.write.save_as_table(tmp_table_name, mode="overwrite", table_type="temp")
     Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
