@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 from unittest import mock
 
 import pytest
@@ -35,6 +36,7 @@ def test_stored_procedure_execute_as(execute_as):
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._runtime_version_from_requirement = None
     fake_session._packages = {}
+    fake_session._import_paths = {}
 
     def return1(_):
         return 1
@@ -78,6 +80,8 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._packages = {}
+    fake_session._import_paths = {}
+    logging.error(fake_session._resolve_imports)
     with pytest.raises(SnowparkSQLException) as ex_info:
         sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     assert ex_info.value.error_code == "1304"

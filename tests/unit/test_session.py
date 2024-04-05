@@ -1,5 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+<<<<<<< HEAD
+=======
+#
+
+#
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+>>>>>>> 55eb052 (add unit tests round 1)
 #
 import json
 import logging
@@ -27,6 +34,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
     _close_session_atexit,
@@ -164,21 +172,90 @@ def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expe
     assert result == expected
 
 
-def test_resolve_import_path_ignore_import_path(tmp_path_factory):
-    fake_connection = mock.create_autospec(ServerConnection)
+@pytest.mark.parametrize(
+    "connection_server_type, local_testing",
+    [
+        (ServerConnection, None),  # Real connection
+        (MockServerConnection, True),  # Mock connection with local testing
+        (MockServerConnection, False),
+    ],  # Mock connection in sandbox
+)
+def test_resolve_import_path(connection_server_type, local_testing, tmp_path_factory):
+    fake_connection = mock.create_autospec(connection_server_type)
     fake_connection._conn = mock.Mock()
+    if local_testing is not None:
+        fake_connection._local_testing = local_testing
     session = Session(fake_connection)
 
+    # path starts with STAGE_PREFIX
+    path_with_prefix = "  @some_path_to_stage  "
+    abs_path, _, leading_path = session._resolve_import_path(path=path_with_prefix)
+    assert abs_path == path_with_prefix.strip()
+    assert leading_path is None
+
+    # path does not start with STAGE_PREFIX
     tmp_path = tmp_path_factory.mktemp("session_test")
+
+    # path does not exist
+    a_temp_file = str(tmp_path) + "/does_not_exist.py"
+    with pytest.raises(FileNotFoundError):
+        session._resolve_import_path(path=a_temp_file)
+
+    # path exists, but import_path is None
     a_temp_file = tmp_path / "file.txt"
     a_temp_file.write_text("any text is good")
     try:
-        # import_path is ignored because file is not a .py file
+        abs_path, _, leading_path = session._resolve_import_path(path=str(a_temp_file))
+        assert abs_path == str(a_temp_file)
+        assert leading_path is None
+    finally:
+        os.remove(a_temp_file)
+
+    # path exists, and import_path exists
+
+    # path is a directory
+    abs_path, _, leading_path = session._resolve_import_path(
+        path=str(tmp_path), import_path=str(tmp_path).replace(os.path.sep, ".")
+    )
+    assert abs_path == str(tmp_path)
+    assert leading_path == ""
+
+    # path is a file and leading_path is not None because abspath and import_path share suffix
+    a_temp_file = tmp_path / "file.py"
+    a_temp_file.write_text("any text is good")
+    try:
+        abs_path, _, leading_path = session._resolve_import_path(
+            str(a_temp_file), import_path="file"
+        )
+        assert abs_path == str(a_temp_file)
+        assert leading_path.rstrip("/") == str(
+            a_temp_file.parent
+        )  # The code retains / when creating leading_path
+    finally:
+        os.remove(a_temp_file)
+
+    # import_path is ignored because file is not a .py file
+    a_temp_file = tmp_path / "file.txt"
+    a_temp_file.write_text("any text is good")
+    try:
         abs_path, _, leading_path = session._resolve_import_path(
             str(a_temp_file), import_path="a.b"
         )
         assert abs_path == str(a_temp_file)
         assert leading_path is None
+    finally:
+        os.remove(a_temp_file)
+
+    # import_file_path throws an error because abspath and import_path do not have common suffix
+    a_temp_file = tmp_path / "file.py"
+    a_temp_file.write_text("any text is good")
+    try:
+
+        with pytest.raises(ValueError):
+            abs_path, _, leading_path = session._resolve_import_path(
+                str(a_temp_file), import_path="a.b"
+            )
+            assert abs_path == str(a_temp_file)
     finally:
         os.remove(a_temp_file)
 
@@ -243,6 +320,106 @@ def test_resolve_package_terms_not_accepted():
         session._resolve_packages(
             ["random_package_name"], validate_package=True, include_pandas=False
         )
+
+
+@mock.patch("snowflake.snowpark.Session.get_current_database")
+@pytest.mark.parametrize(
+    "local_testing, validate_package",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_resolve_packages_mock_connection(
+    mock_get_current_database, local_testing, validate_package
+):
+    fake_connection = mock.create_autospec(MockServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._local_testing = local_testing
+    session = Session(fake_connection)
+
+    session_packages = session._resolve_packages(
+        packages=["random_package_one", "random_package_two"],
+        validate_package=validate_package,
+    )
+    assert len(session_packages) == 2
+    assert len(session._packages) == 2
+    mock_get_current_database.assert_not_called()  # Means the control never reached here and hence none of the code below it
+
+
+@pytest.mark.parametrize(
+    "local_testing, validate_package",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_resolve_packages_mock_connection_one_wrong_input(
+    local_testing, validate_package
+):
+    fake_connection = mock.create_autospec(MockServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._local_testing = local_testing
+    session = Session(fake_connection)
+    session._packages = {"random_package_one": "random_package_mismatch_version"}
+
+    with pytest.raises(
+        ValueError,
+        match="Cannot add package 'random_package_one' because random_package_mismatch_version is already added.",
+    ):
+        session._resolve_packages(
+            packages=["random_package_one", "random_package_two"],
+            validate_package=validate_package,
+        )
+
+
+@pytest.mark.parametrize(
+    "local_testing, validate_package",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_resolve_packages_mock_connection_two_wrong_inputs(
+    local_testing, validate_package
+):
+    fake_connection = mock.create_autospec(MockServerConnection)
+    fake_connection._conn = mock.Mock()
+    fake_connection._local_testing = local_testing
+    session = Session(fake_connection)
+    session._packages = {
+        "random_package_one": "random_package_mismatch_version",
+        "random_package_two": "random_package_mismatch_version",
+    }
+
+    with pytest.raises(RuntimeError):
+        session._resolve_packages(
+            packages=["random_package_one", "random_package_two"],
+            validate_package=validate_package,
+        )
+
+
+@mock.patch(
+    "snowflake.snowpark.session._is_execution_environment_sandboxed", return_value=True
+)
+@pytest.mark.parametrize(
+    "connection_server_type, local_testing",
+    [
+        (
+            ServerConnection,
+            None,
+        ),  # Even though ServerConnection won't be used when in sandbox, _resolve_imports does not use connection type
+        (MockServerConnection, True),  # Mock connection with local testing
+        (MockServerConnection, False),
+    ],  # Mock connection in sandbox
+)
+def test_resolve_imports_in_sandbox(
+    mock_sandbox, connection_server_type, local_testing
+):
+    fake_connection = mock.create_autospec(connection_server_type)
+    fake_connection._conn = mock.Mock()
+    if local_testing is not None:
+        fake_connection._local_testing = local_testing
+    session = Session(fake_connection)
+    result = session._resolve_imports(
+        import_only_stage="random_stage_one",
+        upload_and_import_stage="random_stage_two",
+    )
+    assert len(result) == 0
+
+
+# TODO: figure out create connection test
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")

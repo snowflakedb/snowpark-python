@@ -18,8 +18,8 @@ class ObjectRegistrationDecision(Enum):
 
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
-# If this is True, then user's provided or active session is not used, and a new session should instead be created with the MockConnectionServer connection,
-# which does not interact with Snowflake.
+# If this is True, then all sessions will be created using MockServerConnection which mocks connection to Snowflake, instead of creating a real connection
+# which allows interacting with Snowflake.
 _is_execution_environment_sandboxed: bool = False
 
 # This callback, assigned by the caller environment outside Snowpark, can be used to share information about the UDxF/Sproc object to be registered.

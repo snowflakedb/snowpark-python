@@ -3,6 +3,7 @@
 #
 import collections.abc
 import io
+import logging
 import os
 import pickle
 import sys
@@ -124,9 +125,7 @@ class CallableProperties:
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         inline_python_code: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
-        unresolved_imports: Optional[
-            Dict[str, Tuple[Optional[str], Optional[str]]]
-        ] = None,
+        import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -148,7 +147,7 @@ class CallableProperties:
         self.execute_as = execute_as
         self.inline_python_code = inline_python_code
         self.native_app_params = native_app_params
-        self.unresolved_imports = unresolved_imports
+        self.import_paths = import_paths
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -892,6 +891,7 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
+    # logging.error(_is_execution_environment_sandboxed)
 
     # resolve packages
     resolved_packages = (
@@ -910,8 +910,11 @@ def resolve_imports_and_packages(
         )
     )
 
+    # logging.error(resolved_packages)
+
     # Build packages string
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
+    logging.error(all_packages)
 
     # resolve imports
     # If in sandbox, it will only return the name of the stage but not create one.
@@ -929,8 +932,9 @@ def resolve_imports_and_packages(
     )
 
     # resolve imports
+    udf_level_imports = {}
     if imports:
-        udf_level_imports = {}
+        # logging.error("here")
         for udf_import in imports:
             if isinstance(udf_import, str):
                 resolved_import_tuple = session._resolve_import_path(udf_import)
@@ -1039,9 +1043,10 @@ def resolve_imports_and_packages(
                 )
                 all_urls.append(upload_file_stage_location)
     else:
-        custom_python_runtime_version_allowed = (
-            False if isinstance(func, Callable) else True,
-        )
+        if isinstance(func, Callable):
+            custom_python_runtime_version_allowed = False
+        else:
+            custom_python_runtime_version_allowed = True
 
     # build imports string
     all_imports = ",".join(
@@ -1053,7 +1058,7 @@ def resolve_imports_and_packages(
         inline_code,
         all_imports,
         all_packages,
-        udf_level_imports or session._import_paths,
+        udf_level_imports if udf_level_imports else session._import_paths,
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     )
@@ -1071,7 +1076,7 @@ def create_python_udf_or_sp(
     is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
-    unresolved_imports: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+    import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
@@ -1160,11 +1165,12 @@ $$
             execute_as=execute_as,
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
-            unresolved_imports=unresolved_imports,
+            import_paths=import_paths,
         )
         continue_registration = _should_continue_registration(callableProperties)
 
     if not bool(continue_registration):
+        logging.error("here")
         return
 
     create_query = f"""
@@ -1202,7 +1208,7 @@ def generate_anonymous_python_sp_sql(
     object_name: str,
     all_imports: str,
     all_packages: str,
-    unresolved_imports: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+    import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
@@ -1264,7 +1270,7 @@ $$
             handler=handler,
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
-            unresolved_imports=unresolved_imports,
+            import_paths=import_paths,
         )
         continue_registration = _should_continue_registration(callableProperties)
 

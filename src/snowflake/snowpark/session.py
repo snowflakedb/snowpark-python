@@ -434,6 +434,7 @@ class Session:
     def __init__(
         self,
         conn: Union[ServerConnection, MockServerConnection],
+        # do we need to check for sandbox here?
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
@@ -1204,18 +1205,12 @@ class Session:
         # Keep track of any package errors
         errors = []
 
-        # If in sandbox, then we should not interact with Snowflake and instead short circuit any related workflow
-        validate_package = (
-            False if _is_execution_environment_sandboxed else validate_package
-        )
-
         valid_packages = self._get_available_versions_for_packages(
             package_names=[v[0] for v in package_dict.values()],
             package_table_name=package_table,
             validate_package=validate_package,
             statement_params=statement_params,
         )
-        # At this point, valid_packages may be None, esp if validate_package = False
 
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
@@ -1372,10 +1367,12 @@ class Session:
     ) -> List[str]:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
+
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             for pkg_name, _, pkg_req in package_dict.values():
+                logging.error(str(pkg_req))
                 if (
                     pkg_name in self._packages
                     and str(pkg_req) != self._packages[pkg_name]
