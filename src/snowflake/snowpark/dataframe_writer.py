@@ -239,7 +239,7 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
+        block: Literal[True] = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
@@ -255,7 +255,7 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
+        block: Literal[False] = False,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
