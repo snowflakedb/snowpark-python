@@ -11,12 +11,14 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
@@ -191,6 +193,30 @@ def test_create_session_in_sp(session):
         assert exec_info.value.error_code == "1410"
     finally:
         internal_utils.PLATFORM = original_platform
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_create_session_in_sandbox(db_parameters):
+    from snowflake.snowpark import session
+
+    session._is_execution_environment_sandboxed = True
+
+    # If local_testing is True, then sandbox should have no effect.
+    session_true_local_testing = Session.builder.config("local_testing", True).create()
+    assert isinstance(session_true_local_testing._conn, MockServerConnection)
+    assert session_true_local_testing._conn._local_testing
+    session_true_local_testing.close()
+
+    # If regular opts are passed in and sandbox is True, MockServerConnection will be created
+    session_intercepted = Session.builder.configs(db_parameters).create()
+    assert isinstance(session_intercepted._conn, MockServerConnection)
+    assert not session_intercepted._conn._local_testing
+    session_intercepted.close()
+
+    session._is_execution_environment_sandboxed = False
+    real_session = Session.builder.configs(db_parameters).create()
+    assert isinstance(real_session._conn, ServerConnection)
+    real_session.close()
 
 
 def test_close_session_in_sp(session):

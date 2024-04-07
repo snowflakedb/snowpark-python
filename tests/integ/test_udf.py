@@ -114,6 +114,31 @@ def clean_up(session):
     yield
 
 
+@pytest.fixture(scope="function")
+def sandbox_setup_and_teardown(db_parameters):
+    callable_properties_lst = []
+
+    def callback_replacement(callable_properties) -> bool:
+        callable_properties_lst.append(callable_properties)
+        return False
+
+    from snowflake.snowpark import session as m_session
+    from snowflake.snowpark._internal import udf_utils
+
+    m_session._is_execution_environment_sandboxed = True
+    udf_utils._should_continue_registration = callback_replacement
+    udf_utils._is_execution_environment_sandboxed = True
+
+    session_intercepted = Session.builder.configs(db_parameters).create()
+
+    yield callable_properties_lst, session_intercepted
+
+    m_session._is_execution_environment_sandboxed = False
+    udf_utils._should_continue_registration = None
+    udf_utils._is_execution_environment_sandboxed = False
+    session_intercepted.close()
+
+
 def test_basic_udf(session):
     def return1():
         return "1"
@@ -162,6 +187,106 @@ def test_basic_udf(session):
             Row(81.0, 4),
         ],
     )
+
+
+def test_basic_udf_with_callback_continue_registration(session):
+    callable_properties_lst = []
+
+    def callback_replacement(callable_properties) -> bool:
+        callable_properties_lst.append(callable_properties)
+        return True
+
+    from snowflake.snowpark._internal import udf_utils
+
+    udf_utils._should_continue_registration = callback_replacement
+
+    def return1():
+        return "1"
+
+    def plus1(x):
+        return x + 1
+
+    def add(x, y):
+        return x + y
+
+    def int2str(x):
+        return str(x)
+
+    return1_udf = udf(return1, return_type=StringType())
+    plus1_udf = udf(
+        plus1, return_type=IntegerType(), input_types=[IntegerType()], immutable=True
+    )
+    add_udf = udf(
+        add,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        immutable=True,
+    )
+    int2str_udf = udf(int2str, return_type=StringType(), input_types=[IntegerType()])
+    pow_udf = udf(
+        lambda x, y: x**y,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+
+    df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    Utils.check_answer(df.select(return1_udf()).collect(), [Row("1"), Row("1")])
+    Utils.check_answer(
+        df.select(plus1_udf(col("a")), "a").collect(),
+        [
+            Row(2, 1),
+            Row(4, 3),
+        ],
+    )
+    Utils.check_answer(df.select(add_udf("a", "b")).collect(), [Row(3), Row(7)])
+    Utils.check_answer(df.select(int2str_udf("a")).collect(), [Row("1"), Row("3")])
+    Utils.check_answer(
+        df.select(pow_udf(col("a"), "b"), "b"),
+        [
+            Row(1.0, 2),
+            Row(81.0, 4),
+        ],
+    )
+
+    assert len(callable_properties_lst) == 5
+    udf_utils._should_continue_registration = None
+
+
+def test_basic_udf_with_callback_donot_continue_registration(session):
+    callable_properties_lst = []
+
+    def callback_replacement(callable_properties) -> bool:
+        callable_properties_lst.append(callable_properties)
+        return False
+
+    from snowflake.snowpark._internal import udf_utils
+
+    udf_utils._should_continue_registration = callback_replacement
+
+    def return1():
+        return "1"
+
+    udf(return1, return_type=StringType())
+    udf(
+        lambda x, y: x**y,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+
+    assert len(callable_properties_lst) == 2
+    assert (
+        session.sql(
+            f"show user functions like '{callable_properties_lst[0].object_name}'"
+        ).collect()
+        == []
+    )
+    assert (
+        session.sql(
+            f"show user functions like '{callable_properties_lst[1].object_name}'"
+        ).collect()
+        == []
+    )
+    udf_utils._should_continue_registration = None
 
 
 @pytest.mark.skipif(
@@ -374,6 +499,43 @@ def test_annotation_syntax_udf(session):
     with pytest.raises(TypeError) as ex_info:
         add_udf(1, 2)
     assert "must be Column, column name, or a list of them" in str(ex_info)
+
+
+def test_annotation_syntax_udf_with_sandbox(sandbox_setup_and_teardown, session):
+
+    callable_properties_lst, session_intercepted = sandbox_setup_and_teardown
+
+    @udf(
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    def add_udf(x, y):
+        return x + y
+
+    @udf(session=session_intercepted, return_type=StringType())
+    def snow():
+        return "snow"
+
+    # add_udf is a UDF instead of a normal python function,
+    # so it can't be simply called
+    with pytest.raises(TypeError) as ex_info:
+        add_udf(1, 2)
+    assert "must be Column, column name, or a list of them" in str(ex_info)
+
+    assert len(callable_properties_lst) == 2
+    assert (
+        session.sql(
+            f"show user functions like '{callable_properties_lst[0].object_name}'"
+        ).collect()
+        == []
+    )
+    assert (
+        session.sql(
+            f"show user functions like '{callable_properties_lst[1].object_name}'"
+        ).collect()
+        == []
+    )
 
 
 def test_session_register_udf(session):
@@ -613,6 +775,56 @@ def test_add_import_local_file(session, resources_path):
 
 
 @pytest.mark.localtest
+def test_add_import_local_file_with_sandbox(sandbox_setup_and_teardown, resources_path):
+
+    callable_properties_lst, session_intercepted = sandbox_setup_and_teardown
+
+    test_files = TestFiles(resources_path)
+
+    def plus4_then_mod5_with_1_level_import(x):
+        from test_udf_dir.test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    def plus4_then_mod5_with_2_level_import(x):
+        from test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    session_intercepted.range(-5, 5).to_df("a")
+
+    session_intercepted.add_import(
+        test_files.test_udf_py_file, import_path="test_udf_dir.test_udf_file"
+    )
+
+    udf(
+        plus4_then_mod5_with_1_level_import,
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    # Utils.check_answer(
+    #     df.select(plus4_then_mod5_udf("a")).collect(),
+    #     [Row((i + 4) % 5) for i in range(-5, 5)],
+    # )
+    # TODO: >udf_registry = analyzer.session.udf._registry AttributeError: 'UDFRegistration' object has no attribute '_registry' src/snowflake/snowpark/mock/_plan.py:430: AttributeError
+
+    # if import_as argument changes, the checksum of the file will also change
+    # and we will overwrite the file in the stage
+    session_intercepted.add_import(test_files.test_udf_py_file)
+
+    udf(
+        plus4_then_mod5_with_2_level_import,
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    assert len(callable_properties_lst[0].import_paths) == 1
+    assert len(callable_properties_lst[1].import_paths) == 1
+
+
+@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -657,6 +869,49 @@ def test_add_import_local_directory(session, resources_path):
 
 
 @pytest.mark.localtest
+def test_add_import_local_directory_with_sandbox(
+    sandbox_setup_and_teardown, resources_path
+):
+
+    callable_properties_lst, session_intercepted = sandbox_setup_and_teardown
+
+    test_files = TestFiles(resources_path)
+
+    def plus4_then_mod5_with_3_level_import(x):
+        from resources.test_udf_dir.test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    def plus4_then_mod5_with_2_level_import(x):
+        from test_udf_dir.test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    session_intercepted.range(-5, 5).to_df("a")
+
+    session_intercepted.add_import(
+        test_files.test_udf_directory, import_path="resources.test_udf_dir"
+    )
+    udf(
+        plus4_then_mod5_with_3_level_import,
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    session_intercepted.add_import(test_files.test_udf_directory)
+    udf(
+        plus4_then_mod5_with_2_level_import,
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    assert len(callable_properties_lst[0].import_paths) == 1
+    assert len(callable_properties_lst[1].import_paths) == 1
+
+
+@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -684,6 +939,32 @@ def test_add_import_stage_file(session, resources_path):
 
 
 @pytest.mark.localtest
+def test_add_import_stage_file_with_sandbox(sandbox_setup_and_teardown, resources_path):
+
+    callable_properties_lst, session_intercepted = sandbox_setup_and_teardown
+
+    test_files = TestFiles(resources_path)
+
+    def plus4_then_mod5_with_import(x):
+        from test_udf_file import mod5
+
+        return mod5(x + 4)
+
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
+    session_intercepted.add_import(stage_file)
+    udf(
+        plus4_then_mod5_with_import,
+        session=session_intercepted,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    session_intercepted.range(-5, 5).to_df("a")
+
+    assert len(callable_properties_lst[0].import_paths) == 1
+
+
+@pytest.mark.localtest
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -702,6 +983,28 @@ def test_add_import_package(session):
 
     # clean
     session.clear_imports()
+
+
+@pytest.mark.localtest
+@pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
+def test_add_import_package_with_sandbox(sandbox_setup_and_teardown):
+
+    callable_properties_lst, session_intercepted = sandbox_setup_and_teardown
+
+    def plus_one_month(x):
+        return x + relativedelta(month=1)
+
+    session_intercepted.add_import(os.path.dirname(dateutil.__file__))
+    session_intercepted.add_import(six.__file__)
+    udf(
+        plus_one_month,
+        session=session_intercepted,
+        return_type=DateType(),
+        input_types=[DateType()],
+    )
+
+    assert len(callable_properties_lst) == 1
+    assert len(callable_properties_lst[0].import_paths) == 2
 
 
 @pytest.mark.localtest
@@ -731,6 +1034,9 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
 
     session.remove_import(rel_path)
     assert len(session.get_imports()) == 0
+
+
+# TODO: ASK if this is needed for sandbox
 
 
 @pytest.mark.localtest

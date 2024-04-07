@@ -742,7 +742,7 @@ class Session:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
-        if isinstance(self._conn, MockServerConnection):
+        if isinstance(self._conn, MockServerConnection) and self._conn._local_testing:
             self.udf._clear_session_imports()
         self._import_paths.clear()
 

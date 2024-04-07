@@ -490,6 +490,7 @@ class MockServerConnection:
         ):  # i.e. we are in a sandbox environment = not a true testing environment
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         else:
+            # TODO: should we do this?
             self.log_not_supported_error(
                 external_feature_name="Running SQL queries",
                 internal_feature_name="MockServerConnection.run_query",

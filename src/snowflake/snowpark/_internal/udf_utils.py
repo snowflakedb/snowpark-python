@@ -8,6 +8,7 @@ import pickle
 import sys
 import typing
 import zipfile
+from copy import deepcopy
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -129,6 +130,7 @@ class CallableProperties:
         immutable: bool = False,
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         is_execution_environment_sandboxed: bool = False,
+        anonymous: bool = False,
     ) -> None:
         self.replace = replace
         self.is_permanent = is_permanent
@@ -136,7 +138,7 @@ class CallableProperties:
         self.object_type = object_type
         self.if_not_exists = if_not_exists
         self.object_name = object_name
-        self.input_args = input_args
+        self.input_args = deepcopy(input_args)
         self.input_sql_types = input_sql_types
         self.return_sql = return_sql
         self.strict = strict
@@ -144,14 +146,15 @@ class CallableProperties:
         self.runtime_version = runtime_version
         self.all_imports = all_imports
         self.all_packages = all_packages
-        self.external_access_integrations = external_access_integrations
-        self.secrets = secrets
+        self.external_access_integrations = deepcopy(external_access_integrations)
+        self.secrets = deepcopy(secrets)
         self.handler = handler
         self.execute_as = execute_as
         self.inline_python_code = inline_python_code
-        self.native_app_params = native_app_params
-        self.import_paths = import_paths
+        self.native_app_params = deepcopy(native_app_params)
+        self.import_paths = deepcopy(import_paths)
         self.is_execution_environment_sandboxed = is_execution_environment_sandboxed
+        self.anonymous = anonymous
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -1049,12 +1052,18 @@ def resolve_imports_and_packages(
         [url if is_single_quoted(url) else f"'{url}'" for url in all_urls]
     )
     all_packages = ",".join([f"'{package}'" for package in resolved_packages])
+
+    if len(udf_level_imports) == 0:
+        import_paths = session._import_paths
+    else:
+        import_paths = udf_level_imports
+
     return (
         handler,
         inline_code,
         all_imports,
         all_packages,
-        udf_level_imports if udf_level_imports else session._import_paths,
+        import_paths,
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     )
@@ -1142,7 +1151,7 @@ $$
     if _should_continue_registration is None:
         continue_registration = True
     else:
-        callableProperties = CallableProperties(
+        callable_properties = CallableProperties(
             replace=replace,
             is_permanent=is_permanent,
             secure=secure,
@@ -1166,7 +1175,7 @@ $$
             import_paths=import_paths,
             is_execution_environment_sandboxed=_is_execution_environment_sandboxed,
         )
-        continue_registration = _should_continue_registration(callableProperties)
+        continue_registration = _should_continue_registration(callable_properties)
 
     # This means the execution environment does not want to continue creating the object in Snowflake
     if not bool(continue_registration):
@@ -1255,7 +1264,8 @@ $$
     if _should_continue_registration is None:
         continue_registration = True
     else:
-        callableProperties = CallableProperties(
+        callable_properties = CallableProperties(
+            anonymous=True,
             object_type=TempObjectType.PROCEDURE,
             object_name=object_name,
             input_args=input_args,
@@ -1273,7 +1283,7 @@ $$
             import_paths=import_paths,
             is_execution_environment_sandboxed=_is_execution_environment_sandboxed,
         )
-        continue_registration = _should_continue_registration(callableProperties)
+        continue_registration = _should_continue_registration(callable_properties)
 
     # This means the execution environment does not want to continue creating the object in Snowflake
     if not bool(continue_registration):
