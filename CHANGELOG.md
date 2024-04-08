@@ -19,6 +19,7 @@
   - snowflake.snowpark.functions
     - udf
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+- Exposed `SessionBuilder.appName` as an alias for `SessionBuilder.app_name`
 - Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
   - snowflake.snowpark.DataFrame:
     - collect
@@ -146,11 +147,13 @@
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed a bug in `Session.create_dataframe` where the Snowpark DataFrames created using pandas DataFrames were not inferring the type for timestamp columns correctly. The behavior is as follows:
+
   - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code to align with correct behavior because the parameter will be removed in the future.
 - Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
 - Fixed bugs that wrongly flattened the generated SQL when one of the following happens:
+
   - `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
   - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
     For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
@@ -162,7 +165,6 @@
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
-
 - Fixed a bug in `Session.create_dataframe` that the non-nullable field in a schema is not respected for boolean type. Note that this fix is only effective when the user has the privilege to create a temp table.
 - Fixed a bug in SQL simplifier where non-select statements in `session.sql` dropped a SQL query when used with `limit()`.
 - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
@@ -189,7 +191,6 @@
 - Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`.
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 - Added experimental feature: Local Testing Mode, which allows you to create and operate on Snowpark Python DataFrames locally without connecting to a Snowflake account. You can use the local testing framework to test your DataFrame operations locally, on your development machine or in a CI (continuous integration) pipeline, before deploying code changes to your account.
-
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
 - Added support for the vector data type.
 
@@ -241,6 +242,7 @@
 - Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
 
 ### New Features
+
 - Support `PythonObjJSONEncoder` json-serializable objects for `ARRAY` and `OBJECT` literals.
 
 ## 1.8.0 (2023-09-14)
@@ -253,7 +255,6 @@
 - Added the property `DataFrame.session` to return a `Session` object.
 - Added the property `Session.session_id` to return an integer that represents session ID.
 - Added the property `Session.connection` to return a `SnowflakeConnection` object .
-
 - Added support for creating a Snowpark session from a configuration file or environment variables.
 
 ### Dependency updates
