@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import atexit
@@ -94,7 +94,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -961,11 +960,6 @@ class Session:
             to ensure the consistent experience of a UDF between your local environment
             and the Snowflake server.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.add_packages",
-                raise_error=NotImplementedError,
-            )
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
@@ -1330,6 +1324,27 @@ class Session:
     ) -> List[str]:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
+        if isinstance(self._conn, MockServerConnection):
+            # in local testing we don't resolve the packages, we just return what is added
+            errors = []
+            for pkg_name, _, pkg_req in package_dict.values():
+                if (
+                    pkg_name in self._packages
+                    and str(pkg_req) != self._packages[pkg_name]
+                ):
+                    errors.append(
+                        ValueError(
+                            f"Cannot add package '{str(pkg_req)}' because {self._packages[pkg_name]} "
+                            "is already added."
+                        )
+                    )
+                else:
+                    self._packages[pkg_name] = str(pkg_req)
+            if len(errors) == 1:
+                raise errors[0]
+            elif len(errors) > 0:
+                raise RuntimeError(errors)
+            return list(self._packages.values())
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -2777,7 +2792,6 @@ class Session:
         return self._udtf_registration
 
     @property
-    @private_preview(version="1.6.0")
     def udaf(self) -> UDAFRegistration:
         """
         Returns a :class:`udaf.UDAFRegistration` object that you can use to register UDAFs.

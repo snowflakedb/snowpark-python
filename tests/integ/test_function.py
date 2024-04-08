@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -284,11 +284,18 @@ def test_concat_ws(session, col_a, col_b, col_c):
 
 
 @pytest.mark.localtest
-@pytest.mark.parametrize("col_a", ["a", col("a")])
-def test_to_char(session, col_a):
-    df = session.create_dataframe([[1]], schema=["a"])
+@pytest.mark.parametrize(
+    "col_a",
+    ["a", col("a")],
+)
+@pytest.mark.parametrize(
+    "data, expected",
+    [(1, "1"), (True, "true")],
+)
+def test_to_char(session, col_a, data, expected):
+    df = session.create_dataframe([[data]], schema=["a"])
     res = df.select(to_char(col_a)).collect()
-    assert res[0][0] == "1"
+    assert res[0][0] == expected
 
 
 @pytest.mark.localtest
@@ -1072,9 +1079,11 @@ def test_as_negative(session):
 
 
 @pytest.mark.localtest
-def test_to_date_to_array_to_variant_to_object(session):
+def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     df = (
-        session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
+        session.create_dataframe(
+            [["2013-05-17", 1, 3.14, '{"a":1}'], [None, None, None, None]]
+        )
         .to_df("date", "array", "var", "obj")
         .with_column("json", parse_json("obj"))
     )
@@ -1082,15 +1091,19 @@ def test_to_date_to_array_to_variant_to_object(session):
     df1 = df.select(
         to_date("date"), to_array("array"), to_variant("var"), to_object("json")
     )
-    df2 = df.select(
-        to_date(col("date")),
-        to_array(col("array")),
-        to_variant(col("var")),
-        to_object(col("json")),
-    )
 
-    res1, res2 = df1.collect(), df2.collect()
-    assert res1 == res2
+    expected_pi_repr = "3.14" if local_testing_mode else "3.140000000000000e+00"
+
+    expected = [
+        Row(
+            datetime.date(2013, 5, 17), "[\n  1\n]", expected_pi_repr, '{\n  "a": 1\n}'
+        ),
+        Row(None, None, None, None),
+    ]
+
+    res1 = df1.collect()
+    Utils.assert_rows(res1, expected)
+
     assert df1.schema.fields[0].datatype == DateType()
     assert df1.schema.fields[1].datatype == ArrayType(StringType())
     assert df1.schema.fields[2].datatype == VariantType()
