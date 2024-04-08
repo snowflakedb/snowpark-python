@@ -2491,9 +2491,17 @@ def test_save_as_table_respects_schema(session, save_mode):
         ]
     )
     schema2 = StructType([StructField("A", LongType(), False)])
+    schema3 = StructType(
+        [
+            StructField("A", LongType(), False),
+            StructField("B", LongType(), True),
+            StructField("C", LongType(), False),
+        ]
+    )
 
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
+    df3 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=schema3)
 
     try:
         df1.write.save_as_table(table_name, mode=save_mode)
@@ -2508,6 +2516,12 @@ def test_save_as_table_respects_schema(session, save_mode):
             df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
+        elif save_mode == "truncate":
+            df2.write.save_as_table(table_name, mode=save_mode)
+            saved_df = session.table(table_name)
+            Utils.is_schema_same(saved_df.schema, schema1)
+            with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+                df3.write.save_as_table(table_name, mode=save_mode)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(table_name, mode=save_mode)
