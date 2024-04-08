@@ -1,4 +1,8 @@
 #
+# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
@@ -26,7 +30,11 @@ def open_telemetry_context_manager(func, dataframe):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = trace.get_tracer(f"snow.snowpark.{class_name.split('.')[0].lower()}")
+        tracer = (
+            trace.get_tracer(f"snow.snowpark.{class_name.split('.')[0].lower()}")
+            if "." in class_name
+            else class_name
+        )
         with tracer.start_as_current_span(name) as cur_span:
             try:
                 if cur_span.is_recording():
