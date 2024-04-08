@@ -570,7 +570,10 @@ class MockServerConnection:
                                 row[col] = dict(sorted(row[col].items()))
 
                             res.loc[idx, col] = json.dumps(
-                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
+                                row[col],
+                                cls=CUSTOM_JSON_ENCODER,
+                                indent=2,
+                                sort_keys=True,
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
@@ -589,7 +592,7 @@ class MockServerConnection:
                 keys = sorted(res.sf_types_by_col_index.keys())
                 sf_types = [res.sf_types_by_col_index[key] for key in keys]
             else:
-                sf_types = list(res.sf_types.values())
+                sf_types = [res.sf_types[col] for col in res.columns]
             for pdr in res.itertuples(index=False, name=None):
                 row_struct = (
                     Row._builder.build(*columns)
