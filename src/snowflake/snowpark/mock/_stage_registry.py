@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import glob
+import json
 import os
 import re
 import shutil
@@ -13,15 +14,20 @@ from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    unwrap_stage_location_single_quote,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock._functions import mock_to_char
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
-from snowflake.snowpark.types import DecimalType, StringType
+from snowflake.snowpark.types import DecimalType, StringType, VariantType
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -50,12 +56,20 @@ GET_RESULT_KEYS = [
 ]
 
 
-SUPPORTED_CSV_READ_OPTIONS = (
-    "SKIP_HEADER",
-    "SKIP_BLANK_LINES",
-    "FIELD_DELIMITER",
-    "FIELD_OPTIONALLY_ENCLOSED_BY",
-)
+SUPPORT_READ_OPTIONS = {
+    "csv": (
+        "SKIP_HEADER",
+        "SKIP_BLANK_LINES",
+        "FIELD_DELIMITER",
+        "FIELD_OPTIONALLY_ENCLOSED_BY",
+    ),
+    "json": (
+        "INFER_SCHEMA",
+        "FILE_EXTENSION",
+    ),
+}
+
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -310,6 +324,8 @@ class StageEntity:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ) -> TableEmulator:
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
         if os.path.isfile(stage_source_dir_path):
@@ -321,12 +337,33 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        if format.lower() == "csv":
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        # pattern = options.get("PATTERN") if options else None
+        #
+        # if pattern:
+        #     local_files = [
+        #         f
+        #         for f in local_files
+        #         if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
+        #     ]
+
+        file_format = format.lower()
+        if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
-                if option not in SUPPORTED_CSV_READ_OPTIONS:
-                    _logger.warning(
-                        f"[Local Testing] read file option {option} is not supported."
+                if option not in SUPPORT_READ_OPTIONS[file_format]:
+                    self._conn.log_not_supported_error(
+                        external_feature_name=f"Read option {option} for file format {file_format}",
+                        internal_feature_name="StageEntity.read_file",
+                        parameters_info={"format": format, "option": option},
+                        raise_error=NotImplementedError
+                        if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
+                        else None,
+                        warning_logger=_logger,
                     )
+
+        if file_format == "csv":
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
@@ -349,13 +386,15 @@ class StageEntity:
             for i in range(len(schema)):
                 column_name = analyzer.analyze(schema[i])
                 column_series = ColumnEmulator(
-                    data=None, dtype=object, name=column_name
+                    data=None,
+                    dtype=object,
+                    name=column_name,
+                    sf_type=ColumnType(schema[i].datatype, schema[i].nullable),
                 )
-                column_series.sf_type = ColumnType(
-                    schema[i].datatype, schema[i].nullable
+                result_df[column_name], result_df_sf_types[column_name] = (
+                    column_series,
+                    column_series.sf_type,
                 )
-                result_df[column_name] = column_series
-                result_df_sf_types[column_name] = column_series.sf_type
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                     self._conn.log_not_supported_error(
                         error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
@@ -411,6 +450,96 @@ class StageEntity:
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns
                 result_df = pd.concat([result_df, df], ignore_index=True)
+            result_df.sf_types = result_df_sf_types
+            return result_df
+        elif file_format == "json":
+            infer_schema_opt = options.get("INFER_SCHEMA", False)
+
+            result_df = TableEmulator()
+            result_df_sf_types = {}
+
+            if not infer_schema_opt:
+                # if infer schema option is False, then snowflake converts the data into
+                # a single column table, values are treated as raw strings
+                assert len(schema) == 1, (
+                    f"[Local Testing] Unexpected schema length {len(schema)} when loading "
+                    f"json data without inferring schema."
+                )
+                column_name = analyzer.analyze(schema[0])
+                column_series = ColumnEmulator(
+                    data=None,
+                    dtype=object,
+                    name=column_name,
+                    sf_type=ColumnType(VariantType(), True),
+                )
+                result_df[column_name], result_df_sf_types[column_name] = (
+                    column_series,
+                    column_series.sf_type,
+                )
+
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
+                        df = pd.DataFrame({result_df.columns[0]: [content]})
+                        result_df = pd.concat([result_df, df], ignore_index=True)
+            else:
+                # need to infer schema
+                contents = []
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
+                        tmp_content = {}
+                        # snowflake escape double quotes by adding extra double quote
+                        for key, value in content.items():
+                            tmp_content[quote_name(key, keep_case=True)] = value
+                        content = tmp_content
+                        contents.append(content)
+                        # extract the schema from the content
+                        for column_name, value in content.items():
+                            # snowflake double quote column name read from json file
+                            target_datatype = infer_type(value)
+                            # multiple json files can be of different schema
+                            # if we find an existing schema but type is different from the inferred one
+                            # we convert the column datatype to string, this is snowflake behavior
+                            if column_name in result_df_sf_types and not isinstance(
+                                target_datatype,
+                                type(result_df_sf_types[column_name].datatype),
+                            ):
+                                # we cast target_datatype to VariantType first, and then we reuse mock_to_char
+                                # which converts the data into StringType
+                                target_datatype = VariantType()
+
+                            column_series = ColumnEmulator(
+                                data=None,
+                                dtype=object,
+                                name=column_name,
+                                sf_type=ColumnType(target_datatype, nullable=True),
+                            )
+                            result_df[column_name], result_df_sf_types[column_name] = (
+                                column_series,
+                                column_series.sf_type,
+                            )
+                # fill empty cells with None value, this aligns with snowflake
+                for content in contents:
+                    for miss_key in set(result_df_sf_types.keys()) - set(
+                        content.keys()
+                    ):
+                        content[miss_key] = None
+                    df = TableEmulator([content])
+                    result_df = pd.concat([result_df, df], ignore_index=True)
+                # when concat is called, sf_type information gets lost, so we reset the type info in the end
+                result_df.sf_types = result_df_sf_types
+
+                # in the case that there are values of different types in the same column, snowflake will
+                # convert data into string
+                for col_name in result_df.columns:
+                    if isinstance(result_df_sf_types[col_name].datatype, VariantType):
+                        result_df[col_name] = mock_to_char(result_df[col_name])
+                # snowflake output sorted column names
+                sorted_columns = sorted(list(result_df.columns))
+                result_df = result_df[sorted_columns]
+                result_df.columns = sorted_columns
+
             result_df.sf_types = result_df_sf_types
             return result_df
         self._conn.log_not_supported_error(

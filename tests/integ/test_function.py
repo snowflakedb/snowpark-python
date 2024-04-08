@@ -284,11 +284,18 @@ def test_concat_ws(session, col_a, col_b, col_c):
 
 
 @pytest.mark.localtest
-@pytest.mark.parametrize("col_a", ["a", col("a")])
-def test_to_char(session, col_a):
-    df = session.create_dataframe([[1]], schema=["a"])
+@pytest.mark.parametrize(
+    "col_a",
+    ["a", col("a")],
+)
+@pytest.mark.parametrize(
+    "data, expected",
+    [(1, "1"), (True, "true")],
+)
+def test_to_char(session, col_a, data, expected):
+    df = session.create_dataframe([[data]], schema=["a"])
     res = df.select(to_char(col_a)).collect()
-    assert res[0][0] == "1"
+    assert res[0][0] == expected
 
 
 @pytest.mark.localtest

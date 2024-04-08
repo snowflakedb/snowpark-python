@@ -10,6 +10,7 @@
     - file.put_stream
     - file.get
     - file.get_stream
+    - read.json
     - add_import
     - remove_import
     - get_imports
