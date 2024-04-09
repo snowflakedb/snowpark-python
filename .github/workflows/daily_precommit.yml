@@ -1,10 +1,10 @@
-# This is copied from original precommit.yml with one change: only run precommit tests
+# This is copied from original precommit.yml with one change: only run precommit tests daily
 
 name: Daily precommit test
 on:
   schedule:
     # 10 AM UTC
-    - cron: "5 14 * * *"
+    - cron: "0 10 * * *"
   workflow_dispatch:
       inputs:
         logLevel:
