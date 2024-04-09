@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from abc import ABC, abstractmethod
@@ -963,6 +963,8 @@ class SetOperand:
 class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
+        self._sql_query = None
+        self._placeholder_query = None
         self.set_operands = set_operands
         self._nodes = []
         for operand in set_operands:
@@ -978,17 +980,21 @@ class SetStatement(Selectable):
 
     @property
     def sql_query(self) -> str:
-        sql = f"({self.set_operands[0].selectable.sql_query})"
-        for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
-        return sql
+        if not self._sql_query:
+            sql = f"({self.set_operands[0].selectable.sql_query})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
+            self._sql_query = sql
+        return self._sql_query
 
     @property
     def placeholder_query(self) -> Optional[str]:
-        sql = f"({self.set_operands[0].selectable._id})"
-        for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
-        return sql
+        if not self._placeholder_query:
+            sql = f"({self.set_operands[0].selectable._id})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+            self._placeholder_query = sql
+        return self._placeholder_query
 
     @property
     def schema_query(self) -> str:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -291,6 +291,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSVspecialFormat.csv",
                 "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
+                "resources/testJsonNewSchema.json",
+                "resources/testJsonSameSchema.json",
                 "resources/test_all_data_types.parquet",
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",
