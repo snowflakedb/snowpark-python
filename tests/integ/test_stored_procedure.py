@@ -34,6 +34,7 @@ from snowflake.snowpark.functions import (
     col,
     current_date,
     date_from_parts,
+    iff,
     lit,
     max as max_,
     pow,
@@ -208,23 +209,21 @@ def test_basic_stored_procedure(session, local_testing_mode):
     assert add_sp(4, 6, session=session) == 10
     assert int2str_sp(123, session=session) == "123"
 
-    if local_testing_mode is False:
-        # SNOW-1271902: pow not supported by local testing
-        def sp_pow(session_, x, y):
-            return (
-                session_.create_dataframe([[x, y]])
-                .to_df(["a", "b"])
-                .select(pow(col("a"), col("b")))
-                .collect()[0][0]
-            )
-
-        pow_sp = sproc(
-            sp_pow,
-            return_type=DoubleType(),
-            input_types=[IntegerType(), IntegerType()],
+    def sp_pow(session_, x, y):
+        return (
+            session_.create_dataframe([[x, y]])
+            .to_df(["a", "b"])
+            .select(pow(col("a"), col("b")))
+            .collect()[0][0]
         )
-        assert pow_sp(2, 10) == 1024
-        assert pow_sp(2, 10, session=session) == 1024
+
+    pow_sp = sproc(
+        sp_pow,
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert pow_sp(2, 10) == 1024
+    assert pow_sp(2, 10, session=session) == 1024
 
 
 @pytest.mark.localtest
@@ -250,24 +249,29 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
     assert local_testing_mode or "not recognized" in str(ex_info)
 
 
-def test_stored_procedure_with_column_datatype(session):
+@pytest.mark.localtest
+def test_stored_procedure_with_column_datatype(session, local_testing_mode):
     def add(session_, x, y):
         return x + y
-
-    def add_date(session_, date, add_days):
-        return date + datetime.timedelta(days=add_days)
 
     add_sp = sproc(
         add, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()]
     )
-    add_date_sp = sproc(
-        add_date, return_type=DateType(), input_types=[DateType(), IntegerType()]
-    )
 
-    dt = datetime.date(1992, 12, 14) + datetime.timedelta(days=3)
     assert add_sp(4, sqrt(lit(36))) == 10
-    # the date can be different between server and client due to timezone difference
-    assert -1 <= (add_date_sp(date_from_parts(1992, 12, 14), 3) - dt).days <= 1
+
+    if not local_testing_mode:
+        dt = datetime.date(1992, 12, 14) + datetime.timedelta(days=3)
+
+        def add_date(session_, date, add_days):
+            return date + datetime.timedelta(days=add_days)
+
+        add_date_sp = sproc(
+            add_date, return_type=DateType(), input_types=[DateType(), IntegerType()]
+        )
+
+        # the date can be different between server and client due to timezone difference
+        assert -1 <= (add_date_sp(date_from_parts(1992, 12, 14), 3) - dt).days <= 1
 
 
 @pytest.mark.skipif(
@@ -328,6 +332,7 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         # restore active session
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_call_table_sproc_triggers_action(session, anonymous):
     """Here we create a table sproc which creates a table. we call the table sproc using
@@ -338,7 +343,7 @@ def test_call_table_sproc_triggers_action(session, anonymous):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     def create_temp_table_sp(session_: Session, name: str):
-        df = session_.sql("select 1 as A")
+        df = session_.create_dataframe([1]).to_df("A")
         df.write.save_as_table(name, mode="overwrite")
         return df
 
@@ -369,15 +374,19 @@ def test_recursive_function(session):
     assert factorial_sp(3) == factorial(session, 3)
 
 
+@pytest.mark.localtest
 def test_nested_function(session):
     def outer_func(session_):
         def inner_func():
             return "snow"
 
-        return session_.sql(f"select '{inner_func()}-{inner_func()}'").collect()[0][0]
+        return session_.create_dataframe([f"{inner_func()}-{inner_func()}"]).collect()[
+            0
+        ][0]
 
     def square(session_, x):
-        return session_.sql(f"select square({x})").collect()[0][0]
+        df = session_.create_dataframe([x]).to_df("a")
+        return df.select(pow("a", lit(2))).collect()[0][0]
 
     def cube(session_, x):
         return square(session_, x) * x
@@ -395,6 +404,7 @@ def test_nested_function(session):
     assert square_sp(2) == 4
 
 
+@pytest.mark.localtest
 def test_decorator_function(session):
     def decorator_do_twice(func):
         def wrapper(*args, **kwargs):
@@ -406,7 +416,8 @@ def test_decorator_function(session):
 
     @decorator_do_twice
     def square(session_, x):
-        return session_.sql(f"select square({x})").collect()[0][0]
+        df = session_.create_dataframe([x]).to_df("a")
+        return df.select(pow("a", lit(2))).collect()[0][0]
 
     square_twice_sp = sproc(
         square,
@@ -416,14 +427,16 @@ def test_decorator_function(session):
     assert square_twice_sp(2) == 16
 
 
+@pytest.mark.localtest
 def test_annotation_syntax(session):
     @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
     def add_sp(session_, x, y):
-        return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
+        df = session_.create_dataframe([(x, y)]).to_df("a", "b")
+        return df.select(col("a") + col("b")).collect()[0][0]
 
     @sproc(return_type=StringType())
     def snow(session_):
-        return session_.sql("SELECT 'snow'").collect()[0][0]
+        return session_.create_dataframe(["snow"]).collect()[0][0]
 
     assert add_sp(1, 2) == 3
     assert snow() == "snow"
@@ -472,16 +485,23 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
 
 
+@pytest.mark.localtest
 def test_session_register_sp(session):
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([(x, y)])
+        .to_df("a", "b")
+        .select(col("a") + col("b"))
+        .collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
     assert add_sp(1, 2) == 3
 
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([(x, y)])
+        .to_df("a", "b")
+        .select(col("a") + col("b"))
+        .collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
@@ -616,18 +636,34 @@ def test_sp_level_import(session, resources_path):
         assert "No module named" in ex_info.value.message
 
 
+@pytest.mark.localtest
 def test_type_hints(session):
     @sproc()
     def add_sp(session_: Session, x: int, y: int) -> int:
-        return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
+        df = session_.create_dataframe(
+            [
+                (x, y),
+            ]
+        ).to_df(["a", "b"])
+        return df.select(col("a") + col("b")).collect()[0][0]
 
     @sproc
     def snow_sp(session_: Session, x: int) -> Optional[str]:
-        return session_.sql(f"SELECT IFF({x} % 2 = 0, 'snow', NULL)").collect()[0][0]
+        df = session_.create_dataframe(
+            [
+                (x),
+            ]
+        ).to_df(["a"])
+        return df.select(iff(col("a") % 2 == 0, "snow", None)).collect()[0][0]
 
     @sproc
     def double_str_list_sp(session_: Session, x: str) -> List[str]:
-        val = session_.sql(f"SELECT '{x}'").collect()[0][0]
+        df = session_.create_dataframe(
+            [
+                (x),
+            ]
+        ).to_df(["a"])
+        val = df.collect()[0][0]
         return [val, val]
 
     dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
@@ -653,9 +689,15 @@ def test_type_hints(session):
     assert get_sp({"0": "snow", "1": "flake"}, "0") == "snow"
 
 
+@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(session_: Session, x: int, y: int) -> int:
-        return session_.sql(f"SELECT {x} + {y}").collect()[0][0]
+        return (
+            session_.create_dataframe([(x, y)])
+            .to_df("a", "b")
+            .select(col("a") + col("b"))
+            .collect()[0][0],
+        )
 
     annotations = add.__annotations__
     session.sproc.register(add)

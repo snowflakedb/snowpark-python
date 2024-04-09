@@ -2,25 +2,36 @@
 # Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import sys
 import typing
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+from snowflake.snowpark.mock._plan import calculate_expression
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
 )
-from snowflake.snowpark.types import DataType, _FractionalType, _IntegralType
+from snowflake.snowpark.types import (
+    ArrayType,
+    DataType,
+    MapType,
+    StructType,
+    _FractionalType,
+    _IntegralType,
+)
 
 from ._telemetry import LocalTestOOBTelemetryService
 
@@ -31,11 +42,13 @@ else:
 
 
 def sproc_types_are_compatible(x, y):
-    if isinstance(x, type(y)):
-        return True
-    elif isinstance(x, _IntegralType) and isinstance(y, _IntegralType):
-        return True
-    elif isinstance(x, _FractionalType) and isinstance(y, _FractionalType):
+    if (
+        isinstance(x, type(y))
+        or isinstance(x, _IntegralType)
+        and isinstance(y, _IntegralType)
+        or isinstance(x, _FractionalType)
+        and isinstance(y, _FractionalType)
+    ):
         return True
     return False
 
@@ -54,20 +67,51 @@ class MockStoredProcedure(StoredProcedure):
         for arg, expected_type in zip(args, self._input_types):
             if isinstance(arg, Column):
                 expr = arg._expression
-                if not sproc_types_are_compatible(expr.datatype, expected_type):
+
+                # If expression does not define its datatype we cannot verify it's compatibale.
+                # This is potentially unsafe.
+                if expr.datatype and not sproc_types_are_compatible(
+                    expr.datatype, expected_type
+                ):
                     raise ValueError(
                         f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
                     )
 
-                if not isinstance(expr, Literal):
+                # Expression may be a nested expression. Expression should not need any input data
+                # and should only return one value so that it can be passed as a literal value.
+                # We pass in a single None value so that the expression evaluator has some data to
+                # pass to the expressions.
+                resolved_expr = calculate_expression(
+                    expr,
+                    ColumnEmulator(data=[None]),
+                    session._analyzer,
+                    {},
+                    keep_literal=True,
+                )
+
+                # If the length of the resolved expression is not a single value we cannot pass it as a literal.
+                if len(resolved_expr) != 1:
                     raise ValueError(
                         "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
                     )
-                parsed_args.append(expr.value)
+                parsed_args.append(resolved_expr[0])
             else:
                 parsed_args.append(arg)
 
-        return self.func(session, *parsed_args)
+        result = self.func(session, *parsed_args)
+
+        # Semi-structured types are serialized in json
+        if isinstance(
+            self._return_type,
+            (
+                ArrayType,
+                MapType,
+                StructType,
+            ),
+        ) and not isinstance(result, DataFrame):
+            result = json.dumps(result, indent=2, cls=CUSTOM_JSON_ENCODER)
+
+        return result
 
 
 class MockStoredProcedureRegistration(StoredProcedureRegistration):
@@ -165,12 +209,31 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 error_code="1304",
             )
 
-        self._registry[udf_name] = func
-
-        return MockStoredProcedure(
+        sproc = MockStoredProcedure(
             func,
             return_type,
             input_types,
             udf_name,
             execute_as=execute_as,
+        )
+
+        self._registry[udf_name] = sproc
+
+        return sproc
+
+    def call(
+        self,
+        sproc_name: str,
+        *args: Any,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
+        statement_params: Optional[Dict[str, str]] = None,
+    ):
+
+        if sproc_name not in self._registry:
+            raise SnowparkSQLException(
+                f"[Local Testing] sproc {sproc_name} does not exist."
+            )
+
+        return self._registry[sproc_name](
+            *args, session=session, statement_params=statement_params
         )

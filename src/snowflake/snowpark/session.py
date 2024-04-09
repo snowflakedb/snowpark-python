@@ -2917,6 +2917,11 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+        if isinstance(self._sp_registration, MockStoredProcedureRegistration):
+            return self._sp_registration.call(
+                sproc_name, *args, session=self, statement_params=statement_params
+            )
+
         validate_object_name(sproc_name)
         query = generate_call_python_sp_sql(self, sproc_name, *args)
 

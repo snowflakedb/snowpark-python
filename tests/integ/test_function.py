@@ -403,7 +403,7 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 @pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
     "values,expected",
@@ -424,7 +424,7 @@ def test_greatest(session, use_col, values, expected):
     assert res[0][0] == expected
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 @pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
     "values,expected",

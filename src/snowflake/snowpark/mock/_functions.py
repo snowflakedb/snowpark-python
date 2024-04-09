@@ -272,6 +272,20 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     )
 
 
+@patch("sqrt")
+def mock_sqrt(column: ColumnEmulator):
+    result = column.apply(math.sqrt)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
+@patch("pow")
+def mock_pow(left: ColumnEmulator, right: ColumnEmulator):
+    result = left.combine(right, lambda l, r: l**r)
+    result.sf_type = ColumnType(FloatType(), left.sf_type.nullable)
+    return result
+
+
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
