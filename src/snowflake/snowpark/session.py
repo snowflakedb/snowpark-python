@@ -434,7 +434,6 @@ class Session:
     def __init__(
         self,
         conn: Union[ServerConnection, MockServerConnection],
-        # do we need to check for sandbox here?
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
@@ -478,6 +477,10 @@ class Session:
             )
         )
         self._file = FileOperation(self)
+        # if isinstance(conn, MockServerConnection) and conn._local_testing:
+        #     self._analyzer = MockAnalyzer(self)
+        # else:
+        #     self._analyzer = Analyzer(self)
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
@@ -699,10 +702,7 @@ class Session:
         """
 
         if isinstance(self._conn, MockServerConnection) and self._conn._local_testing:
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.add_import",
-                raise_error=NotImplementedError,
-            )
+            self.udf._import_file(path, import_path=import_path)
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
@@ -2049,7 +2049,9 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
-        if isinstance(self._conn, MockServerConnection):
+        if (
+            isinstance(self._conn, MockServerConnection) and self._conn._local_testing
+        ):  # But this will fail in our sandbox since _analyzer is ?
             self._conn.log_not_supported_error(
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,

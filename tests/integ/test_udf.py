@@ -517,6 +517,15 @@ def test_annotation_syntax_udf_with_sandbox(sandbox_setup_and_teardown, session)
     def snow():
         return "snow"
 
+    # df = session_intercepted.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    # Utils.check_answer(
+    #     df.select(add_udf("a", "b"), snow()).collect(),
+    #     [
+    #         Row(3, "snow"),
+    #         Row(7, "snow"),
+    #     ],
+    # )
+
     # add_udf is a UDF instead of a normal python function,
     # so it can't be simply called
     with pytest.raises(TypeError) as ex_info:

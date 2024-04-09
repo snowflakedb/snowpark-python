@@ -487,10 +487,10 @@ class MockServerConnection:
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         elif (
             not self._local_testing
-        ):  # i.e. we are in a sandbox environment = not a true testing environment
+        ):  # i.e. this condition is reached if we are in a sandbox environment, when self.local_testing = False,
+            # because we do not want to throw an error and instead make this a noop
             return {"data": [("Statement executed successfully.",)], "sfqid": None}
         else:
-            # TODO: should we do this?
             self.log_not_supported_error(
                 external_feature_name="Running SQL queries",
                 internal_feature_name="MockServerConnection.run_query",
