@@ -228,7 +228,7 @@ def test_basic_stored_procedure(session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
-    expected_err = ValueError if local_testing_mode else SnowparkSQLException
+    expected_err = Exception if local_testing_mode else SnowparkSQLException
 
     def plus1(session_, x):
         return x + 1

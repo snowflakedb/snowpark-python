@@ -86,7 +86,6 @@ class MockStoredProcedure(StoredProcedure):
                     ColumnEmulator(data=[None]),
                     session._analyzer,
                     {},
-                    keep_literal=True,
                 )
 
                 # If the length of the resolved expression is not a single value we cannot pass it as a literal.
