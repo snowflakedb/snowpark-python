@@ -26,7 +26,7 @@ concurrency:
 jobs:
   lint:
     name: Check linting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -44,7 +44,7 @@ jobs:
 
   type_checking:
     name: Type Checking
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -63,7 +63,7 @@ jobs:
   build:
     needs: lint
     name: Build Wheel File
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -90,11 +90,11 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - image_name: ubuntu-latest
+          - image_name: ubuntu-latest-64-cores
             download_name: linux
           - image_name: macos-latest
             download_name: macos
-          - image_name: windows-latest
+          - image_name: windows-latest-64-cores
             download_name: windows
         python-version: ["3.8", "3.9", "3.10", "3.11"]
         cloud-provider: [aws, azure, gcp]
@@ -159,7 +159,7 @@ jobs:
   test-fips:
     name: Test FIPS py-linux-3.8-${{ matrix.cloud-provider }}
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     strategy:
       fail-fast: false
       matrix:
@@ -457,7 +457,7 @@ jobs:
     if: ${{ success() || failure() }}
     name: Combine coverage
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -505,7 +505,7 @@ jobs:
   doc:
     needs: lint
     name: Build Doc
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
