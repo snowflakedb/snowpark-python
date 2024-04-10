@@ -1510,10 +1510,9 @@ def test_udf_comment(session):
         return x + 1
 
     plus1_udf = session.udf.register(plus1, comment=comment)
-    name = plus1_udf.name.split(".")[-1]
 
-    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
-    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+    ddl_sql = f"select get_ddl('FUNCTION', '{plus1_udf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 @pytest.mark.skipif(

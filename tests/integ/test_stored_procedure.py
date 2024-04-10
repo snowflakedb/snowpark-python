@@ -1283,10 +1283,9 @@ def test_create_sproc_with_comment(session):
         return session_.sql("select '1'").collect()[0][0]
 
     return1_sp = session.sproc.register(return1, comment=comment)
-    name = return1_sp.name.split(".")[-1]
 
-    describe_sql = f"select PROCEDURE_NAME, COMMENT from information_schema.procedures where PROCEDURE_NAME = '{name}'"
-    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+    ddl_sql = f"select get_ddl('PROCEDURE', '{return1_sp.name}()')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])

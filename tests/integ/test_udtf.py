@@ -1058,10 +1058,9 @@ def test_udtf_comment(session):
         output_schema=["num"],
         comment=comment,
     )
-    name = echo_udtf.name.split(".")[-1]
 
-    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
-    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+    ddl_sql = f"select get_ddl('FUNCTION', '{echo_udtf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 @pytest.mark.parametrize("from_file", [True, False])

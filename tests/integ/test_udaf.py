@@ -414,10 +414,9 @@ def test_udaf_comment(session):
         immutable=True,
         comment=comment,
     )
-    name = sum_udaf.name.split(".")[-1]
 
-    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
-    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+    ddl_sql = f"select get_ddl('FUNCTION', '{sum_udaf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 def test_register_udaf_from_file_without_type_hints(session, resources_path):
