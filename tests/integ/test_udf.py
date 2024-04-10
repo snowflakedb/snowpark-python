@@ -1503,9 +1503,7 @@ def test_udf_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
-def test_udf_comment(session, local_testing_mode):
-    if local_testing_mode:
-        pytest.skip("session sql is not implemented in local testing mode")
+def test_udf_comment(session):
     comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
 
     def plus1(x: int) -> int:
