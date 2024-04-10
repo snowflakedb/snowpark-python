@@ -1043,6 +1043,27 @@ def test_register_vectorized_udtf_process_with_type_hints_and_output_schema(sess
     )
 
 
+def test_udtf_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    class EchoUDTF:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num,)]
+
+    echo_udtf = session.udtf.register(
+        EchoUDTF,
+        output_schema=["num"],
+        comment=comment,
+    )
+    name = echo_udtf.name.split(".")[-1]
+
+    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
+    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+
+
 @pytest.mark.parametrize("from_file", [True, False])
 @pytest.mark.parametrize(
     "output_schema",

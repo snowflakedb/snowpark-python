@@ -1503,6 +1503,21 @@ def test_udf_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+def test_udf_comment(session, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip("session sql is not implemented in local testing mode")
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    def plus1(x: int) -> int:
+        return x + 1
+
+    plus1_udf = session.udf.register(plus1, comment=comment)
+    name = plus1_udf.name.split(".")[-1]
+
+    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
+    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+
+
 @pytest.mark.skipif(
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",

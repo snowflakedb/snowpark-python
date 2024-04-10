@@ -452,6 +452,7 @@ class StoredProcedureRegistration:
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -525,6 +526,8 @@ class StoredProcedureRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment or overwrites an existing comment for an existing object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -556,6 +559,7 @@ class StoredProcedureRegistration:
             strict,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register",
@@ -586,6 +590,7 @@ class StoredProcedureRegistration:
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -668,6 +673,8 @@ class StoredProcedureRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment or overwrites an existing comment for an existing object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -700,6 +707,7 @@ class StoredProcedureRegistration:
             strict,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             statement_params=statement_params,
             execute_as=execute_as,
             api_call_source="StoredProcedureRegistration.register_from_file",
@@ -732,6 +740,7 @@ class StoredProcedureRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
+        comment: Optional[str] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -839,6 +848,7 @@ class StoredProcedureRegistration:
                     strict=strict,
                     external_access_integrations=external_access_integrations,
                     secrets=secrets,
+                    comment=comment,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

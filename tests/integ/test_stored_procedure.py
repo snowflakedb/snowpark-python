@@ -1276,6 +1276,19 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+def test_create_sproc_with_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    def return1(session_: Session) -> str:
+        return session_.sql("select '1'").collect()[0][0]
+
+    return1_sp = session.sproc.register(return1, comment=comment)
+    name = return1_sp.name.split(".")[-1]
+
+    describe_sql = f"select PROCEDURE_NAME, COMMENT from information_schema.procedures where PROCEDURE_NAME = '{name}'"
+    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+
+
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])
 def test_describe_sp(session, source_code_display):
     def return1(session_: Session) -> str:

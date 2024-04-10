@@ -387,6 +387,39 @@ def test_object(session):
     )
 
 
+def test_udaf_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    class PythonSumUDAFHandler:
+        def __init__(self) -> None:
+            self._sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._sum
+
+        def accumulate(self, input_value):
+            self._sum += input_value
+
+        def merge(self, other_sum):
+            self._sum += other_sum
+
+        def finish(self):
+            return self._sum
+
+    sum_udaf = udaf(
+        PythonSumUDAFHandler,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        immutable=True,
+        comment=comment,
+    )
+    name = sum_udaf.name.split(".")[-1]
+
+    describe_sql = f"select FUNCTION_NAME, COMMENT from information_schema.functions where FUNCTION_NAME = '{name}'"
+    Utils.check_answer(session.sql(describe_sql), [Row(name, comment)])
+
+
 def test_register_udaf_from_file_without_type_hints(session, resources_path):
     test_files = TestFiles(resources_path)
     sum_udaf = session.udaf.register_from_file(
