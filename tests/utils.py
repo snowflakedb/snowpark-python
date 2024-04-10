@@ -360,7 +360,9 @@ class Utils:
         ), f"Expect {row_number} rows, Got {row_counter} instead"
 
     @staticmethod
-    def assert_executed_with_query_tag(session: Session, query_tag: str) -> None:
+    def assert_executed_with_query_tag(session: Session, query_tag: str, local_testing_mode: bool = False) -> None:
+        if local_testing_mode:
+            return
         query_details = session.sql(
             f"select * from table(information_schema.query_history_by_session()) where QUERY_TAG='{query_tag}'"
         )

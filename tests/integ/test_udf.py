@@ -523,8 +523,7 @@ def test_register_udf_from_remote_file_with_statement_params(
             Row(0, 1),
         ],
     )
-    if not local_testing_mode:
-        Utils.assert_executed_with_query_tag(session, query_tag)
+    Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
 @pytest.mark.xfail(reason="SNOW-799761 flaky test", strict=False)
