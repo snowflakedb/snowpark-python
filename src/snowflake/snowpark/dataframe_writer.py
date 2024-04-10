@@ -3,7 +3,7 @@
 #
 
 import sys
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -239,8 +239,8 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-        **copy_options: Optional[str],
+        block: Literal[True] = True,
+        **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -255,8 +255,8 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
-        **copy_options: Optional[str],
+        block: Literal[False] = False,
+        **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -271,7 +271,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[str],
+        **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 
