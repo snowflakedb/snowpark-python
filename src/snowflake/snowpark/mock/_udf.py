@@ -110,6 +110,7 @@ class MockUDFRegistration(UDFRegistration):
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
