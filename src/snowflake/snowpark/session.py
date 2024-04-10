@@ -370,16 +370,10 @@ class Session:
                     self._options,
                 )
                 _add_session(session)
-            elif _is_execution_environment_sandboxed:
-                session = Session(
-                    MockServerConnection(self._options, local_testing=False),
-                    self._options,
-                )
-                _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
 
-            if self._app_name:
+            if (not _is_execution_environment_sandboxed) and self._app_name:
                 app_name_tag = f"APPNAME={self._app_name}"
                 session.append_query_tag(app_name_tag)
 
@@ -454,7 +448,8 @@ class Session:
         self._stage_created = False
 
         # If local testing but no sandbox, then Mock Registration object
-        if isinstance(conn, MockServerConnection) and conn._local_testing:
+        self._is_in_sandbox = _is_execution_environment_sandboxed
+        if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
         else:
             # In all other cases, including local testing = False AND sandbox, use regular object.
@@ -828,7 +823,7 @@ class Session:
         # If in sandbox environment, we do not want to interact with Snowflake. Instead, return empty list of resolved files.
         # This should be True even if the user explicitly created a local testing connection. This is because we only hit
         # this condition from specific caller environments, and the user's environment is not one of those environments.
-        if _is_execution_environment_sandboxed:
+        if self._is_in_sandbox:
             return resolved_stage_files
 
         stage_file_list = self._list_files_in_stage(
@@ -1374,7 +1369,7 @@ class Session:
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
 
-        if isinstance(self._conn, MockServerConnection):
+        if isinstance(self._conn, MockServerConnection) or self._is_in_sandbox:
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             for pkg_name, _, pkg_req in package_dict.values():
@@ -2049,15 +2044,15 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
-        if (
-            isinstance(self._conn, MockServerConnection) and self._conn._local_testing
-        ):  # But this will fail in our sandbox since _analyzer is ?
+        if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,
             )
 
-        if self.sql_simplifier_enabled:
+        if self._is_in_sandbox:
+            d = DataFrame(session=self)  # Or should do the stuff below?
+        elif self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
                 self._analyzer.create_select_statement(
@@ -2104,6 +2099,7 @@ class Session:
             is_ddl_on_temp_object=is_ddl_on_temp_object,
             log_on_exception=log_on_exception,
             _statement_params=statement_params,
+            is_in_sandbox=self._is_in_sandbox,
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
@@ -2120,7 +2116,7 @@ class Session:
         in this session via :func:`add_import`.
         """
         stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
-        if not self._stage_created:
+        if not (self._is_in_sandbox or self._stage_created):
             self._run_query(
                 f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
                 stage if not exists {stage_name}",
@@ -2708,6 +2704,9 @@ class Session:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
         """
+
+        if self._is_in_sandbox:
+            return name
 
         database = self.get_current_database()
         schema = self.get_current_schema()

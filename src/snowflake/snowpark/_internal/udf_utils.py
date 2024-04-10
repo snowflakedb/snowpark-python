@@ -966,7 +966,7 @@ def resolve_imports_and_packages(
 
     # If not in sandbox, upload closure to stage if it is beyond inline closure size limit
     handler = inline_code = upload_file_stage_location = None
-    if not _is_execution_environment_sandboxed:
+    if not session._is_in_sandbox:
         if isinstance(func, Callable):
             custom_python_runtime_version_allowed = (
                 False  # As cloudpickle is being used, we cannot allow a custom runtime

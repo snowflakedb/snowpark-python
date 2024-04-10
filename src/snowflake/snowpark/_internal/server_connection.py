@@ -151,7 +151,9 @@ class ServerConnection:
         self,
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
+        _is_in_sandbox: bool = False,
     ) -> None:
+        self._is_in_sandbox = _is_in_sandbox
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -244,6 +246,9 @@ class ServerConnection:
         overwrite: bool = False,
         skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
+        if self._is_in_sandbox:
+            return {}
+
         if is_in_stored_procedure():  # pragma: no cover
             file_name = os.path.basename(path)
             target_path = _build_target_path(stage_location, dest_prefix)
@@ -292,6 +297,9 @@ class ServerConnection:
         skip_upload_on_content_match: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Dict[str, Any]]:
+        if self._is_in_sandbox:
+            return {}
+
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
         try:
             if is_in_stored_procedure():  # pragma: no cover
@@ -351,6 +359,7 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+        # TODO: ? for all _cursor.execute calls
         results_cursor = self._cursor.execute(query, **kwargs)
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
@@ -390,8 +399,12 @@ class ServerConnection:
         case_sensitive: bool = True,
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
+        is_in_sandbox: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
+        if self._is_in_sandbox or is_in_sandbox:
+            return {"data": ""}
+
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -507,6 +520,10 @@ class ServerConnection:
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+
+        if self._is_in_sandbox:
+            return []
+
         result_set, result_meta = self.get_result_set(
             plan,
             to_pandas,
@@ -555,6 +572,9 @@ class ServerConnection:
         ],
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
+        if self._is_in_sandbox:
+            return {}, []  # But cannot determine which keys to put into this empty dict
+
         action_id = plan.session._generate_new_action_id()
         # potentially optimize the query using CTEs
         plan = plan.replace_repeated_subquery_with_cte()
@@ -649,6 +669,8 @@ class ServerConnection:
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
+        if self._is_in_sandbox:
+            return [], []
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set["data"])
         attributes = convert_result_meta_to_attribute(result_meta)
@@ -657,7 +679,9 @@ class ServerConnection:
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
         # get the iterator such that the data is not fetched
         result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
-        return result_set["sfqid"]
+        return result_set[
+            "sfqid"
+        ]  # This will throw an error since key does not exist in empty dict
 
     @_Decorator.wrap_exception
     def run_batch_insert(self, query: str, rows: List[Row], **kwargs) -> None:

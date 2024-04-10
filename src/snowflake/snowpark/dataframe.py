@@ -592,6 +592,9 @@ class DataFrame:
         See also:
             :meth:`collect_nowait()`
         """
+        if self._session._is_in_sandbox:
+            return []
+
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
@@ -620,6 +623,9 @@ class DataFrame:
         See also:
             :meth:`collect()`
         """
+        if self._session._is_in_sandbox:
+            return []
+
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
@@ -795,6 +801,9 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        if self._session._is_in_sandbox:
+            return []
+
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
                 self._plan,
@@ -877,6 +886,9 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        if self._session._is_in_sandbox:
+            yield from ()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=True,
@@ -1023,6 +1035,9 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
+        if self._session._is_in_sandbox:
+            return DataFrame(session=self._session)
+
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
@@ -1166,6 +1181,10 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
+
+        if self._session._is_in_sandbox:
+            return DataFrame(session=self._session)
+
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
@@ -1225,6 +1244,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        if self._session._is_in_sandbox:
+            return DataFrame(session=self._session)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
@@ -1290,6 +1312,9 @@ class DataFrame:
              sorts a column in descending order . If you specify a list of multiple
              sort orders, the length of the list must equal the number of columns.
         """
+        if self._session._is_in_sandbox:
+            return self
+
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
         exprs = self._convert_cols_to_exprs("sort()", *cols)
