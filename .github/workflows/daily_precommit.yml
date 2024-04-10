@@ -2,9 +2,14 @@
 
 name: Daily precommit test
 on:
-  schedule:
-    # 10 AM UTC
-    - cron: "0 10 * * *"
+#  schedule:
+#    # 10 AM UTC
+#    - cron: "0 10 * * *"
+  pull_request:
+      types: [ opened, synchronize, labeled, unlabeled ]
+      branches:
+        - main
+
   workflow_dispatch:
       inputs:
         logLevel:
