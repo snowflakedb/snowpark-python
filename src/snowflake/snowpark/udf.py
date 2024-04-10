@@ -875,6 +875,7 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                statement_params=statement_params,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

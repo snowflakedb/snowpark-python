@@ -392,11 +392,12 @@ def test_session_register_udf(session):
         ],
     )
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     add_udf_with_statement_params = session.udf.register(
         lambda x, y: x + y,
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        statement_params={"QUERY_TAG": query_tag},
     )
     assert isinstance(add_udf_with_statement_params.func, Callable)
     Utils.check_answer(
@@ -406,6 +407,7 @@ def test_session_register_udf(session):
             Row(7),
         ],
     )
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 @pytest.mark.localtest
@@ -497,8 +499,9 @@ def test_register_udf_from_remote_file(session, resources_path):
 
 
 @pytest.mark.localtest
-def test_register_udf_from_remote_file_withs_statement_params(session, resources_path):
+def test_register_udf_from_remote_file_with_statement_params(session, resources_path):
     test_files = TestFiles(resources_path)
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
 
     stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_udf_py_file)}"
@@ -507,7 +510,7 @@ def test_register_udf_from_remote_file_withs_statement_params(session, resources
         "mod5",
         return_type=IntegerType(),
         input_types=[IntegerType()],
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        statement_params={"QUERY_TAG": query_tag},
     )
     Utils.check_answer(
         df.select(
@@ -518,6 +521,7 @@ def test_register_udf_from_remote_file_withs_statement_params(session, resources
             Row(0, 1),
         ],
     )
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 @pytest.mark.xfail(reason="SNOW-799761 flaky test", strict=False)

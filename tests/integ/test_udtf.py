@@ -169,11 +169,12 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
         ],
     )
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     my_udtf_with_statement_params = session.udtf.register_from_file(
         test_files.test_udtf_py_file,
         "MyUDTFWithTypeHints",
         output_schema=schema,
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        statement_params={"QUERY_TAG": query_tag},
     )
     assert isinstance(my_udtf_with_statement_params.handler, tuple)
     df = session.table_function(
@@ -201,6 +202,7 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
             )
         ],
     )
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 def test_strict_udtf(session):
