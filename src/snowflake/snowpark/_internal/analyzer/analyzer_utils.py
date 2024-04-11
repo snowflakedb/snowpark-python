@@ -1038,7 +1038,7 @@ def pivot_statement(
     pivot_column: str,
     pivot_values: Optional[Union[str, List[str]]],
     aggregate: str,
-    default_on_null: str,
+    default_on_null: Optional[str],
     child: str,
 ) -> str:
     if isinstance(pivot_values, str):
