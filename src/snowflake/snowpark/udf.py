@@ -16,7 +16,7 @@ Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -460,7 +460,7 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -498,6 +498,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         **kwargs,
@@ -623,6 +624,7 @@ class UDFRegistration:
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -793,6 +795,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
@@ -828,6 +831,7 @@ class UDFRegistration:
             code,
             all_imports,
             all_packages,
+            import_paths,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -849,7 +853,7 @@ class UDFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -865,6 +869,7 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                import_paths=import_paths,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -875,6 +880,7 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

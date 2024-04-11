@@ -729,6 +729,7 @@ class Session:
             self.udf._clear_session_imports()
         self._import_paths.clear()
 
+    @staticmethod
     def _resolve_import_path(
         self,
         path: str,

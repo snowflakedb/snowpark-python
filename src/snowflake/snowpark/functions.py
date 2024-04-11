@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -200,6 +200,7 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
+from snowflake.snowpark.context import _is_execution_environment_sandboxed
 from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import (
     DataType,
@@ -210,7 +211,7 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 from snowflake.snowpark.udaf import UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UserDefinedFunction
+from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -7047,6 +7048,7 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7055,6 +7057,9 @@ def udf(
     explicitly specify the ``session`` parameter of this function. If you have a function and would
     like to register it to multiple databases, use ``session.udf.register`` instead. See examples
     in :class:`~snowflake.snowpark.udf.UDFRegistration`.
+
+    This can also be used to create an extension function in a `Snowflake Native App Framework
+    setup script <https://docs.snowflake.com/en/developer-guide/native-apps/creating-setup-script>`_.
 
     Args:
         func: A Python function used for creating the UDF.
@@ -7131,6 +7136,11 @@ def udf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDF result is deterministic or not for the same input.
+        native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+            as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+            such as schema and application roles.
+            A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+            This parameter is ignored if you are not developing a Snowflake Native App.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7198,10 +7208,18 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Precedence to checking sandbox to avoid any side effects
+    if _is_execution_environment_sandboxed:
+        session = None
+        udf_registration = UDFRegistration(session=session).register
+    else:
+        session = session or snowflake.snowpark.session._get_active_session()
+        udf_registration = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7220,9 +7238,10 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
     else:
-        return session.udf.register(
+        return udf_registration(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7242,6 +7261,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            native_app_params=native_app_params,
         )
 
 
