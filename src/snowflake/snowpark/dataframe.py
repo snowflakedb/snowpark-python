@@ -118,7 +118,6 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     prepare_pivot_arguments,
     private_preview,
-    private_preview_parameter,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -1619,7 +1618,6 @@ class DataFrame:
         return df
 
     @df_to_relational_group_df_api_usage
-    @private_preview_parameter(version="1.15.0")
     def pivot(
         self,
         pivot_col: ColumnOrName,

@@ -738,13 +738,6 @@ def private_preview(
     )
 
 
-def private_preview_parameter(*, version: str) -> Callable:
-    return param_decorator(
-        "in private preview",
-        version=version,
-    )
-
-
 def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) -> str:
     return (
         SCOPED_TEMPORARY_STRING
