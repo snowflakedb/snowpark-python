@@ -425,12 +425,12 @@ class RelationalGroupedDataFrame:
             <BLANKLINE>
 
             >>> df = session.table("monthly_sales")
-            >>> df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid").show()
+            >>> df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
             ----------------------------------------
             |"EMPID"  |"TEAM"  |"'FEB'"  |"'JAN'"  |
             ----------------------------------------
-            |1        |B       |5000     |400      |
             |1        |A       |3000     |10000    |
+            |1        |B       |5000     |400      |
             |2        |A       |NULL     |39500    |
             |2        |B       |200      |NULL     |
             ----------------------------------------
@@ -439,12 +439,12 @@ class RelationalGroupedDataFrame:
             >>> from snowflake.snowpark.functions import col
             >>> subquery_df = session.table("monthly_sales").select("month").filter(col("month") == "JAN")
             >>> df = session.table("monthly_sales")
-            >>> df.group_by(["empid", "team"]).pivot("month", values=subquery_df, default_on_null=999).sum("amount").sort("empid").show()
+            >>> df.group_by(["empid", "team"]).pivot("month", values=subquery_df, default_on_null=999).sum("amount").sort("empid", "team").show()
             ------------------------------
             |"EMPID"  |"TEAM"  |"'JAN'"  |
             ------------------------------
-            |1        |B       |400      |
             |1        |A       |10000    |
+            |1        |B       |400      |
             |2        |A       |39500    |
             |2        |B       |999      |
             ------------------------------
