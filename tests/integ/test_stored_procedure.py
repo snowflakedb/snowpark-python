@@ -12,8 +12,6 @@ from unittest.mock import patch
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
-
 try:
     import pandas as pd  # noqa: F401
 
@@ -1278,9 +1276,13 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
-@pytest.mark.parametrize("prefix", ["COMMENT", "Prefix with 'single quote'"])
+@pytest.mark.parametrize(
+    "prefix",
+    ["simple", "'single quotes'", '"double quotes"', "\nnew line", "\\backslash"],
+)
 def test_create_sproc_with_comment(session, prefix):
-    comment = f"{prefix} {Utils.random_alphanumeric_str(6)}"
+    suffix = Utils.random_alphanumeric_str(6)
+    comment = f"{prefix} {suffix}"
 
     def return1(session_: Session) -> str:
         return session_.sql("select '1'").collect()[0][0]
@@ -1288,7 +1290,9 @@ def test_create_sproc_with_comment(session, prefix):
     return1_sp = session.sproc.register(return1, comment=comment)
 
     ddl_sql = f"select get_ddl('PROCEDURE', '{return1_sp.name}()')"
-    assert str_to_sql(comment) in session.sql(ddl_sql).collect()[0][0]
+    ddl = session.sql(ddl_sql).collect()[0][0]
+    assert "COMMENT=" in ddl
+    assert suffix in ddl
 
 
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])

@@ -1074,7 +1074,7 @@ HANDLER='{handler}'{execute_as_sql}
 
     if comment is not None:
         object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
-        comment = comment.replace("'", "\\'") # escaping single quotes
+        comment = comment.replace("'", "\\'")  # escaping single quotes
         comment_query = f"COMMENT ON {object_type.value.split('_')[-1]} {object_signature_sql} IS '{comment}'"
         session._run_query(
             comment_query,
