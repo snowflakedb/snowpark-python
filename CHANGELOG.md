@@ -10,9 +10,45 @@
     - file.put_stream
     - file.get
     - file.get_stream
+    - read.json
+    - add_import
+    - remove_import
+    - get_imports
+    - clear_imports
+    - add_packages
+    - add_requirements
+    - clear_packages
+    - remove_package
+    - udf.register
+    - udf.register_from_file
   - snowflake.snowpark.functions
+    - current_database
+    - current_session
+    - date_trunc
     - udf
-- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+    - object_construct
+    - object_construct_keep_null
+- Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
+  - `DataFrame.write.json`
+  - `DataFrame.write.csv`
+  - `DataFrame.write.parquet`
+- Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
+  - snowflake.snowpark.DataFrame:
+    - collect
+    - collect_nowait
+    - to_pandas
+    - count
+    - show
+  - snowflake.snowpark.DataFrameWriter:
+    - save_as_table
+- Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
+- UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
+
+### Bug Fixes
+
+- Fixed a bug in local testing that null filled columns for constant functions.
+- Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
+- Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
 
 ## 1.14.0 (2024-03-20)
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Dict, List, Optional, Tuple
 
@@ -7,6 +7,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.utils import is_single_quoted
 from snowflake.snowpark.mock._plan import MockExecutionPlan, MockFileOperation
+from snowflake.snowpark.mock._stage_registry import SUPPORT_READ_OPTIONS
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 
 
@@ -29,7 +30,7 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
     ) -> MockExecutionPlan:
-        if format.upper() != "CSV":
+        if format.lower() not in SUPPORT_READ_OPTIONS.keys():
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name=f"Reading {format} data into dataframe",
                 internal_feature_name="MockSnowflakePlanBuilder.read_file",

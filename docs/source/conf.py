@@ -129,7 +129,7 @@ def linkcode_resolve(domain, info):
             linespec = ""
     return (
         f"https://github.com/snowflakedb/snowpark-python/blob/"
-        f"release-v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
+        f"v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
     )
     
     
