@@ -12,12 +12,16 @@ from typing import Optional
 
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
-from snowflake.connector.telemetry_oob import REQUEST_TIMEOUT, TelemetryService
+from snowflake.connector.telemetry_oob import TelemetryService
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_version,
 )
+
+# 3 seconds setting in the connector oob could be too short that the oob service is unable to handle the request,
+# 5 seconds is more tolerant
+REQUEST_TIMEOUT = 5
 
 logger = logging.getLogger(__name__)
 
