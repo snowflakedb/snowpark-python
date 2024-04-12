@@ -89,7 +89,7 @@ class Lineage:
         entity_domain: str,
         directions: list,
         entity_version: Optional[str] = None,
-    ) -> Tuple[VariantType, VariantType, StringType]:
+    ) -> List[Tuple[VariantType, VariantType, StringType]]:
         """
         Constructs and executes a query to trace the lineage of a given entity at a single depth level.
         """
