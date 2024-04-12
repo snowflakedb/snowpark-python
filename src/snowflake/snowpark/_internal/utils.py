@@ -44,6 +44,7 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import pandas
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -873,7 +874,13 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
-def prepare_pivot_arguments(df, df_name, pivot_col, values, default_on_null):
+def prepare_pivot_arguments(
+    df: "snowflake.snowpark.DataFrame",
+    df_name: str,
+    pivot_col: ColumnOrName,
+    values: Optional[Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]],
+    default_on_null: Optional[LiteralType],
+):
     """
     Prepare dataframe pivot arguments to use in the underlying pivot call.  This includes issuing any applicable
     warnings, ensuring column types and valid arguments.
