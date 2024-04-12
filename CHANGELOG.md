@@ -29,7 +29,10 @@
     - object_construct
     - object_construct_keep_null
 - Added `truncate` save mode in `DataFrameWrite` to overwrite existing tables by truncating the underlying table instead of dropping it.
-- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+- Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
+  - `DataFrame.write.json`
+  - `DataFrame.write.csv`
+  - `DataFrame.write.parquet`
 - Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
   - snowflake.snowpark.DataFrame:
     - collect
