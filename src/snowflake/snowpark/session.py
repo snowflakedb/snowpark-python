@@ -130,6 +130,7 @@ from snowflake.snowpark.functions import (
     to_timestamp_tz,
     to_variant,
 )
+from snowflake.snowpark.lineage import Lineage
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._pandas_util import (
@@ -462,6 +463,7 @@ class Session:
             )
         )
         self._file = FileOperation(self)
+        self._lineage = Lineage(self)
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
@@ -2755,6 +2757,14 @@ class Session:
         See details of how to use this object in :class:`FileOperation`.
         """
         return self._file
+
+    @property
+    def lineage(self) -> Lineage:
+        """
+        Returns a :class:`Lineage` object that you can use to lineage of snowflake entities.
+        See details of how to use this object in :class:`Lineage`.
+        """
+        return self._lineage
 
     @property
     def udf(self) -> UDFRegistration:
