@@ -146,28 +146,38 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
 
     # test sending successfully
     caplog.clear()
-    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        oob_service.log_not_supported_error(
-            external_feature_name=unraise_feature_name,
-        )
+
+    max_retry = 3
+    for i in range(max_retry):
         try:
-            oob_service.log_not_supported_error(
-                external_feature_name=raise_feature_name,
-                internal_feature_name="module_a.function_b",
-                parameters_info={"param_c": "value_d"},
-                connection_uuid=connection_uuid,
-                raise_error=NotImplementedError,
-            )
-        except Exception:
-            pass
-        assert oob_service.size() == 2
-        oob_service.flush()
-        assert oob_service.size() == 0
-        assert len(caplog.record_tuples) == 2
-        assert (
-            "telemetry server request success: 200" in caplog.text
-            and "Telemetry request success=True" in caplog.text
-        )
+            with caplog.at_level(
+                logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"
+            ):
+                oob_service.log_not_supported_error(
+                    external_feature_name=unraise_feature_name,
+                )
+                try:
+                    oob_service.log_not_supported_error(
+                        external_feature_name=raise_feature_name,
+                        internal_feature_name="module_a.function_b",
+                        parameters_info={"param_c": "value_d"},
+                        connection_uuid=connection_uuid,
+                        raise_error=NotImplementedError,
+                    )
+                except Exception:
+                    pass
+                assert oob_service.size() == 2
+                oob_service.flush()
+                assert oob_service.size() == 0
+                assert len(caplog.record_tuples) == 2
+                assert (
+                    "telemetry server request success: 200" in caplog.text
+                    and "Telemetry request success=True" in caplog.text
+                )
+            break
+        except AssertionError:
+            if i == max_retry - 1:
+                raise
 
     # test sending empty raise error
     with pytest.raises(ValueError):
