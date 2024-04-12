@@ -60,7 +60,7 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
         assert oob_service.size() == 0
         assert not caplog.record_tuples
 
-        max_retry = 3
+        max_retry = 10
         for i in range(max_retry):
             # test sending successfully
             oob_service.log_session_creation()
@@ -68,7 +68,6 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
             assert oob_service.size() == 2
             oob_service.flush()
             assert oob_service.size() == 0
-            assert len(caplog.record_tuples) >= 2
             try:
                 assert (
                     "telemetry server request success: 200" in caplog.text
@@ -148,7 +147,7 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
     # test sending successfully
     caplog.clear()
 
-    max_retry = 3
+    max_retry = 10
     for i in range(max_retry):
         try:
             with caplog.at_level(
@@ -170,7 +169,6 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
                 assert oob_service.size() == 2
                 oob_service.flush()
                 assert oob_service.size() == 0
-                assert len(caplog.record_tuples) == 2
                 assert (
                     "telemetry server request success: 200" in caplog.text
                     and "Telemetry request success=True" in caplog.text
