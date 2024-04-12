@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2022 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import os
 from codecs import open
@@ -86,10 +86,15 @@ setup(
             "sphinx==5.0.2",
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
+            "pre-commit",
         ],
         "localtest": [
             "pandas",
             "pyarrow",
+        ],
+        "opentelemetry": [
+            "opentelemetry-api>=1.0.0, <2.0.0",
+            "opentelemetry-sdk>=1.0.0, <2.0.0",
         ],
     },
     classifiers=[

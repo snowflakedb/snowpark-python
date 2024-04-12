@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -267,7 +267,8 @@ DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
 
 
 def unalias_datetime_part(part):
-    if part in DATETIME_ALIASES:
-        return ALIASES_TO_DATETIME_PART[part]
+    lowered_part = part.lower()
+    if lowered_part in DATETIME_ALIASES:
+        return ALIASES_TO_DATETIME_PART[lowered_part]
     else:
         raise ValueError(f"{part} is not a recognized date or time part.")

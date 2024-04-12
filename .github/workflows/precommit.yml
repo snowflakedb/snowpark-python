@@ -26,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
@@ -44,7 +44,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
@@ -64,7 +64,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.8
+          python-version: 3.9
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip wheel
       - name: Generate wheel
@@ -77,7 +77,7 @@ jobs:
           path: dist/
 
   test:
-    name: Test ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -151,7 +151,7 @@ jobs:
             .tox/coverage.xml
 
   test-fips:
-    name: Test FIPS linux-3.8-${{ matrix.cloud-provider }}
+    name: Test FIPS py-linux-3.8-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -191,7 +191,7 @@ jobs:
             coverage.xml
 
   test-disable-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
-    name: Test Disable SQL Simplifier ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test Disable SQL Simplifier py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -259,7 +259,7 @@ jobs:
             .tox/coverage.xml
 
   test-no-pandas:
-    name: Test when pandas is not installed ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test when pandas is not installed py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -320,7 +320,7 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing:
-    name: Test Local Testing Module ${{ matrix.os.download_name }}-${{ matrix.python-version }}
+    name: Test Local Testing Module py-${{ matrix.os.download_name }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -380,7 +380,7 @@ jobs:
             .tox/coverage.xml
 
   test-enable-cte-optimization:
-    name: Test Enable CTE Optimization ${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test Enable CTE Optimization py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -460,7 +460,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Upgrade setuptools and pip
@@ -506,7 +506,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.9'
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install Snowpark

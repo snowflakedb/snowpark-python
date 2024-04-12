@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import binascii
@@ -7,6 +7,7 @@ import datetime
 import json
 import math
 import numbers
+import operator
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -15,6 +16,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
+import snowflake.snowpark
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -763,6 +765,18 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
         func = partial(try_convert, lambda x: str(x), try_cast)
+    elif isinstance(source_datatype, BooleanType):
+        func = partial(try_convert, lambda x: str(x).lower(), try_cast)
+    elif isinstance(source_datatype, VariantType):
+        from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+        # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
+        # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
+        func = partial(
+            try_convert,
+            lambda x: json.dumps(x, cls=CUSTOM_JSON_ENCODER).strip('"'),
+            try_cast,
+        )
     else:
         func = partial(try_convert, lambda x: str(x), try_cast)
     new_col = column.apply(func)
@@ -883,20 +897,20 @@ def mock_to_binary(
 ) -> ColumnEmulator:
     """
     [x] TO_BINARY( <string_expr> [, '<format>'] )
-    [ ] TO_BINARY( <variant_expr> )
+    [x] TO_BINARY( <variant_expr> )
     """
-    if isinstance(column.sf_type.datatype, (StringType, NullType)):
-        fmt = fmt.upper() if fmt else "HEX"
-        if fmt == "HEX":
-            res = column.apply(lambda x: try_convert(binascii.unhexlify, try_cast, x))
-        elif fmt == "BASE64":
-            res = column.apply(lambda x: try_convert(base64.b64decode, try_cast, x))
-        elif fmt == "UTF-8":
-            res = column.apply(
-                lambda x: try_convert(lambda y: y.encode("utf-8"), try_cast, x)
-            )
-        else:
-            raise SnowparkSQLException(f"Invalid binary format {fmt}")
+    fmt = fmt.upper() if fmt else "HEX"
+    fmt_decoder = {
+        "HEX": binascii.unhexlify,
+        "BASE64": base64.b64decode,
+        "UTF-8": lambda x: x.encode("utf-8"),
+    }.get(fmt)
+
+    if fmt is None:
+        raise SnowparkSQLException(f"Invalid binary format {fmt}")
+
+    if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
+        res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))
         res.sf_type = ColumnType(BinaryType(), column.sf_type.nullable)
         return res
     else:
@@ -1017,16 +1031,24 @@ def mock_to_array(expr: ColumnEmulator):
     """
     [x] If the input is an ARRAY, or VARIANT containing an array value, the result is unchanged.
 
-    [ ] For NULL or (TODO:) a JSON null input, returns NULL.
+    [x] For NULL or a JSON null input, returns NULL.
 
     [x] For any other value, the result is a single-element array containing this value.
     """
     if isinstance(expr.sf_type.datatype, ArrayType):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
-        res = expr.apply(
-            lambda x: try_convert(lambda y: y if isinstance(y, list) else [y], False, x)
-        )
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
+        def convert_variant_to_array(val):
+            if type(val) is str:
+                val = json.loads(val, cls=CUSTOM_JSON_DECODER)
+            if val is None or type(val) is list:
+                return val
+            else:
+                return [val]
+
+        res = expr.apply(lambda x: try_convert(convert_variant_to_array, False, x))
     else:
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
     res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
@@ -1046,34 +1068,32 @@ def mock_to_object(expr: ColumnEmulator):
     """
     [x] For a VARIANT value containing an OBJECT, returns the OBJECT.
 
-    [ ] For NULL input, or for (TODO:) a VARIANT value containing only JSON null, returns NULL.
+    [x] For NULL input, or for a VARIANT value containing only JSON null, returns NULL.
 
     [x] For an OBJECT, returns the OBJECT itself.
 
     [x] For all other input values, reports an error.
     """
-    if isinstance(expr.sf_type.datatype, (MapType,)):
+    if isinstance(expr.sf_type.datatype, (MapType, NullType)):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
-        def raise_exc(val):
+        def convert_variant_to_object(val):
+            if type(val) is str:
+                val = json.loads(val, cls=CUSTOM_JSON_DECODER)
+            if val is None or type(val) is dict:
+                return val
             raise SnowparkSQLException(
                 f"Invalid object of type {type(val)} passed to 'TO_OBJECT'"
             )
 
-        res = expr.apply(
-            lambda x: try_convert(
-                lambda y: y if isinstance(y, dict) else raise_exc(y), False, x
-            )
-        )
+        res = expr.apply(lambda x: try_convert(convert_variant_to_object, False, x))
     else:
+        raise SnowparkSQLException(
+            f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
+        )
 
-        def raise_exc():
-            raise SnowparkSQLException(
-                f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
-            )
-
-        res = expr.apply(lambda x: try_convert(raise_exc, False, x))
     res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
     return res
 
@@ -1083,6 +1103,43 @@ def mock_to_variant(expr: ColumnEmulator):
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
+
+
+def _object_construct(exprs, drop_nulls):
+    import pandas
+
+    expr_count = len(exprs)
+    if expr_count % 2 != 0:
+        raise TypeError(
+            f"Cannot construct an object from an odd number ({expr_count}) of values."
+        )
+
+    if expr_count == 0:
+        return ColumnEmulator(data=[dict()])
+
+    def construct_dict(x):
+        return {
+            x[i]: x[i + 1]
+            for i in range(0, expr_count, 2)
+            if x[i] is not None and not (drop_nulls and x[i + 1] is None)
+        }
+
+    combined = pandas.concat(exprs, axis=1)
+    return combined.apply(construct_dict, axis=1)
+
+
+@patch("object_construct")
+def mock_object_construct(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, True)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), False)
+    return result
+
+
+@patch("object_construct_keep_null")
+def mock_object_construct_keep_null(*exprs: ColumnEmulator) -> ColumnEmulator:
+    result = _object_construct(exprs, False)
+    result.sf_type = ColumnType(MapType(StringType(), StringType()), True)
+    return result
 
 
 def cast_to_datetime(date):
@@ -1233,6 +1290,73 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
     return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
 
 
+@patch("date_trunc")
+def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
+    """
+    SNOW-1183874: Add support for relevant session parameters.
+    https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
+    """
+    import pandas
+
+    # Map snowflake time unit to pandas rounding alias
+    # Not all units have an alias so handle those with a special case
+    SUPPORTED_UNITS = {
+        "day": "D",
+        "hour": "h",
+        "microsecond": "us",
+        "millisecond": "ms",
+        "minute": "min",
+        "month": None,
+        "nanosecond": "ns",
+        "quarter": None,
+        "second": "s",
+        "week": None,
+        "year": None,
+    }
+    time_unit = unalias_datetime_part(part)
+    pandas_unit = SUPPORTED_UNITS.get(time_unit)
+
+    if pandas_unit is not None:
+        truncated = pandas.to_datetime(datetime_expr).dt.floor(pandas_unit)
+    elif time_unit == "month":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "quarter":
+        # Assuming quarters start in Jan/April/July/Oct
+        quarter_map = {i: (((i - 1) // 3) * 3) + 1 for i in range(1, 13)}
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(
+                x.year, quarter_map[x.month], 1, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "week":
+        truncated = pandas.to_datetime(datetime_expr)
+        # Calculate offset from start of week
+        offsets = pandas.to_timedelta(truncated.dt.dayofweek, unit="d")
+        # Subtract off offset
+        truncated = truncated.combine(offsets, operator.sub)
+        # Trim data smaller than a day
+        truncated = truncated.apply(
+            lambda x: datetime.datetime(
+                x.year, x.month, x.day, tzinfo=getattr(x, "tzinfo", None)
+            )
+        )
+    elif time_unit == "year":
+        truncated = datetime_expr.apply(
+            lambda x: datetime.datetime(x.year, 1, 1, tzinfo=getattr(x, "tzinfo", None))
+        )
+    else:
+        raise ValueError(f"{part} is not a supported time unit for date_trunc.")
+
+    if isinstance(datetime_expr.sf_type.datatype, DateType):
+        truncated = truncated.dt.date
+
+    return ColumnEmulator(truncated, sf_type=datetime_expr.sf_type)
+
+
 CompareType = TypeVar("CompareType")
 
 
@@ -1371,4 +1495,20 @@ def mock_convert_timezone(
             TimestampType(return_type), nullable=source_time.sf_type.nullable
         ),
         dtype=object,
+    )
+
+
+@patch("current_session")
+def mock_current_session():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=str(hash(session)), sf_type=ColumnType(StringType(), False)
+    )
+
+
+@patch("current_database")
+def mock_current_database():
+    session = snowflake.snowpark.session._get_active_session()
+    return ColumnEmulator(
+        data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
     )

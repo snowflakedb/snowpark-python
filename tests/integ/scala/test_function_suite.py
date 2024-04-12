@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import json
@@ -79,7 +79,10 @@ from snowflake.snowpark.functions import (
     covar_pop,
     covar_samp,
     cume_dist,
+    current_database,
+    current_session,
     date_part,
+    date_trunc,
     dateadd,
     datediff,
     degrees,
@@ -204,6 +207,7 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock._functions import LocalTimezone
 from snowflake.snowpark.types import (
+    DateType,
     StructField,
     StructType,
     TimestampTimeZone,
@@ -917,7 +921,7 @@ def test_dateadd_tz(tz_type, tzinfo, part, session):
     )
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -981,7 +985,7 @@ def test_date_part_timestamp(part, expected, session):
     LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.local
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -1010,6 +1014,217 @@ def test_date_part_date(part, expected, session):
     )
 
     LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        (
+            "dd",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2017, 2, 24, 0, 0),
+                datetime(2017, 2, 24, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "hh",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "usec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "msec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "min",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "mm",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2017, 2, 1, 0, 0),
+                datetime(2017, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "nsec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "qtr",
+            [
+                date(2024, 1, 1),
+                datetime(2024, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "sec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "wk",
+            [
+                date(2024, 1, 29),
+                datetime(2024, 1, 29, 0, 0),
+                datetime(2017, 2, 20, 0, 0),
+                datetime(2017, 2, 20, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 20, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "yyy",
+            [
+                date(2024, 1, 1),
+                datetime(2024, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+    ],
+)
+def test_date_trunc(part, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives1(session)
+        trunc_df = df.select(
+            *[
+                date_trunc(part, col)
+                for col in [
+                    "date",
+                    "timestamp",
+                    "timestamp_ntz",
+                    "timestamp_ltz",
+                    "timestamp_tz",
+                ]
+            ]
+        )
+        Utils.check_answer(
+            trunc_df,
+            [Row(*expected)],
+            sort=False,
+        )
+        types = [field.datatype for field in trunc_df.schema.fields]
+        assert isinstance(types[0], DateType), "Datetype should remain Datetype"
+        assert all(
+            isinstance(d, TimestampType) for d in types[1:]
+        ), "All timestamp type values should remain timestamps"
+        assert [t.tz for t in types[2:]] == [
+            TimestampTimeZone.NTZ,
+            TimestampTimeZone.LTZ,
+            TimestampTimeZone.TZ,
+        ], "Timestamps with tz type specified should match"
+
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+def test_date_trunc_negative(session, local_testing_mode):
+    if local_testing_mode:
+        err = ValueError
+    else:
+        err = SnowparkSQLException
+
+    df = TestData.datetime_primitives1(session)
+
+    # Invalid date part
+    with pytest.raises(err):
+        df.select(date_trunc("foobar", "date")).collect()
+
+    # Unsupported date part
+    with pytest.raises(err):
+        df.select(date_trunc("dow", "date")).collect()
+
+
+@pytest.mark.localtest
+def test_current_session(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_session()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_session"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All session values should be the same after call to current_session"
+
+
+@pytest.mark.localtest
+def test_current_database(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_database()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_database"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All database values should be the same after call to current_database"
 
 
 @pytest.mark.localtest
@@ -2404,6 +2619,7 @@ def test_objectagg(session):
     )
 
 
+@pytest.mark.localtest
 def test_object_construct(session):
     Utils.check_answer(
         TestData.object1(session).select(object_construct(col("key"), col("value"))),
@@ -2424,7 +2640,19 @@ def test_object_construct(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.object2(session),
+        [
+            Row('{\n  "age": 21,\n  "name": "Joe",\n  "zip": 21021\n}', "age", 0, True),
+            Row(
+                '{\n  "age": 26,\n  "name": "Jay",\n  "zip": 94021\n}', "key", 0, False
+            ),
+        ],
+        sort=False,
+    )
 
+
+@pytest.mark.localtest
 def test_object_construct_keep_null(session):
     Utils.check_answer(
         TestData.object3(session).select(
