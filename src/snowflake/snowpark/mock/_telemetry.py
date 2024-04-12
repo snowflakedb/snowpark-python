@@ -87,8 +87,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
         success = True
         response = None
         try:
-            # import here is because stored proc doesn't have vendored request module
-            # have it at the top will cause import error in stored procedure running
+            # import here is because stored proc doesn't have requests as requirement
             import requests
 
             with requests.Session() as session:
