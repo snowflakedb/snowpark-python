@@ -336,9 +336,15 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def plan_height(self) -> int:
-        return 1 + max(
-            (child.plan_height for child in self.children_plan_nodes), default=0
-        )
+        height = 0
+        current_level = [self]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children_plan_nodes)
+            height += 1
+            current_level = next_level
+        return height
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
