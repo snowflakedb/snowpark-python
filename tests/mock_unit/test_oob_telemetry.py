@@ -76,6 +76,7 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
                 )
                 break
             except AssertionError:
+                caplog.clear()
                 if i == max_retry - 1:
                     raise
 
@@ -176,6 +177,7 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
                 )
             break
         except AssertionError:
+            caplog.clear()
             if i == max_retry - 1:
                 raise
 
