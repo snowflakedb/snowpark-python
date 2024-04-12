@@ -30,6 +30,10 @@
     - object_construct_keep_null
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 - Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
+- Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
+  - `DataFrame.write.json`
+  - `DataFrame.write.csv`
+  - `DataFrame.write.parquet`
 - Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
   - snowflake.snowpark.DataFrame:
     - collect
