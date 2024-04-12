@@ -293,7 +293,7 @@ class RelationalGroupedDataFrame:
             Call ``apply_in_pandas`` using temporary UDTF:
 
                 >>> import pandas as pd
-                 from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
+                >>> from snowflake.snowpark.types import StructType, StructField, StringType, FloatType
                 >>> def convert(pandas_df):
                 ...     return pandas_df.assign(TEMP_F = lambda x: x.TEMP_C * 9 / 5 + 32)
                 >>> df = session.createDataFrame([('SF', 21.0), ('SF', 17.5), ('SF', 24.0), ('NY', 30.9), ('NY', 33.6)],
