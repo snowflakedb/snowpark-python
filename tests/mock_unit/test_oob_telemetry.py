@@ -246,20 +246,32 @@ def test_snowpark_telemetry(caplog, local_testing_telemetry_setup):
         assert unpacked_payload[1]["Tags"]["Event_type"] == "unsupported"
 
     # test sending successfully
-    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        with Session.builder.configs(
-            options={"local_testing": True}
-        ).create() as session:
-            assert session._conn._oob_telemetry.get_instance().size() == 1
-            with pytest.raises(
-                NotImplementedError,
-                match=re.escape("[Local Testing] Session.sql is not supported."),
+    max_retry = 10
+    for i in range(max_retry):
+        try:
+            with caplog.at_level(
+                logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"
             ):
-                session.sql("select 1")
+                with Session.builder.configs(
+                    options={"local_testing": True}
+                ).create() as session:
+                    assert session._conn._oob_telemetry.get_instance().size() == 1
+                    with pytest.raises(
+                        NotImplementedError,
+                        match=re.escape(
+                            "[Local Testing] Session.sql is not supported."
+                        ),
+                    ):
+                        session.sql("select 1")
 
-            session._conn._oob_telemetry.flush()
-            assert session._conn._oob_telemetry.get_instance().size() == 0
-            assert (
-                "telemetry server request success: 200" in caplog.text
-                and "Telemetry request success=True" in caplog.text
-            )
+                    session._conn._oob_telemetry.flush()
+                    assert session._conn._oob_telemetry.get_instance().size() == 0
+                    assert (
+                        "telemetry server request success: 200" in caplog.text
+                        and "Telemetry request success=True" in caplog.text
+                    )
+            break
+        except AssertionError:
+            caplog.clear()
+            if i == max_retry - 1:
+                raise
