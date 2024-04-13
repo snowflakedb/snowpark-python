@@ -10,8 +10,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-import requests
-
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
 from snowflake.connector.telemetry_oob import TelemetryService
@@ -20,6 +18,13 @@ from snowflake.snowpark._internal.utils import (
     get_python_version,
     get_version,
 )
+
+REQUESTS_AVAILABLE = True
+try:
+    # by default in stored procedure requests is not imported
+    import requests
+except ImportError:
+    REQUESTS_AVAILABLE = False
 
 # 3 seconds setting in the connector oob could be too short that the oob service is unable to handle the request,
 # 5 seconds is more tolerant
@@ -86,6 +91,11 @@ class LocalTestOOBTelemetryService(TelemetryService):
         self._deployment_url = self.PROD
 
     def _upload_payload(self, payload) -> None:
+        if not REQUESTS_AVAILABLE:
+            logger.debug(
+                "request module is not available",
+            )
+            return
         success = True
         response = None
         try:
