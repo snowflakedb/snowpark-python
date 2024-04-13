@@ -62,7 +62,7 @@ class _ObjectField:
     CREATED_ON = "createdOn"
     VERSION = "version"
 
-    # A list of properties queried on each object in the lineage.
+    # A list of fileds queried on each object in the lineage.
     GRAPH_ENTITY_PROPERTIES = [
         DOMAIN,
         REFINED_DOMAIN,
@@ -214,23 +214,23 @@ class Lineage:
         if current_depth > total_depth:
             return []
 
-        current_depth_results = self._get_lineage(
+        lineage_edges = self._get_lineage(
             object_name, object_domain, [direction], object_version, current_depth
         )
         if (
             current_depth == total_depth
-            or not current_depth_results
-            or self._is_masked_object(current_depth_results[0][0])
-            or self._is_masked_object(current_depth_results[0][1])
+            or not lineage_edges
+            or self._is_masked_object(lineage_edges[0][0])
+            or self._is_masked_object(lineage_edges[0][1])
         ):
-            return current_depth_results
+            return lineage_edges
 
         next_object = (
-            current_depth_results[0][1]
+            lineage_edges[0][1]
             if direction == LineageDirection.DOWNSTREAM
-            else current_depth_results[0][0]
+            else lineage_edges[0][0]
         )
-        deeper_results = self._recursive_trace(
+        deeper_lineage_edges = self._recursive_trace(
             next_object[_ObjectField.NAME],
             next_object[_ObjectField.DOMAIN],
             direction,
@@ -239,8 +239,8 @@ class Lineage:
             next_object.get(_ObjectField.VERSION),
         )
 
-        current_depth_results.extend(deeper_results)
-        return current_depth_results
+        lineage_edges.extend(deeper_lineage_edges)
+        return lineage_edges
 
     def _is_active_object(self, entity) -> bool:
         return entity[_ObjectField.STATUS] == "ACTIVE" or self._is_masked_object(entity)
@@ -320,7 +320,7 @@ class Lineage:
             object_name (str): The name of the Snowflake object to start trace.
             object_domain (str): The domain of the Snowflake object to start trace.
             object_version (Optional[str]): Version of the Snowflake object to start trace, defaults to None.
-            direction (LineageDirection): The direction to trace (upstream, downstream, both), defaults to both.
+            direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
             depth (int): The depth of the trace, defaults to 2.
 
         Returns:
@@ -343,9 +343,9 @@ class Lineage:
             )
         else:
             directions = (
-                [direction]
-                if direction != LineageDirection.BOTH
-                else [LineageDirection.UPSTREAM, LineageDirection.DOWNSTREAM]
+                [LineageDirection.UPSTREAM, LineageDirection.DOWNSTREAM]
+                if direction == LineageDirection.BOTH
+                else [direction]
             )
             lineage_trace = []
             for dir in directions:
