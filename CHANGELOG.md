@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for registering udfs and stored procedure to local testing.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.Session:
     - file.put
@@ -25,9 +26,10 @@
     - current_database
     - current_session
     - date_trunc
-    - udf
     - object_construct
     - object_construct_keep_null
+    - pow
+    - sqrt
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 - Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
 - Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
