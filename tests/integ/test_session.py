@@ -26,6 +26,7 @@ from snowflake.snowpark.session import (
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):
     session = (
@@ -93,23 +94,27 @@ def test_sql_select_with_params(session):
     assert res == [Row(1)]
 
 
+@pytest.mark.localtest
 def test_active_session(session):
     assert session == _get_active_session()
     assert not session._conn._conn.expired
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
 
 
+@pytest.mark.localtest
 def test_get_or_create(session):
     # because there is already a session it should report the same
     new_session = Session.builder.getOrCreate()
     assert session == new_session
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_or_create_no_previous(db_parameters, session):
     # Test getOrCreate error. In this case we want to make sure that
@@ -140,6 +145,7 @@ def test_get_or_create_no_previous(db_parameters, session):
             new_session2.close()
 
 
+@pytest.mark.localtest
 def test_session_builder(session):
     builder1 = session.builder
     builder2 = session.builder
@@ -157,6 +163,7 @@ def test_session_cancel_all(session):
     assert "cancelled" in session._conn._cursor.fetchall()[0][0]
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create():
@@ -165,6 +172,7 @@ def test_multiple_sessions(session, db_parameters):
         assert exec_info.value.error_code == "1409"
 
 
+@pytest.mark.localtest
 def test_no_default_session():
     sessions_backup = list(_active_sessions)
     _active_sessions.clear()
@@ -180,6 +188,7 @@ def test_no_default_session():
         _active_sessions.update(sessions_backup)
 
 
+@pytest.mark.localtest
 def test_create_session_in_sp(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
@@ -193,6 +202,7 @@ def test_create_session_in_sp(session):
         internal_utils.PLATFORM = original_platform
 
 
+@pytest.mark.localtest
 def test_close_session_in_sp(session):
     import snowflake.snowpark._internal.utils as internal_utils
 
@@ -276,6 +286,7 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         Utils.drop_stage(session, single_quoted_name)
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     session_builder = Session.builder.configs(db_parameters)
@@ -291,6 +302,7 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
         new_session.close()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
     connection = snowflake.connector.connect(**db_parameters)
@@ -307,6 +319,7 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
         new_session.close()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection_with_noise_parameters(
     db_parameters, sql_simplifier_enabled
@@ -330,6 +343,7 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_builder_app_name(session, db_parameters):
     builder = session.builder
@@ -603,6 +617,7 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
         assert new_session2.sql_simplifier_enabled is False
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_default_config_file(monkeypatch, db_parameters):
     import tomlkit
