@@ -45,6 +45,7 @@
     - save_as_table
 - Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
 - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
+- Added support for dynamic pivot.  This feature is currently in private preview.
 
 ### Bug Fixes
 

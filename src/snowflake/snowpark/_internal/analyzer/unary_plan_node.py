@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
@@ -53,8 +53,9 @@ class Pivot(UnaryNode):
         self,
         grouping_columns: List[Expression],
         pivot_column: Expression,
-        pivot_values: List[Expression],
+        pivot_values: Optional[Union[List[Expression], LogicalPlan]],
         aggregates: List[Expression],
+        default_on_null: Optional[Expression],
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
@@ -62,6 +63,7 @@ class Pivot(UnaryNode):
         self.pivot_column = pivot_column
         self.pivot_values = pivot_values
         self.aggregates = aggregates
+        self.default_on_null = default_on_null
 
 
 class Unpivot(UnaryNode):
