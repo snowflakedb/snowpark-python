@@ -182,12 +182,7 @@ class Lineage:
             )
 
             for edge in edges:
-                if (
-                    _DGQLFields.SOURCE in edge
-                    and _DGQLFields.TARGET in edge
-                    and self._is_active_object(edge[_DGQLFields.SOURCE])
-                    and self._is_active_object(edge[_DGQLFields.TARGET])
-                ):
+                if _DGQLFields.SOURCE in edge and _DGQLFields.TARGET in edge:
                     rows.append(
                         (
                             edge[_DGQLFields.SOURCE],
@@ -242,9 +237,6 @@ class Lineage:
         lineage_edges.extend(deeper_lineage_edges)
         return lineage_edges
 
-    def _is_active_object(self, entity) -> bool:
-        return entity[_ObjectField.STATUS] == "ACTIVE" or self._is_masked_object(entity)
-
     def _is_masked_object(self, entity) -> bool:
         return entity[_ObjectField.STATUS] == "MASKED"
 
@@ -269,6 +261,7 @@ class Lineage:
             _ObjectField.NAME: name,
             _ObjectField.DOMAIN: domain,
             _ObjectField.CREATED_ON: graph_entity[_ObjectField.CREATED_ON],
+            _ObjectField.STATUS: graph_entity[_ObjectField.STATUS],
         }
 
         if version is not None:
