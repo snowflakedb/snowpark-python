@@ -152,7 +152,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
+      - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -164,7 +164,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos on aws
-      - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
+      - if: ${{ !matrix.os == 'macos-latest' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
