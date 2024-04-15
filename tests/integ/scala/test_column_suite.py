@@ -979,3 +979,20 @@ def test_in_expression_with_multiple_queries(session):
     Utils.check_answer(
         df2.select(col("a").in_(df1.select("a"))), [Row(True), Row(False)]
     )
+
+
+def test_pivot_with_multiple_queries(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df1 = session.create_dataframe([[1, "one"], [2, "two"]], schema=["a", "b"])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+    df2 = session.create_dataframe(
+        [[1, "one"], [11, "one"], [3, "three"]], schema=["a", "b"]
+    )
+    Utils.check_answer(
+        df2.pivot(col("b"), df1.select(col("b"))).agg(avg(col("a"))), [Row(6, None)]
+    )
