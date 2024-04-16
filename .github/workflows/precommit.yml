@@ -163,7 +163,7 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      # do not run other tests for macos on aws
+      # do not run other tests for macos
       - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
