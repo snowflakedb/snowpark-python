@@ -54,6 +54,7 @@
 - Fixed a bug in local testing that null filled columns for constant functions.
 - Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
 - Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
+- Fixed a bug in local testing implementation that timestamp data comparison can not handle year beyond 2262.
 
 ## 1.14.0 (2024-03-20)
 

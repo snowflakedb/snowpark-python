@@ -197,6 +197,25 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         and col.apply(lambda x: x is None).any()
     ):  # non-object dtype converts None to NaN for numeric columns
         return col
+    """
+    notes for the datetime64[us] choice here:
+    1. python doesn't have built-in datetime nanosecond support:
+      https://github.com/python/cpython/blob/3.12/Lib/_pydatetime.py
+
+    2. numpy datetime64 restrictions:
+      datetime64[ns] supports nanoseconds, the year range is limited to [ 1678 AD, 2262 AD]
+      datetime64[us] supports milliseconds, the year range is more relaxed [290301 BC, 294241 AD]
+
+    3. snowflake date range recommendation
+      according to snowflake https://docs.snowflake.com/en/sql-reference/data-types-datetime#date
+      the recommend year range is 1582, 9999
+
+    based upon these information, datetime64[us] is a better default choice,
+      better align with Python behavior
+      trade precision for larger range support
+
+    we can support nanoseconds in the future
+    """
     sf_type_to_dtype = {
         ArrayType: object,
         BinaryType: object,
@@ -211,7 +230,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         NullType: object,
         ShortType: numpy.int8 if not col.sf_type.nullable else "Int8",
         StringType: object,
-        TimestampType: "datetime64[ns]",
+        TimestampType: "datetime64[us]",
         TimeType: object,
         VariantType: object,
         MapType: object,

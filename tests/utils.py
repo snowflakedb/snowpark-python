@@ -791,6 +791,19 @@ class TestData:
         return session.create_dataframe(data, schema)
 
     @classmethod
+    def datetime_primitives2(cls, session: "Session") -> DataFrame:
+        data = [
+            "9999-12-31 00:00:00.123456",
+            "1583-01-01 23:59:59.56789",
+        ]
+        schema = StructType(
+            [
+                StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
     def variant_datetimes1(cls, session: "Session") -> DataFrame:
         primitives_df = cls.datetime_primitives1(session)
         variant_cols = [
