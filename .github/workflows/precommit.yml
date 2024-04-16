@@ -83,19 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-<<<<<<< HEAD
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
         python-version: ["3.9", "3.10", "3.11"]
-=======
-        os:
-          - image_name: ubuntu-latest
-            download_name: linux
-          - image_name: macos-latest
-            download_name: macos
-          - image_name: windows-latest
-            download_name: windows
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
->>>>>>> 659457e9 (Get back to only Snowpark Python tests)
         cloud-provider: [aws, azure, gcp]
         exclude:
           # only run macos with aws py3.9 for doctest
