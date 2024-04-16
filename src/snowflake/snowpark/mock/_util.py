@@ -198,7 +198,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
     ):  # non-object dtype converts None to NaN for numeric columns
         return col
     """
-    notes for the datetime64[us] choice here:
+    notes for the timestamp object type drift here, ideally datetime64[us] should be used here because:
     1. python doesn't have built-in datetime nanosecond support:
       https://github.com/python/cpython/blob/3.12/Lib/_pydatetime.py
 
@@ -210,11 +210,11 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
       according to snowflake https://docs.snowflake.com/en/sql-reference/data-types-datetime#date
       the recommend year range is 1582, 9999
 
-    based upon these information, datetime64[us] is a better default choice,
-      better align with Python behavior
-      trade precision for larger range support
+    however, on Python 3.8 max supported version pandas 2.0.3 + version numpy 1.24.4 does not recognize datetime64[us],
+    always defaults to unit ns, leading to time out of band error.
 
-    we can support nanoseconds in the future
+    based upon these information and for simplicity, we can use object for now, then move onto datetime64[us],
+    then seek solution for nanosecond.
     """
     sf_type_to_dtype = {
         ArrayType: object,
@@ -230,7 +230,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         NullType: object,
         ShortType: numpy.int8 if not col.sf_type.nullable else "Int8",
         StringType: object,
-        TimestampType: "datetime64[us]",
+        TimestampType: object,  # "datetime64[us]", not working on Python3.8 pandas 2.0.8 + numpy 1.24.4
         TimeType: object,
         VariantType: object,
         MapType: object,
