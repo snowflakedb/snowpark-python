@@ -55,6 +55,7 @@
 - Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
 - Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
 - Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
+- Fixed a bug in local testing that caused NaT and NaN values to not be recognized.
 
 ## 1.14.0 (2024-03-20)
 
