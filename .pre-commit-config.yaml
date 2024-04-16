@@ -1,12 +1,4 @@
 exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
-files: >
-          (?x)^(
-            src/snowflake/snowpark/modin/.*\.py|
-            tests/integ/modin/.*\.py|
-            tests/unit/modin/.*\.py|
-            tests/sql_counter\.py|
-            tests/pandas_api_coverage\.py
-          )$
 default_language_version:
     python: python3.9
 repos:
