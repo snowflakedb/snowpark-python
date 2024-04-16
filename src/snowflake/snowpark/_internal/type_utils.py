@@ -264,6 +264,15 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
+if installed_pandas:
+    import numpy
+
+    PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
+        {
+            pandas._libs.tslibs.nattype.NaTType: TimestampType,
+            numpy.float64: DecimalType,
+        }
+    )
 
 
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
