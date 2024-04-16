@@ -202,8 +202,8 @@ def test_create_session_in_sp(session):
         internal_utils.PLATFORM = original_platform
 
 
-@pytest.mark.localtest
 def test_close_session_in_sp(session):
+    # TODO: local testing support SNOW-1331149 mocking connector connection
     import snowflake.snowpark._internal.utils as internal_utils
 
     original_platform = internal_utils.PLATFORM
