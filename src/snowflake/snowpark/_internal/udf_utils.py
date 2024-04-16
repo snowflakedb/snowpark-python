@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.context import _should_continue_registration
 from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.version import VERSION
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -105,9 +106,7 @@ class ExtensionFunctionProperties:
 
     def __init__(
         self,
-        replace: bool,
         object_type: TempObjectType,
-        if_not_exists: bool,
         object_name: str,
         input_args: List[UDFColumn],
         input_sql_types: List[str],
@@ -122,6 +121,8 @@ class ExtensionFunctionProperties:
         native_app_params: Optional[Dict[str, Any]],
         import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
         func: Union[Callable, Tuple[str, str]],
+        replace: bool = False,
+        if_not_exists: bool = False,
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
         anonymous: bool = False,
     ) -> None:
@@ -860,6 +861,30 @@ import pandas
 """.strip()
 
 
+def add_snowpark_package_to_sproc_packages(
+    session: Optional["snowflake.snowpark.Session"],
+    packages: Optional[List[Union[str, ModuleType]]],
+) -> List[Union[str, ModuleType]]:
+    major, minor, patch = VERSION
+    package_name = "snowflake-snowpark-python"
+    # Use == to ensure that the remote version matches the local version
+    this_package = f"{package_name}=={major}.{minor}.{patch}"
+
+    # When resolve_imports_and_packages is called below it will use the provided packages or
+    # default to the packages in the current session. If snowflake-snowpark-python is not
+    # included by either of those two mechanisms then create package list does include it and
+    # any other relevant packages.
+    if packages is None:
+        if session is None:
+            packages = [this_package]
+        elif package_name not in session._packages:
+            packages = list(session._packages.values()) + [this_package]
+    else:
+        if not any(package_name in p for p in packages):
+            packages.append(this_package)
+    return packages
+
+
 def resolve_packages_in_sandbox(
     packages: Optional[List[Union[str, ModuleType]]],
 ) -> List[str]:
@@ -1189,7 +1214,7 @@ $$
     if _should_continue_registration is None:
         continue_registration = True
     else:
-        callable_properties = ExtensionFunctionProperties(
+        extension_function_properties = ExtensionFunctionProperties(
             func=func,
             replace=replace,
             object_type=object_type,
@@ -1209,7 +1234,9 @@ $$
             native_app_params=native_app_params,
             import_paths=import_paths,
         )
-        continue_registration = _should_continue_registration(callable_properties)
+        continue_registration = _should_continue_registration(
+            extension_function_properties
+        )
 
     # This means the execution environment does not want to continue creating the object in Snowflake
     if not bool(continue_registration):
@@ -1296,33 +1323,26 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    if _should_continue_registration is None:
-        continue_registration = True
-    else:
-        callable_properties = ExtensionFunctionProperties(
-            anonymous=True,
-            object_type=TempObjectType.PROCEDURE,
-            object_name=object_name,
-            input_args=input_args,
-            input_sql_types=input_sql_types,
-            return_sql=return_sql,
-            strict=strict,
-            runtime_version=runtime_version,
-            all_imports=all_imports,
-            all_packages=all_packages,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            handler=handler,
-            inline_python_code=inline_python_code,
-            native_app_params=native_app_params,
-            import_paths=import_paths,
-            func=func,
-        )
-        continue_registration = _should_continue_registration(callable_properties)
-
-    # This means the execution environment does not want to continue creating the object in Snowflake
-    if not bool(continue_registration):
-        return
+    extension_function_properties = ExtensionFunctionProperties(
+        anonymous=True,
+        object_type=TempObjectType.PROCEDURE,
+        object_name=object_name,
+        input_args=input_args,
+        input_sql_types=input_sql_types,
+        return_sql=return_sql,
+        runtime_version=runtime_version,
+        all_imports=all_imports,
+        all_packages=all_packages,
+        external_access_integrations=external_access_integrations,
+        secrets=secrets,
+        handler=handler,
+        inline_python_code=inline_python_code,
+        native_app_params=native_app_params,
+        import_paths=import_paths,
+        func=func,
+    )
+    # The result of the function call below does not matter because we are not using session object here
+    _should_continue_registration(extension_function_properties)
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})

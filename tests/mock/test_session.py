@@ -14,6 +14,28 @@ from snowflake.snowpark.mock._constants import (
 )
 from snowflake.snowpark.session import Session
 
+# @mock.patch(
+#     "snowflake.snowpark.session._is_execution_environment_sandboxed"
+# )
+# @pytest.mark.parametrize("is_sandboxed", [False, True])
+# def test_get_current_session(sandbox_patch, is_sandboxed):
+#     sandbox_patch.return_value = is_sandboxed
+#     test_parameter = {
+#         "account": "test_account",
+#         "user": "test_user",
+#         "schema": "test_schema",
+#         "database": "test_database",
+#         "warehouse": "test_warehouse",
+#         "role": "test_role",
+#         "local_testing": True,
+#     }
+#     session = Session.builder.configs(options=test_parameter).create()
+#     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(session)
+#     if is_sandboxed:
+#         assert session is None
+#     else:
+#         assert session is not None
+
 
 def test_connection_get_current_parameter():
     # test no option
@@ -91,6 +113,8 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
     assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
 
+    session.close()
+
 
 def test_session_use_object():
     session = Session.builder.configs(options={"local_testing": True}).create()
@@ -106,3 +130,5 @@ def test_session_use_object():
     assert session.get_current_schema() == '"TEST_SCHEMA"'
     assert session.get_current_database() == '"TEST_DATABASE"'
     assert session.get_current_role() == '"TEST_ROLE"'
+
+    session.close()
