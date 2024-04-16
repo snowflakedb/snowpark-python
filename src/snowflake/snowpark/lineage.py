@@ -306,14 +306,44 @@ class Lineage:
         Traces the lineage of a object within Snowflake and returns it as a DataFrame.
 
         Args:
-            object_name (str): The name of the Snowflake object to start trace.
-            object_domain (str): The domain of the Snowflake object to start trace.
+            object_name (str): The name of the Snowflake object to start trace, formatted as "database.schema.object".
+            object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
             object_version (Optional[str]): Version of the Snowflake object to start trace, defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
             depth (int): The depth of the trace, defaults to 2.
 
         Returns:
             snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage.
+
+            Example:
+                >>> db = "YOUR_DATABASE"
+                >>> schema = "YOUR_SCHEMA"
+                # Creating a table and views in the session
+                >>> session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
+                >>> session.sql(
+                ...     f"CREATE OR REPLACE VIEW {db}.{schema}.V1 AS SELECT * FROM {db}.{schema}.T1"
+                ... ).collect()
+                >>> session.sql(
+                ...     f"CREATE OR REPLACE VIEW {db}.{schema}.V2 AS SELECT * FROM {db}.{schema}.V1"
+                ... ).collect()
+                # Tracing the lineage of the table
+                >>> df = session.lineage.trace(
+                ...     f"{db}.{schema}.T1",
+                ...     "table",
+                ...     direction=LineageDirection.DOWNSTREAM
+                ... )
+                >>> df.show()
+                ---------------------------------------------------------------------------------------------------------------------------------------
+                | "SOURCE_OBJECT"                                        | "TARGET_OBJECT"                                    | "LINEAGE"   | "DEPTH" |
+                ---------------------------------------------------------------------------------------------------------------------------------------
+                | {"createdOn": "1712881232230", "domain": "TABLE",      | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 1       |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.T1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status": |             |         |
+                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |         |
+                | {"createdOn": "1712881232230", "domain": "VIEW",       | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 2       |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V2", "status": |             |         |
+                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |         |
+                ---------------------------------------------------------------------------------------------------------------------------------------
+                <BLANKLINE>
         """
         if not object_name:
             raise ValueError("Object name must be provided.")
