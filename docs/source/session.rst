@@ -80,6 +80,7 @@ Snowpark Session
     Session.custom_package_usage_config
     Session.file
     Session.query_tag
+    Session.lineage
     Session.read
     Session.sproc
     Session.sql_simplifier_enabled

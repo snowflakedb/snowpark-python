@@ -2776,7 +2776,7 @@ class Session:
     @property
     def lineage(self) -> Lineage:
         """
-        Returns a :class:`Lineage` object that you can use to lineage of snowflake entities.
+        Returns a :class:`Lineage` object that you can use to explore lineage of snowflake entities.
         See details of how to use this object in :class:`Lineage`.
         """
         return self._lineage
