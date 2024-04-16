@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, labeled, unlabeled]
     branches:
       - pandas-main
+    paths:
+      - 'src/snowflake/snowpark/modin/**'
 
 jobs:
   check_pandas_change_log:
