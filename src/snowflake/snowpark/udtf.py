@@ -906,7 +906,7 @@ class UDTFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )

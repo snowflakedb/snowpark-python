@@ -1323,26 +1323,27 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    extension_function_properties = ExtensionFunctionProperties(
-        anonymous=True,
-        object_type=TempObjectType.PROCEDURE,
-        object_name=object_name,
-        input_args=input_args,
-        input_sql_types=input_sql_types,
-        return_sql=return_sql,
-        runtime_version=runtime_version,
-        all_imports=all_imports,
-        all_packages=all_packages,
-        external_access_integrations=external_access_integrations,
-        secrets=secrets,
-        handler=handler,
-        inline_python_code=inline_python_code,
-        native_app_params=native_app_params,
-        import_paths=import_paths,
-        func=func,
-    )
-    # The result of the function call below does not matter because we are not using session object here
-    _should_continue_registration(extension_function_properties)
+    if _should_continue_registration is not None:
+        extension_function_properties = ExtensionFunctionProperties(
+            anonymous=True,
+            object_type=TempObjectType.PROCEDURE,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            import_paths=import_paths,
+            func=func,
+        )
+        # The result of the function call below does not matter because we are not using session object here
+        _should_continue_registration(extension_function_properties)
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})

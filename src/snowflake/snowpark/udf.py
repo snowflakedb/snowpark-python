@@ -590,10 +590,11 @@ class UDFRegistration:
                 A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
                 This parameter is ignored if you are not developing a Snowflake Native App.
 
-            See Also:
-            - :func:`~snowflake.snowpark.functions.udf`
-            - :meth:`register_from_file`
+        See Also:
+        - :func:`~snowflake.snowpark.functions.udf`
+        - :meth:`register_from_file`
         """
+
         if not callable(func):
             raise TypeError(
                 "Invalid function: not a function or callable "
