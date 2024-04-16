@@ -202,7 +202,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
     1. python doesn't have built-in datetime nanosecond support:
       https://github.com/python/cpython/blob/3.12/Lib/_pydatetime.py
 
-    2. numpy datetime64 restrictions:
+    2. numpy datetime64 restrictions, https://numpy.org/doc/stable/reference/arrays.datetime.html#datetime-units:
       datetime64[ns] supports nanoseconds, the year range is limited to [ 1678 AD, 2262 AD]
       datetime64[us] supports milliseconds, the year range is more relaxed [290301 BC, 294241 AD]
 
