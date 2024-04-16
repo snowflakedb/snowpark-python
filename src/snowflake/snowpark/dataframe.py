@@ -927,6 +927,90 @@ class DataFrame:
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
+    @df_collect_api_telemetry
+    def to_snowpark_pandas(
+        self,
+        index_col: Optional[Union[str, List[str]]] = None,
+        columns: Optional[List[str]] = None
+    ) -> "snowflake.snowpark.modin.pandas.DataFrame":
+        """
+        Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
+
+        Args:
+            index_col: A column name or a list of column names to use as index.
+            columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
+                all columns except ones configured in index_col.
+
+        Returns:
+            :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+                A Snowpark pandas DataFrame contains index and data columns based on the snapshot of the current
+                Snowpark DataFrame, which triggers an eager evaluation.
+
+                If index_col is provided, the specified index_col is selected as the index column(s) for the result dataframe,
+                otherwise, a default range index from 0 to n - 1 is created as the index column, where n is the number
+                of rows. Please note that is also used as the start row ordering for the dataframe, but there is no
+                guarantee that the default row ordering is the same for two Snowpark pandas dataframe created from
+                the same Snowpark Dataframe.
+
+                If columns are provided, the specified columns are selected as the data column(s) for the result dataframe,
+                otherwise, all Snowpark DataFrame columns (exclude index_col) are selected as data columns.
+
+        Note:
+            Transformations performed on the returned Snowpark pandas Dataframe do not affect the Snowpark DataFrame
+            from which it was created. Call
+            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            to transform a Snowpark pandas DataFrame back to a Snowpark DataFrame.
+
+            The column names used for columns or index_cols must be Normalized Snowflake Identifiers, and the
+            Normalized Snowflake Identifiers of a Snowpark DataFrame can be displayed by calling df.show().
+            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
+
+            `to_snowpark_pandas` works only when the environment is set up correctly for Snowpark pandas. This environment
+            may require version of Python and pandas different from what Snowpark Python uses If the environment is setup
+            incorrectly, an error will be raised when `to_snowpark_pandas` is called.
+
+            For Python version support information, please refer to:
+            - the prerequisites section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#prerequisites
+            - the installation section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#installing-the-snowpark-pandas-api
+
+        See also:
+            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            - :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
+            - :func:`snowflake.snowpark.modin.pandas.Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+            >>> snowpark_pandas_df = df.to_snowpark_pandas()
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               A  B  C
+            0  1  2  3
+
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A')
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               B  C
+            A
+            1  2  3
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A', columns=['B'])
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               B
+            A
+            1  2
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col=['B', 'A'], columns=['A', 'C', 'A'])
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+                 A  C  A
+            B A
+            2 1  1  3  1
+        """
+        import snowflake.snowpark.modin.pandas as pd        # pragma: no cover
+
+        # create a temporary table out of the current snowpark dataframe
+        temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)    # pragma: no cover
+        self.write.save_as_table(temporary_table_name, mode="errorifexists", table_type="temporary")    # pragma: no cover
+
+        snowpandas_df = pd.read_snowflake(name_or_query=temporary_table_name, index_col=index_col, columns=columns)  # pragma: no cover
+
+        return snowpandas_df
+
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
         if isinstance(item, str):
             return self.col(item)

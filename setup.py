@@ -20,6 +20,7 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "pandas>=2.0.0, <2.2.0",  # Snowpark pandas API specific pandas version requirement
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -65,6 +66,22 @@ setup(
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark.mock",
+        "snowflake.snowpark.modin",
+        "snowflake.snowpark.modin.config",
+        "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
+        "snowflake.snowpark.modin.core.execution.dispatching",
+        "snowflake.snowpark.modin.core.execution.dispatching.factories",
+        "snowflake.snowpark.modin.pandas",
+        "snowflake.snowpark.modin.pandas.api.extensions",
+        "snowflake.snowpark.modin.plugin",
+        "snowflake.snowpark.modin.plugin._internal",
+        "snowflake.snowpark.modin.plugin.compiler",
+        "snowflake.snowpark.modin.plugin.docstrings",
+        "snowflake.snowpark.modin.plugin.default2pandas",
+        "snowflake.snowpark.modin.plugin.docstrings",
+        "snowflake.snowpark.modin.plugin.extensions",
+        "snowflake.snowpark.modin.plugin.io",
+        "snowflake.snowpark.modin.plugin.utils",
     ],
     package_dir={
         "": "src",
@@ -87,6 +104,13 @@ setup(
             "cachetools",  # used in UDF doctest
             "pytest-timeout",
             "pre-commit",
+        ],
+        "modin-development": [
+            "pytest-assume",  # Snowpark pandas
+            "decorator",  # Snowpark pandas
+            "scipy",  # Snowpark pandas 3rd party library testing
+            "statsmodels",  # Snowpark pandas 3rd party library testing
+            "pandas==2.1.4",  # Snowpark pandas requires pandas 2.1.4
         ],
         "localtest": [
             "pandas",
