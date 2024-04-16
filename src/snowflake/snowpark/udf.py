@@ -584,7 +584,13 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
-        See Also:
+            native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+                as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+                such as schema and application roles.
+                A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+                This parameter is ignored if you are not developing a Snowflake Native App.
+
+            See Also:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register_from_file`
         """
@@ -862,6 +868,7 @@ class UDFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=func,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,

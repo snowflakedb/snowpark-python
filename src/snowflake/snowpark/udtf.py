@@ -22,7 +22,7 @@ Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and samp
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -547,6 +547,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> UserDefinedTableFunction:
         """
@@ -624,6 +625,12 @@ class UDTFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDTF.
+            native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+                as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+                such as schema and application roles.
+                A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+                This parameter is ignored if you are not developing a Snowflake Native App.
+
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -661,6 +668,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -825,6 +833,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -876,6 +885,7 @@ class UDTFRegistration:
             code,
             all_imports,
             all_packages,
+            import_paths,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -905,6 +915,7 @@ class UDTFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=handler,
                 return_type=output_schema,
                 input_args=input_args,
                 handler=handler_name,
@@ -912,6 +923,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                import_paths=import_paths,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -922,6 +934,7 @@ class UDTFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

@@ -49,11 +49,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.context import (
-    _is_execution_environment_sandboxed,
-    _should_continue_registration,
-)
-from snowflake.snowpark.session import Session
+from snowflake.snowpark.context import _should_continue_registration
 from snowflake.snowpark.types import DataType, StructField, StructType
 
 if installed_pandas:
@@ -99,7 +95,7 @@ class UDFColumn(NamedTuple):
     name: str
 
 
-class CallableProperties:
+class ExtensionFunctionProperties:
     """
     This is a data class to hold all information, resolved or otherwise, about a UDF/UDTF/UDAF/Sproc object
     that we want to create in a user's Snowflake account.
@@ -127,7 +123,6 @@ class CallableProperties:
         import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
         func: Union[Callable, Tuple[str, str]],
         execute_as: Optional[typing.Literal["caller", "owner"]] = None,
-        is_execution_environment_sandboxed: bool = False,
         anonymous: bool = False,
     ) -> None:
         self.func = func
@@ -148,7 +143,6 @@ class CallableProperties:
         self.inline_python_code = inline_python_code
         self.native_app_params = deepcopy(native_app_params)
         self.import_paths = deepcopy(import_paths)
-        self.is_execution_environment_sandboxed = is_execution_environment_sandboxed
         self.anonymous = anonymous
 
 
@@ -874,7 +868,7 @@ def resolve_packages_in_sandbox(
     """
     resolved_packages: List[str] = []
     if packages is not None:
-        parsed_packages = Session._parse_packages(packages)
+        parsed_packages = snowflake.snowpark.Session._parse_packages(packages)
         # Similar to local testing we don't resolve the packages, we just return what is added
         errors = []
         resolved_packages_dict: Dict[str, str] = {}
@@ -970,13 +964,15 @@ def resolve_imports_and_packages(
                 resolved_import_tuple = (
                     session._resolve_import_path(udf_import)
                     if session
-                    else Session._resolve_import_path(udf_import)
+                    else snowflake.snowpark.Session._resolve_import_path(udf_import)
                 )
             elif isinstance(udf_import, tuple) and len(udf_import) == 2:
                 resolved_import_tuple = (
                     session._resolve_import_path(udf_import[0], udf_import[1])
                     if session
-                    else Session._resolve_import_path(udf_import[0], udf_import[1])
+                    else snowflake.snowpark.Session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
                 )
             else:
                 raise TypeError(
@@ -1193,7 +1189,7 @@ $$
     if _should_continue_registration is None:
         continue_registration = True
     else:
-        callable_properties = CallableProperties(
+        callable_properties = ExtensionFunctionProperties(
             func=func,
             replace=replace,
             object_type=object_type,
@@ -1212,7 +1208,6 @@ $$
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
             import_paths=import_paths,
-            is_execution_environment_sandboxed=_is_execution_environment_sandboxed,
         )
         continue_registration = _should_continue_registration(callable_properties)
 
@@ -1249,17 +1244,20 @@ HANDLER='{handler}'{execute_as_sql}
 
 
 def generate_anonymous_python_sp_sql(
+    func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
     handler: str,
     object_name: str,
     all_imports: str,
     all_packages: str,
+    import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    native_app_params: Optional[Dict[str, Any]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1296,6 +1294,35 @@ $$
         if secrets
         else ""
     )
+
+    # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
+    if _should_continue_registration is None:
+        continue_registration = True
+    else:
+        callable_properties = ExtensionFunctionProperties(
+            anonymous=True,
+            object_type=TempObjectType.PROCEDURE,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            strict=strict,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            import_paths=import_paths,
+            func=func,
+        )
+        continue_registration = _should_continue_registration(callable_properties)
+
+    # This means the execution environment does not want to continue creating the object in Snowflake
+    if not bool(continue_registration):
+        return
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})

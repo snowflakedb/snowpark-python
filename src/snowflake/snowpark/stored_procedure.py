@@ -464,6 +464,7 @@ class StoredProcedureRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        native_app_params: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> StoredProcedure:
         """
@@ -534,6 +535,11 @@ class StoredProcedureRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
+                as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
+                such as schema and application roles.
+                A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
+                This parameter is ignored if you are not developing a Snowflake Native App.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -571,6 +577,7 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
             # force_inline_code avoids uploading python file
             # when we know the code is not too large. This is useful
             # in pandas API to create stored procedures not registered by users.
@@ -741,6 +748,7 @@ class StoredProcedureRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -777,7 +785,9 @@ class StoredProcedureRegistration:
         # included by either of those two mechanisms then create package list does include it and
         # any other relevant packages.
         if packages is None:
-            if package_name not in self._session._packages:
+            if self._session is None:
+                packages = [this_package]
+            elif package_name not in self._session._packages:
                 packages = list(self._session._packages.values()) + [this_package]
         else:
             if not any(package_name in p for p in packages):
@@ -788,6 +798,7 @@ class StoredProcedureRegistration:
             code,
             all_imports,
             all_packages,
+            import_paths,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -807,7 +818,7 @@ class StoredProcedureRegistration:
             force_inline_code=force_inline_code,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -815,23 +826,27 @@ class StoredProcedureRegistration:
         anonymous_sp_sql = None
         if anonymous:
             anonymous_sp_sql = generate_anonymous_python_sp_sql(
+                func=func,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                import_paths=import_paths,
                 inline_python_code=code,
                 strict=strict,
                 runtime_version=self._session._runtime_version_from_requirement,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                native_app_params=native_app_params,
             )
         else:
             raised = False
             try:
                 create_python_udf_or_sp(
                     session=self._session,
+                    func=func,
                     return_type=return_type,
                     input_args=input_args,
                     handler=handler,
@@ -839,6 +854,7 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
+                    import_paths=import_paths,
                     is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
@@ -848,6 +864,7 @@ class StoredProcedureRegistration:
                     strict=strict,
                     external_access_integrations=external_access_integrations,
                     secrets=secrets,
+                    native_app_params=native_app_params,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
