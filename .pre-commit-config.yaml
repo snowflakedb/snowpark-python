@@ -1,4 +1,12 @@
 exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
+files: >
+          (?x)^(
+            src/snowflake/snowpark/modin/.*\.py|
+            tests/integ/modin/.*\.py|
+            tests/unit/modin/.*\.py|
+            tests/sql_counter\.py|
+            tests/pandas_api_coverage\.py
+          )$
 default_language_version:
     python: python3.9
 repos:
@@ -6,7 +14,7 @@ repos:
     rev: v2.31.1
     hooks:
         -   id: pyupgrade
-            args: [--py38-plus]
+            args: [--py39-plus]
 -   repo: https://github.com/PyCQA/isort
     rev: 5.12.0
     hooks:
