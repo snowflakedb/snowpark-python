@@ -18,7 +18,12 @@ from snowflake.snowpark.types import (
 
 class LineageDirection(Enum):
     """
-    Directions for lineage tracing within a data graph.
+    Directions for tracing the lineage.
+
+    Attributes:
+        DOWNSTREAM (str): Represents the downstream direction in lineage tracing.
+        UPSTREAM (str): Represents the upstream direction in lineage tracing.
+        BOTH (str): Represents both upstream and downstream direction in lineage tracing.
     """
 
     DOWNSTREAM = "downstream"
@@ -200,7 +205,7 @@ class Lineage:
         object_version: Optional[str] = None,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
         """
-        Recursively traces lineage by making successive queries based on response nodes.
+        Recursively traces lineage by making successive DGQL queries based on response nodes.
         """
         if current_depth > total_depth:
             return []
@@ -234,6 +239,9 @@ class Lineage:
         return lineage_edges
 
     def _is_masked_object(self, entity) -> bool:
+        """
+        Checks if given object is masked.
+        """
         return entity[_ObjectField.STATUS] == "MASKED"
 
     def _get_user_entity(self, graph_entity) -> str:
