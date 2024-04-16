@@ -20,7 +20,18 @@ except ImportError:
     is_pandas_available = False
 
 
-def create_objects_for_test(session, db, schema):
+def setup_test(session, db, schema, warehouse, test_role) -> None:
+    session.sql("USE ROLE ACCOUNTADMIN").collect()
+    session.sql(f"CREATE OR REPLACE ROLE {test_role}").collect()
+    session.sql(f"GRANT ROLE {test_role} TO ROLE ACCOUNTADMIN").collect()
+    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
+    session.sql(f"GRANT CREATE SCHEMA ON database {db} TO ROLE {test_role}").collect()
+    session.sql(f"GRANT USAGE ON WAREHOUSE {warehouse} TO ROLE {test_role}").collect()
+    session.sql(f"USE ROLE {test_role}").collect()
+    session.sql(f"CREATE SCHEMA {db}.{schema}").collect()
+
+
+def create_objects_for_test(session, db, schema) -> None:
     # Create table and views within the specified TESTDB and TESTSCHEMA
     session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
     session.sql(
@@ -53,30 +64,26 @@ def remove_created_on_field(df):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_lineage_trace(session):
+    """
+    Tests lineage.trace API on multiple cases.
+    """
     db = session.get_current_database().replace('"', "")
     schema = ("sch" + str(uuid.uuid4()).replace("-", "")[:10]).upper()
     warehouse = session.get_current_warehouse().replace('"', "")
+    test_role = "test_role"
 
-    new_role = "test_role"
-
-    session.sql("USE ROLE ACCOUNTADMIN").collect()
-    session.sql(f"CREATE OR REPLACE ROLE {new_role}").collect()
-    session.sql(f"GRANT ROLE {new_role} TO ROLE ACCOUNTADMIN").collect()
-    session.sql(f"GRANT USAGE ON database {db} TO ROLE {new_role}").collect()
-    session.sql(f"GRANT CREATE SCHEMA ON database {db} TO ROLE {new_role}").collect()
-    session.sql(f"GRANT USAGE ON WAREHOUSE {warehouse} TO ROLE {new_role}").collect()
-    session.sql(f"USE ROLE {new_role}").collect()
-    session.sql(f"CREATE SCHEMA {db}.{schema}").collect()
-
+    setup_test(session, db, schema, warehouse, test_role)
     create_objects_for_test(session, db, schema)
 
+    # CASE 1 : trace with the role that does not have VIEW LINEAGE privillege.
     with pytest.raises(SnowparkSQLException) as exc:
         session.lineage.trace(f"{db}.{schema}.V1", "view").collect()
     assert "Insufficient privileges to view data lineage" in str(exc)
 
+    # CASE 2 : trace with the role that has VIEW LINEAGE privillege.
     session.sql("USE ROLE ACCOUNTADMIN").collect()
-    session.sql(f"GRANT VIEW LINEAGE ON ACCOUNT TO ROLE {new_role};").collect()
-    session.sql(f"USE ROLE {new_role}").collect()
+    session.sql(f"GRANT VIEW LINEAGE ON ACCOUNT TO ROLE {test_role};").collect()
+    session.sql(f"USE ROLE {test_role}").collect()
 
     df = session.lineage.trace(
         f"{db}.{schema}.T1",
@@ -84,8 +91,6 @@ def test_lineage_trace(session):
         direction=LineageDirection.DOWNSTREAM,
         depth=4,
     )
-    df.show()
-    # Removing 'creadtedOn' field since the value can not be predicted.
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
@@ -108,8 +113,8 @@ def test_lineage_trace(session):
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
 
+    # CASE 3 : trace with default arguments
     df = session.lineage.trace(f"{db}.{schema}.V1", "view")
-    # Removing 'creadtedOn' field since the value can not be predicted.
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
@@ -138,16 +143,16 @@ def test_lineage_trace(session):
 
     assert 0 == df.shape[0]
 
+    # CASE 4 : trace with masked object
     session.sql("USE ROLE ACCOUNTADMIN").collect()
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()
-    session.sql(f"USE ROLE {new_role}").collect()
+    session.sql(f"USE ROLE {test_role}").collect()
 
     df = session.lineage.trace(
         f"{db}.{schema}.V4", "view", direction=LineageDirection.DOWNSTREAM
     )
-    # Removing 'creadtedOn' field since the value can not be predicted.
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
@@ -166,6 +171,7 @@ def test_lineage_trace(session):
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
 
+    # CASE 5 : trace with deleted object
     session.sql(f"DROP VIEW {db}.{schema}.V3").collect()
 
     df = session.lineage.trace(
