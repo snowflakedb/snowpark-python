@@ -498,7 +498,6 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         *,
-        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         **kwargs,
@@ -584,11 +583,6 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
-            native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
-                as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
-                such as schema and application roles.
-                A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
-                This parameter is ignored if you are not developing a Snowflake Native App.
 
         See Also:
         - :func:`~snowflake.snowpark.functions.udf`
@@ -606,6 +600,7 @@ class UDFRegistration:
         )
 
         _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+        native_app_params = kwargs.get("native_app_params", None)
 
         # register udf
         return self._do_register_udf(

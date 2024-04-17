@@ -326,7 +326,6 @@ class UDAFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         *,
-        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         immutable: bool = False,
@@ -403,11 +402,6 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
-            native_app_params: This is a special parameter, that is relevant when using this function to create UDFs
-                as a Snowflake Native App developer. It is a dictionary of parameters that are relevant in Snowflake Native Apps,
-                such as schema and application roles.
-                A typical dictionary could look like: {"schema": "some_schema", "application_roles": ["app_public", "app_admin"]}
-                This parameter is ignored if you are not developing a Snowflake Native App.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -425,6 +419,8 @@ class UDAFRegistration:
             stage_location,
             parallel,
         )
+
+        native_app_params = kwargs.get("native_app_params", None)
 
         # register udaf
         return self._do_register_udaf(
