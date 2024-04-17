@@ -417,7 +417,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-snowpark-pandas-testing
           path: |
             .tox/.coverage
             .tox/coverage.xml
