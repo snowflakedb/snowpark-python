@@ -9,12 +9,12 @@ from typing import Callable, Optional
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
+from pandas.errors import IndexingError, SpecificationError
+
 from ci.check_standalone_function_snowpark_pandas_telemetry_decorator import (
     DecoratorError,
     check_standalone_function_snowpark_pandas_telemetry_decorator,
 )
-from pandas.errors import IndexingError, SpecificationError
-
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
