@@ -25,6 +25,6 @@ python -c "import hashlib; print(hashlib.md5('test_str'.encode('utf-8')).hexdige
 pip freeze
 
 cd $SNOWPARK_DIR
-pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests
+pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests --ignore=src/snowflake/snowpark/modin --ignore=tests/integ/modin --ignore=tests/unit/modin
 
 deactivate

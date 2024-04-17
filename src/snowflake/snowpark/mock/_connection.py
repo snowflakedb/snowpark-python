@@ -214,7 +214,8 @@ class MockServerConnection:
             return log_and_telemetry
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
-        self._conn = Mock()
+        # TODO: mock connector connection support SNOW-1331149
+        self._conn = Mock(expired=False)
         self._cursor = Mock()
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
