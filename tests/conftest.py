@@ -11,6 +11,16 @@ import pytest
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
+# Most Modin doctests are deactivated right now. Only the selected ones in frontend are enabled.
+# SNOW-862415 enable groupby docstrings
+excluded_frontend_files = ["accessor.py", "groupby.py", "resample.py", "series_utils.py", "window.py"]
+
+
+def is_excluded_frontend_file(path):
+    for excluded in excluded_frontend_files:
+        if str(path).endswith(excluded):
+            return True
+    return False
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
@@ -22,6 +32,7 @@ def pytest_collection_modifyitems(items) -> None:
     """Applies tags to tests based on folders that they are in."""
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
+    modin_doctest_dir = top_doctest_dir.joinpath("modin/pandas")
     for item in items:
         item_path = Path(str(item.fspath)).parent
         try:
@@ -35,6 +46,10 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
+            elif str(item_path).startswith(str(modin_doctest_dir)):
+                if not is_excluded_frontend_file(item.fspath):
+                    item.add_marker("doctest")
+                    item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
                 raise e
 
