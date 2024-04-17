@@ -278,6 +278,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "resources/",
                 "resources/broken.csv",
+                "resources/iris.csv",
                 "resources/test.avro",
                 "resources/test.orc",
                 "resources/test.parquet",
