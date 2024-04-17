@@ -69,8 +69,8 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     lineno = inspect.currentframe().f_lineno - 1
 
     spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "DataFrameWriter.save_as_table" in spans
-    span = spans["DataFrameWriter.save_as_table"]
+    assert "save_as_table" in spans
+    span = spans["save_as_table"]
     assert span.attributes["method.chain"] == "DataFrame.to_df().save_as_table()"
     assert (
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
@@ -89,8 +89,8 @@ def test_open_telemetry_span_from_dataframe_writer():
     lineno = inspect.currentframe().f_lineno - 1
 
     spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "DataFrame.collect" in spans
-    span = spans["DataFrame.collect"]
+    assert "collect" in spans
+    span = spans["collect"]
     assert span.attributes["method.chain"] == "DataFrame.to_df().collect()"
     assert (
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"

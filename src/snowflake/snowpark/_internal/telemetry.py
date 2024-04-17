@@ -62,6 +62,9 @@ class TelemetryField(Enum):
     # sql simplifier
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
+    # dataframe query stats
+    QUERY_PLAN_HEIGHT = "query_plan_height"
+    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -142,8 +145,20 @@ def df_collect_api_telemetry(func):
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
-        # The first api call will indicate whether sql simplifier is enabled.
-        api_calls[0]["sql_simplifier_enabled"] = args[0]._session.sql_simplifier_enabled
+        # The first api call will indicate following:
+        # - sql simplifier is enabled.
+        # - height of the query plan
+        # - number of unique duplicate subtrees in the query plan
+        api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
+            0
+        ]._session.sql_simplifier_enabled
+        try:
+            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][
+                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan.num_duplicate_nodes
+        except Exception:
+            pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,

@@ -94,7 +94,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
     strip_double_quotes_in_like_statement_in_table_name,
@@ -137,6 +136,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
@@ -442,12 +442,14 @@ class Session:
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
+            self._sp_registration = MockStoredProcedureRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
+            self._sp_registration = StoredProcedureRegistration(self)
 
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
-        self._sp_registration = StoredProcedureRegistration(self)
+
         self._plan_builder = (
             SnowflakePlanBuilder(self)
             if isinstance(self._conn, ServerConnection)
@@ -2793,7 +2795,6 @@ class Session:
         return self._udtf_registration
 
     @property
-    @private_preview(version="1.6.0")
     def udaf(self) -> UDAFRegistration:
         """
         Returns a :class:`udaf.UDAFRegistration` object that you can use to register UDAFs.
@@ -2807,11 +2808,6 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
-        if isinstance(self, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.sproc",
-                raise_error=NotImplementedError,
-            )
         return self._sp_registration
 
     def _infer_is_return_table(
@@ -2919,6 +2915,11 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+        if isinstance(self._sp_registration, MockStoredProcedureRegistration):
+            return self._sp_registration.call(
+                sproc_name, *args, session=self, statement_params=statement_params
+            )
+
         validate_object_name(sproc_name)
         query = generate_call_python_sp_sql(self, sproc_name, *args)
 

@@ -79,12 +79,11 @@ class StoredProcedure:
 
         self._packages = packages
 
-    def __call__(
+    def _validate_call(
         self,
-        *args: Any,
+        args: List[Any],
         session: Optional["snowflake.snowpark.session.Session"] = None,
-        statement_params: Optional[Dict[str, str]] = None,
-    ) -> Any:
+    ):
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
                 raise ValueError(
@@ -100,6 +99,16 @@ class StoredProcedure:
             raise ValueError(
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
+
+        return args, session
+
+    def __call__(
+        self,
+        *args: Any,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        args, session = self._validate_call(args, session)
 
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
