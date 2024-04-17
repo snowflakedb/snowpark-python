@@ -675,8 +675,12 @@ class DataFrameReader:
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
-                _,  # we don't check for error in case of infer schema failures. We use $1, Variant type
+                e,  # we don't check for error in case of infer schema failures. We use $1, Variant type except for FileNotFoundError
             ) = self._infer_schema_for_file_format(path, format)
+
+            if isinstance(e, FileNotFoundError):
+                raise e
+
             if new_schema:
                 schema = new_schema
 
