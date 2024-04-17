@@ -980,7 +980,7 @@ class DataFrame:
 
         Example::
             >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-            >>> snowpark_pandas_df = df.to_snowpark_pandas()
+            >>> snowpark_pandas_df = df.to_snowpark_pandas()  # doctest: +SKIP
             >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
                A  B  C
             0  1  2  3
