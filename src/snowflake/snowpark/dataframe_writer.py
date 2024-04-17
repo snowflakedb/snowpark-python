@@ -89,7 +89,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
+        block: Literal[True],
     ) -> None:
         ...  # pragma: no cover
 
@@ -104,7 +104,7 @@ class DataFrameWriter:
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
+        block: Literal[False],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
