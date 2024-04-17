@@ -73,6 +73,7 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -82,6 +83,7 @@ class UserDefinedFunction:
         self._return_type = return_type
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
+        self._packages = packages
 
     def __call__(
         self,
@@ -896,4 +898,6 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func, return_type, input_types, udf_name, packages=packages
+        )
