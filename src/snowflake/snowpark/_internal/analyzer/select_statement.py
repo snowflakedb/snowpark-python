@@ -283,6 +283,14 @@ class Selectable(LogicalPlan, ABC):
         return self._snowflake_plan
 
     @property
+    def plan_height(self) -> int:
+        return self.snowflake_plan.plan_height
+
+    @property
+    def num_duplicate_nodes(self) -> int:
+        return self.snowflake_plan.num_duplicate_nodes
+
+    @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
         This property is currently only used for traversing the query plan tree
@@ -397,7 +405,7 @@ class SelectSQL(Selectable):
 
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
-        if self.convert_to_select:
+        if self.convert_to_select or is_sql_select_statement(self._sql_query):
             return self
         new = SelectSQL(
             self._sql_query,
@@ -963,6 +971,8 @@ class SetOperand:
 class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
+        self._sql_query = None
+        self._placeholder_query = None
         self.set_operands = set_operands
         self._nodes = []
         for operand in set_operands:
@@ -978,17 +988,21 @@ class SetStatement(Selectable):
 
     @property
     def sql_query(self) -> str:
-        sql = f"({self.set_operands[0].selectable.sql_query})"
-        for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
-        return sql
+        if not self._sql_query:
+            sql = f"({self.set_operands[0].selectable.sql_query})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
+            self._sql_query = sql
+        return self._sql_query
 
     @property
     def placeholder_query(self) -> Optional[str]:
-        sql = f"({self.set_operands[0].selectable._id})"
-        for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
-        return sql
+        if not self._placeholder_query:
+            sql = f"({self.set_operands[0].selectable._id})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+            self._placeholder_query = sql
+        return self._placeholder_query
 
     @property
     def schema_query(self) -> str:

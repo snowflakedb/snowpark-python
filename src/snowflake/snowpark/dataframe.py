@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -115,6 +116,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     parse_positional_args_to_list,
     parse_table_name,
+    prepare_pivot_arguments,
     private_preview,
     quote_name,
     random_name_for_temp_object,
@@ -141,7 +143,6 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -1620,7 +1621,10 @@ class DataFrame:
     def pivot(
         self,
         pivot_col: ColumnOrName,
-        values: Iterable[LiteralType],
+        values: Optional[
+            Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
+        ] = None,
+        default_on_null: Optional[LiteralType] = None,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -1649,21 +1653,43 @@ class DataFrame:
             -------------------------------
             <BLANKLINE>
 
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month").sum("amount").sort("empid").show()
+            -------------------------------
+            |"EMPID"  |"'FEB'"  |"'JAN'"  |
+            -------------------------------
+            |1        |8000     |10400    |
+            |2        |200      |39500    |
+            -------------------------------
+            <BLANKLINE>
+
+            >>> subquery_df = session.table("monthly_sales").select(col("month")).filter(col("month") == "JAN")
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month", values=subquery_df).sum("amount").sort("empid").show()
+            ---------------------
+            |"EMPID"  |"'JAN'"  |
+            ---------------------
+            |1        |10400    |
+            |2        |39500    |
+            ---------------------
+            <BLANKLINE>
+
         Args:
             pivot_col: The column or name of the column to use.
-            values: A list of values in the column.
+            values: A list of values in the column,
+                or dynamic based on the DataFrame query,
+                or None (default) will use all values of the pivot column.
+            default_on_null: Expression to replace empty result values.
         """
-        if not values:
-            raise ValueError("values cannot be empty")
-        pc = self._convert_cols_to_exprs("pivot()", pivot_col)
-        value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
-        ]
+        target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
+            self, "DataFrame.pivot", pivot_col, values, default_on_null
+        )
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            target_df,
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
-                pc[0], value_exprs
+                pc[0], pivot_values, default_on_null
             ),
         )
 

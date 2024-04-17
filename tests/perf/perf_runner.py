@@ -81,10 +81,29 @@ def join(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
     return df
 
 
+def union_depth(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
+    projection = generate_projection(num_of_cols)
+    df = session.sql(f"select {projection}")
+    for _ in range(1, ncalls):
+        df = df.union(df)
+    return df
+
+
+def compute_plan_height_time(dataframe):
+    t0 = time.time()
+    _ = dataframe._plan.plan_height
+    t1 = time.time()
+    _ = dataframe._plan.plan_height
+    t2 = time.time()
+    print("Time taken to calculate plan height: ", t1 - t0)
+    print("Time taken to re-calculate plan height: ", t2 - t1)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Snowpark Python API performance test")
     parser.add_argument(
-        "api", help="the API to test: with_column, drop, union, union_by_name, join."
+        "api",
+        help="the API to test: with_column, drop, union, union_by_name, join, union_depth.",
     )
     parser.add_argument("ncalls", type=int, help="number of calls.")
     parser.add_argument(
@@ -102,12 +121,25 @@ if __name__ == "__main__":
         help="Whether use sql simplifier",
     )
     parser.add_argument(
+        "--cte",
+        action="store_true",
+        default=False,
+        help="Whether apply CTE optimization",
+    )
+    parser.add_argument(
         "-m", "--memory", action="store_true", default=False, help="Do memory profiling"
+    )
+    parser.add_argument(
+        "--plan_height",
+        action="store_true",
+        default=False,
+        help="Whether to compute time-taken for computing plan height",
     )
     args = parser.parse_args()
 
     session = Session.builder.configs(CONNECTION_PARAMETERS).create()
     session.sql_simplifier_enabled = args.simplify
+    session._cte_optimization_enabled = args.cte
     print("Snowpark Python API Performance Test")
     print("Parameters: ", args)
     try:
@@ -125,9 +157,15 @@ if __name__ == "__main__":
         t1 = time.time()
         print("Client side time elapsed: ", t1 - t0)
         print("Time elapsed per API call: ", (t1 - t0) / args.ncalls)
+        if args.plan_height:
+            compute_plan_height_time(dataframe)
         dataframe.collect()
         t2 = time.time()
         print("SQL execution time elapsed: ", t2 - t1)
         print("Total execution time elapsed: ", t2 - t0)
+        if args.cte:
+            _ = dataframe._plan.replace_repeated_subquery_with_cte()
+            t3 = time.time()
+            print("CTE optimization client time elapsed: ", t3 - t2)
     finally:
         session.close()
