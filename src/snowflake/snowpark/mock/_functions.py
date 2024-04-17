@@ -46,6 +46,7 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
+    auto_detect_snowflake_date_format_and_convert,
     convert_snowflake_datetime_format,
     process_numeric_time,
     process_string_time_with_fractional_seconds,
@@ -304,13 +305,13 @@ def mock_to_date(
 
         [x] If the variant contains a string, a string conversion is performed.
 
-        [ ] If the variant contains a date, the date value is preserved as is.
+        [x] If the variant contains a date, the date value is preserved as is.
 
         [ ] If the variant contains a JSON null value, the output is NULL.
 
         [x] For NULL input, the output is NULL.
 
-        [ ] For all other values, a conversion error is generated.
+        [x] For all other values, a conversion error is generated.
     """
     res = []
     auto_detect = bool(not fmt)
@@ -324,14 +325,40 @@ def mock_to_date(
             res.append(None)
             continue
         try:
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
-                    ).date()
-                )
+            if isinstance(column.sf_type.datatype, StringType):
+                if data.isnumeric():
+                    res.append(
+                        datetime.datetime.utcfromtimestamp(
+                            process_numeric_time(data)
+                        ).date()
+                    )
+                else:
+                    if auto_detect:
+                        res.append(auto_detect_snowflake_date_format_and_convert(data))
+                    else:
+                        res.append(datetime.datetime.strptime(data, date_format).date())
+            elif isinstance(column.sf_type.datatype, TimestampType):
+                res.append(data.date())
+            elif isinstance(column.sf_type.datatype, VariantType):
+                if isinstance(data, str):
+                    if data.isnumeric():
+                        res.append(
+                            datetime.datetime.utcfromtimestamp(
+                                process_numeric_time(data)
+                            ).date()
+                        )
+                    else:
+                        res.append(datetime.datetime.strptime(data, date_format).date())
+                elif isinstance(data, datetime.date):
+                    res.append(data)
+                else:
+                    raise ValueError(
+                        f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
+                    )
             else:
-                res.append(datetime.datetime.strptime(data, date_format).date())
+                raise ValueError(
+                    f"[Local Testing] Unsupported conversion to_date of data type {column.sf_type.datatype.__name__}"
+                )
         except BaseException:
             if try_cast:
                 res.append(None)
