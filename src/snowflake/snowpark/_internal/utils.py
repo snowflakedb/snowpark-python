@@ -28,6 +28,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
     Literal,
@@ -870,3 +871,66 @@ def validate_quoted_name(name: str) -> str:
 
 def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+
+
+def prepare_pivot_arguments(
+    df: "snowflake.snowpark.DataFrame",
+    df_name: str,
+    pivot_col: "snowflake.snowpark._internal.type_utils.ColumnOrName",
+    values: Optional[
+        Union[
+            Iterable["snowflake.snowpark._internal.type_utils.LiteralType"],
+            "snowflake.snowpark.DataFrame",
+        ]
+    ],
+    default_on_null: Optional["snowflake.snowpark._internal.type_utils.LiteralType"],
+):
+    """
+    Prepare dataframe pivot arguments to use in the underlying pivot call.  This includes issuing any applicable
+    warnings, ensuring column types and valid arguments.
+    Returns:
+        DateFrame, pivot column, pivot_values and default_on_null value.
+    """
+    from snowflake.snowpark.dataframe import DataFrame
+
+    if values is None or isinstance(values, DataFrame):
+        warning(
+            df_name,
+            "Parameter values is Optional or DataFrame is in private preview since v1.15.0.  Do not use it in production.",
+        )
+
+    if default_on_null is not None:
+        warning(
+            df_name,
+            "Parameter default_on_null is not None is in private preview since v1.15.0.  Do not use it in production.",
+        )
+
+    if values is not None and not values:
+        raise ValueError("values cannot be empty")
+
+    pc = df._convert_cols_to_exprs(f"{df_name}()", pivot_col)
+
+    from snowflake.snowpark._internal.analyzer.expression import Literal, ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    if isinstance(values, Iterable):
+        pivot_values = [
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
+        ]
+    else:
+        if isinstance(values, DataFrame):
+            pivot_values = ScalarSubquery(values._plan)
+        else:
+            pivot_values = None
+
+        if len(df.queries.get("post_actions", [])) > 0:
+            df = df.cache_result()
+
+    if default_on_null is not None:
+        default_on_null = (
+            default_on_null._expression
+            if isinstance(default_on_null, Column)
+            else Literal(default_on_null)
+        )
+
+    return df, pc, pivot_values, default_on_null

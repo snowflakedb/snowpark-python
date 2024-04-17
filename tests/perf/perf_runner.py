@@ -89,6 +89,16 @@ def union_depth(session: Session, ncalls: int, num_of_cols: int) -> DataFrame:
     return df
 
 
+def compute_plan_height_time(dataframe):
+    t0 = time.time()
+    _ = dataframe._plan.plan_height
+    t1 = time.time()
+    _ = dataframe._plan.plan_height
+    t2 = time.time()
+    print("Time taken to calculate plan height: ", t1 - t0)
+    print("Time taken to re-calculate plan height: ", t2 - t1)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Snowpark Python API performance test")
     parser.add_argument(
@@ -119,6 +129,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-m", "--memory", action="store_true", default=False, help="Do memory profiling"
     )
+    parser.add_argument(
+        "--plan_height",
+        action="store_true",
+        default=False,
+        help="Whether to compute time-taken for computing plan height",
+    )
     args = parser.parse_args()
 
     session = Session.builder.configs(CONNECTION_PARAMETERS).create()
@@ -141,6 +157,8 @@ if __name__ == "__main__":
         t1 = time.time()
         print("Client side time elapsed: ", t1 - t0)
         print("Time elapsed per API call: ", (t1 - t0) / args.ncalls)
+        if args.plan_height:
+            compute_plan_height_time(dataframe)
         dataframe.collect()
         t2 = time.time()
         print("SQL execution time elapsed: ", t2 - t1)
