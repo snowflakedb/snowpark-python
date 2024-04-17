@@ -584,7 +584,7 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
-            comment: Adds a comment or overwrites an existing comment for an existing object. See
+            comment: Adds a comment for the created object object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
@@ -738,7 +738,7 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
-            comment: Adds a comment or overwrites an existing comment for an existing object. See
+            comment: Adds a comment for the created object object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
