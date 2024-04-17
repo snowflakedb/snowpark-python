@@ -25,7 +25,7 @@ from typing import Any
 
 import pandas
 
-__pandas_version__ = "2.1.4"
+__pandas_version__ = "2.2.1"
 
 
 if sys.version_info.major == 3 and sys.version_info.minor == 8:

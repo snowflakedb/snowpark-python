@@ -25,7 +25,7 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
         # Specify frequency to minute.
         {"start": "1/1/2018", "end": "1/02/2018", "freq": "min"},
         # Specify frequency to second.
-        {"start": "1/1/2018", "end": "1/02/2018", "freq": "S"},
+        {"start": "1/1/2018", "end": "1/02/2018", "freq": "s"},
         # Specify frequency to millisecond.
         {
             "start": "1/1/2018 00:00:00.001",
@@ -72,17 +72,17 @@ def test_regular_range(kwargs):
         {
             "start": "1/1/2018 00:00:00.001",
             "end": "2/1/2019 00:00:00.10123",
-            "freq": "3M",
+            "freq": "3ME",
         },
         {
             "end": "3/1/2018 00:00:00.001",  # start < end
             "start": "4/1/2019 00:00:00.10123",
-            "freq": "3M",
+            "freq": "3ME",
         },
         {
             "start": "2/29/2024",
             "periods": 5,
-            "freq": "M",
+            "freq": "ME",
         },
         {
             "start": "6/15/2018",
@@ -102,7 +102,7 @@ def test_regular_range(kwargs):
         {
             "start": "9/15/2018",
             "periods": 5,
-            "freq": "Q",
+            "freq": "QE",
         },
         {
             "end": "10/10/2018",
@@ -117,7 +117,7 @@ def test_regular_range(kwargs):
         {
             "end": "12/10/2018",
             "periods": 5,
-            "freq": "A",
+            "freq": "YE",
         },
     ],
 )

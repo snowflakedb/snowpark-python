@@ -339,6 +339,10 @@ def test_merge_on(left_df, right_df, on, how, sort):
 @pytest.mark.parametrize("on", ["left_i", "right_i"])
 @sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_columns(left_df, right_df, how, on, sort):
+    if how == "outer" and sort is False:
+        pytest.xfail(
+            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
+        )
     # Change left_df to: columns=["right_i", "B", "left_c", "left_d"] index=["left_i"]
     left_df = left_df.rename(columns={"A": "right_i"})
     # Change right_df to: columns=["left_i", "B", "right_c", "right_d"] index=["right_i"]
@@ -469,6 +473,7 @@ def test_merge_on_index_single_index(left_df, right_df, how, sort):
     _verify_merge(left_df, right_df, how, left_index=True, right_index=True, sort=sort)
 
 
+@pytest.mark.xfail(reason="SNOW-1321662 - pandas 2.2.1 update failure", strict=True)
 @sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_multiindex_common_labels(left_df, right_df, how, sort):
     left_df = left_df.set_index("A", append=True)  # index columns ['left_i', 'A']
@@ -478,6 +483,7 @@ def test_merge_on_index_multiindex_common_labels(left_df, right_df, how, sort):
     )
 
 
+@pytest.mark.xfail(reason="SNOW-1321662 - pandas 2.2.1 update failure", strict=True)
 def test_merge_on_index_multiindex_common_labels_with_none(
     left_df, right_df, how, sort
 ):
@@ -507,6 +513,10 @@ def test_merge_on_index_multiindex_equal_labels(left_df, right_df, how, sort):
 
 
 def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, sort):
+    if how == "outer" and sort is False:
+        pytest.xfail(
+            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
+        )
     right_df = right_df.rename(columns={"A": "left_i"}).set_index(
         "left_i", append=True
     )  # index columns ['right_i', 'left_i']
@@ -539,6 +549,10 @@ def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, so
 
 
 def test_merge_left_index_right_index_multi_to_single(left_df, right_df, how, sort):
+    if how == "outer" and sort is False:
+        pytest.xfail(
+            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
+        )
     left_df = left_df.rename(columns={"A": "right_i"}).set_index(
         "right_i", append=True
     )  # index columns ['left_i', 'right_i']
@@ -885,6 +899,7 @@ def test_merge_duplicate_join_keys_negative(left_df, right_df):
 
 @sql_count_checker(query_count=2)
 def test_merge_invalid_how_negative(left_df, right_df):
+    pytest.xfail("SNOW-1321662 - pandas 2.2.1 update error message different in pandas")
     eval_snowpark_pandas_result(
         left_df,
         left_df.to_pandas(),

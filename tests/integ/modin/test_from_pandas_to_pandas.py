@@ -59,13 +59,13 @@ FROM_TO_PANDAS_TYPE_MISMATCH_INDICES = {
     "nullable_bool": "bool",
     # There is no unsigned integer type in snowflake, and uint64 data will be converted to
     # FIXED type in snowflake. When the data is converted back to pandas, it will become
-    # either int64 or float64 (if values are lager than max int64)
-    "uint": "float64",
+    # either int16 or float64 (if values are larger than max int16)
+    "uint": "int16",
     # NumericIndex is a pandas 2.x feature
     "num_int32": "int16",
-    "num_uint64": "float64",
-    "num_uint32": "int64",
-    "num_uint16": "int32",
+    "num_uint64": "int16",
+    "num_uint32": "int16",
+    "num_uint16": "int16",
     "num_uint8": "int16",
     "num_float32": "float64",
     "multi-with-dt64tz-level": "object",

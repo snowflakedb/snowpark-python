@@ -9,5 +9,13 @@ from snowflake.snowpark.modin.plugin.docstrings.groupby import (
     DataFrameGroupBy,
     SeriesGroupBy,
 )
+from snowflake.snowpark.modin.plugin.docstrings.resample import Resampler
+from snowflake.snowpark.modin.plugin.docstrings.window import Rolling
 
-__all__ = ["BasePandasDataset", "DataFrameGroupBy", "SeriesGroupBy"]
+__all__ = [
+    "BasePandasDataset",
+    "DataFrameGroupBy",
+    "Resampler",
+    "Rolling",
+    "SeriesGroupBy",
+]

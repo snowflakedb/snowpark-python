@@ -54,38 +54,36 @@ ALL_DATEOFFSET_STRINGS = [
     "B",
     "C",
     "W",
-    "M",
+    "ME",
     "MS",
-    "BM",
+    "BME",
     "BMS",
-    "CBM",
+    "CBME",
     "CBMS",
-    "SM",
+    "SME",
     "SMS",
-    "Q",
+    "QE",
     "QS",
-    "BQ",
+    "BQE",
     "BQS",
-    "AS",
+    "YE",
+    "YS",
     "BYS",
-    "BA",
-    "BAS",
-    "BH",
-    "CBH",
+    "BYE",
+    "bh",
+    "cbh",
     "D",
-    "H",
-    "T",
+    "h",
     "min",
-    "S",
-    "L",
+    "s",
     "ms",
-    "U",
     "us",
-    "N",
+    "ns",
 ]
-SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "M", "Q", "QS", "AS", "D", "H", "T", "min", "S"]
 
-IMPLEMENTED_DATEOFFSET_STRINGS = ["T", "S", "H", "D", "min"]
+SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "ME", "QE", "QS", "YS", "D", "h", "min", "s"]
+
+IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D"]
 
 UNSUPPORTED_DATEOFFSET_STRINGS = list(
     # sort so that tests that generate test cases from this last always use the
@@ -136,23 +134,23 @@ def rule_to_snowflake_width_and_slice_unit(rule: str) -> tuple[int, str]:
     rule_code = offset.rule_code
     slice_width = offset.n
 
-    if rule_code == "S":
+    if rule_code == "s":
         slice_unit = "second"
-    elif rule_code == "T":
+    elif rule_code == "min":
         slice_unit = "minute"
-    elif rule_code == "H":
+    elif rule_code == "h":
         slice_unit = "hour"
     elif rule_code == "D":
         slice_unit = "day"
     elif rule_code[0] == "W":  # pragma: no cover
         # treat codes like W-MON and W-SUN as "week":
         slice_unit = "week"
-    elif rule_code == "M":  # pragma: no cover
+    elif rule_code == "ME":  # pragma: no cover
         slice_unit = "month"
-    elif rule_code[0] == "Q":  # pragma: no cover
+    elif rule_code[0] == "QE":  # pragma: no cover
         # treat codes like Q-DEC and Q-JAN as "quarter":
         slice_unit = "quarter"
-    elif rule_code[0] in ("A", "Y"):  # pragma: no cover
+    elif rule_code[0] == "YE":  # pragma: no cover
         # treat codes like A-DEC and A-JAN as "year":
         slice_unit = "year"
     else:

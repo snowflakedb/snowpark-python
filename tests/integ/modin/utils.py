@@ -246,9 +246,11 @@ def assert_snowpark_pandas_equal_to_pandas(
 
     if isinstance(expected_pandas, native_pd.DataFrame):
         assert isinstance(snow, DataFrame)
+        snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_frame_equal(snow_to_native, expected_pandas, **kwargs)
     else:
         assert isinstance(snow, Series)
+        snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_series_equal(snow_to_native, expected_pandas, **kwargs)
     if expected_index_type is not None:
         assert (

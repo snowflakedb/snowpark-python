@@ -1678,7 +1678,7 @@ def test_series_loc_set_with_scalar_key_and_scalar_item(
     ],
 )
 def test_series_partial_string_indexing(ops):
-    rng = native_pd.date_range("2010-10-01", "2011-12-31", freq="BM")
+    rng = native_pd.date_range("2010-10-01", "2011-12-31", freq="BME")
     native_ts = native_pd.Series(np.random.randn(len(rng)), index=rng)
     snowpark_ts = pd.Series(native_ts)
 
@@ -1696,7 +1696,7 @@ def test_series_partial_string_indexing(ops):
 )
 def test_series_non_partial_string_indexing_cases(ops, error):
     # These are string values which should use exact match not partial string indexing
-    rng = native_pd.date_range("2010-10-01", "2011-12-31", freq="BM").astype(str)
+    rng = native_pd.date_range("2010-10-01", "2011-12-31", freq="BME").astype(str)
     native_str = native_pd.Series(np.random.randn(len(rng)), index=rng)
     snowpark_str = pd.Series(native_str)
 

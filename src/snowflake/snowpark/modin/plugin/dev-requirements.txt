@@ -1,2 +1,2 @@
 psutil
-pandas=2.1.4
+pandas=2.2.1

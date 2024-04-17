@@ -130,16 +130,16 @@ def generate_range(
 # See https://pandas.pydata.org/pandas-docs/version/1.5/user_guide/timeseries.html#timeseries-offset-aliases
 # See https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts
 OFFSET_NAME_TO_SF_DATE_OR_TIME_PART_MAP = {
-    "M": "month",
+    "ME": "month",
     "MS": "month",
     "W-SUN": "week",
     "QS-JAN": "quarter",
-    "Q-DEC": "quarter",
-    "AS-JAN": "year",
-    "A-DEC": "year",
+    "QE-DEC": "quarter",
+    "YS-JAN": "year",
+    "YE-DEC": "year",
 }
 # The offset names requires last day of a frequency, e.g., "M" means the last day of a month.
-LAST_DAY = {"M", "Q-DEC", "A-DEC"}
+LAST_DAY = {"ME", "QE-DEC", "YE-DEC"}
 
 
 def _offset_name_to_sf_date_or_time_part(name: str) -> Optional[str]:

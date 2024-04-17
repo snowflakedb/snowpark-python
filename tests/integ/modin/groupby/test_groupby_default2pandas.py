@@ -2,10 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import string
+
 import numpy as np
 import pandas as native_pd
-import pandas._testing as tm
 import pytest
+from pandas._typing import Frequency
 
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -19,9 +21,23 @@ from tests.integ.modin.utils import (
 )
 
 
+def getTimeSeriesData(nper=30, freq: Frequency = "B") -> dict[str, native_pd.Series]:
+    s = native_pd.Series(
+        np.random.default_rng(2).standard_normal(30),
+        index=native_pd.date_range(start="2000-01-01", periods=nper, freq=freq),
+        name=None,
+    )
+    return {c: s for c in string.ascii_uppercase[:4]}
+
+
+def makeTimeDataFrame(nper=30, freq: Frequency = "B") -> native_pd.DataFrame:
+    data = getTimeSeriesData(nper, freq)
+    return native_pd.DataFrame(data)
+
+
 @pytest.fixture
 def tsframe() -> native_pd.DataFrame:
-    return tm.makeTimeDataFrame()[:5]
+    return makeTimeDataFrame()[:5]
 
 
 @pytest.mark.parametrize("group_name", ["x", ["x"]])

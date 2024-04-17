@@ -1300,7 +1300,7 @@ def test_df_setitem_2d_array_row_length_no_match():
     # When there are too many rows
     with pytest.raises(
         ValueError,
-        match=r"could not broadcast input array from shape \(5\,4\) into shape \(4\,4\)",
+        match=r"setting an array element with a sequence.",
     ):
         native_df[:] = val
 

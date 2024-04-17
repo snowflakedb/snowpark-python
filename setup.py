@@ -20,7 +20,7 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
-    "pandas>=2.0.0, <2.2.0",  # Snowpark pandas API specific pandas version requirement
+    "pandas==2.2.1",  # Snowpark pandas API specific pandas version requirement
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -110,7 +110,7 @@ setup(
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
-            "pandas==2.1.4",  # Snowpark pandas requires pandas 2.1.4
+            "pandas==2.2.1",  # Snowpark pandas requires pandas 2.2.1
         ],
         "localtest": [
             "pandas",

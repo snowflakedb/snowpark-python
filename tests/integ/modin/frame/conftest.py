@@ -51,7 +51,7 @@ str_index_native_df_input = native_pd.DataFrame(
     index=loc_str_index,
 ).rename(columns={"G": "A"})
 
-date_columns = native_pd.date_range(start="2023-01-01", periods=7, freq="H", tz="UTC")
+date_columns = native_pd.date_range(start="2023-01-01", periods=7, freq="h", tz="UTC")
 date_columns_no_tz = date_columns.tz_localize(None)
 df_data = np.random.randint(0, 10, size=(7, 7))
 

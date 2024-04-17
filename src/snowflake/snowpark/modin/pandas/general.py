@@ -2030,9 +2030,9 @@ def date_range(
 
     **Other Parameters**
 
-    Changed the `freq` (frequency) to ``'M'`` (month end frequency).
+    Changed the `freq` (frequency) to ``'ME'`` (month end frequency).
 
-    >>> pd.date_range(start='1/1/2018', periods=5, freq='M')
+    >>> pd.date_range(start='1/1/2018', periods=5, freq='ME')
     0   2018-01-31
     1   2018-02-28
     2   2018-03-31
@@ -2042,7 +2042,7 @@ def date_range(
 
     Multiples are allowed
 
-    >>> pd.date_range(start='1/1/2018', periods=5, freq='3M')
+    >>> pd.date_range(start='1/1/2018', periods=5, freq='3ME')
     0   2018-01-31
     1   2018-04-30
     2   2018-07-31
