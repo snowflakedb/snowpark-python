@@ -931,7 +931,7 @@ class DataFrame:
     def to_snowpark_pandas(
         self,
         index_col: Optional[Union[str, List[str]]] = None,
-        columns: Optional[List[str]] = None
+        columns: Optional[List[str]] = None,
     ) -> "snowflake.snowpark.modin.pandas.DataFrame":
         """
         Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
@@ -1001,13 +1001,19 @@ class DataFrame:
             B A
             2 1  1  3  1
         """
-        import snowflake.snowpark.modin.pandas as pd        # pragma: no cover
+        import snowflake.snowpark.modin.pandas as pd  # pragma: no cover
 
         # create a temporary table out of the current snowpark dataframe
-        temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)    # pragma: no cover
-        self.write.save_as_table(temporary_table_name, mode="errorifexists", table_type="temporary")    # pragma: no cover
+        temporary_table_name = random_name_for_temp_object(
+            TempObjectType.TABLE
+        )  # pragma: no cover
+        self.write.save_as_table(
+            temporary_table_name, mode="errorifexists", table_type="temporary"
+        )  # pragma: no cover
 
-        snowpandas_df = pd.read_snowflake(name_or_query=temporary_table_name, index_col=index_col, columns=columns)  # pragma: no cover
+        snowpandas_df = pd.read_snowflake(
+            name_or_query=temporary_table_name, index_col=index_col, columns=columns
+        )  # pragma: no cover
 
         return snowpandas_df
 

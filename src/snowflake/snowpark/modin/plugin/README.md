@@ -53,10 +53,10 @@ pytest -rP src/snowflake/snowpark/modin/pandas --log-cli-level=INFO
 ```
 
 ## Configuration file for connecting to Snowflake
-Snowflake Python Connector and Snowpark Python API now support creating a connection/session from a configuration file. 
-Snowpark pandas API also offers the convenience of implicit session creation from a configuration file. 
-This eliminates the need to explicitly create a Snowpark session in your code, allowing you to write your pandas code just as you would normally. 
-To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`. 
+Snowflake Python Connector and Snowpark Python API now support creating a connection/session from a configuration file.
+Snowpark pandas API also offers the convenience of implicit session creation from a configuration file.
+This eliminates the need to explicitly create a Snowpark session in your code, allowing you to write your pandas code just as you would normally.
+To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`.
 The contents of this configuration file should be as follows (following [TOML](https://toml.io/en/) file format):
 
 ```python
@@ -72,8 +72,8 @@ schema = "<myschema>"
 warehouse = "<mywarehouse>"
 ```
 
-The value of `default_connection_name` points to a configuration inside the TOML file, which will be used as the default configuration. 
-Note that keys of a configuration (`account`, `user`) are the same as keys of connection parameters we use in `tests/parameters.py` and values of a configuration should be double quoted. 
+The value of `default_connection_name` points to a configuration inside the TOML file, which will be used as the default configuration.
+Note that keys of a configuration (`account`, `user`) are the same as keys of connection parameters we use in `tests/parameters.py` and values of a configuration should be double quoted.
 
 ## Git setup
 To setup a development version for Snowpark pandas API, run the following git commands:
@@ -101,7 +101,7 @@ git fetch upstream
 git merge upstream/main
 git push
 ```
-Submit a PR to merge your branch to `pandas-main` branch. This should be done regular or there are important changes from Snowpark. 
+Submit a PR to merge your branch to `pandas-main` branch. This should be done regular or there are important changes from Snowpark.
 
 
 ### Before PuPr
