@@ -98,7 +98,7 @@
 - Added support for reading `SELECT` SQL Queries into a `DataFrame` object via `pd.read_snowflake` and changed `name` argument of `pd.read_snowflake` to `name_or_query`.
 - Added support for `Series.str.startswith` and `Series.str.endswith`.
 - Added support for reading SQL Queries with CTEs and CTEs with anonymous stored procedures into a `DataFrame` object via `pd.read_snowflake`.
-- Added support for `DataFrame.first_valid_index`, `DataFrame.last_valid_index`, `Series.first_valid_index`, and `Series.last_valid_index`. 
+- Added support for `DataFrame.first_valid_index`, `DataFrame.last_valid_index`, `Series.first_valid_index`, and `Series.last_valid_index`.
 - Added support for `DataFrame.ffill`, `DataFrame.pad`, `Series.ffill`, and, `Series.pad`.
 - Added support for reading `CALL SQL` Queries into a `DataFrame` object via `pd.read_snowflake`.
 - Added support for `Series.str.lower` and `Series.str.upper`.
@@ -185,7 +185,7 @@
 ### Bug Fixes
 - Fixed bug when `apply` has been called multiple times.
 - Fixed bug where `loc` with slice key on a single row dataframe or series.
-- Fixed bug where `series.reset_index` triggers eager evaluation. 
+- Fixed bug where `series.reset_index` triggers eager evaluation.
 
 ## 1.11.1a1 (2023-12-21)
 
@@ -217,7 +217,7 @@
 - Added support for `DataFrame.value_counts` and `Series.value_counts`.
 - Added support for `DataFrame.all`, `Series.all`, `Dataframe.any` and `Series.any` for integer
 - Added support for `Series.mask()` and `DataFrame.mask()`.
-- Added support for `ffill` on `df.resample`. 
+- Added support for `ffill` on `df.resample`.
 - Added support for `method` parameter of `DataFrame.fillna()` and `Series.fillna()`.
 
 ### Improvements
@@ -284,15 +284,15 @@
 
 ### Improvements
 - Improved performance for `head`, `tail`, `_repr_html_`, `loc`, `iloc`, `__getitem__` and `__setitem__`, `__repr__`.
-- Improved API documents for Snowpark pandas IO methods. 
-- Improved error messages when using Snowpark pandas API with multiple Snowpark sessions. 
+- Improved API documents for Snowpark pandas IO methods.
+- Improved error messages when using Snowpark pandas API with multiple Snowpark sessions.
 - Improved type conversion performance (from string to datetime).
 
 ### Bug Fixes
-- Fixed a bug where an extra temp table was incorrectly created while using `pd.read_snowflake` to read a regular Snowflake table. 
+- Fixed a bug where an extra temp table was incorrectly created while using `pd.read_snowflake` to read a regular Snowflake table.
 - Fixed a bug where `df.pivot_table` failed when the original dataframe is created from large local data.
 - Fixed a bug when creating a Snowpark pandas DataFrame/Series from local numpy data that is not json-serializable.
-- Fixed a bug where `df.apply`, `series.apply` and `df.applymap` incorrectly convert SQL nulls to JSON nulls in Snowflake Variant data. 
+- Fixed a bug where `df.apply`, `series.apply` and `df.applymap` incorrectly convert SQL nulls to JSON nulls in Snowflake Variant data.
 - Fixed a bug where aggregation functions with `groupby` did not work on decimal columns.
 - Fixed a bug where the output `_repr_html_` and `__repr__` did not match pandas behavior.
 

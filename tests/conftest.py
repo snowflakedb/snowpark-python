@@ -12,7 +12,13 @@ import pytest
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 # TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
-excluded_frontend_files = ["accessor.py", "groupby.py", "resample.py", "series_utils.py", "window.py"]
+excluded_frontend_files = [
+    "accessor.py",
+    "groupby.py",
+    "resample.py",
+    "series_utils.py",
+    "window.py",
+]
 
 
 def is_excluded_frontend_file(path):
@@ -20,6 +26,7 @@ def is_excluded_frontend_file(path):
         if str(path).endswith(excluded):
             return True
     return False
+
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
