@@ -73,6 +73,7 @@ class UserDefinedTableFunction:
         output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
         input_types: List[DataType],
         name: str,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -81,6 +82,8 @@ class UserDefinedTableFunction:
 
         self._output_schema = output_schema
         self._input_types = input_types
+
+        self._packages = packages
 
     def __call__(
         self,
@@ -943,7 +946,9 @@ class UDTFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedTableFunction(handler, output_schema, input_types, udtf_name)
+        return UserDefinedTableFunction(
+            handler, output_schema, input_types, udtf_name, packages=packages
+        )
 
 
 def _validate_output_schema_names(names: Iterable[str]) -> None:
