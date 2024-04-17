@@ -1,4 +1,5 @@
 exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
+# TODO: SNOW-1332230: Remove files and fix associated linting issues
 files: >
           (?x)^(
             src/snowflake/snowpark/modin/.*\.py|
