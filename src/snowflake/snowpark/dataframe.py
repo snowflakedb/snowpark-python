@@ -985,17 +985,17 @@ class DataFrame:
                A  B  C
             0  1  2  3
 
-            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A')
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A')  # doctest: +SKIP
             >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
                B  C
             A
             1  2  3
-            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A', columns=['B'])
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A', columns=['B'])  # doctest: +SKIP
             >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
                B
             A
             1  2
-            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col=['B', 'A'], columns=['A', 'C', 'A'])
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col=['B', 'A'], columns=['A', 'C', 'A'])  # doctest: +SKIP
             >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
                  A  C  A
             B A

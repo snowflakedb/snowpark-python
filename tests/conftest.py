@@ -11,8 +11,7 @@ import pytest
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
-# Most Modin doctests are deactivated right now. Only the selected ones in frontend are enabled.
-# SNOW-862415 enable groupby docstrings
+# TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
 excluded_frontend_files = ["accessor.py", "groupby.py", "resample.py", "series_utils.py", "window.py"]
 
 
