@@ -167,6 +167,10 @@ class Utils:
         session._run_query(f"drop schema if exists {name}")
 
     @staticmethod
+    def drop_database(session: "Session", name: str):
+        session._run_query(f"drop database if exists {name}")
+
+    @staticmethod
     def unset_query_tag(session: "Session"):
         session.query_tag = None
 
