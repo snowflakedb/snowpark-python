@@ -494,7 +494,7 @@ def test_empty_index(index, expected_index_dtype):
         (native_pd.Categorical(["a", "b", "c", "a", "b", "c"]), "category"),
         (
             native_pd.period_range("2015-02-03 11:22:33.4567", periods=5, freq="s"),
-            r"period\[S\]",
+            r"period\[s\]",
         ),
     ],
 )

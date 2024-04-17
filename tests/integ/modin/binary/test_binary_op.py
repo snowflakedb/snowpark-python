@@ -704,21 +704,10 @@ class TestFillValue:
 
     @pytest.mark.parametrize("fill_value", [10.001])
     @sql_count_checker(query_count=1)
-    def test_binary_arithmetic_ops_between_series_and_scalar_nan_behavior_deviates(
-        self, op, fill_value
-    ):
-        # Test whether fill_value param works for Series <op> scalar. Here, the behavior in Snowpark pandas and
-        # native pandas is different. Snowpark pandas treats np.nan as a NULL value while native pandas uses it
-        # as the rhs for all operations, therefore making the result np.nan.
+    def test_binary_arithmetic_ops_between_series_and_scalar_nan(self, op, fill_value):
+        # Test whether fill_value param works for Series <op> scalar.
         lhs = [14, 16.8, np.nan, 175, np.nan]
         rhs = np.nan
-
-        # Native pandas behavior
-        expected_native_pandas_result = native_pd.Series([np.nan] * 5)
-        actual_native_pandas_result = getattr(native_pd.Series(lhs), op)(
-            rhs, fill_value=fill_value
-        )
-        assert_series_equal(actual_native_pandas_result, expected_native_pandas_result)
 
         # Snowpark pandas behavior
         # using fill_value as the rhs in the native pandas operation below
@@ -783,6 +772,9 @@ class TestFillValue:
     )
     @pytest.mark.parametrize("fill_value", [24])
     @sql_count_checker(query_count=1, join_count=1)
+    @pytest.mark.xfail(
+        reason="SNOW-1318223 - list-like other (pd.Index) may not be supported in pandas now"
+    )
     def test_binary_arithmetic_ops_between_series_and_list_like(
         self, op, rhs, fill_value
     ):

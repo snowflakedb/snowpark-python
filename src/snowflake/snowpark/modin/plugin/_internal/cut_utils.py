@@ -10,7 +10,6 @@ from pandas import DatetimeTZDtype
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import DT64NS_DTYPE
 from pandas.core.dtypes.inference import is_scalar
-from pandas.core.reshape.tile import _convert_bin_to_numeric_type
 
 from snowflake.snowpark.functions import col, iff
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -21,6 +20,9 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.types import LongType
+
+# Missing upstream function
+# from pandas.core.reshape.tile import _convert_bin_to_numeric_type
 
 
 def preprocess_bins_for_cut(
@@ -47,10 +49,6 @@ def preprocess_bins_for_cut(
         adjusted bins
     """
     # Code is mostly from original pandas and adjusted for Snowpark pandas API.
-
-    # retrieve type of original series used in cut. To speed up processing,
-    # infer from aggrgates as the type won't change when computing min/max.
-    x_dtype = pandas.Series([x_min, x_max]).dtype
 
     # pre-process bins
     if not np.iterable(bins):
@@ -88,7 +86,14 @@ def preprocess_bins_for_cut(
             bins = np.asarray(bins, dtype=DT64NS_DTYPE)  # pragma: no cover
         else:
             bins = np.asarray(bins)
-        bins = _convert_bin_to_numeric_type(bins, x_dtype)
+        # Missing upstream function
+        # retrieve type of original series used in cut. To speed up processing,
+        # infer from aggrgates as the type won't change when computing min/max.
+        # x_dtype = pandas.Series([x_min, x_max]).dtype
+        # bins = _convert_bin_to_numeric_type(bins, x_dtype)
+        raise NotImplementedError(
+            "SNOW-1320660 temporarily unimplemented, pandas 2.2.1 migration, _convert_bin_to_numeric_type function removed upstream"
+        )
 
         # GH 26045: cast to float64 to avoid an overflow
         if (np.diff(bins.astype("float64")) < 0).any():

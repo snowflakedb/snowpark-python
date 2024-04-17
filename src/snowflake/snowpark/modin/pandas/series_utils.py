@@ -1202,7 +1202,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pd.date_range("2000-01-01", periods=3, freq="Y")
+        ...     pd.date_range("2000-01-01", periods=3, freq="YE")
         ... )
         >>> datetime_series
         0   2000-12-31
@@ -1225,7 +1225,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pd.date_range("2000-01-01", periods=3, freq="M")
+        ...     pd.date_range("2000-01-01", periods=3, freq="ME")
         ... )
         >>> datetime_series
         0   2000-01-31
@@ -1294,7 +1294,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pd.date_range("2000-01-01", periods=3, freq="T")
+        ...     pd.date_range("2000-01-01", periods=3, freq="min")
         ... )
         >>> datetime_series
         0   2000-01-01 00:00:00
@@ -1368,7 +1368,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pd.date_range("2000-01-01", periods=3, freq="3M")
+        ...     pd.date_range("2000-01-01", periods=3, freq="3ME")
         ... )
         >>> datetime_series
         0   2000-01-31

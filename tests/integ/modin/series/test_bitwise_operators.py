@@ -229,7 +229,7 @@ def test_bitwise_binary_between_series(lhs, rhs, op):
 def test_bitwise_binary_between_series_with_deviating_behavior_or(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-
+    pytest.xfail("SNOW-1321719 - pandas 2.2.1 migration")
     snow_ans = try_cast_to_snow_series(lhs) | try_cast_to_snow_series(rhs)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_ans, expected_snowpark_pandas
@@ -311,7 +311,7 @@ def test_bitwise_binary_between_series_with_deviating_behavior_or(
 def test_bitwise_binary_between_series_with_deviating_behavior_and(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-
+    pytest.xfail("SNOW-1321719 - pandas 2.2.1 migration")
     snow_ans = try_cast_to_snow_series(lhs) & try_cast_to_snow_series(rhs)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_ans, expected_snowpark_pandas

@@ -66,17 +66,21 @@ class TestRename:
         data = {"A": {"foo": 0, "bar": 1}}
 
         # gets sorted alphabetical
+        # pandas 2.2.1 behavior, this is no longer the that sort index
+        # is called automatically as with pandas 2.1.4
+        # Pandas Change:
+        # https://github.com/pandas-dev/pandas/pull/55696
         with SqlCounter(query_count=2):
             df = DataFrame(data)
             assert_index_equal(df.index, DataFrame(data).index)
 
         with SqlCounter(query_count=1, join_count=1):
-            renamed = df.rename(index={"foo": "bar", "bar": "foo"})
-            assert_index_equal(renamed.index, Index(["foo", "bar"]))
+            renamed = df.rename(index={"foo": "foo2", "bar": "bar2"})
+            assert_index_equal(renamed.index, Index(["foo2", "bar2"]))
 
         with SqlCounter(query_count=8, fallback_count=1, sproc_count=1):
-            renamed = df.rename(index=str.upper)
-            assert_index_equal(renamed.index, Index(["BAR", "FOO"]))
+            renamed = renamed.rename(index=str.upper)
+            assert_index_equal(renamed.index, Index(["FOO2", "BAR2"]))
 
         # have to pass something
         with SqlCounter(query_count=0):

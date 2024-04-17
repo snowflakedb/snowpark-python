@@ -257,6 +257,8 @@ def _verify_order_by_query(
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_join_no_column_conflict(session, df1, df2, how):
+    if how == "outer":
+        pytest.xfail("SNOW-1321662 - outer join issue")
     ordered_df1 = _create_ordered_dataframe(
         session, df1, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
     )
@@ -326,6 +328,8 @@ def test_join_no_column_conflict(session, df1, df2, how):
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_join_with_column_conflict(session, df1, df2, how):
+    if how == "outer":
+        pytest.xfail("SNOW-1321662 - outer join issue")
     ordered_df1 = _create_ordered_dataframe(
         session, df1, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
     )

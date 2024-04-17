@@ -3,11 +3,12 @@
 #
 import pathlib
 import re
+from datetime import datetime
 
 import numpy as np
 import pandas
-import pandas._testing as tm
 import pytest
+from pandas._typing import Frequency
 from pandas.core.indexing import IndexingError
 from pytest import fail
 
@@ -26,6 +27,7 @@ INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
 # use a sample size to generate query result in multiple chunks (default chunk size is 4K rows in Snowflake)
 INDEX_SAMPLE_SIZE = 5000
+HALF_INDEX_SAMPLE_SIZE = 2500
 
 nullable_int_sample = np.random.choice(
     np.append(np.arange(10), [None]), size=INDEX_SAMPLE_SIZE
@@ -186,21 +188,24 @@ def create_multiindex_with_dt64tz_level() -> pd.MultiIndex:
 @pytest.fixture(scope="session")
 def indices_dict():
     return {
-        "string": tm.makeStringIndex(INDEX_SAMPLE_SIZE),
-        "int": tm.makeIntIndex(INDEX_SAMPLE_SIZE, dtype="int16"),
-        "range": tm.makeRangeIndex(INDEX_SAMPLE_SIZE),
-        "float": tm.makeFloatIndex(INDEX_SAMPLE_SIZE),
+        "string": pd.Index([f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object),
+        "int": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
+        "range": pd.RangeIndex(0, INDEX_SAMPLE_SIZE, 1),
+        "float": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float"),
         "repeats": pd.Index([0, 0, 1, 1, 2, 2] * int(INDEX_SAMPLE_SIZE / 6)),
         "bool-dtype": pd.Index(np.random.randn(INDEX_SAMPLE_SIZE) < 0),
         "tuples": pd.MultiIndex.from_tuples(zip(["foo", "bar", "baz"], [1, 2, 3])),
         "multi": create_multiindex(),
         # NumericIndex is a pandas 2.x feature
-        "num_int64": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="int64"),
-        "num_float64": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="float64"),
+        "num_int64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int64"),
+        "num_float64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float64"),
         "empty": pd.Index([]),
-        "bool-object": tm.makeBoolIndex(INDEX_SAMPLE_SIZE).astype(object),
+        "bool-object": pd.Index([True, False] * HALF_INDEX_SAMPLE_SIZE, dtype=object),
         "string-python": pd.Index(
-            pd.array(tm.makeStringIndex(INDEX_SAMPLE_SIZE), dtype="string[python]")
+            pd.array(
+                pd.Index([f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object),
+                dtype="string[python]",
+            )
         ),
         "nullable_int": pd.Index(nullable_int_sample, dtype="Int64"),
         "nullable_uint": pd.Index(nullable_int_sample, dtype="UInt16"),
@@ -209,27 +214,36 @@ def indices_dict():
             nullable_bool_sample.astype(bool),
             dtype="boolean",
         ),
-        "uint": tm.makeUIntIndex(INDEX_SAMPLE_SIZE),
+        "uint": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint"),
         "uint-small": pd.Index([1, 2, 3], dtype="uint64"),
-        "timedelta": tm.makeTimedeltaIndex(INDEX_SAMPLE_SIZE),
+        "timedelta": pd.timedelta_range(
+            start="1 day", periods=INDEX_SAMPLE_SIZE, freq="D"
+        ),
         "multi-with-dt64tz-level": create_multiindex_with_dt64tz_level(),
         # NumericIndex is a pandas 2.x feature
-        "num_int32": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="int32"),
-        "num_int16": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="int16"),
-        "num_int8": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="int8"),
-        "num_uint64": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="uint64"),
-        "num_uint32": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="uint32"),
-        "num_uint16": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="uint16"),
-        "num_uint8": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="uint8"),
-        "num_float32": tm.makeNumericIndex(INDEX_SAMPLE_SIZE, dtype="float32"),
-        "categorical": tm.makeCategoricalIndex(100),
-        "interval": tm.makeIntervalIndex(100),
-        "complex64": tm.makeFloatIndex(100).astype("complex64"),
-        "complex128": tm.makeFloatIndex(100).astype("complex128"),
-        "period": tm.makePeriodIndex(100, "period[B]"),
+        "num_int32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int32"),
+        "num_int16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
+        "num_int8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("int8"),
+        "num_uint64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint64"),
+        "num_uint32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint32"),
+        "num_uint16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint16"),
+        "num_uint8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("uint8"),
+        "num_float32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float32"),
+        "categorical": pd.Index(list("abcde") * 20, dtype="category"),
+        "interval": pd.IntervalIndex.from_breaks(np.linspace(0, 100, num=101)),
+        "complex64": pd.Index(np.arange(100)).astype("complex64"),
+        "complex128": pd.Index(np.arange(100)).astype("complex128"),
+        "period": pd.period_range(
+            start=datetime(2000, 1, 1), periods=100, freq="D", name="period[B]"
+        ),
         # failed due to no
-        "datetime": tm.makeDateIndex(INDEX_SAMPLE_SIZE),
-        "datetime-tz": tm.makeDateIndex(INDEX_SAMPLE_SIZE, tz="US/Pacific"),
+        "datetime": pandas.DatetimeIndex(
+            pd.bdate_range(datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B")
+        ),
+        "datetime-tz": pandas.DatetimeIndex(
+            pd.bdate_range(datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B"),
+            tz="US/Pacific",
+        ),
     }
 
 
@@ -273,7 +287,11 @@ def float_frame() -> pandas.DataFrame:
 
     [30 rows x 4 columns]
     """
-    return pandas.DataFrame(tm.getSeriesData())
+    return pandas.DataFrame(
+        np.random.default_rng(2).standard_normal((30, 4)),
+        index=pd.Index([f"foo_{i}" for i in range(30)], dtype=object),
+        columns=pd.Index(list("ABCD"), dtype=object),
+    )
 
 
 @pytest.fixture(scope="session")
@@ -302,19 +320,25 @@ def float_string_frame():
 
     [30 rows x 5 columns]
     """
-    df = pandas.DataFrame(tm.getSeriesData())
+    df = pandas.DataFrame(
+        np.random.default_rng(2).standard_normal((30, 4)),
+        index=pd.Index([f"foo_{i}" for i in range(30)], dtype=object),
+        columns=pd.Index(list("ABCD"), dtype=object),
+    )
     df["foo"] = "bar"
     return df
 
 
 @pytest.fixture(scope="session")
-def datetime_series() -> pandas.Series:
+def datetime_series(nper=30, freq: Frequency = "B", name=None) -> pandas.Series:
     """
     Fixture for Series of floats with DatetimeIndex
     """
-    s = tm.makeTimeSeries()
-    s.name = "ts"
-    return s
+    return pandas.Series(
+        np.random.default_rng(2).standard_normal(30),
+        index=pandas.date_range(start="2000-01-01", periods=nper, freq=freq),
+        name=name,
+    )
 
 
 @pytest.fixture(scope="function")

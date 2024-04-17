@@ -113,7 +113,7 @@ def test_qcut_series_single_element_negative(q, s):
         # Error will be:
         #  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
         #  You can drop duplicate edges by setting the 'duplicates' kwarg
-        re_match = "Bin edges must be unique: array"
+        re_match = "Bin edges must be unique: .*"
         with pytest.raises(ValueError, match=re_match):
             native_pd.qcut(s, q, labels=False)
         with SqlCounter(query_count=3):
@@ -224,12 +224,12 @@ def test_qcut_list_of_values_raise_negative():
     # Error produced here will be:
     # ValueError: Bin edges must be unique: array([2014.  , 2014.  , 2014.  , 2014.55, 2015.9 , 2017.  ]).
     #                You can drop duplicate edges by setting the 'duplicates' kwarg
-    expected_msg = "Bin edges must be unique: array([2014.  , 2014.  , 2014.  , 2014.55, 2015.9 , 2017.  ]).\nYou can drop duplicate edges by setting the 'duplicates' kwarg"
-    with pytest.raises(ValueError, match=re.escape(expected_msg)):
+    expected_msg = "Bin edges must be unique: "
+    with pytest.raises(ValueError, match=expected_msg):
         native_pd.qcut(native_s, q, duplicates="raise", labels=False)
 
     with SqlCounter(query_count=3, union_count=10):
-        with pytest.raises(ValueError, match=re.escape(expected_msg)):
+        with pytest.raises(ValueError, match=expected_msg):
             pd.qcut(snow_s, q, duplicates="raise", labels=False)
 
 

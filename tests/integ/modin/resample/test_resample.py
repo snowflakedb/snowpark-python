@@ -272,7 +272,7 @@ def test_resample_date_trunc_hour():
     eval_snowpark_pandas_result(
         *create_test_dfs(
             {"A": [np.nan, 3, np.nan, 4, 5.33], "B": [np.nan, np.nan, 6, 7, 9]},
-            index=native_pd.date_range("2020-01-01 2:00:23", periods=5, freq="1H"),
+            index=native_pd.date_range("2020-01-01 2:00:23", periods=5, freq="1h"),
         ),
         lambda df: df.resample("2H").min(),
         check_freq=False,

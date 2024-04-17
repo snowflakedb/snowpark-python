@@ -399,6 +399,39 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
+    def _repr_html_(self):  # pragma: no cover
+        """
+        Return a html representation for a particular ``DataFrame``.
+
+        Returns
+        -------
+        str
+
+        Notes
+        -----
+        Supports pandas `display.max_rows` and `display.max_columns` options.
+        """
+        num_rows = pandas.get_option("display.max_rows") or 60
+        # Modin uses here 20 as default, but this does not coincide well with pandas option. Therefore allow
+        # here value=0 which means display all columns.
+        num_cols = pandas.get_option("display.max_columns")
+
+        (
+            row_count,
+            col_count,
+            repr_df,
+        ) = self._query_compiler.build_repr_df(num_rows, num_cols)
+        result = repr_df._repr_html_()
+
+        if is_repr_truncated(row_count, col_count, num_rows, num_cols):
+            # We split so that we insert our correct dataframe dimensions.
+            return (
+                result.split("<p>")[0]
+                + f"<p>{row_count} rows × {col_count} columns</p>\n</div>"
+            )
+        else:
+            return result
+
     def _get_columns(self) -> pandas.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.

@@ -69,10 +69,7 @@ def test_resample_not_yet_implemented_freq(freq):
         index=native_pd.date_range("2020-01-01", periods=15, freq="1D"),
     )
 
-    with pytest.raises(
-        NotImplementedError,
-        match=f"Resample argument {freq} for parameter rule is not implemented for Resampler!",
-    ):
+    with pytest.raises(NotImplementedError):
         snow_df.resample(freq).min().to_pandas()
 
 

@@ -7,6 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.pandas as pd
+from snowflake.snowpark.query_history import QueryRecord
+from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 
@@ -65,6 +67,80 @@ def test_repr(native_df, expected_query_count):
         snow_str = repr(snow_df)
 
         assert native_str == snow_str
+
+
+@pytest.mark.parametrize("native_df, expected_query_count", _DATAFRAMES_TO_TEST)
+def test_repr_html(native_df, expected_query_count):
+
+    # TODO: SNOW-916596 Test this with Jupyter notebooks.
+    # joins due to temp table creation
+    snow_df = pd.DataFrame(native_df)
+
+    # in Snowpark Pandas, we set "display.max_columns" to 20 to limit the query, simulate this behavior here
+    # because Pandas uses default value of 0
+
+    native_html = native_df._repr_html_()
+    snow_html = snow_df._repr_html_()
+
+    native_html = native_df._repr_html_()
+
+    # 10 of these are related to stored procs, inserts, alter session query tag.
+    with SqlCounter(query_count=expected_query_count, select_count=1):
+        snow_html = snow_df._repr_html_()
+
+    assert native_html == snow_html
+
+
+class ReprQueryListener:
+    """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database
+    if they are used for `repr` or `_repr_html_`.
+
+    See also:
+        :meth:`snowflake.snowpark.Session.query_history`.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.session._conn.add_query_listener(self)
+        self._queries = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.session._conn.remove_query_listener(self)
+
+    def _add_query(self, query_record: QueryRecord):
+        # Any query for `repr` or `_repr_html_` will include
+        # `<= 31` in the SQL text.
+        if "<= 31" in query_record.sql_text:
+            self._queries.append(query_record)
+
+    @property
+    def queries(self) -> list[QueryRecord]:
+        return [query.sql_text for query in self._queries]
+
+
+@pytest.mark.parametrize("native_df, expected_query_count", _DATAFRAMES_TO_TEST)
+def test_repr_and_repr_html_issue_same_query(native_df, expected_query_count):
+    """This test ensures that the same query is issued for both `repr` and `repr_html`
+    in order to take advantage of Snowflake server side caching when both are called back
+    to back (as in the case with displaying a DataFrame in a Jupyter notebook)."""
+
+    native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    snow_df = pd.DataFrame(native_df)
+
+    with ReprQueryListener(pd.session) as listener:
+        with SqlCounter(query_count=1, select_count=1):
+            repr_str = repr(snow_df)
+        with SqlCounter(query_count=1, select_count=1):
+            repr_html = snow_df._repr_html_()
+
+    assert repr_str == repr(native_df)
+    assert repr_html == native_df._repr_html_()
+
+    assert len(listener.queries) == 2
+    assert listener.queries[0] == listener.queries[1]
 
 
 class TestWithGlobalSettings:

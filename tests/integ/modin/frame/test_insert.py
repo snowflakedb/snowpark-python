@@ -103,7 +103,13 @@ def test_insert_one_to_many(native_df, native_value):
 
     if isinstance(native_value, native_pd.Series):
         native_value.name = "series"
-    expected_res = native_df.join(native_value, rsuffix="_x", how="left", sort=False)
+    # We sort the index here, because pandas 2.2.x retains the sort order
+    # of the original dict. https://github.com/pandas-dev/pandas/pull/55696
+    # As we update the API from 2.1.4 to 2.2.x proper we may want to address
+    # this behavior.
+    expected_res = native_df.join(
+        native_value, rsuffix="_x", how="left", sort=False
+    ).sort_index()
     expected_res.columns = ["col1", "col2", "col3"]
     assert_frame_equal(native_snow_res, expected_res, check_index_type=False)
 

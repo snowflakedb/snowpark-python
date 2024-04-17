@@ -563,13 +563,7 @@ class TestToDatetime:
         "tz",
         [
             None,
-            pytest.param(
-                "US/Central",
-                marks=pytest.mark.xfail(
-                    strict=True,
-                    reason="SNOW-1057823: Investigate to_datetime SQL errors",
-                ),
-            ),
+            pytest.param("US/Central"),
         ],
     )
     @sql_count_checker(query_count=2)
