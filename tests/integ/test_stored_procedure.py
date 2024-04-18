@@ -1636,12 +1636,10 @@ def test_force_inline_code(session):
 
 
 def test_stored_proc_register_with_module(session):
-    import pandas
-
     # use pandas module here
     packages = list(session.get_packages().values())
-    assert "pandas" "pandas" not in packages
-    packages = [pandas] + packages
+    assert "pd" "pd" not in packages
+    packages = [pd] + packages
 
     def proc_function(session: Session) -> str:
         return "test response"
