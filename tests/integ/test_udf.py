@@ -1503,6 +1503,18 @@ def test_udf_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+def test_udf_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    def plus1(x: int) -> int:
+        return x + 1
+
+    plus1_udf = session.udf.register(plus1, comment=comment)
+
+    ddl_sql = f"select get_ddl('FUNCTION', '{plus1_udf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
+
+
 @pytest.mark.skipif(
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",

@@ -172,6 +172,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
+        comment: Optional[str] = None,
     ) -> StoredProcedure:
         (
             udf_name,
