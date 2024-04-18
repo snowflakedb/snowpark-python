@@ -157,7 +157,7 @@ class ServerConnection:
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor_fire_and_forget = self._conn.cursor()
+        self._cursor = self._conn.cursor()  # only used in fire and forget situations
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a

@@ -14,6 +14,7 @@ import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
+from types import TracebackType
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock
 
@@ -250,6 +251,19 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
+
+    def __enter__(self) -> "MockServerConnection":
+        """Context manager."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[BaseException],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        """Context manager with commit or rollback."""
+        self.close()
 
     def log_not_supported_error(
         self,
