@@ -499,6 +499,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -585,6 +586,8 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register_from_file`
@@ -620,6 +623,7 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -646,6 +650,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -735,6 +740,8 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -768,6 +775,7 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -794,6 +802,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -878,6 +887,7 @@ class UDFRegistration:
                 secrets=secrets,
                 immutable=immutable,
                 statement_params=statement_params,
+                comment=comment,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

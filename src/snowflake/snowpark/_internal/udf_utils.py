@@ -998,6 +998,7 @@ def create_python_udf_or_sp(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
 ) -> None:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1070,6 +1071,16 @@ HANDLER='{handler}'{execute_as_sql}
         is_ddl_on_temp_object=not is_permanent,
         statement_params=statement_params,
     )
+
+    if comment is not None:
+        object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
+        comment = comment.replace("'", "\\'")  # escaping single quotes
+        comment_query = f"COMMENT ON {object_type.value.split('_')[-1]} {object_signature_sql} IS '{comment}'"
+        session._run_query(
+            comment_query,
+            is_ddl_on_temp_object=not is_permanent,
+            statement_params=statement_params,
+        )
 
     # fire telemetry after _run_query is successful
     api_call_source = api_call_source or "_internal.create_python_udf_or_sp"
