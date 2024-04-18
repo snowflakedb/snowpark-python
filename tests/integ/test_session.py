@@ -157,10 +157,10 @@ def test_session_builder(session):
     reason="Query called from a stored procedure contains a function with side effects [SYSTEM$CANCEL_ALL_QUERIES]",
 )
 def test_session_cancel_all(session):
-    session.cancel_all()
-    qid = session._conn._cursor.sfqid
-    session._conn._cursor.get_results_from_sfqid(qid)
-    assert "cancelled" in session._conn._cursor.fetchall()[0][0]
+    qid = session.cancel_all()
+    with session._conn._conn.cursor() as cursor:
+        cursor.get_results_from_sfqid(qid)
+        assert "cancelled" in cursor.fetchall()[0][0]
 
 
 @pytest.mark.localtest

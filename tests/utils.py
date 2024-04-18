@@ -315,8 +315,9 @@ class Utils:
 
     @staticmethod
     def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
-        session._run_query(sql)
-        result_meta = session._conn._cursor.description
+        with session._conn._conn.cursor() as cursor:
+            session._run_query(sql, cursor=cursor)
+            result_meta = cursor.description
 
         assert len(result_meta) == len(expected_schema.fields)
         for meta, field in zip(result_meta, expected_schema.fields):
