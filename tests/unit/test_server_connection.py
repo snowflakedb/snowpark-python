@@ -55,8 +55,8 @@ def test_wrap_exception(mock_server_connection):
 
 def test_upload_stream_exceptions(mock_server_connection):
     with mock.patch.object(
-        mock_server_connection._cursor,
-        "execute",
+        mock_server_connection,
+        "run_query",
         side_effect=ValueError("fake exception"),
     ):
         input_stream = io.BytesIO(b"fake stream")

@@ -39,14 +39,14 @@ def test_write_with_target_column_name_order(session):
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # Explicitly use "index"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        session._run_query(f"truncate table {table_name}", log_on_exception=True)
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # use order by "name"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        session._run_query(f"truncate table {table_name}", log_on_exception=True)
         df1.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
@@ -141,7 +141,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.check_answer(session.table(table_name), [Row(2, 1)])
 
         # copy DataFrame
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        session._run_query(f"truncate table {table_name}", log_on_exception=True)
         df_cloned = copy.copy(df1)
         df_cloned.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
@@ -149,7 +149,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.check_answer(session.table(table_name), [Row(2, 1)])
 
         # large local relation
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        session._run_query(f"truncate table {table_name}", log_on_exception=True)
         large_df = session.create_dataframe([[1, 2]] * 1024, schema=["b", "a"])
         large_df.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
@@ -214,7 +214,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
             .option("PURGE", False)
             .csv(test_file_on_stage)
         )
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        session._run_query(f"truncate table {table_name}", log_on_exception=True)
         df_readcopy.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
