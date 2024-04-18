@@ -315,7 +315,13 @@ def auto_detect_snowflake_date_format_and_convert(date_string: str):
                     )
                 return datetime.strptime(date_string, "%d-%b-%Y").date()
             return (
-                datetime.strptime(date_string, "%Y-%m-%d").date()
+                # note the len("YYYY-MM-DD") here:
+                # you create a snowpark DF with datetime.datetime(yyyy, mm, dd) with column type being Variant
+                # however, snowpark would convert it to string first in ISO format first (yyyy-mm-ddThh:mm:ss)
+                # and when processing the value, we chain calls to get the original value: to_variant(parse_json(col))
+                # truncate the suffix is a short term workaround to control the scope of the change
+                # need to check if we can remove the to_json->parse_json in local testing
+                datetime.strptime(date_string[: len("YYYY-MM-DD")], "%Y-%m-%d").date()
                 if fmt == formats[1]
                 else datetime.strptime(date_string, "%m/%d/%Y").date()
             )
