@@ -7,6 +7,7 @@ from enum import Enum
 from typing import List, Optional, Tuple
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -91,6 +92,26 @@ class _DGQLFields:
     IN = "IN"
 
 
+class _UserDomain(Enum):
+    """
+    Domains in the user context that logically maps to different snowflake objects.
+    """
+
+    FEATURE_VIEW = "FEATURE_VIEW"
+    MODEL = "MODULE"
+
+
+class _SnowflakeDomain(Enum):
+    """
+    Snowflake object domains relevant for querying lineage.
+    Note: This is a subset and does not include all possible domains.
+    """
+
+    TABLE = "TABLE"
+    MODULE = "MODULE"
+    DATASET = "DATASET"
+
+
 class Lineage:
     """
     Provides methods for exploring lineage of Snowflake objects.
@@ -99,7 +120,15 @@ class Lineage:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self.user_to_system_domain_map = {"feature_view": "table", "model": "module"}
+        self.user_to_system_domain_map = {
+            _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
+            _UserDomain.MODEL: _SnowflakeDomain.MODULE,
+        }
+        self.versioned_object_domains = {
+            _UserDomain.FEATURE_VIEW.value,
+            _UserDomain.MODEL.value,
+            _SnowflakeDomain.DATASET.value,
+        }
 
     def _build_graphql_query(
         self,
@@ -244,16 +273,42 @@ class Lineage:
         """
         return entity[_ObjectField.STATUS] == "MASKED"
 
+    def _get_name_and_version(self, graph_entity):
+        """
+        Extracts and returns the name and version from the given graph entity.
+        """
+        if graph_entity[_ObjectField.USER_DOMAIN] in self.versioned_object_domains:
+            if graph_entity[_ObjectField.USER_DOMAIN] == _UserDomain.FEATURE_VIEW.value:
+                if "$" in graph_entity[_ObjectField.NAME]:
+                    parts = graph_entity[_ObjectField.NAME].split("$")
+                    return (
+                        f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{parts[0]}",
+                        parts[1],
+                    )
+                else:
+                    raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
+                        f"unexpected {_UserDomain.FEATURE_VIEW.value} name format."
+                    )
+            elif _ObjectField.PARENT_NAME in graph_entity:
+                return (
+                    f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.PARENT_NAME]}",
+                    graph_entity[_ObjectField.NAME],
+                )
+            else:
+                raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
+                    f"missing version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
+                )
+
+        return (
+            f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.NAME]}",
+            None,
+        )
+
     def _get_user_entity(self, graph_entity) -> str:
         """
         Transforms the given graph entity into a user visible entity.
         """
-        if _ObjectField.PARENT_NAME in graph_entity:
-            name = f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.PARENT_NAME]}"
-            version = graph_entity[_ObjectField.NAME]
-        else:
-            name = f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.NAME]}"
-            version = None
+        name, version = self._get_name_and_version(graph_entity)
 
         domain = (
             graph_entity.get(_ObjectField.REFINED_DOMAIN)
@@ -268,7 +323,7 @@ class Lineage:
             _ObjectField.STATUS: graph_entity[_ObjectField.STATUS],
         }
 
-        if version is not None:
+        if version:
             user_entity[_ObjectField.VERSION] = version
 
         return user_entity
