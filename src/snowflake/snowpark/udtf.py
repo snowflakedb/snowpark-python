@@ -934,6 +934,7 @@ class UDTFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                statement_params=statement_params,
                 comment=comment,
             )
         # an exception might happen during registering a udtf

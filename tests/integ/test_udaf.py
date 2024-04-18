@@ -37,15 +37,18 @@ def test_basic_udaf(session):
         def finish(self):
             return self._sum
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     sum_udaf = udaf(
         PythonSumUDAFHandler,
         return_type=IntegerType(),
         input_types=[IntegerType()],
         immutable=True,
+        statement_params={"QUERY_TAG": query_tag},
     )
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a")), [Row(6)])
     Utils.check_answer(df.group_by("a").agg(sum_udaf("b")), [Row(1, 7), Row(2, 11)])
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 # TODO: use data class as state. This triggers a bug in UDF server during pickling/unpickling of a state.
