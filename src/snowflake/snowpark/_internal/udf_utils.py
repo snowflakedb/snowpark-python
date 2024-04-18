@@ -919,6 +919,7 @@ def resolve_imports_and_packages(
                 session._conn.upload_stream(
                     input_stream=input_stream,
                     stage_location=upload_and_import_stage,
+                    cursor=session._conn._cursor,
                     dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
@@ -954,6 +955,7 @@ def resolve_imports_and_packages(
             session._conn.upload_file(
                 path=func[0],
                 stage_location=upload_and_import_stage,
+                cursor=session._conn._cursor,
                 dest_prefix=dest_prefix,
                 parallel=parallel,
                 compress_data=False,

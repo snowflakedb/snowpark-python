@@ -239,6 +239,8 @@ class ServerConnection:
         self,
         path: str,
         stage_location: str,
+        cursor: SnowflakeCursor,
+        *,
         dest_prefix: str = "",
         parallel: int = 4,
         compress_data: bool = True,
@@ -246,13 +248,63 @@ class ServerConnection:
         overwrite: bool = False,
         skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        with self._conn.cursor() as cursor:
+        if is_in_stored_procedure():  # pragma: no cover
+            file_name = os.path.basename(path)
+            target_path = _build_target_path(stage_location, dest_prefix)
+            try:
+                # upload_stream directly consume stage path, so we don't need to normalize it
+                cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
+            except ProgrammingError as pe:
+                tb = sys.exc_info()[2]
+                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                    pe
+                )
+                raise ne.with_traceback(tb) from None
+        else:
+            uri = normalize_local_file(path)
+            if self._supports_skip_upload_on_content_match:
+                kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
+            else:
+                kwargs = {}
+            return self.run_query(
+                _build_put_statement(
+                    uri,
+                    stage_location,
+                    dest_prefix,
+                    parallel,
+                    compress_data,
+                    source_compression,
+                    overwrite,
+                ),
+                cursor,
+                **kwargs,
+            )
+
+    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
+    def upload_stream(
+        self,
+        input_stream: IO[bytes],
+        stage_location: str,
+        dest_filename: str,
+        cursor: SnowflakeCursor,
+        *,
+        dest_prefix: str = "",
+        parallel: int = 4,
+        compress_data: bool = True,
+        source_compression: str = "AUTO_DETECT",
+        overwrite: bool = False,
+        is_in_udf: bool = False,
+        skip_upload_on_content_match: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
+        try:
             if is_in_stored_procedure():  # pragma: no cover
-                file_name = os.path.basename(path)
+                input_stream.seek(0)
                 target_path = _build_target_path(stage_location, dest_prefix)
                 try:
                     # upload_stream directly consume stage path, so we don't need to normalize it
-                    cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
+                    cursor.upload_stream(input_stream, f"{target_path}/{dest_filename}")
                 except ProgrammingError as pe:
                     tb = sys.exc_info()[2]
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
@@ -260,13 +312,13 @@ class ServerConnection:
                     )
                     raise ne.with_traceback(tb) from None
             else:
-                uri = normalize_local_file(path)
                 if self._supports_skip_upload_on_content_match:
                     kwargs = {
-                        "_skip_upload_on_content_match": skip_upload_on_content_match
+                        "_skip_upload_on_content_match": skip_upload_on_content_match,
+                        "file_stream": input_stream,
                     }
                 else:
-                    kwargs = {}
+                    kwargs = {"file_stream": input_stream}
                 return self.run_query(
                     _build_put_statement(
                         uri,
@@ -278,77 +330,23 @@ class ServerConnection:
                         overwrite,
                     ),
                     cursor,
+                    _statement_params=statement_params,
                     **kwargs,
                 )
-
-    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
-    def upload_stream(
-        self,
-        input_stream: IO[bytes],
-        stage_location: str,
-        dest_filename: str,
-        dest_prefix: str = "",
-        parallel: int = 4,
-        compress_data: bool = True,
-        source_compression: str = "AUTO_DETECT",
-        overwrite: bool = False,
-        is_in_udf: bool = False,
-        skip_upload_on_content_match: bool = False,
-        statement_params: Optional[Dict[str, str]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
-        with self._conn.cursor() as cursor:
-            try:
-                if is_in_stored_procedure():  # pragma: no cover
-                    input_stream.seek(0)
-                    target_path = _build_target_path(stage_location, dest_prefix)
-                    try:
-                        # upload_stream directly consume stage path, so we don't need to normalize it
-                        cursor.upload_stream(
-                            input_stream, f"{target_path}/{dest_filename}"
-                        )
-                    except ProgrammingError as pe:
-                        tb = sys.exc_info()[2]
-                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                            pe
-                        )
-                        raise ne.with_traceback(tb) from None
-                else:
-                    if self._supports_skip_upload_on_content_match:
-                        kwargs = {
-                            "_skip_upload_on_content_match": skip_upload_on_content_match,
-                            "file_stream": input_stream,
-                        }
-                    else:
-                        kwargs = {"file_stream": input_stream}
-                    return self.run_query(
-                        _build_put_statement(
-                            uri,
-                            stage_location,
-                            dest_prefix,
-                            parallel,
-                            compress_data,
-                            source_compression,
-                            overwrite,
-                        ),
-                        cursor,
-                        _statement_params=statement_params,
-                        **kwargs,
+        # If ValueError is raised and the stream is closed, we throw the error.
+        # https://docs.python.org/3/library/io.html#io.IOBase.close
+        except ValueError as ex:
+            if input_stream.closed:
+                if is_in_udf:
+                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
                     )
-            # If ValueError is raised and the stream is closed, we throw the error.
-            # https://docs.python.org/3/library/io.html#io.IOBase.close
-            except ValueError as ex:
-                if input_stream.closed:
-                    if is_in_udf:
-                        raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
-                            dest_filename
-                        )
-                    else:
-                        raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
-                            dest_filename
-                        )
                 else:
-                    raise ex
+                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
+                        dest_filename
+                    )
+            else:
+                raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
@@ -540,6 +538,7 @@ class ServerConnection:
                     result_set["data"], result_meta, case_sensitive=case_sensitive
                 )
 
+    @_Decorator.wrap_exception
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
         self,

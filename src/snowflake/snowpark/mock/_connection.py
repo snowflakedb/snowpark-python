@@ -343,6 +343,7 @@ class MockServerConnection:
         self,
         path: str,
         stage_location: str,
+        cursor: SnowflakeCursor,
         dest_prefix: str = "",
         parallel: int = 4,
         compress_data: bool = True,
@@ -354,9 +355,7 @@ class MockServerConnection:
             target_path = _build_target_path(stage_location, dest_prefix)
             try:
                 # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    open(path, "rb"), f"{target_path}/{file_name}"
-                )
+                cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]
                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
@@ -374,7 +373,8 @@ class MockServerConnection:
                     compress_data,
                     source_compression,
                     overwrite,
-                )
+                ),
+                cursor,
             )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")

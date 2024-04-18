@@ -857,6 +857,7 @@ class Session:
                                 input_stream=input_stream,
                                 stage_location=normalized_upload_and_import_location,
                                 dest_filename=filename,
+                                cursor=self._conn._cursor,
                                 dest_prefix=prefix,
                                 source_compression="DEFLATE",
                                 compress_data=False,
@@ -870,6 +871,7 @@ class Session:
                         self._conn.upload_file(
                             path=path,
                             stage_location=normalized_upload_and_import_location,
+                            cursor=self._conn._cursor,
                             dest_prefix=prefix,
                             compress_data=False,
                             overwrite=True,
@@ -1536,6 +1538,7 @@ class Session:
                 self._conn.upload_file(
                     path=normalize_local_file(metadata_local_path),
                     stage_location=normalize_remote_file_or_dir(stage_name),
+                    cursor=self._conn._cursor,
                     compress_data=False,
                     overwrite=True,
                 )
@@ -1543,6 +1546,7 @@ class Session:
             self._conn.upload_file(
                 path=normalize_local_file(zip_path),
                 stage_location=normalize_remote_file_or_dir(stage_name),
+                cursor=self._conn._cursor,
                 compress_data=True,
                 overwrite=True,
             )
