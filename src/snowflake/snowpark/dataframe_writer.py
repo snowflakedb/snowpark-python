@@ -87,7 +87,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> None:
@@ -102,7 +102,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
