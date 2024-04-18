@@ -53,7 +53,7 @@ def skip(pytestconfig):
 def simplifier_table(session) -> None:
     table_name = Utils.random_table_name()
     Utils.create_table(session, table_name, "a int, b int")
-    session._conn.run_query(f"insert into {table_name}(a, b) values (1, 2)")
+    session._run_query(f"insert into {table_name}(a, b) values (1, 2)")
     yield table_name
     Utils.drop_table(session, table_name)
 
