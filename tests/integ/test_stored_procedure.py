@@ -486,7 +486,7 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
 
 
 @pytest.mark.localtest
-def test_session_register_sp(session):
+def test_session_register_sp(session, local_testing_mode):
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
         .to_df("a", "b")
@@ -508,7 +508,7 @@ def test_session_register_sp(session):
         statement_params={"QUERY_TAG": query_tag},
     )
     assert add_sp(1, 2) == 3
-    Utils.assert_executed_with_query_tag(session, query_tag)
+    Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
 def test_add_import_local_file(session, resources_path):
