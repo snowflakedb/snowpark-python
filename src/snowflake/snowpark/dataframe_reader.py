@@ -582,23 +582,27 @@ class DataFrameReader:
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_query = infer_schema_statement(path, file_format_name)
         try:
-            if use_temp_file_format:
-                self._session._conn.run_query(
-                    create_file_format_statement(
-                        file_format_name,
-                        format,
-                        format_type_options,
-                        temp=True,
-                        if_not_exist=True,
-                        use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                        is_generated=True,
-                    ),
-                    is_ddl_on_temp_object=True,
-                )
-                drop_tmp_file_format_if_exists_query = (
-                    drop_file_format_if_exists_statement(file_format_name)
-                )
-            results = self._session._conn.run_query(infer_schema_query)["data"]
+            with self._session._conn._conn.cursor() as cursor:
+                if use_temp_file_format:
+                    self._session._conn.run_query(
+                        create_file_format_statement(
+                            file_format_name,
+                            format,
+                            format_type_options,
+                            temp=True,
+                            if_not_exist=True,
+                            use_scoped_temp_objects=self._session._use_scoped_temp_objects,
+                            is_generated=True,
+                        ),
+                        cursor,
+                        is_ddl_on_temp_object=True,
+                    )
+                    drop_tmp_file_format_if_exists_query = (
+                        drop_file_format_if_exists_statement(file_format_name)
+                    )
+                results = self._session._conn.run_query(infer_schema_query, cursor)[
+                    "data"
+                ]
             if len(results) == 0:
                 raise FileNotFoundError(
                     f"Given path: '{path}' could not be found or is empty."
@@ -642,7 +646,7 @@ class DataFrameReader:
         finally:
             # Clean up the file format we created
             if drop_tmp_file_format_if_exists_query is not None:
-                self._session._conn.run_query(
+                self._session._run_query(
                     drop_tmp_file_format_if_exists_query, is_ddl_on_temp_object=True
                 )
 

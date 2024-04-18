@@ -119,9 +119,11 @@ def test_query_tag_for_cache_result(session):
 
 
 def get_query_history_for_tags(session, query_tag):
-    query_result = session._conn.run_query(
-        f"select query_text from table(information_schema.query_history()) "
-        f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'",
-        log_on_exception=True,
-    )
-    return query_result["data"]
+    with session._conn._conn.cursor() as cursor:
+        query_result = session._conn.run_query(
+            f"select query_text from table(information_schema.query_history()) "
+            f"where contains(query_tag, '{query_tag}') and session_id = '{session._conn.get_session_id()}'",
+            cursor,
+            log_on_exception=True,
+        )
+        return query_result["data"]
