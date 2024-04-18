@@ -50,7 +50,7 @@
 - Added support to register stored procedures and UDxFs with a `comment`.
 - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
 - Added support for dynamic pivot.  This feature is currently in private preview.
-- Support stored procedure register with packages given as Python modules
+- Support stored procedure register with packages given as Python modules.
 
 ### Improvements
 
