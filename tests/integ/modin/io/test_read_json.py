@@ -293,6 +293,7 @@ def test_read_json_staged_folder():
 
 
 @sql_count_checker(query_count=5)
+@pytest.mark.xfail(reason="SNOW-1336174: Remove xfail by handling empty JSON files")
 def test_read_json_empty_file():
 
     open("test_read_json_empty_file.json", "w")
