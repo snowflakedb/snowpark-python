@@ -584,10 +584,9 @@ class Session:
             self._session_id, value
         )
         try:
-            with self._conn._conn.cursor() as cursor:
-                cursor.execute(
-                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
-                )
+            self._conn._cursor.execute(
+                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+            )
         except Exception:
             pass
         self._sql_simplifier_enabled = value
@@ -1693,9 +1692,7 @@ class Session:
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
         if tag:
-            self._conn.run_query(
-                f"alter session set query_tag = {str_to_sql(tag)}"
-            )
+            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
         else:
             self._conn.run_query("alter session unset query_tag")
         self._query_tag = tag
