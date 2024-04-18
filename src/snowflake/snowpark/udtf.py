@@ -526,7 +526,7 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.Session"]) -> None:
         self._session = session
 
     def register(

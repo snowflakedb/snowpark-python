@@ -294,7 +294,7 @@ class UDAFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(

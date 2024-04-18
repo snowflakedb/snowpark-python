@@ -188,6 +188,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
+from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     validate_object_name,
@@ -7206,6 +7207,9 @@ def udf(
 
     """
 
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
+
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )
@@ -7436,6 +7440,9 @@ def udtf(
         >>> session.table_function("alt_int", lit(1)).collect()
         [Row(NUMBER=1)]
     """
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -7670,6 +7677,10 @@ def udaf(
         >>> df.agg(PythonSumUDAF("a")).collect()
         [Row(SUM_INT("A")=6)]
     """
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
+
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )
@@ -7795,6 +7806,10 @@ def pandas_udf(
         ------------
         <BLANKLINE>
     """
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
+
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )
@@ -7962,6 +7977,9 @@ def pandas_udtf(
         -----------------------------
         <BLANKLINE>
     """
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -8323,6 +8341,10 @@ def sproc(
         >>> add_sp(1, 1)
         2
     """
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(kwargs)
+
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
     )

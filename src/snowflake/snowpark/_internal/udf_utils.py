@@ -387,6 +387,14 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
+def check_decorator_args(**kwargs):
+    if (len(kwargs) > 1) or ("native_app_params" not in kwargs):
+        raise ValueError(
+            "Invalid key-value arguments passed to the decorator."
+            "Only 'native_app_params' is accepted as an additional argument to this decorator."
+        )
+
+
 def check_register_args(
     object_type: TempObjectType,
     name: Optional[Union[str, Iterable[str]]] = None,
