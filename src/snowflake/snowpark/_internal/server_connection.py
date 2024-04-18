@@ -164,9 +164,8 @@ class ServerConnection:
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
-        with self._conn.cursor() as cursor:
-            # check if cursor.execute supports _skip_upload_on_content_match
-            signature = inspect.signature(cursor.execute)
+        # check if cursor.execute supports _skip_upload_on_content_match
+        signature = inspect.signature(SnowflakeCursor.execute)
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
