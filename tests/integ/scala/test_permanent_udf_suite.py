@@ -296,7 +296,10 @@ def test_udf_read_file_with_staged_file(session, resources_path):
     try:
         Utils.create_stage(session, stage_name, is_temporary=False)
         session._conn.upload_file(
-            test_csv_file, stage_location=stage_name, compress_data=False
+            test_csv_file,
+            stage_location=stage_name,
+            cursor=session._conn._cursor,
+            compress_data=False,
         )
         session.add_import(f"@{stage_name}/{filename}")
         df = session.create_dataframe([filename]).to_df("a")

@@ -16,9 +16,10 @@ from decimal import Decimal
 from logging import getLogger
 from types import TracebackType
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from unittest.mock import Mock
+from unittest.mock import Mock, create_autospec
 
 import snowflake.snowpark.mock._constants
+from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -209,8 +210,8 @@ class MockServerConnection:
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         # TODO: mock connector connection support SNOW-1331149
-        self._conn = Mock(expired=False)
-        self._cursor = Mock()
+        self._conn = create_autospec(SnowflakeConnection)
+        self._cursor = create_autospec(SnowflakeCursor)
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
@@ -382,6 +383,7 @@ class MockServerConnection:
         self,
         input_stream: IO[bytes],
         stage_location: str,
+        cursor: SnowflakeCursor,
         dest_filename: str,
         dest_prefix: str = "",
         parallel: int = 4,
@@ -397,7 +399,7 @@ class MockServerConnection:
                 parameters_info={"compress_data": str(compress_data)},
                 raise_error=NotImplementedError,
             )
-        self._cursor.description = [
+        cursor.description = [
             ResultMetadata(
                 name="source",
                 type_code=2,

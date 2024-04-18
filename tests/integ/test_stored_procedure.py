@@ -1134,6 +1134,7 @@ def test_temp_sp_with_import_and_upload_stage(session, resources_path):
     session._conn.upload_file(
         path=test_files.test_sp_py_file,
         stage_location=unwrap_stage_location_single_quote(stage_name),
+        cursor=session._conn._cursor,
         compress_data=False,
         overwrite=True,
         skip_upload_on_content_match=True,
