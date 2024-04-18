@@ -4,6 +4,7 @@
 
 ### New Features
 
+- Added support for registering udfs and stored procedure to local testing.
 - Added support for the following local testing APIs:
   - snowflake.snowpark.Session:
     - file.put
@@ -25,9 +26,12 @@
     - current_database
     - current_session
     - date_trunc
-    - udf
     - object_construct
     - object_construct_keep_null
+    - pow
+    - sqrt
+- Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
+- Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
 - Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
   - `DataFrame.write.json`
   - `DataFrame.write.csv`
@@ -43,6 +47,7 @@
     - save_as_table
 - Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
 - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
+- Added support for dynamic pivot.  This feature is currently in private preview.
 
 ### Bug Fixes
 
@@ -50,6 +55,7 @@
 - Fixed a bug where `statement_params` was not passed to query executions that register stored procedures and user defined functions.
 - Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
 - Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
+- Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
 
 ## 1.14.0 (2024-03-20)
 

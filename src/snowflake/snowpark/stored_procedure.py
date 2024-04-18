@@ -64,6 +64,7 @@ class StoredProcedure:
         name: str,
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -76,12 +77,13 @@ class StoredProcedure:
         self._anonymous_sp_sql = anonymous_sp_sql
         self._is_return_table = isinstance(return_type, StructType)
 
-    def __call__(
+        self._packages = packages
+
+    def _validate_call(
         self,
-        *args: Any,
+        args: List[Any],
         session: Optional["snowflake.snowpark.session.Session"] = None,
-        statement_params: Optional[Dict[str, str]] = None,
-    ) -> Any:
+    ):
         if args and isinstance(args[0], snowflake.snowpark.session.Session):
             if session:
                 raise ValueError(
@@ -97,6 +99,16 @@ class StoredProcedure:
             raise ValueError(
                 f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
             )
+
+        return args, session
+
+    def __call__(
+        self,
+        *args: Any,
+        session: Optional["snowflake.snowpark.session.Session"] = None,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Any:
+        args, session = self._validate_call(args, session)
 
         session._conn._telemetry_client.send_function_usage_telemetry(
             "StoredProcedure.__call__", TelemetryField.FUNC_CAT_USAGE.value
@@ -868,4 +880,5 @@ class StoredProcedureRegistration:
             udf_name,
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
+            packages=packages,
         )

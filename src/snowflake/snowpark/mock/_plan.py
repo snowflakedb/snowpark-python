@@ -205,6 +205,16 @@ class MockExecutionPlan(LogicalPlan):
     def output(self) -> List[Attribute]:
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
+    @cached_property
+    def plan_height(self) -> int:
+        # dummy return
+        return -1
+
+    @cached_property
+    def num_duplicate_nodes(self) -> int:
+        # dummy return
+        return -1
+
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
