@@ -85,8 +85,9 @@ def analyze_attributes(
     if lowercase.startswith("get"):
         return get_attributes()
     if lowercase.startswith("describe"):
-        session._run_query(sql)
-        return convert_result_meta_to_attribute(session._conn._cursor.description)
+        with session._conn._conn.cursor() as cursor:
+            session._run_query(sql, cursor=cursor)
+            return convert_result_meta_to_attribute(cursor.description)
 
     return session._get_result_attributes(sql)
 

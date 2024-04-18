@@ -25,6 +25,7 @@ import cloudpickle
 import pkg_resources
 
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer import analyzer_utils
@@ -583,9 +584,10 @@ class Session:
             self._session_id, value
         )
         try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
-            )
+            with self._conn._conn.cursor() as cursor:
+                cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
         except Exception:
             pass
         self._sql_simplifier_enabled = value
@@ -595,14 +597,20 @@ class Session:
     def custom_package_usage_config(self, config: Dict) -> None:
         self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
 
-    def cancel_all(self) -> None:
+    def cancel_all(self) -> str:
         """
         Cancel all action methods that are running currently.
         This does not affect any action methods called in the future.
+
+        Returns: sfqid for the cancel query
         """
         _logger.info("Canceling all running queries")
         self._last_canceled_id = self._last_action_id
-        self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
+        with self._conn._conn.cursor() as cursor:
+            self._conn.run_query(
+                f"select system$cancel_all_queries({self._session_id})", cursor
+            )
+            return cursor.sfqid
 
     def get_imports(self) -> List[str]:
         """
@@ -1680,10 +1688,13 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        if tag:
-            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
-        else:
-            self._conn.run_query("alter session unset query_tag")
+        with self._conn._conn.cursor() as cursor:
+            if tag:
+                self._conn.run_query(
+                    f"alter session set query_tag = {str_to_sql(tag)}", cursor
+                )
+            else:
+                self._conn.run_query("alter session unset query_tag", cursor)
         self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:
@@ -2043,12 +2054,16 @@ class Session:
     def _run_query(
         self,
         query: str,
+        *,
+        cursor: SnowflakeCursor = None,
         is_ddl_on_temp_object: bool = False,
         log_on_exception: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
+        run_cursor = cursor or self._conn._cursor_fire_and_forget
         return self._conn.run_query(
             query,
+            run_cursor,
             is_ddl_on_temp_object=is_ddl_on_temp_object,
             log_on_exception=log_on_exception,
             _statement_params=statement_params,

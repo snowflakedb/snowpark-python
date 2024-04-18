@@ -3629,7 +3629,7 @@ def test_drop_columns_special_names(session):
     Utils.create_table(
         session, table_name, '"a\nb" string, id number', is_temporary=True
     )
-    session._conn.run_query(f"insert into {table_name} values ('a', 1), ('b', 2)")
+    session._run_query(f"insert into {table_name} values ('a', 1), ('b', 2)")
     df = session.table(table_name)
     try:
         Utils.check_answer(df, [Row("a", 1), Row("b", 2)])

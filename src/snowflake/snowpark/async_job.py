@@ -182,7 +182,6 @@ class AsyncJob:
         self._query = query
         self._can_query_be_retrieved = True
         self._session = session
-        self._cursor = session._conn._conn.cursor()
         self._result_type = result_type
         self._post_actions = post_actions if post_actions else []
         self._log_on_exception = log_on_exception
@@ -256,7 +255,8 @@ class AsyncJob:
                     f"Failed to cancel query. Returned response: {cancel_resp}"
                 )
         else:
-            self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
+            with self._session._conn._conn.cursor() as cursor:
+                cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
         self,
@@ -338,64 +338,67 @@ class AsyncJob:
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
-        self._cursor.get_results_from_sfqid(self.query_id)
-        if self._num_statements is not None:
-            for _ in range(self._num_statements - 1):
-                self._cursor.nextset()
+        with self._session._conn._conn.cursor() as cursor:
+            cursor.get_results_from_sfqid(self.query_id)
+            if self._num_statements is not None:
+                for _ in range(self._num_statements - 1):
+                    cursor.nextset()
 
-            # The intermediate result is in JSON format, which cannot be converted to pandas. We need to do a result
-            # scan to have Snowflake read the result and return Arrow format.
-            # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
-            #   workaround.
-            if async_result_type in (
-                _AsyncResultType.PANDAS,
-                _AsyncResultType.PANDAS_BATCH,
-            ):
-                self._cursor.execute(
-                    f"select * from table(result_scan('{self._cursor.sfqid}'))"
-                )
+                # The intermediate result is in JSON format, which cannot be converted to pandas. We need to do a result
+                # scan to have Snowflake read the result and return Arrow format.
+                # TODO: Once we support fetch_pandas_all for multi-statement query in connector, we could remove this
+                #   workaround.
+                if async_result_type in (
+                    _AsyncResultType.PANDAS,
+                    _AsyncResultType.PANDAS_BATCH,
+                ):
+                    cursor.execute(
+                        f"select * from table(result_scan('{cursor.sfqid}'))"
+                    )
 
-        if async_result_type == _AsyncResultType.NO_RESULT:
-            result = None
-        elif async_result_type == _AsyncResultType.PANDAS:
-            result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=False
-            )["data"]
-            check_is_pandas_dataframe_in_to_pandas(result)
-        elif async_result_type == _AsyncResultType.PANDAS_BATCH:
-            result = self._session._conn._to_data_or_iter(
-                self._cursor, to_pandas=True, to_iter=True
-            )["data"]
-        else:
-            result_data = self._cursor.fetchall()
-            self._result_meta = self._cursor.description
-            if async_result_type == _AsyncResultType.ROW:
-                result = result_set_to_rows(
-                    result_data,
-                    self._result_meta,
-                    case_sensitive=self._case_sensitive,
-                )
-            elif async_result_type == _AsyncResultType.ITERATOR:
-                result = result_set_to_iter(
-                    result_data,
-                    self._result_meta,
-                    case_sensitive=self._case_sensitive,
-                )
-            elif async_result_type == _AsyncResultType.COUNT:
-                result = result_data[0][0]
-            elif async_result_type in [
-                _AsyncResultType.UPDATE,
-                _AsyncResultType.DELETE,
-                _AsyncResultType.MERGE,
-            ]:
-                result = self._table_result(result_data, async_result_type)
+            if async_result_type == _AsyncResultType.NO_RESULT:
+                result = None
+            elif async_result_type == _AsyncResultType.PANDAS:
+                result = self._session._conn._to_data_or_iter(
+                    cursor, to_pandas=True, to_iter=False
+                )["data"]
+                check_is_pandas_dataframe_in_to_pandas(result)
+            elif async_result_type == _AsyncResultType.PANDAS_BATCH:
+                result = self._session._conn._to_data_or_iter(
+                    cursor, to_pandas=True, to_iter=True
+                )["data"]
             else:
-                raise ValueError(f"{async_result_type} is not supported")
-        for action in self._post_actions:
-            self._session._conn.run_query(
-                action.sql,
-                is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                log_on_exception=self._log_on_exception,
-                **self._parameters,
-            )
-        return result
+                result_data = cursor.fetchall()
+                self._result_meta = cursor.description
+                if async_result_type == _AsyncResultType.ROW:
+                    result = result_set_to_rows(
+                        result_data,
+                        self._result_meta,
+                        case_sensitive=self._case_sensitive,
+                    )
+                elif async_result_type == _AsyncResultType.ITERATOR:
+                    result = result_set_to_iter(
+                        result_data,
+                        self._result_meta,
+                        case_sensitive=self._case_sensitive,
+                    )
+                elif async_result_type == _AsyncResultType.COUNT:
+                    result = result_data[0][0]
+                elif async_result_type in [
+                    _AsyncResultType.UPDATE,
+                    _AsyncResultType.DELETE,
+                    _AsyncResultType.MERGE,
+                ]:
+                    result = self._table_result(result_data, async_result_type)
+                else:
+                    raise ValueError(f"{async_result_type} is not supported")
+            with self._session._conn._conn.cursor() as cursor:
+                for action in self._post_actions:
+                    self._session._conn.run_query(
+                        action.sql,
+                        cursor,
+                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                        log_on_exception=self._log_on_exception,
+                        **self._parameters,
+                    )
+            return result

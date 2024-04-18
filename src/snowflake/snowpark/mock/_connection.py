@@ -465,6 +465,7 @@ class MockServerConnection:
     def run_query(
         self,
         query: str,
+        cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,

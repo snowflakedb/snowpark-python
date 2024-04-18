@@ -157,15 +157,16 @@ class ServerConnection:
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor = self._conn.cursor()
+        self._cursor_fire_and_forget = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
 
-        # check if cursor.execute supports _skip_upload_on_content_match
-        signature = inspect.signature(self._cursor.execute)
+        with self._conn.cursor() as cursor:
+            # check if cursor.execute supports _skip_upload_on_content_match
+            signature = inspect.signature(cursor.execute)
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
@@ -225,12 +226,14 @@ class ServerConnection:
         )
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        rows = result_set_to_rows(self.run_query(query)["data"])
+        with self._conn.cursor() as cursor:
+            rows = result_set_to_rows(self.run_query(query, cursor)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        return convert_result_meta_to_attribute(run_new_describe(self._cursor, query))
+        with self._conn.cursor() as cursor:
+            return convert_result_meta_to_attribute(run_new_describe(cursor, query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
@@ -244,38 +247,40 @@ class ServerConnection:
         overwrite: bool = False,
         skip_upload_on_content_match: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():  # pragma: no cover
-            file_name = os.path.basename(path)
-            target_path = _build_target_path(stage_location, dest_prefix)
-            try:
-                # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    open(path, "rb"), f"{target_path}/{file_name}"
-                )
-            except ProgrammingError as pe:
-                tb = sys.exc_info()[2]
-                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                    pe
-                )
-                raise ne.with_traceback(tb) from None
-        else:
-            uri = normalize_local_file(path)
-            if self._supports_skip_upload_on_content_match:
-                kwargs = {"_skip_upload_on_content_match": skip_upload_on_content_match}
+        with self._conn.cursor() as cursor:
+            if is_in_stored_procedure():  # pragma: no cover
+                file_name = os.path.basename(path)
+                target_path = _build_target_path(stage_location, dest_prefix)
+                try:
+                    # upload_stream directly consume stage path, so we don't need to normalize it
+                    cursor.upload_stream(open(path, "rb"), f"{target_path}/{file_name}")
+                except ProgrammingError as pe:
+                    tb = sys.exc_info()[2]
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        pe
+                    )
+                    raise ne.with_traceback(tb) from None
             else:
-                kwargs = {}
-            return self.run_query(
-                _build_put_statement(
-                    uri,
-                    stage_location,
-                    dest_prefix,
-                    parallel,
-                    compress_data,
-                    source_compression,
-                    overwrite,
-                ),
-                **kwargs,
-            )
+                uri = normalize_local_file(path)
+                if self._supports_skip_upload_on_content_match:
+                    kwargs = {
+                        "_skip_upload_on_content_match": skip_upload_on_content_match
+                    }
+                else:
+                    kwargs = {}
+                return self.run_query(
+                    _build_put_statement(
+                        uri,
+                        stage_location,
+                        dest_prefix,
+                        parallel,
+                        compress_data,
+                        source_compression,
+                        overwrite,
+                    ),
+                    cursor,
+                    **kwargs,
+                )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
@@ -293,74 +298,73 @@ class ServerConnection:
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Dict[str, Any]]:
         uri = normalize_local_file(f"/tmp/placeholder/{dest_filename}")
-        try:
-            if is_in_stored_procedure():  # pragma: no cover
-                input_stream.seek(0)
-                target_path = _build_target_path(stage_location, dest_prefix)
-                try:
-                    # upload_stream directly consume stage path, so we don't need to normalize it
-                    self._cursor.upload_stream(
-                        input_stream, f"{target_path}/{dest_filename}"
-                    )
-                except ProgrammingError as pe:
-                    tb = sys.exc_info()[2]
-                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        pe
-                    )
-                    raise ne.with_traceback(tb) from None
-            else:
-                if self._supports_skip_upload_on_content_match:
-                    kwargs = {
-                        "_skip_upload_on_content_match": skip_upload_on_content_match,
-                        "file_stream": input_stream,
-                    }
+        with self._conn.cursor() as cursor:
+            try:
+                if is_in_stored_procedure():  # pragma: no cover
+                    input_stream.seek(0)
+                    target_path = _build_target_path(stage_location, dest_prefix)
+                    try:
+                        # upload_stream directly consume stage path, so we don't need to normalize it
+                        cursor.upload_stream(
+                            input_stream, f"{target_path}/{dest_filename}"
+                        )
+                    except ProgrammingError as pe:
+                        tb = sys.exc_info()[2]
+                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                            pe
+                        )
+                        raise ne.with_traceback(tb) from None
                 else:
-                    kwargs = {"file_stream": input_stream}
-                return self.run_query(
-                    _build_put_statement(
-                        uri,
-                        stage_location,
-                        dest_prefix,
-                        parallel,
-                        compress_data,
-                        source_compression,
-                        overwrite,
-                    ),
-                    _statement_params=statement_params,
-                    **kwargs,
-                )
-        # If ValueError is raised and the stream is closed, we throw the error.
-        # https://docs.python.org/3/library/io.html#io.IOBase.close
-        except ValueError as ex:
-            if input_stream.closed:
-                if is_in_udf:
-                    raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
-                        dest_filename
+                    if self._supports_skip_upload_on_content_match:
+                        kwargs = {
+                            "_skip_upload_on_content_match": skip_upload_on_content_match,
+                            "file_stream": input_stream,
+                        }
+                    else:
+                        kwargs = {"file_stream": input_stream}
+                    return self.run_query(
+                        _build_put_statement(
+                            uri,
+                            stage_location,
+                            dest_prefix,
+                            parallel,
+                            compress_data,
+                            source_compression,
+                            overwrite,
+                        ),
+                        cursor,
+                        _statement_params=statement_params,
+                        **kwargs,
                     )
+            # If ValueError is raised and the stream is closed, we throw the error.
+            # https://docs.python.org/3/library/io.html#io.IOBase.close
+            except ValueError as ex:
+                if input_stream.closed:
+                    if is_in_udf:
+                        raise SnowparkClientExceptionMessages.SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
+                            dest_filename
+                        )
+                    else:
+                        raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
+                            dest_filename
+                        )
                 else:
-                    raise SnowparkClientExceptionMessages.SERVER_UPLOAD_FILE_STREAM_CLOSED(
-                        dest_filename
-                    )
-            else:
-                raise ex
+                    raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
         for listener in self._query_listener:
             listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
-        self, query: str, **kwargs: Any
-    ) -> SnowflakeCursor:
-        results_cursor = self._cursor.execute(query, **kwargs)
-        self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
-        )
-        return results_cursor
+        self, query: str, cursor: SnowflakeCursor, **kwargs: Any
+    ) -> None:
+        cursor.execute(query, **kwargs)
+        self.notify_query_listeners(QueryRecord(cursor.sfqid, cursor.query))
 
     def execute_async_and_notify_query_listener(
-        self, query: str, **kwargs: Any
+        self, query: str, cursor: SnowflakeCursor, **kwargs: Any
     ) -> Dict[str, Any]:
-        results_cursor = self._cursor.execute_async(query, **kwargs)
+        results_cursor = cursor.execute_async(query, **kwargs)
         self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
 
@@ -369,15 +373,17 @@ class ServerConnection:
         query: str,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> str:
-        results_cursor = self.execute_and_notify_query_listener(
-            query, _statement_params=statement_params
-        )
-        return results_cursor.sfqid
+        with self._conn.cursor() as cursor:
+            self.execute_and_notify_query_listener(
+                query, cursor, _statement_params=statement_params
+            )
+            return cursor.sfqid
 
     @_Decorator.wrap_exception
     def run_query(
         self,
         query: str,
+        cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
         is_ddl_on_temp_object: bool = False,
@@ -399,13 +405,17 @@ class ServerConnection:
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
             if block:
-                results_cursor = self.execute_and_notify_query_listener(
-                    query, params=params, **kwargs
+                self.execute_and_notify_query_listener(
+                    query, cursor, params=params, **kwargs
                 )
-                logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+                logger.debug(f"Execute query [queryID: {cursor.sfqid}] {query}")
             else:
                 results_cursor = self.execute_async_and_notify_query_listener(
-                    query, params=params, num_statements=num_statements, **kwargs
+                    query,
+                    cursor,
+                    params=params,
+                    num_statements=num_statements,
+                    **kwargs,
                 )
                 logger.debug(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
@@ -423,7 +433,7 @@ class ServerConnection:
         # calls to_pandas() to execute the query.
         if block:
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=cursor, to_pandas=to_pandas, to_iter=to_iter
             )
         else:
             return AsyncJob(
@@ -559,92 +569,96 @@ class ServerConnection:
         # potentially optimize the query using CTEs
         plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
-        try:
-            placeholders = {}
-            is_batch_insert = False
-            for q in plan.queries:
-                if isinstance(q, BatchInsertQuery):
-                    is_batch_insert = True
-                    break
-            # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
-                params = []
-                final_queries = []
-                last_place_holder = None
+        with self._conn.cursor() as cursor:
+            try:
+                placeholders = {}
+                is_batch_insert = False
                 for q in plan.queries:
-                    final_queries.append(
-                        q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
-                        if last_place_holder
-                        else q.sql
-                    )
-                    last_place_holder = q.query_id_place_holder
-                    params.extend(q.params)
-
-                result = self.run_query(
-                    ";".join(final_queries),
-                    to_pandas,
-                    to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
-                    block=block,
-                    data_type=data_type,
-                    async_job_plan=plan,
-                    log_on_exception=log_on_exception,
-                    case_sensitive=case_sensitive,
-                    num_statements=len(plan.queries),
-                    params=params,
-                    **kwargs,
-                )
-
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
-                # AsyncJob instance when needed
-                result_meta = None
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-            else:
-                for i, query in enumerate(plan.queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(plan.queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        result = self.run_query(
-                            final_query,
-                            to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
-                            data_type=data_type,
-                            async_job_plan=plan,
-                            log_on_exception=log_on_exception,
-                            case_sensitive=case_sensitive,
-                            params=query.params,
-                            **kwargs,
+                    if isinstance(q, BatchInsertQuery):
+                        is_batch_insert = True
+                        break
+                # since batch insert does not support async execution (? in the query), we handle it separately here
+                if len(plan.queries) > 1 and not block and not is_batch_insert:
+                    params = []
+                    final_queries = []
+                    last_place_holder = None
+                    for q in plan.queries:
+                        final_queries.append(
+                            q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
+                            if last_place_holder
+                            else q.sql
                         )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
-                        result_meta = get_new_description(self._cursor)
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-        finally:
-            # delete created tmp object
-            if block:
-                for action in plan.post_actions:
-                    self.run_query(
-                        action.sql,
-                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                        last_place_holder = q.query_id_place_holder
+                        params.extend(q.params)
+
+                    result = self.run_query(
+                        ";".join(final_queries),
+                        cursor,
+                        to_pandas,
+                        to_iter,
+                        is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
                         block=block,
+                        data_type=data_type,
+                        async_job_plan=plan,
                         log_on_exception=log_on_exception,
                         case_sensitive=case_sensitive,
+                        num_statements=len(plan.queries),
+                        params=params,
                         **kwargs,
                     )
 
-        if result is None:
-            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
+                    # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
+                    # AsyncJob instance when needed
+                    result_meta = None
+                    if action_id < plan.session._last_canceled_id:
+                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+                else:
+                    for i, query in enumerate(plan.queries):
+                        if isinstance(query, BatchInsertQuery):
+                            self.run_batch_insert(query.sql, query.rows, **kwargs)
+                        else:
+                            is_last = i == len(plan.queries) - 1 and not block
+                            final_query = query.sql
+                            for holder, id_ in placeholders.items():
+                                final_query = final_query.replace(holder, id_)
+                            result = self.run_query(
+                                final_query,
+                                cursor,
+                                to_pandas,
+                                to_iter and (i == len(plan.queries) - 1),
+                                is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                                block=not is_last,
+                                data_type=data_type,
+                                async_job_plan=plan,
+                                log_on_exception=log_on_exception,
+                                case_sensitive=case_sensitive,
+                                params=query.params,
+                                **kwargs,
+                            )
+                            placeholders[query.query_id_place_holder] = (
+                                result["sfqid"] if not is_last else result.query_id
+                            )
+                            result_meta = get_new_description(cursor)
+                        if action_id < plan.session._last_canceled_id:
+                            raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+            finally:
+                # delete created tmp object
+                if block:
+                    for action in plan.post_actions:
+                        self.run_query(
+                            action.sql,
+                            cursor,
+                            is_ddl_on_temp_object=action.is_ddl_on_temp_object,
+                            block=block,
+                            log_on_exception=log_on_exception,
+                            case_sensitive=case_sensitive,
+                            **kwargs,
+                        )
 
-        return result, result_meta
+            if result is None:
+                raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
+
+            return result, result_meta
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
@@ -672,17 +686,20 @@ class ServerConnection:
             and not is_in_stored_procedure()
             else None
         )
-        if query_tag:
-            self.execute_and_notify_query_listener(
-                f"alter session set query_tag = {str_to_sql(query_tag)}"
-            )
-        results_cursor = self._cursor.executemany(query, params)
-        self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
-        )
-        if query_tag:
-            self.execute_and_notify_query_listener("alter session unset query_tag")
-        logger.debug("Execute batch insertion query %s", query)
+        with self._conn.cursor() as cursor:
+            if query_tag:
+                self.execute_and_notify_query_listener(
+                    f"alter session set query_tag = {str_to_sql(query_tag)}",
+                    cursor,
+                )
+            cursor.executemany(query, params)
+            self.notify_query_listeners(QueryRecord(cursor.sfqid, cursor.query))
+            if query_tag:
+                self.execute_and_notify_query_listener(
+                    "alter session unset query_tag",
+                    cursor,
+                )
+            logger.debug("Execute batch insertion query %s", query)
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         """It doesn't go to Snowflake to retrieve the session parameter.
