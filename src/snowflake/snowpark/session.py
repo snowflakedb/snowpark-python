@@ -2059,7 +2059,7 @@ class Session:
         log_on_exception: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
-        run_cursor = cursor or self._conn._cursor_fire_and_forget
+        run_cursor = cursor or self._conn._cursor
         return self._conn.run_query(
             query,
             run_cursor,
