@@ -54,6 +54,7 @@ def test_wrap_exception(mock_server_connection):
 
 
 def test_upload_stream_exceptions(mock_server_connection):
+    mock_cursor = mock_server_connection._cursor
     with mock.patch.object(
         mock_server_connection,
         "run_query",
@@ -62,7 +63,7 @@ def test_upload_stream_exceptions(mock_server_connection):
         input_stream = io.BytesIO(b"fake stream")
         with pytest.raises(ValueError, match="fake exception"):
             mock_server_connection.upload_stream(
-                input_stream, "fake_state", "fake_file_name"
+                input_stream, "fake_state", "fake_file_name", cursor=mock_cursor
             )
 
         input_stream.close()
@@ -71,7 +72,11 @@ def test_upload_stream_exceptions(mock_server_connection):
             match="A file stream was closed when uploading UDF files",
         ):
             mock_server_connection.upload_stream(
-                input_stream, "fake_state", "fake_file_name", is_in_udf=True
+                input_stream,
+                "fake_state",
+                "fake_file_name",
+                cursor=mock_cursor,
+                is_in_udf=True,
             )
 
         with pytest.raises(
@@ -79,7 +84,7 @@ def test_upload_stream_exceptions(mock_server_connection):
             match="A file stream was closed when uploading files to the server",
         ):
             mock_server_connection.upload_stream(
-                input_stream, "fake_state", "fake_file_name"
+                input_stream, "fake_state", "fake_file_name", cursor=mock_cursor
             )
 
 

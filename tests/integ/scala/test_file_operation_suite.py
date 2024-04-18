@@ -421,7 +421,7 @@ def test_put_stream_with_one_file_twice(session, temp_stage, path1, local_testin
     assert second_result.message == ""
 
 
-@pytest.mark.locatest
+@pytest.mark.localtest
 def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"

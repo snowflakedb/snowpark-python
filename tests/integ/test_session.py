@@ -271,6 +271,7 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
             session._conn.upload_file(
                 stage_location=single_quoted_name,
                 path=test_files.test_file_csv,
+                cursor=session._conn._cursor,
                 compress_data=False,
             )
         else:
