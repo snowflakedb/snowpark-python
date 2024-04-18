@@ -92,7 +92,7 @@ class _DGQLFields:
     IN = "IN"
 
 
-class _UserDomain(Enum):
+class _UserDomain:
     """
     Domains in the user context that logically maps to different snowflake objects.
     """
@@ -101,7 +101,7 @@ class _UserDomain(Enum):
     MODEL = "MODULE"
 
 
-class _SnowflakeDomain(Enum):
+class _SnowflakeDomain:
     """
     Snowflake object domains relevant for querying lineage.
     Note: This is a subset and does not include all possible domains.
@@ -125,9 +125,9 @@ class Lineage:
             _UserDomain.MODEL: _SnowflakeDomain.MODULE,
         }
         self.versioned_object_domains = {
-            _UserDomain.FEATURE_VIEW.value,
-            _UserDomain.MODEL.value,
-            _SnowflakeDomain.DATASET.value,
+            _UserDomain.FEATURE_VIEW,
+            _UserDomain.MODEL,
+            _SnowflakeDomain.DATASET,
         }
 
     def _build_graphql_query(
@@ -278,7 +278,7 @@ class Lineage:
         Extracts and returns the name and version from the given graph entity.
         """
         if graph_entity[_ObjectField.USER_DOMAIN] in self.versioned_object_domains:
-            if graph_entity[_ObjectField.USER_DOMAIN] == _UserDomain.FEATURE_VIEW.value:
+            if graph_entity[_ObjectField.USER_DOMAIN] == _UserDomain.FEATURE_VIEW:
                 if "$" in graph_entity[_ObjectField.NAME]:
                     parts = graph_entity[_ObjectField.NAME].split("$")
                     return (
@@ -287,7 +287,7 @@ class Lineage:
                     )
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
-                        f"unexpected {_UserDomain.FEATURE_VIEW.value} name format."
+                        f"unexpected {_UserDomain.FEATURE_VIEW} name format."
                     )
             elif _ObjectField.PARENT_NAME in graph_entity:
                 return (

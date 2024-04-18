@@ -21,7 +21,7 @@ def test_get_name_and_version():
     fake_session._analyzer = mock.Mock()
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _UserDomain.MODEL.value,
+        _ObjectField.USER_DOMAIN: _UserDomain.MODEL,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PARENT_NAME: "name1",
@@ -33,7 +33,7 @@ def test_get_name_and_version():
     assert version == "version1"
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _SnowflakeDomain.DATASET.value,
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.DATASET,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PARENT_NAME: "name1",
@@ -45,7 +45,7 @@ def test_get_name_and_version():
     assert version == "version1"
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _SnowflakeDomain.TABLE.value,
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.TABLE,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PARENT_NAME: "whatever",
@@ -57,7 +57,7 @@ def test_get_name_and_version():
     assert version is None
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW.value,
+        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PARENT_NAME: "whatever",
@@ -69,7 +69,7 @@ def test_get_name_and_version():
     assert version == "v1"
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW.value,
+        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PARENT_NAME: "whatever",
@@ -77,10 +77,10 @@ def test_get_name_and_version():
     }
     with pytest.raises(SnowparkFetchDataException) as exc:
         Lineage(fake_session)._get_name_and_version(graph_entity)
-    assert f"unexpected {_UserDomain.FEATURE_VIEW.value} name format." in str(exc)
+    assert f"unexpected {_UserDomain.FEATURE_VIEW} name format." in str(exc)
 
     graph_entity = {
-        _ObjectField.USER_DOMAIN: _UserDomain.MODEL.value,
+        _ObjectField.USER_DOMAIN: _UserDomain.MODEL,
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.NAME: "name1",
