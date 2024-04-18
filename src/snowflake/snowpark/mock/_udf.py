@@ -177,4 +177,6 @@ class MockUDFRegistration(UDFRegistration):
             # register from callable
             self._registry[udf_name] = func
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func, return_type, input_types, udf_name, packages=packages
+        )
