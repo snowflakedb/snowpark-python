@@ -279,6 +279,7 @@ class FileOperation:
                     input_stream=input_stream,
                     stage_location=stage_with_prefix,
                     dest_filename=dest_filename,
+                    cursor=cursor,
                     parallel=parallel,
                     compress_data=auto_compress,
                     source_compression=source_compression,
