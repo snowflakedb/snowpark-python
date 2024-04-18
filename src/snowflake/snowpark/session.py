@@ -1688,13 +1688,12 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        with self._conn._conn.cursor() as cursor:
-            if tag:
-                self._conn.run_query(
-                    f"alter session set query_tag = {str_to_sql(tag)}", cursor
-                )
-            else:
-                self._conn.run_query("alter session unset query_tag", cursor)
+        if tag:
+            self._conn.run_query(
+                f"alter session set query_tag = {str_to_sql(tag)}", self._conn._cursor
+            )
+        else:
+            self._conn.run_query("alter session unset query_tag", self._conn._cursor)
         self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:

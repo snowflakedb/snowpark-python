@@ -30,7 +30,9 @@ def test_wrap_exception(mock_server_connection):
         with pytest.raises(
             SnowparkSessionException, match="Your Snowpark session has expired"
         ):
-            mock_server_connection.run_query("fake query")
+            mock_server_connection.run_query(
+                "fake query", mock_server_connection._cursor
+            )
 
     with mock.patch.object(
         mock_server_connection._cursor,
@@ -38,7 +40,9 @@ def test_wrap_exception(mock_server_connection):
         side_effect=Exception("fake exception"),
     ):
         with pytest.raises(Exception, match="fake exception"):
-            mock_server_connection.run_query("fake query")
+            mock_server_connection.run_query(
+                "fake query", mock_server_connection._cursor
+            )
 
     with mock.patch.object(
         mock_server_connection._conn, "is_closed", return_value=True
@@ -87,7 +91,11 @@ def test_run_query_exceptions(mock_server_connection, caplog):
     ):
         with pytest.raises(Exception, match="fake exception"):
             with caplog.at_level(logging.ERROR):
-                mock_server_connection.run_query("fake query", log_on_exception=True)
+                mock_server_connection.run_query(
+                    "fake query",
+                    cursor=mock_server_connection._cursor,
+                    log_on_exception=True,
+                )
         assert "Failed to execute query" in caplog.text
 
     mock_server_connection._cursor.execute.return_value = mock_server_connection._cursor
@@ -99,7 +107,9 @@ def test_run_query_exceptions(mock_server_connection, caplog):
         side_effect=KeyboardInterrupt("fake exception"),
     ):
         with pytest.raises(KeyboardInterrupt, match="fake exception"):
-            mock_server_connection.run_query("fake query", to_pandas=True)
+            mock_server_connection.run_query(
+                "fake query", cursor=mock_server_connection._cursor, to_pandas=True
+            )
 
     with mock.patch.object(
         mock_server_connection._cursor,
@@ -109,7 +119,9 @@ def test_run_query_exceptions(mock_server_connection, caplog):
         with pytest.raises(
             SnowparkFetchDataException, match="Failed to fetch a pandas Dataframe"
         ):
-            mock_server_connection.run_query("fake query", to_pandas=True)
+            mock_server_connection.run_query(
+                "fake query", cursor=mock_server_connection._cursor, to_pandas=True
+            )
 
 
 def test_get_result_set_exception(mock_server_connection):
