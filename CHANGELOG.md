@@ -46,12 +46,14 @@
   - snowflake.snowpark.DataFrameWriter:
     - save_as_table
 - Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
+- Added support support to register stored procedures and UDxFs with a `comment`.
 - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
 - Added support for dynamic pivot.  This feature is currently in private preview.
 
 ### Bug Fixes
 
 - Fixed a bug in local testing that null filled columns for constant functions.
+- Fixed a bug where `statement_params` was not passed to query executions that register stored procedures and user defined functions.
 - Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
 - Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
 - Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
