@@ -681,6 +681,7 @@ class UDAFRegistration:
                 immutable=immutable,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                statement_params=statement_params,
                 comment=comment,
             )
         # an exception might happen during registering a udaf
