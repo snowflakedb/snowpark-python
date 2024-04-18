@@ -486,7 +486,7 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
 
 
 @pytest.mark.localtest
-def test_session_register_sp(session):
+def test_session_register_sp(session, local_testing_mode):
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
         .to_df("a", "b")
@@ -497,6 +497,7 @@ def test_session_register_sp(session):
     )
     assert add_sp(1, 2) == 3
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
         .to_df("a", "b")
@@ -504,9 +505,10 @@ def test_session_register_sp(session):
         .collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        statement_params={"QUERY_TAG": query_tag},
     )
     assert add_sp(1, 2) == 3
+    Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
 def test_add_import_local_file(session, resources_path):
@@ -1354,6 +1356,25 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+@pytest.mark.parametrize(
+    "prefix",
+    ["simple", "'single quotes'", '"double quotes"', "\nnew line", "\\backslash"],
+)
+def test_create_sproc_with_comment(session, prefix):
+    suffix = Utils.random_alphanumeric_str(6)
+    comment = f"{prefix} {suffix}"
+
+    def return1(session_: Session) -> str:
+        return session_.sql("select '1'").collect()[0][0]
+
+    return1_sp = session.sproc.register(return1, comment=comment)
+
+    ddl_sql = f"select get_ddl('PROCEDURE', '{return1_sp.name}()')"
+    ddl = session.sql(ddl_sql).collect()[0][0]
+    assert "COMMENT=" in ddl
+    assert suffix in ddl
+
+
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])
 def test_describe_sp(session, source_code_display):
     def return1(session_: Session) -> str:
@@ -1518,7 +1539,8 @@ def test_anonymous_stored_procedure(session):
 
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_stored_procedure_call_with_statement_params(session, anonymous):
-    statement_params = {"test": "params"}
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
+    statement_params = {"QUERY_TAG": query_tag}
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
         return_type=IntegerType(),
@@ -1528,6 +1550,7 @@ def test_stored_procedure_call_with_statement_params(session, anonymous):
     if anonymous:
         assert add_sp._anonymous_sp_sql is not None
     assert add_sp(1, 2, statement_params=statement_params) == 3
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")

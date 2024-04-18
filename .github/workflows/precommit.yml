@@ -246,15 +246,13 @@ jobs:
             .tox/coverage.xml
 
   test-enable-cte-optimization:
-    name: Test Enable CTE Optimization py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test Enable CTE Optimization py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
-    runs-on: ${{ matrix.os.image_name }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - image_name: macos-latest
-            download_name: macos  # it includes doctest
+        os: [ubuntu-latest-64-cores]
         python-version: ["3.9"]
         cloud-provider: [aws]
     steps:
@@ -284,15 +282,6 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) }}
-        name: Run doctests
-        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_cte_optimization
-          TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
       - name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -308,7 +297,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-enable-cte-optimization
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-enable-cte-optimization
           path: |
             .tox/.coverage
             .tox/coverage.xml
