@@ -105,7 +105,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.context import _use_scoped_temp_objects
+from snowflake.snowpark.context import (
+    _is_execution_environment_sandboxed,
+    _use_scoped_temp_objects,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkClientException
@@ -211,6 +214,15 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+
+
+def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
+    # Precedence to checking sandbox to avoid any side effects
+    if _is_execution_environment_sandboxed:
+        session = None
+    else:
+        session = session or _get_active_session()
+    return session
 
 
 def _close_session_atexit():
@@ -745,8 +757,8 @@ class Session:
             self.udf._clear_session_imports()
         self._import_paths.clear()
 
+    @staticmethod
     def _resolve_import_path(
-        self,
         path: str,
         import_path: Optional[str] = None,
         chunk_size: int = 8192,

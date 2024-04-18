@@ -200,7 +200,10 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.stored_procedure import StoredProcedure
+from snowflake.snowpark.stored_procedure import (
+    StoredProcedure,
+    StoredProcedureRegistration,
+)
 from snowflake.snowpark.types import (
     DataType,
     FloatType,
@@ -209,9 +212,9 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
 )
-from snowflake.snowpark.udaf import UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UserDefinedFunction
-from snowflake.snowpark.udtf import UserDefinedTableFunction
+from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
+from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
+from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -7048,6 +7051,7 @@ def udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7201,10 +7205,18 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7224,9 +7236,10 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            kwargs=kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7246,7 +7259,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            comment=comment,
+            kwargs=kwargs,
         )
 
 
@@ -7271,6 +7284,7 @@ def udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -7422,10 +7436,18 @@ def udtf(
         >>> session.table_function("alt_int", lit(1)).collect()
         [Row(NUMBER=1)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             name=name,
@@ -7443,9 +7465,10 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            kwargs=kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7464,6 +7487,7 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            kwargs=kwargs,
         )
 
 
@@ -7486,6 +7510,7 @@ def udaf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7645,10 +7670,17 @@ def udaf(
         >>> df.agg(PythonSumUDAF("a")).collect()
         [Row(SUM_INT("A")=6)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udaf_registration_method = UDAFRegistration(session=session).register
+    else:
+        udaf_registration_method = session.udaf.register
+
     if handler is None:
         return functools.partial(
-            session.udaf.register,
+            udaf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7664,9 +7696,10 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            kwargs=kwargs,
         )
     else:
-        return session.udaf.register(
+        return udaf_registration_method(
             handler,
             return_type=return_type,
             input_types=input_types,
@@ -7683,6 +7716,7 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            kwargs=kwargs,
         )
 
 
@@ -7709,6 +7743,7 @@ def pandas_udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -7760,10 +7795,17 @@ def pandas_udf(
         ------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7784,9 +7826,10 @@ def pandas_udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            kwargs=kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7808,6 +7851,7 @@ def pandas_udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            kwargs=kwargs,
         )
 
 
@@ -7834,6 +7878,7 @@ def pandas_udtf(
     immutable: bool = False,
     max_batch_size: Optional[int] = None,
     comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7917,10 +7962,18 @@ def pandas_udtf(
         -----------------------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             input_names=input_names,
@@ -7940,9 +7993,10 @@ def pandas_udtf(
             immutable=immutable,
             max_batch_size=max_batch_size,
             comment=comment,
+            kwargs=kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7963,6 +8017,7 @@ def pandas_udtf(
             immutable=immutable,
             max_batch_size=max_batch_size,
             comment=comment,
+            kwargs=kwargs,
         )
 
 
@@ -8268,10 +8323,19 @@ def sproc(
         >>> add_sp(1, 1)
         2
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        sproc_registration_method = StoredProcedureRegistration(
+            session=session
+        ).register
+    else:
+        sproc_registration_method = session.sproc.register
+
     if func is None:
         return functools.partial(
-            session.sproc.register,
+            sproc_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -8292,7 +8356,7 @@ def sproc(
             **kwargs,
         )
     else:
-        return session.sproc.register(
+        return sproc_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
