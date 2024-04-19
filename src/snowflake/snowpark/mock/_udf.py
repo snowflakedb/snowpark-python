@@ -143,18 +143,6 @@ class MockUDFRegistration(UDFRegistration):
                 "Use udf() instead."
             )
 
-        if packages:
-            pass  # NO-OP
-
-        if imports is not None:
-            self._udf_level_imports[udf_name] = set()
-            for _import in imports:
-                if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
-                else:
-                    local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
-
         custom_python_runtime_version_allowed = False
 
         if not custom_python_runtime_version_allowed:
@@ -168,9 +156,21 @@ class MockUDFRegistration(UDFRegistration):
                 error_code="1304",
             )
 
+        if packages:
+            pass  # NO-OP
+
+        if imports is not None or type(func) is tuple:
+            self._udf_level_imports[udf_name] = set()
+
+        if imports is not None:
+            for _import in imports:
+                if type(_import) is str:
+                    self._import_file(_import, udf_name=udf_name)
+                else:
+                    local_path, import_path = _import
+                    self._import_file(local_path, import_path, udf_name=udf_name)
+
         if type(func) is tuple:  # register from file
-            if udf_name not in self._udf_level_imports:
-                self._udf_level_imports[udf_name] = set()
             module_name = self._import_file(func[0], udf_name=udf_name)
             self._registry[udf_name] = (module_name, func[1])
         else:

@@ -188,8 +188,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             str, Union[Callable, Tuple[str, str]]
         ] = (
             dict()
-        )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
-        self._sproc_level_imports = dict()  # maps udf name to a set of file paths
+        )  # maps name to either the callable or a pair of str (module_name, callable_name)
+        self._sproc_level_imports = dict()  # maps name to a set of file paths
         self._session_level_imports = set()
 
     def _clear_session_imports(self):
@@ -199,13 +199,13 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         self,
         file_path: str,
         import_path: Optional[str] = None,
-        udf_name: Optional[str] = None,
+        sproc_name: Optional[str] = None,
     ) -> str:
         """
         Imports a python file or a directory of python module structure or a zip of the former.
         Returns the name of the Python module to be imported.
-        When udf_name is not None, the import is added to the UDF associated with the name;
-        Otherwise, it is a session level import and will be added to every future UDF call.
+        When sproc_name is not None, the import is added to the sproc associated with the name;
+        Otherwise, it is a session level import and will be added to every future sproc call.
         """
         file_name, file_extension = os.path.splitext(os.path.basename(file_path))
 
@@ -248,8 +248,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 0
             ]  # the split is for the edge case when the filename contains ., e.g. test.py.zip
 
-        if udf_name:
-            self._sproc_level_imports[udf_name].add(absolute_module_path)
+        if sproc_name:
+            self._sproc_level_imports[sproc_name].add(absolute_module_path)
         else:
             self._session_level_imports.add(absolute_module_path)
 
@@ -281,8 +281,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         force_inline_code: bool = False,
     ) -> StoredProcedure:
         (
-            udf_name,
-            is_pandas_udf,
+            sproc_name,
+            _,
             is_dataframe_input,
             return_type,
             input_types,
@@ -296,37 +296,36 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             anonymous,
         )
 
-        if is_pandas_udf:
-            raise TypeError("pandas stored procedure is not supported")
+        check_python_runtime_version(self._session._runtime_version_from_requirement)
+
+        if sproc_name in self._registry and not replace:
+            raise SnowparkSQLException(
+                f"002002 (42710): SQL compilation error: \nObject '{sproc_name}' already exists.",
+                error_code="1304",
+            )
 
         if packages:
             pass  # NO-OP
 
+        if imports is not None or type(func) is tuple:
+            self._sproc_level_imports[sproc_name] = set()
+
         if imports is not None:
-            self._sproc_level_imports[udf_name] = set()
             for _import in imports:
                 if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
+                    self._import_file(_import, sproc_name=sproc_name)
                 else:
                     local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
-
-        check_python_runtime_version(self._session._runtime_version_from_requirement)
-
-        if udf_name in self._registry and not replace:
-            raise SnowparkSQLException(
-                f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
-                error_code="1304",
-            )
+                    self._import_file(local_path, import_path, sproc_name=sproc_name)
 
         if type(func) is tuple:  # register from file
-            if udf_name not in self._sproc_level_imports:
-                self._sproc_level_imports[udf_name] = set()
-            module_name = self._import_file(func[0], udf_name=udf_name)
+            if sproc_name not in self._sproc_level_imports:
+                self._sproc_level_imports[sproc_name] = set()
+            module_name = self._import_file(func[0], sproc_name=sproc_name)
             func = (module_name, func[1])
 
-        if udf_name in self._sproc_level_imports:
-            sproc_imports = self._sproc_level_imports[udf_name]
+        if sproc_name in self._sproc_level_imports:
+            sproc_imports = self._sproc_level_imports[sproc_name]
         else:
             sproc_imports = copy(self._session_level_imports)
 
@@ -334,12 +333,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             func,
             return_type,
             input_types,
-            udf_name,
+            sproc_name,
             sproc_imports,
             execute_as=execute_as,
         )
 
-        self._registry[udf_name] = sproc
+        self._registry[sproc_name] = sproc
 
         return sproc
 
