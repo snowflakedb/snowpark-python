@@ -7208,7 +7208,7 @@ def udf(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -7240,7 +7240,7 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
     else:
         return udf_registration_method(
@@ -7263,7 +7263,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
-            kwargs=kwargs,
+            **kwargs,
         )
 
 
@@ -7442,7 +7442,7 @@ def udtf(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -7472,7 +7472,7 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
     else:
         return udtf_registration_method(
@@ -7494,7 +7494,7 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
 
 
@@ -7679,7 +7679,7 @@ def udaf(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -7707,7 +7707,7 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
     else:
         return udaf_registration_method(
@@ -7727,7 +7727,7 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
 
 
@@ -7808,7 +7808,7 @@ def pandas_udf(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -7841,7 +7841,7 @@ def pandas_udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
     else:
         return udf_registration_method(
@@ -7866,7 +7866,7 @@ def pandas_udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
 
 
@@ -7979,7 +7979,7 @@ def pandas_udtf(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session
@@ -8011,7 +8011,7 @@ def pandas_udtf(
             immutable=immutable,
             max_batch_size=max_batch_size,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
     else:
         return udtf_registration_method(
@@ -8035,7 +8035,7 @@ def pandas_udtf(
             immutable=immutable,
             max_batch_size=max_batch_size,
             comment=comment,
-            kwargs=kwargs,
+            **kwargs,
         )
 
 
@@ -8343,7 +8343,7 @@ def sproc(
     """
 
     # Initial check to make sure no unexpected args are passed in
-    check_decorator_args(kwargs)
+    check_decorator_args(**kwargs)
 
     session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
         session

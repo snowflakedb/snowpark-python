@@ -388,7 +388,7 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
 
 
 def check_decorator_args(**kwargs):
-    if (len(kwargs) > 1) or ("native_app_params" not in kwargs):
+    if kwargs and ((len(kwargs) > 1) or ("native_app_params" not in kwargs)):
         raise ValueError(
             "Invalid key-value arguments passed to the decorator."
             "Only 'native_app_params' is accepted as an additional argument to this decorator."
