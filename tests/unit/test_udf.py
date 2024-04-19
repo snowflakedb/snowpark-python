@@ -41,7 +41,8 @@ def test_do_register_sp_negative(cleanup_registration_patch):
 
 @mock.patch("snowflake.snowpark.udf.cleanup_failed_permanent_registration")
 @mock.patch(
-    "snowflake.snowpark.session._is_execution_environment_sandboxed", return_value=True
+    "snowflake.snowpark.session._is_execution_environment_sandboxed_for_client",
+    return_value=True,
 )
 def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
 

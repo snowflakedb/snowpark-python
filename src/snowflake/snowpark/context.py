@@ -12,7 +12,7 @@ _use_scoped_temp_objects = True
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
 # If this is True, then the session instance is forcibly set to None to avoid any interaction with a Snowflake account.
-_is_execution_environment_sandboxed: bool = False
+_is_execution_environment_sandboxed_for_client: bool = False
 
 # This callback, assigned by the caller environment outside Snowpark, can be used to share information about the extension function to be registered.
 # It should also return a decision on whether to proceed with registring the extension function with the Snowflake account.

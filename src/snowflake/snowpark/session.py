@@ -106,7 +106,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
-    _is_execution_environment_sandboxed,
+    _is_execution_environment_sandboxed_for_client,
     _use_scoped_temp_objects,
 )
 from snowflake.snowpark.dataframe import DataFrame
@@ -218,7 +218,7 @@ def _add_session(session: "Session") -> None:
 
 def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
     # Precedence to checking sandbox to avoid any side effects
-    if _is_execution_environment_sandboxed:
+    if _is_execution_environment_sandboxed_for_client:
         session = None
     else:
         session = session or _get_active_session()

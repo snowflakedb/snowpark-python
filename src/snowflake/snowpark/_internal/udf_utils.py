@@ -90,6 +90,13 @@ AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
 
 EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
+REGISTER_KWARGS_ALLOWLIST = {
+    "native_app_params",
+    "anonymous",
+    "force_inline_code",
+    "_from_pandas_udf_function",
+}
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -388,11 +395,12 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
 
 
 def check_decorator_args(**kwargs):
-    if kwargs and ((len(kwargs) > 1) or ("native_app_params" not in kwargs)):
-        raise ValueError(
-            "Invalid key-value arguments passed to the decorator."
-            "Only 'native_app_params' is accepted as an additional argument to this decorator."
-        )
+    for key, _ in kwargs.items():
+        if key not in REGISTER_KWARGS_ALLOWLIST:
+            raise ValueError(
+                "Invalid key-value arguments passed to the decorator."
+                "Only 'native_app_params' is accepted as an additional argument to this decorator."
+            )
 
 
 def check_register_args(
@@ -609,9 +617,8 @@ def process_registration_inputs(
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
         object_name = random_name_for_temp_object(object_type)
-        if not anonymous:
-            if session is not None:
-                object_name = session.get_fully_qualified_name_if_possible(object_name)
+        if (not anonymous) and (session is not None):
+            object_name = session.get_fully_qualified_name_if_possible(object_name)
     validate_object_name(object_name)
 
     # get return and input types
@@ -893,11 +900,12 @@ def add_snowpark_package_to_sproc_packages(
     return packages
 
 
-def resolve_packages_in_sandbox(
+def resolve_packages_in_client_side_sandbox(
     packages: Optional[List[Union[str, ModuleType]]],
 ) -> List[str]:
     """
-    Special function invoked only when executing Snowpark code in a sandbox environment.
+    Special function invoked only when executing Snowpark code in a sandbox environment created for a client,
+    which is different from regular XP sandbox.
     """
     resolved_packages: List[str] = []
     if packages is not None:
@@ -958,7 +966,7 @@ def resolve_imports_and_packages(
 
     # resolve packages
     if session is None:  # In case of sandbox
-        resolved_packages = resolve_packages_in_sandbox(packages=packages)
+        resolved_packages = resolve_packages_in_client_side_sandbox(packages=packages)
     else:  # In any other scenario
         resolved_packages = (
             session._resolve_packages(
@@ -990,6 +998,7 @@ def resolve_imports_and_packages(
         )
 
     # resolve imports
+    # This udf_level_imports will be used as a return value, as it contains information even if the session is None
     udf_level_imports = {}
     if imports:
         for udf_import in imports:
@@ -1131,7 +1140,7 @@ def resolve_imports_and_packages(
         inline_code,
         all_imports,
         all_packages,
-        udf_level_imports,
+        udf_level_imports,  # We return this extra dict since all_imports is an empty string when session is None.
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     )

@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.udf_utils import (
     get_error_message_abbr,
     pickle_function,
     resolve_imports_and_packages,
-    resolve_packages_in_sandbox,
+    resolve_packages_in_client_side_sandbox,
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import StringType
@@ -89,7 +89,7 @@ def test_generate_python_code_exception():
     ],
 )
 def test_resolve_packages_in_sandbox(packages):
-    result = resolve_packages_in_sandbox(packages)
+    result = resolve_packages_in_client_side_sandbox(packages)
     assert len(result) == 2
     assert result[0] == "random_package_one"
     assert result[1] == "random_package_two"
@@ -119,7 +119,7 @@ def test_resolve_packages_in_sandbox(packages):
 )
 def test_resolve_packages_in_sandbox_with_value_error(packages, error_cls):
     with pytest.raises(error_cls):
-        resolve_packages_in_sandbox(packages)
+        resolve_packages_in_client_side_sandbox(packages)
 
 
 def test_resolve_imports_and_packages_in_sandbox():
