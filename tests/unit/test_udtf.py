@@ -97,7 +97,10 @@ def test_do_register_udtf_sandbox(session_sandbox, cleanup_registration_patch):
     assert len(extension_function_properties.input_args) == 1
     assert len(extension_function_properties.input_sql_types) == 1
     assert extension_function_properties.return_sql == "RETURNS TABLE (NUM BIGINT)"
-    assert extension_function_properties.runtime_version == "3.8"
+    assert (
+        extension_function_properties.runtime_version
+        == f"{sys.version_info[0]}.{sys.version_info[1]}"
+    )
     assert extension_function_properties.all_imports == ""
     assert extension_function_properties.all_packages == ""
     assert extension_function_properties.external_access_integrations is None

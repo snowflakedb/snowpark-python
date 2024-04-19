@@ -579,11 +579,11 @@ class StoredProcedureRegistration:
             source_code_display=source_code_display,
             anonymous=kwargs.get("anonymous", False),
             is_permanent=is_permanent,
-            native_app_params=native_app_params,
             # force_inline_code avoids uploading python file
             # when we know the code is not too large. This is useful
             # in pandas API to create stored procedures not registered by users.
             force_inline_code=kwargs.get("force_inline_code", False),
+            native_app_params=native_app_params,
         )
 
     def register_from_file(

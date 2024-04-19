@@ -626,12 +626,12 @@ class UDFRegistration:
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            native_app_params=native_app_params,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
             + ("[pandas_udf]" if _from_pandas else ""),
             is_permanent=is_permanent,
-            native_app_params=native_app_params,
         )
 
     def register_from_file(

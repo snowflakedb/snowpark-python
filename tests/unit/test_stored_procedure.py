@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from unittest import mock
 
 import pytest
@@ -127,7 +128,10 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
         assert len(callableProperties.input_args) == 0
         assert len(callableProperties.input_sql_types) == 0
         assert callableProperties.return_sql == "RETURNS INT"
-        assert callableProperties.runtime_version == "3.8"
+        assert (
+            callableProperties.runtime_version
+            == f"{sys.version_info[0]}.{sys.version_info[1]}"
+        )
         assert callableProperties.all_imports == ""
         assert callableProperties.all_packages == "'snowflake-snowpark-python==1.14.0'"
         assert callableProperties.external_access_integrations is None
