@@ -934,6 +934,7 @@ def resolve_packages_in_client_side_sandbox(
     return resolved_packages
 
 
+# TODO: SNOW-1338175 to add override function definition.
 def resolve_imports_and_packages(
     session: Optional["snowflake.snowpark.Session"],
     object_type: TempObjectType,
@@ -1002,18 +1003,12 @@ def resolve_imports_and_packages(
     if imports:
         for udf_import in imports:
             if isinstance(udf_import, str):
-                resolved_import_tuple = (
-                    session._resolve_import_path(udf_import)
-                    if session
-                    else snowflake.snowpark.Session._resolve_import_path(udf_import)
+                resolved_import_tuple = snowflake.snowpark.Session._resolve_import_path(
+                    udf_import
                 )
             elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                resolved_import_tuple = (
-                    session._resolve_import_path(udf_import[0], udf_import[1])
-                    if session
-                    else snowflake.snowpark.Session._resolve_import_path(
-                        udf_import[0], udf_import[1]
-                    )
+                resolved_import_tuple = snowflake.snowpark.Session._resolve_import_path(
+                    udf_import[0], udf_import[1]
                 )
             else:
                 raise TypeError(
@@ -1048,6 +1043,7 @@ def resolve_imports_and_packages(
 
     # Upload closure to stage if it is beyond inline closure size limit
     handler = inline_code = upload_file_stage_location = None
+    custom_python_runtime_version_allowed = False
     if session is not None:
         if isinstance(func, Callable):
             custom_python_runtime_version_allowed = (
@@ -1146,7 +1142,7 @@ def resolve_imports_and_packages(
 
 
 def create_python_udf_or_sp(
-    session: "snowflake.snowpark.Session",
+    session: Optional["snowflake.snowpark.Session"],
     func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
@@ -1171,12 +1167,8 @@ def create_python_udf_or_sp(
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
 ) -> None:
-    if session is not None:
-        runtime_version = (
-            f"{sys.version_info[0]}.{sys.version_info[1]}"
-            if not session._runtime_version_from_requirement
-            else session._runtime_version_from_requirement
-        )
+    if session is not None and session._runtime_version_from_requirement:
+        runtime_version = session._runtime_version_from_requirement
     else:
         runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
 
