@@ -110,6 +110,7 @@ class MockUDFRegistration(UDFRegistration):
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -176,4 +177,6 @@ class MockUDFRegistration(UDFRegistration):
             # register from callable
             self._registry[udf_name] = func
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func, return_type, input_types, udf_name, packages=packages
+        )

@@ -73,6 +73,7 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -82,6 +83,7 @@ class UserDefinedFunction:
         self._return_type = return_type
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
+        self._packages = packages
 
     def __call__(
         self,
@@ -497,6 +499,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -583,6 +586,8 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
         See Also:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register_from_file`
@@ -618,6 +623,7 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -644,6 +650,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -733,6 +740,8 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -766,6 +775,7 @@ class UDFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register_from_file",
@@ -792,6 +802,7 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -875,6 +886,8 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                statement_params=statement_params,
+                comment=comment,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
@@ -896,4 +909,6 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func, return_type, input_types, udf_name, packages=packages
+        )

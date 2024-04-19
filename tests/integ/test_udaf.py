@@ -37,15 +37,18 @@ def test_basic_udaf(session):
         def finish(self):
             return self._sum
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     sum_udaf = udaf(
         PythonSumUDAFHandler,
         return_type=IntegerType(),
         input_types=[IntegerType()],
         immutable=True,
+        statement_params={"QUERY_TAG": query_tag},
     )
     df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
     Utils.check_answer(df.agg(sum_udaf("a")), [Row(6)])
     Utils.check_answer(df.group_by("a").agg(sum_udaf("b")), [Row(1, 7), Row(2, 11)])
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 # TODO: use data class as state. This triggers a bug in UDF server during pickling/unpickling of a state.
@@ -385,6 +388,38 @@ def test_object(session):
         df.agg(ObjectAgg("o1", "o2")),
         [Row('{\n  "o1": "o1",\n  "o2": "v2"\n}')],
     )
+
+
+def test_udaf_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    class PythonSumUDAFHandler:
+        def __init__(self) -> None:
+            self._sum = 0
+
+        @property
+        def aggregate_state(self):
+            return self._sum
+
+        def accumulate(self, input_value):
+            self._sum += input_value
+
+        def merge(self, other_sum):
+            self._sum += other_sum
+
+        def finish(self):
+            return self._sum
+
+    sum_udaf = udaf(
+        PythonSumUDAFHandler,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        immutable=True,
+        comment=comment,
+    )
+
+    ddl_sql = f"select get_ddl('FUNCTION', '{sum_udaf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 def test_register_udaf_from_file_without_type_hints(session, resources_path):

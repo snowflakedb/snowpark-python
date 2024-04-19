@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import re
 
 import pytest
@@ -433,3 +434,9 @@ def test_window_function(session):
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+
+def test_cte_optimization_enabled_parameter(session, caplog):
+    with caplog.at_level(logging.WARNING):
+        session.cte_optimization_enabled = True
+    assert "cte_optimization_enabled is experimental" in caplog.text
