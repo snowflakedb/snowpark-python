@@ -538,6 +538,13 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
+    def cte_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+        """
+        return self._cte_optimization_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -589,6 +596,15 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @cte_optimization_enabled.setter
+    @experimental_parameter(version="1.15.0")
+    def cte_optimization_enabled(self, value: bool) -> None:
+        if value:
+            self._conn._telemetry_client.send_cte_optimization_telemetry(
+                self._session_id
+            )
+        self._cte_optimization_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
