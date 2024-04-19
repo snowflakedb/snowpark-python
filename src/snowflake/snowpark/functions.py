@@ -7263,6 +7263,7 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
             **kwargs,
         )
 
