@@ -211,6 +211,7 @@ class MockServerConnection:
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         # TODO: mock connector connection support SNOW-1331149
         self._conn = create_autospec(SnowflakeConnection)
+        self._conn.expired = False
         self._cursor = create_autospec(SnowflakeCursor)
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
