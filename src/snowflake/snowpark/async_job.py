@@ -255,8 +255,7 @@ class AsyncJob:
                     f"Failed to cancel query. Returned response: {cancel_resp}"
                 )
         else:
-            with self._session._conn._conn.cursor() as cursor:
-                cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
+            self._session._run_query(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")
 
     def _table_result(
         self,
