@@ -4,6 +4,7 @@
 #
 
 import copy
+import operator
 import re
 
 import pytest
@@ -52,7 +53,7 @@ def test_join_using_multiple_columns(session):
     )
 
     res = df.join(df2, ["int", "int2"]).collect()
-    assert sorted(res, key=lambda x: x[0]) == [
+    assert sorted(res, key=operator.itemgetter(0)) == [
         Row(1, 2, "1", "2"),
         Row(2, 3, "2", "3"),
         Row(3, 4, "3", "4"),
@@ -141,7 +142,7 @@ def test_default_inner_join_with_join_conditions(session):
     )
 
     res = df1.join(df2, df1["a"] == df2["num"]).collect()
-    assert sorted(res, key=lambda x: x[0]) == [
+    assert sorted(res, key=operator.itemgetter(0)) == [
         Row(1, "test1", 1, "num1"),
         Row(2, "test2", 2, "num2"),
     ]
@@ -197,19 +198,19 @@ def test_join_using_multiple_columns_and_specifying_join_type(
     assert df.join(df2, ["int", "str"], "inner").collect() == [Row(1, "1", 2, 3)]
 
     res = df.join(df2, ["int", "str"], "left").collect()
-    assert sorted(res, key=lambda x: x[0]) == [
+    assert sorted(res, key=operator.itemgetter(0)) == [
         Row(1, "1", 2, 3),
         Row(3, "3", 4, None),
     ]
 
     res = df.join(df2, ["int", "str"], "right").collect()
-    assert sorted(res, key=lambda x: x[0]) == [
+    assert sorted(res, key=operator.itemgetter(0)) == [
         Row(1, "1", 2, 3),
         Row(5, "5", None, 6),
     ]
 
     res = df.join(df2, ["int", "str"], "outer").collect()
-    res.sort(key=lambda x: x[0])
+    res.sort(key=operator.itemgetter(0))
     assert res == [
         Row(1, "1", 2, 3),
         Row(3, "3", 4, None),
@@ -284,7 +285,7 @@ def test_cross_join(session):
     df2 = session.create_dataframe([[2, "2"], [4, "4"]]).to_df(["int", "str"])
 
     res = df1.cross_join(df2).collect()
-    res.sort(key=lambda x: x[0])
+    res.sort(key=operator.itemgetter(0))
     assert res == [
         Row(1, "1", 2, "2"),
         Row(1, "1", 4, "4"),
@@ -514,13 +515,13 @@ def test_join_ambiguous_columns_with_specified_sources(
     )
 
     res = df.join(df2, df["a"] == df2["a"]).collect()
-    assert sorted(res, key=lambda x: x[0]) == [
+    assert sorted(res, key=operator.itemgetter(0)) == [
         Row(1, 1, "test1"),
         Row(2, 2, "test2"),
     ]
 
     res = df.join(df2, df["a"] == df2["a"]).select(df["a"] * df2["a"], "b").collect()
-    assert sorted(res, key=lambda x: x[0]) == [Row(1, "test1"), Row(4, "test2")]
+    assert sorted(res, key=operator.itemgetter(0)) == [Row(1, "test1"), Row(4, "test2")]
 
 
 def test_join_ambiguous_columns_without_specified_sources(session):
@@ -577,7 +578,7 @@ def test_join_expression_ambiguous_columns(
         "rhscol",
     )
 
-    res = sorted(df.collect(), key=lambda x: x[0])
+    res = sorted(df.collect(), key=operator.itemgetter(0))
     assert res == [Row(2, -1, -10, "one", "one"), Row(4, -2, -20, "two", "two")]
 
 
@@ -621,14 +622,14 @@ def test_semi_join_with_columns_from_LHS(
         .select("intcol")
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
+    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
     res = (
         rhs.join(lhs, lhs["intcol"] == rhs["intcol"], "leftsemi")
         .select("intcol")
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
+    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
     res = (
         lhs.join(
@@ -664,7 +665,7 @@ def test_semi_join_with_columns_from_LHS(
         .select(lhs["intcol"])
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
+    assert sorted(res, key=operator.itemgetter(0)) == [Row(1), Row(2)]
 
 
 @pytest.mark.localtest
@@ -784,7 +785,7 @@ def test_aliases_multiple_levels_deep(
         .select((lhs["intcol"] + rhs["intcol"]), "newCol")
         .collect()
     )
-    assert sorted(res, key=lambda x: x[0]) == [Row(2, -11), Row(4, -22)]
+    assert sorted(res, key=operator.itemgetter(0)) == [Row(2, -11), Row(4, -22)]
 
 
 def test_join_sql_as_the_backing_dataframe(session):
@@ -813,7 +814,7 @@ def test_join_sql_as_the_backing_dataframe(session):
         ]
 
         res = df.join(df2, ["int", "str"], "outer").collect()
-        res.sort(key=lambda x: x[0])
+        res.sort(key=operator.itemgetter(0))
         assert res == [
             Row(1, "1", 2, 3),
             Row(3, "3", 4, None),
@@ -884,7 +885,7 @@ def test_clone_can_help_these_self_joins(session):
 
     # left self join
     res = df.join(cloned_df, df["c1"] == cloned_df["c2"], "left").collect()
-    res.sort(key=lambda x: x[0])
+    res.sort(key=operator.itemgetter(0))
     assert res == [Row(1, 2, None, None), Row(2, 3, 1, 2)]
 
     # right self join
@@ -914,7 +915,7 @@ def test_natural_cross_joins(session):
 
     # "cross join" supports self join
     res = df1.cross_join(df2).collect()
-    res.sort(key=lambda x: x[0])
+    res.sort(key=operator.itemgetter(0))
     assert res == [
         Row(1, 2, 1, 2),
         Row(1, 2, 2, 3),
@@ -923,7 +924,7 @@ def test_natural_cross_joins(session):
     ]
 
     res = df1.cross_join(df2).collect()
-    res.sort(key=lambda x: x[0])
+    res.sort(key=operator.itemgetter(0))
     assert res == [
         Row(1, 2, 1, 2),
         Row(1, 2, 2, 3),
