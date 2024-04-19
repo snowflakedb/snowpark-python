@@ -469,6 +469,8 @@ def mock_to_time(
     try_cast: bool = False,
 ):
     """
+    https://docs.snowflake.com/en/sql-reference/functions/to_time
+
     [x] For string_expr, the result of converting the string to a time.
 
     [x] For timestamp_expr, the time portion of the input value.
@@ -484,71 +486,79 @@ def mock_to_time(
             process_numeric_time(d) % 86400
         ).time()
 
+    def convert_string_to_time(
+        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
+    ):
+        data_parts = _data.split(".")
+        if len(data_parts) == 2:
+            # there is a part of seconds
+            seconds_part = data_parts[1]
+            # find the idx that the seconds part ends
+            idx = 0
+            while seconds_part[idx].isdigit():
+                idx += 1
+            # truncate to precision
+            seconds_part = (
+                seconds_part[: min(idx, _fractional_seconds)] + seconds_part[idx:]
+            )
+            _data = f"{data_parts[0]}.{seconds_part}"
+
+        target_datetime = datetime.datetime.strptime(
+            process_string_time_with_fractional_seconds(_data, _fractional_seconds),
+            _time_format,
+        )
+        # there is a special case that if the time is 12 p.m noon, then no need to adjust
+        if _hour_delta == 12 and target_datetime.time().hour == 12:
+            _hour_delta = 0
+        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+
     res = []
 
     if not isinstance(fmt, ColumnEmulator):
         fmt = [fmt] * len(column)
 
     for data, _fmt in zip(column, fmt):
+        if data is None:
+            res.append(None)
+            continue
         try:
-            auto_detect = _fmt is None
-
             (
                 time_fmt,
                 hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
-            if data is None:
-                res.append(None)
-                continue
-            if auto_detect:
-                # handling non-standard string expr cases
-                if isinstance(column.sf_type.datatype, StringType) and data.isnumeric():
-                    # integer timestamp string '1234567890'
+
+            if isinstance(column.sf_type.datatype, StringType):
+                if data.isnumeric():
                     res.append(convert_int_string_to_time(data))
-                    continue
-                # timestamp data
-                elif isinstance(column.sf_type.datatype, TimestampType):
-                    res.append(data.time())
-                    continue
-                # if the data doesn't fall into the above two categories, it goes to the string_expr handling
-                elif isinstance(column.sf_type.datatype, VariantType):
-                    """
-                    https://docs.snowflake.com/en/sql-reference/functions/to_time#arguments
-                    For variant_expr:
-                        If the variant contains a string in TIME format (‘HH:MI:SS’), a string conversion is performed.
-                        If the variant contains a string in INTEGER format, a string conversion is performed and the value is treated as the number of seconds since midnight (modulus 86400 if necessary).
-                        If the variant contains JSON null value, the output is NULL.
-                    """
+                else:
+                    res.append(
+                        convert_string_to_time(
+                            data, time_fmt, hour_delta, fractional_seconds
+                        )
+                    )
+            elif isinstance(column.sf_type.datatype, TimestampType):
+                res.append(data.time())
+            elif isinstance(column.sf_type.datatype, VariantType):
+                if isinstance(data, str):
                     if data.isnumeric():
-                        # handle integer format strings,
-                        # strings in TIME format and JSON null value are handled already by non-VariantType logic
                         res.append(convert_int_string_to_time(data))
-                        continue
-
-            # handle seconds fraction
-            data_parts = data.split(".")
-            if len(data_parts) == 2:
-                # there is a part of seconds
-                seconds_part = data_parts[1]
-                # find the idx that the seconds part ends
-                idx = 0
-                while seconds_part[idx].isdigit():
-                    idx += 1
-                # truncate to precision
-                seconds_part = (
-                    seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+                    else:
+                        res.append(
+                            convert_string_to_time(
+                                data, time_fmt, hour_delta, fractional_seconds
+                            )
+                        )
+                elif isinstance(data, datetime.time):
+                    res.append(data)
+                else:
+                    raise ValueError(
+                        f"[Local Testing] Unsupported conversion to_time of value {data} of VariantType"
+                    )
+            else:
+                raise ValueError(
+                    f"[Local Testing] Unsupported conversion to_time of data type {type(column.sf_type.datatype).__name__}"
                 )
-                data = f"{data_parts[0]}.{seconds_part}"
-
-            target_datetime = datetime.datetime.strptime(
-                process_string_time_with_fractional_seconds(data, fractional_seconds),
-                time_fmt,
-            )
-            # there is a special case that if the time is 12 p.m noon, then no need to adjust
-            if hour_delta == 12 and target_datetime.time().hour == 12:
-                hour_delta = 0
-            res.append((target_datetime + datetime.timedelta(hours=hour_delta)).time())
         except BaseException:
             if try_cast:
                 data.append(None)
