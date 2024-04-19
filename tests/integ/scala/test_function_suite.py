@@ -483,6 +483,7 @@ def test_random(session):
     df.select(random()).collect()
 
 
+@pytest.mark.localtest
 def test_sqrt(session):
     Utils.check_answer(
         TestData.test_data1(session).select(sqrt(col("NUM"))),
@@ -553,6 +554,7 @@ def test_log(session):
     )
 
 
+@pytest.mark.localtest
 def test_pow(session):
     Utils.check_answer(
         TestData.double2(session).select(pow(col("A"), col("B"))),
