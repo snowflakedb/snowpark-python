@@ -450,7 +450,7 @@ def test_group_by_grouping_sets(session):
             GroupingSets([col("radio_license")]),
         )  # duplicated column is removed in the result
         .agg(col("radio_license"))
-        .sort(col("radio_license")),
+        .sort(col("radio_license"), col("medical_license")),
         [
             Row("LVN", None),
             Row("RN", None),
@@ -471,7 +471,7 @@ def test_group_by_grouping_sets(session):
             ]
         )  # duplicated column is removed in the result
         .agg(col("radio_license").as_("rl"))
-        .sort(col("rl"))
+        .sort(col("rl"), col("medical_license"))
         .select("medical_license", "rl"),
         [
             Row("LVN", None),
@@ -551,18 +551,19 @@ def test_rel_grouped_dataframe_median(session):
 
     expected = [Row("a", 2.0, 22.0), Row("b", 4, 44.0)]
     assert (
-        df1.group_by("key").median(col("value1"), col("value2")).collect() == expected
+        df1.group_by("key").median(col("value1"), col("value2")).sort(col("key")).collect() == expected
     )
     assert (
         df1.group_by("key")
         .agg([median(col("value1")), median(col("value2"))])
+        .sort(col("key"))
         .collect()
         == expected
     )
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").median("value1", "value2").collect() == expected
+    assert df1.group_by("key").median("value1", "value2").sort("key").collect() == expected
     assert (
-        df1.group_by("key").agg([median("value1"), median("value2")]).collect()
+        df1.group_by("key").agg([median("value1"), median("value2")]).sort("key").collect()
         == expected
     )
 
@@ -1209,12 +1210,12 @@ def test_listagg_within_group(session):
         schema=["v1", "v2", "length", "color", "unused"],
     )
     Utils.check_answer(
-        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())),
+        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())).sort("color"),
         [
+            Row("blue", "14"),
+            Row("green", "11,77"),
             Row("orange", "12"),
             Row("red", "21,24,35"),
-            Row("green", "11,77"),
-            Row("blue", "14"),
         ],
         sort=False,
     )

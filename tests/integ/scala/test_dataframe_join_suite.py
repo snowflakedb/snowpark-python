@@ -621,14 +621,14 @@ def test_semi_join_with_columns_from_LHS(
         .select("intcol")
         .collect()
     )
-    assert res == [Row(1), Row(2)]
+    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
     res = (
         rhs.join(lhs, lhs["intcol"] == rhs["intcol"], "leftsemi")
         .select("intcol")
         .collect()
     )
-    assert res == [Row(1), Row(2)]
+    assert sorted(res, key=lambda x: x[0]) == [Row(1), Row(2)]
 
     res = (
         lhs.join(
