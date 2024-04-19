@@ -30,6 +30,7 @@
     - object_construct_keep_null
     - pow
     - sqrt
+- Added support for StringType, TimestampType and VariantType data conversion in the local testing mocked function `to_time`.
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 - Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
 - Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
