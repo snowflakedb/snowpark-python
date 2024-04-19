@@ -156,18 +156,22 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     return time_fmt, hour_delta, fractional_seconds
 
 
-def process_numeric_time(time: str) -> int:
+def convert_integer_value_to_seconds(time: str) -> int:
     """
     deal with time of numeric values, convert the time into value that Python datetime accepts
     spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes
 
     """
     timestamp_values = int(time)
-    if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
+    if 31536000000 <= timestamp_values < 31536000000000:
+        # milliseconds
         timestamp_values = timestamp_values / 1000
-    elif timestamp_values >= 31536000000000:
-        # nanoseconds
+    elif 31536000000000 <= timestamp_values < 31536000000000000:
+        # microseconds
         timestamp_values = timestamp_values / 1000000
+    elif timestamp_values >= 31536000000000000:
+        # nanoseconds
+        timestamp_values = timestamp_values / 1000000000
     # timestamp_values <  31536000000 are treated as seconds
     return int(timestamp_values)
 

@@ -9,7 +9,7 @@ import os
 import platform
 import random
 import string
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -812,6 +812,57 @@ class TestData:
         schema = StructType(
             [
                 StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    def time_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data
+        data = [("01:02:03",), ("22:33:44",)]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives2(cls, session: "Session") -> DataFrame:
+        # string data needs format
+        data = [
+            ("01.02-03 PM",),
+            ("10.33-44 PM",),
+            ("12.55-19 PM",),
+        ]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives3(cls, session: "Session") -> DataFrame:
+        # timestamp data
+        data = [
+            (datetime(2024, 2, 1, 12, 13, 14),),
+            (datetime(2017, 2, 24, 20, 21, 22),),
+            ("1712265619",),
+            ("1712265619000",),
+            ("1712265619000000",),
+            ("1712265619000000000",),
+        ]
+        schema = StructType(
+            [
+                StructField("a", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives4(cls, session: "Session") -> DataFrame:
+        # variant data
+        data = [
+            ("01:02:03",),
+            ("1712265619",),
+            (None,),
+            (time(1, 2, 3),),
+        ]
+        schema = StructType(
+            [
+                StructField("a", VariantType()),
             ]
         )
         return session.create_dataframe(data, schema)
