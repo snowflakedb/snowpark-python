@@ -18,7 +18,7 @@ _is_execution_environment_sandboxed_for_client: bool = False
 # It should also return a decision on whether to proceed with registring the extension function with the Snowflake account.
 # If _should_continue_registration is None, i.e. a caller environment never assigned it an alternate callable, then we want to continue registration as part of the regular Snowpark workflow.
 # If _should_continue_registration is not None, i.e. a caller environment has assigned it an alternate callable, then the callback is responsible for determining the rest of the Snowpark workflow.
-_should_continue_registration: Optional[Callable] = None
+_should_continue_registration: Optional[Callable[..., bool]] = None
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

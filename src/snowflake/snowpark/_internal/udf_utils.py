@@ -398,8 +398,7 @@ def check_decorator_args(**kwargs):
     for key, _ in kwargs.items():
         if key not in REGISTER_KWARGS_ALLOWLIST:
             raise ValueError(
-                "Invalid key-value arguments passed to the decorator."
-                "Only 'native_app_params' is accepted as an additional argument to this decorator."
+                f"Invalid key-value argument passed to the decorator: {key}"
             )
 
 
