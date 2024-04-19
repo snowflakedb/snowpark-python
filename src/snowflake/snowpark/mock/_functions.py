@@ -46,8 +46,8 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
+    convert_integer_value_to_seconds,
     convert_snowflake_datetime_format,
-    process_numeric_time,
     process_string_time_with_fractional_seconds,
     unalias_datetime_part,
 )
@@ -327,7 +327,7 @@ def mock_to_date(
             if auto_detect and data.isnumeric():
                 res.append(
                     datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
+                        convert_integer_value_to_seconds(data)
                     ).date()
                 )
             else:
@@ -483,7 +483,7 @@ def mock_to_time(
 
     def convert_int_string_to_time(d: str):
         return datetime.datetime.utcfromtimestamp(
-            process_numeric_time(d) % 86400
+            convert_integer_value_to_seconds(d) % 86400
         ).time()
 
     def convert_string_to_time(
@@ -521,6 +521,7 @@ def mock_to_time(
         if data is None:
             res.append(None)
             continue
+        datatype = column.sf_type.datatype
         try:
             (
                 time_fmt,
@@ -528,8 +529,8 @@ def mock_to_time(
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
 
-            if isinstance(column.sf_type.datatype, StringType):
-                if data.isnumeric():
+            if isinstance(datatype, StringType):
+                if data.isdigit():
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
@@ -537,11 +538,11 @@ def mock_to_time(
                             data, time_fmt, hour_delta, fractional_seconds
                         )
                     )
-            elif isinstance(column.sf_type.datatype, TimestampType):
+            elif isinstance(datatype, TimestampType):
                 res.append(data.time())
-            elif isinstance(column.sf_type.datatype, VariantType):
+            elif isinstance(datatype, VariantType):
                 if isinstance(data, str):
-                    if data.isnumeric():
+                    if data.isdigit():
                         res.append(convert_int_string_to_time(data))
                     else:
                         res.append(
@@ -557,7 +558,7 @@ def mock_to_time(
                     )
             else:
                 raise ValueError(
-                    f"[Local Testing] Unsupported conversion to_time of data type {type(column.sf_type.datatype).__name__}"
+                    f"[Local Testing] Unsupported conversion to_time of data type {type(datatype).__name__}"
                 )
         except BaseException:
             if try_cast:
@@ -638,7 +639,7 @@ def _to_timestamp(
                     isinstance(data, str) and data.isnumeric()
                 ):
                     parsed = datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
+                        convert_integer_value_to_seconds(data)
                     )
                     # utc timestamps should be in utc timezone
                     if add_timezone:

@@ -1289,7 +1289,7 @@ def test_to_timestamp(session):
 
 
 @pytest.mark.localtest
-def test_to_time(session):
+def test_to_time(session, local_testing_mode):
     # basic string expr
     df = TestData.time_primitives1(session)
     Utils.check_answer(
@@ -1319,6 +1319,9 @@ def test_to_time(session):
             Row(time(12, 13, 14)),
             Row(time(20, 21, 22)),
             Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
         ],
     )
 
@@ -1340,16 +1343,15 @@ def test_to_time(session):
     # invalid input for string expr with format
     # TODO: local test error experience SNOW-1235716
     # currently local testing throws ValueError while live connection throws SQLException
-    # df = session.create_dataframe(
-    #     [("asdfgh",), ("qwerty",)]
-    # ).to_df("a")
-    # Utils.check_answer(
-    #     df.select(to_time("A", "HH12.MI-SS PM")),
-    #     [
-    #         Row(time(13, 2, 3)),
-    #         Row(time(22, 33, 44)),
-    #     ],
-    # )
+    with pytest.raises(ValueError if local_testing_mode else SnowparkSQLException):
+        df = session.create_dataframe([("asdfgh",), ("qwerty",)]).to_df("a")
+        Utils.check_answer(
+            df.select(to_time("A", "HH12.MI-SS PM")),
+            [
+                Row(time(13, 2, 3)),
+                Row(time(22, 33, 44)),
+            ],
+        )
 
 
 @pytest.mark.localtest
