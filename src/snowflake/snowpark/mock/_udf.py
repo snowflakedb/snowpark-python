@@ -169,7 +169,8 @@ class MockUDFRegistration(UDFRegistration):
             )
 
         if type(func) is tuple:  # register from file
-            self._udf_level_imports[udf_name] = set()
+            if udf_name not in self._udf_level_imports:
+                self._udf_level_imports[udf_name] = set()
             module_name = self._import_file(func[0], udf_name=udf_name)
             self._registry[udf_name] = (module_name, func[1])
         else:
