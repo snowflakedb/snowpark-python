@@ -551,7 +551,11 @@ def test_rel_grouped_dataframe_median(session):
 
     expected = [Row("a", 2.0, 22.0), Row("b", 4, 44.0)]
     assert (
-        df1.group_by("key").median(col("value1"), col("value2")).sort(col("key")).collect() == expected
+        df1.group_by("key")
+        .median(col("value1"), col("value2"))
+        .sort(col("key"))
+        .collect()
+        == expected
     )
     assert (
         df1.group_by("key")
@@ -561,9 +565,14 @@ def test_rel_grouped_dataframe_median(session):
         == expected
     )
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").median("value1", "value2").sort("key").collect() == expected
     assert (
-        df1.group_by("key").agg([median("value1"), median("value2")]).sort("key").collect()
+        df1.group_by("key").median("value1", "value2").sort("key").collect() == expected
+    )
+    assert (
+        df1.group_by("key")
+        .agg([median("value1"), median("value2")])
+        .sort("key")
+        .collect()
         == expected
     )
 
@@ -1210,7 +1219,9 @@ def test_listagg_within_group(session):
         schema=["v1", "v2", "length", "color", "unused"],
     )
     Utils.check_answer(
-        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())).sort("color"),
+        df.group_by("color")
+        .agg(listagg("length", ",").within_group(df.length.asc()))
+        .sort("color"),
         [
             Row("blue", "14"),
             Row("green", "11,77"),
