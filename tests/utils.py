@@ -9,7 +9,7 @@ import os
 import platform
 import random
 import string
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -846,6 +846,7 @@ class TestData:
             ("01:02:03",),
             ("1712265619",),
             (None,),
+            (time(1, 2, 3),),
         ]
         schema = StructType(
             [

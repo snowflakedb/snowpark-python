@@ -1335,6 +1335,7 @@ def test_to_time(session, local_testing_mode):
             Row(
                 None,
             ),
+            Row(time(1, 2, 3)),
         ],
     )
 
