@@ -135,6 +135,7 @@ def test_get_result_set_exception(mock_server_connection):
     fake_session._last_canceled_id = 100
     fake_session._conn = mock_server_connection
     fake_session._cte_optimization_enabled = False
+    mock_server_connection.cursor_pool.cursor = mock.MagicMock(query="fake query")
     fake_plan = SnowflakePlan(
         queries=[Query("fake query 1"), Query("fake query 2")],
         schema_query="fake schema query",
