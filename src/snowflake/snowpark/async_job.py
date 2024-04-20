@@ -337,7 +337,7 @@ class AsyncJob:
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
-        with self._session._conn._conn.cursor() as cursor:
+        with self._session._conn.cursor_pool.cursor() as cursor:
             cursor.get_results_from_sfqid(self.query_id)
             if self._num_statements is not None:
                 for _ in range(self._num_statements - 1):
@@ -391,7 +391,7 @@ class AsyncJob:
                     result = self._table_result(result_data, async_result_type)
                 else:
                     raise ValueError(f"{async_result_type} is not supported")
-            with self._session._conn._conn.cursor() as cursor:
+            with self._session._conn.cursor_pool.cursor() as cursor:
                 for action in self._post_actions:
                     self._session._conn.run_query(
                         action.sql,

@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.cursor_pool import CursorPool
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
@@ -158,6 +159,7 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()  # only used in fire and forget situations
+        self.cursor_pool = CursorPool(self._conn, os.cpu_count())
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
@@ -225,13 +227,13 @@ class ServerConnection:
         )
 
     def _get_string_datum(self, query: str) -> Optional[str]:
-        with self._conn.cursor() as cursor:
+        with self.cursor_pool.cursor() as cursor:
             rows = result_set_to_rows(self.run_query(query, cursor)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
-        with self._conn.cursor() as cursor:
+        with self.cursor_pool.cursor() as cursor:
             return convert_result_meta_to_attribute(run_new_describe(cursor, query))
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
@@ -370,7 +372,7 @@ class ServerConnection:
         query: str,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> str:
-        with self._conn.cursor() as cursor:
+        with self.cursor_pool.cursor() as cursor:
             self.execute_and_notify_query_listener(
                 query, cursor, _statement_params=statement_params
             )
@@ -567,7 +569,7 @@ class ServerConnection:
         # potentially optimize the query using CTEs
         plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
-        with self._conn.cursor() as cursor:
+        with self.cursor_pool.cursor() as cursor:
             try:
                 placeholders = {}
                 is_batch_insert = False
@@ -684,7 +686,7 @@ class ServerConnection:
             and not is_in_stored_procedure()
             else None
         )
-        with self._conn.cursor() as cursor:
+        with self.cursor_pool.cursor() as cursor:
             if query_tag:
                 self.execute_and_notify_query_listener(
                     f"alter session set query_tag = {str_to_sql(query_tag)}",

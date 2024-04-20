@@ -34,7 +34,7 @@ def get_metadata_names(session, df):
     if isinstance(session._conn, MockServerConnection):
         return [col.name for col in session._conn.get_result_and_metadata(df._plan)[1]]
 
-    with session._conn._conn.cursor() as cursor:
+    with session._conn.cursor_pool.cursor() as cursor:
         description = cursor.describe(df.queries["queries"][-1])
     return [quote_name(metadata.name) for metadata in description]
 

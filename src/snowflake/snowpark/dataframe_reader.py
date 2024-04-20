@@ -582,7 +582,7 @@ class DataFrameReader:
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_query = infer_schema_statement(path, file_format_name)
         try:
-            with self._session._conn._conn.cursor() as cursor:
+            with self._session._conn.cursor_pool.cursor() as cursor:
                 if use_temp_file_format:
                     self._session._conn.run_query(
                         create_file_format_statement(
