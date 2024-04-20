@@ -13,6 +13,7 @@ import pytest
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
+from snowflake.snowpark._internal.cursor_pool import CursorPool
 
 try:
     import pandas
@@ -116,6 +117,7 @@ def test_close_exception():
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
     )
+    fake_connection.cursor_pool = mock.create_autospec(CursorPool)
     fake_connection._conn = fake_snowflake_connection
     fake_connection.is_closed = MagicMock(return_value=False)
     exception_msg = "Mock exception for session.cancel_all"
