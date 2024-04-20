@@ -816,6 +816,7 @@ class TestData:
         )
         return session.create_dataframe(data, schema)
 
+    @classmethod
     def time_primitives1(cls, session: "Session") -> DataFrame:
         # simple string data
         data = [("01:02:03",), ("22:33:44",)]
