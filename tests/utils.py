@@ -804,6 +804,19 @@ class TestData:
         return session.create_dataframe(data, schema)
 
     @classmethod
+    def datetime_primitives2(cls, session: "Session") -> DataFrame:
+        data = [
+            "9999-12-31 00:00:00.123456",
+            "1583-01-01 23:59:59.56789",
+        ]
+        schema = StructType(
+            [
+                StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
     def time_primitives1(cls, session: "Session") -> DataFrame:
         # simple string data
         data = [("01:02:03",), ("22:33:44",)]
