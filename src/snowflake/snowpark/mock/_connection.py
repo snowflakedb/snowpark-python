@@ -18,6 +18,7 @@ from types import TracebackType
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock, create_autospec
 
+from snowflake.snowpark._internal.cursor_pool import CursorPool
 import snowflake.snowpark.mock._constants
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -213,6 +214,7 @@ class MockServerConnection:
         self._conn = create_autospec(SnowflakeConnection)
         self._conn.expired = False
         self._cursor = create_autospec(SnowflakeCursor)
+        self.cursor_pool = CursorPool(self._conn, os.cpu_count())
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
