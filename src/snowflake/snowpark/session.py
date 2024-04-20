@@ -605,7 +605,7 @@ class Session:
         """
         _logger.info("Canceling all running queries")
         self._last_canceled_id = self._last_action_id
-        with self._conn._conn.cursor() as cursor:
+        with self._conn.cursor_pool.cursor() as cursor:
             self._conn.run_query(
                 f"select system$cancel_all_queries({self._session_id})", cursor
             )

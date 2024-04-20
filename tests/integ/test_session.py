@@ -158,7 +158,7 @@ def test_session_builder(session):
 )
 def test_session_cancel_all(session):
     qid = session.cancel_all()
-    with session._conn._conn.cursor() as cursor:
+    with session._conn.cursor_pool.cursor() as cursor:
         cursor.get_results_from_sfqid(qid)
         assert "cancelled" in cursor.fetchall()[0][0]
 

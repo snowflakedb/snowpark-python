@@ -315,7 +315,7 @@ class Utils:
 
     @staticmethod
     def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
-        with session._conn._conn.cursor() as cursor:
+        with session._conn.cursor_pool.cursor() as cursor:
             session._run_query(sql, cursor=cursor)
             result_meta = cursor.description
 

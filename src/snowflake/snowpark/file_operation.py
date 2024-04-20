@@ -117,7 +117,7 @@ class FileOperation:
         }
         if is_in_stored_procedure():  # pragma: no cover
             try:
-                with self._session._conn._conn.cursor() as cursor:
+                with self._session._conn.cursor_pool.cursor() as cursor:
                     cursor._upload(local_file_name, stage_location, options)
                     result_meta = cursor.description
                     result_data = cursor.fetchall()
@@ -196,7 +196,7 @@ class FileOperation:
         try:
             if is_in_stored_procedure():  # pragma: no cover
                 try:
-                    with self._session._conn._conn.cursor() as cursor:
+                    with self._session._conn.cursor_pool.cursor() as cursor:
                         cursor._download(stage_location, target_directory, options)
                         result_meta = cursor.description
                         result_data = cursor.fetchall()
@@ -256,7 +256,7 @@ class FileOperation:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
         stage_location = _validate_stage_location(stage_location)
-        with self._session._conn._conn.cursor() as cursor:
+        with self._session._conn.cursor_pool.cursor() as cursor:
             if is_in_stored_procedure():  # pragma: no cover
                 try:
                     options = {
@@ -328,7 +328,7 @@ class FileOperation:
         stage_location = _validate_stage_location(stage_location)
         if is_in_stored_procedure():  # pragma: no cover
             try:
-                with self._session._conn._conn.cursor() as cursor:
+                with self._session._conn.cursor_pool.cursor() as cursor:
                     return cursor._download_stream(stage_location, decompress)
             except ProgrammingError as pe:
                 tb = sys.exc_info()[2]

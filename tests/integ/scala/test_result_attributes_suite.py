@@ -148,7 +148,7 @@ def test_describe_schema_matches_execute_schema_for_show_queries(session, obj):
     # describe query
     show_query_schema_describe = session._get_result_attributes(query)
     assert len(show_query_schema_describe) > 0
-    with session._conn._conn.cursor() as cursor:
+    with session._conn.cursor_pool.cursor() as cursor:
         # execute query
         session._run_query(query, cursor=cursor)
         show_query_schema_execute = cursor.description
