@@ -10,7 +10,7 @@ from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
 
 
-class CursorWrapper:
+class _CursorWrapper:
     def __init__(
         self,
         cursor: SnowflakeCursor,
@@ -24,7 +24,6 @@ class CursorWrapper:
         self.condition = condition
 
     def __enter__(self) -> SnowflakeCursor:
-        # Return the cursor for use
         return self.cursor
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -35,28 +34,25 @@ class CursorWrapper:
             self.condition.notify()
 
 
-class CursorPool:
+class SnowflakeCursorPool:
     def __init__(self, conn: SnowflakeConnection, capacity: int) -> None:
-        self.free_cursors: List[SnowflakeCursor] = []  # Pool of free cursor objects
+        self._free_cursors: List[SnowflakeCursor] = []
         self.conn = conn
-        self.lock = RLock()
-        self.condition = Condition(self.lock)
-        self.capacity = capacity
-        self.created_cursors = 0
+        self._lock = RLock()
+        self._condition = Condition(self._lock)
+        self._capacity = capacity
+        self._created_cursors = 0
 
-    def cursor(self) -> CursorWrapper:
-        with self.lock:
+    def cursor(self) -> _CursorWrapper:
+        with self._lock:
             # Wait until a cursor is available if the total number of cursors created reaches capacity
-            while self.created_cursors >= self.capacity and not self.free_cursors:
-                self.condition.wait()
+            while self._created_cursors >= self._capacity and not self._free_cursors:
+                self._condition.wait()
 
-            if self.free_cursors:
-                # Get a cursor from the pool
-                cursor = self.free_cursors.pop()
-            elif self.created_cursors < self.capacity:
-                # Create a new cursor
+            if self._free_cursors:
+                cursor = self._free_cursors.pop()
+            else:
                 cursor = self.conn.cursor()
-                self.created_cursors += 1
-        return CursorWrapper(
-            cursor, self.free_cursors, self.lock, self.condition
-        )  # Wrap the cursor in CursorWrapper and return
+                self._created_cursors += 1
+
+        return _CursorWrapper(cursor, self._free_cursors, self._lock, self._condition)

@@ -44,7 +44,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     SnowflakePlan,
 )
-from snowflake.snowpark._internal.cursor_pool import CursorPool
+from snowflake.snowpark._internal.cursor_pool import SnowflakeCursorPool
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
@@ -159,7 +159,7 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()  # only used in fire and forget situations
-        self.cursor_pool = CursorPool(self._conn, os.cpu_count())
+        self.cursor_pool = SnowflakeCursorPool(self._conn, os.cpu_count())
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a

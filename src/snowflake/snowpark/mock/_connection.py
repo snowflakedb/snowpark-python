@@ -36,7 +36,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
-from snowflake.snowpark._internal.cursor_pool import CursorPool
+from snowflake.snowpark._internal.cursor_pool import SnowflakeCursorPool
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
@@ -214,7 +214,7 @@ class MockServerConnection:
         self._conn = create_autospec(SnowflakeConnection)
         self._conn.expired = False
         self._cursor = create_autospec(SnowflakeCursor)
-        self.cursor_pool = CursorPool(self._conn, os.cpu_count())
+        self.cursor_pool = SnowflakeCursorPool(self._conn, os.cpu_count())
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
