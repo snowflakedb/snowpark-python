@@ -130,6 +130,15 @@ def test_gt_and_lt(session):
     assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [Row(1, True, "a")]
 
+    test_data_datetime = TestData.datetime_primitives2(session)
+    res = datetime.datetime(2000, 5, 6, 0, 0, 0)
+    assert test_data_datetime.where(
+        test_data_datetime["timestamp"] > res
+    ).collect() == [Row(datetime.datetime(9999, 12, 31, 0, 0, 0, 123456))]
+    assert test_data_datetime.where(
+        test_data_datetime["timestamp"] < res
+    ).collect() == [Row(datetime.datetime(1583, 1, 1, 23, 59, 59, 567890))]
+
 
 @pytest.mark.localtest
 def test_leq_and_geq(session):
@@ -754,11 +763,8 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
+@pytest.mark.localtest
 def test_in_expression_3_with_all_types(session, local_testing_mode):
-    # TODO: local testing support to_timestamp_ntz
-    #  stored proc by default uses timestime type according to:
-    #  https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
-    #  we keep the test here for future reference
     schema = StructType(
         [
             StructField("id", LongType()),
