@@ -18,7 +18,6 @@ from types import TracebackType
 from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from unittest.mock import Mock, create_autospec
 
-from snowflake.snowpark._internal.cursor_pool import CursorPool
 import snowflake.snowpark.mock._constants
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -37,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
+from snowflake.snowpark._internal.cursor_pool import CursorPool
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
