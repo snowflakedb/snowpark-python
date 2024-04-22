@@ -518,7 +518,7 @@ def test_add_import_local_file(session, resources_path):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
@@ -528,7 +528,7 @@ def test_add_import_local_file(session, resources_path):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
@@ -565,7 +565,7 @@ def test_add_import_local_directory(session, resources_path):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
@@ -575,7 +575,7 @@ def test_add_import_local_directory(session, resources_path):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
@@ -609,7 +609,7 @@ def test_add_import_stage_file(session, resources_path):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
@@ -635,7 +635,7 @@ def test_sp_level_import(session, resources_path, local_testing_mode):
 
         return mod5(
             session_,
-            session.create_dataframe([[x]], schema=["a"])
+            session_.create_dataframe([[x]], schema=["a"])
             .select(col("a") + 4)
             .collect()[0][0],
         )
