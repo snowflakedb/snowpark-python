@@ -22,6 +22,8 @@
     - remove_package
     - udf.register
     - udf.register_from_file
+    - sproc.register
+    - sproc.register_from_file
   - snowflake.snowpark.functions
     - current_database
     - current_session
@@ -30,6 +32,8 @@
     - object_construct_keep_null
     - pow
     - sqrt
+    - udf
+    - sproc
 - Added the function `DataFrame.write.csv` to unload data from a ``DataFrame`` into one or more CSV files in a stage.
 - Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
 - Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
