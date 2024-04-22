@@ -25,7 +25,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
-from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
+from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
@@ -205,48 +205,13 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         Imports a python file or a directory of python module structure or a zip of the former.
         Returns the name of the Python module to be imported.
         When sproc_name is not None, the import is added to the sproc associated with the name;
-        Otherwise, it is a session level import and will be added to every future sproc call.
+        Otherwise, it is a session level import and will be added to any sproc with no sproc level
+        imports specified.
         """
-        file_name, file_extension = os.path.splitext(os.path.basename(file_path))
 
-        is_on_stage = file_path.startswith("@")
-
-        if is_on_stage:
-            stage_registry = self._session._conn.stage_registry
-            stage_name, stage_prefix = extract_stage_name_and_prefix(file_path)
-            local_path = (
-                stage_registry[stage_name]._working_directory + "/" + stage_prefix
-            )
-        else:
-            local_path = file_path
-
-        is_python_import = file_extension in (
-            ".py",
-            ".zip",
-            "",
-        )  # directory is always considered as python module
-
-        if not is_python_import:
-            absolute_module_path = local_path
-            module_name = ""
-        else:
-            if (
-                import_path and not is_on_stage
-            ):  # import_path is only considered for local python files
-                module_root_dir = local_path[
-                    0 : local_path.rfind(import_path.replace(".", "/"))
-                ]
-            elif file_extension == ".py":
-                module_root_dir = os.path.join(local_path, "..")
-            elif file_extension == ".zip":
-                module_root_dir = local_path
-            else:  # directory
-                module_root_dir = os.path.join(local_path, "..")
-
-            absolute_module_path = os.path.abspath(module_root_dir)
-            module_name = file_name.split(".")[
-                0
-            ]  # the split is for the edge case when the filename contains ., e.g. test.py.zip
+        absolute_module_path, module_name = extract_import_dir_and_module_name(
+            file_path, self._session._conn.stage_registry, import_path
+        )
 
         if sproc_name:
             self._sproc_level_imports[sproc_name].add(absolute_module_path)
