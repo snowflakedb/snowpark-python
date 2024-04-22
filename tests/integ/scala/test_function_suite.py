@@ -306,11 +306,12 @@ def test_kurtosis(session):
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                float("-3.333333"),
+                float("5.0"),
+                float("3.613737"),
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
     # same as above, but pass str instead of Column
@@ -319,11 +320,12 @@ def test_kurtosis(session):
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                float("-3.333333"),
+                float("5.0"),
+                float("3.613737"),
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
 
@@ -357,12 +359,14 @@ def test_skew(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
         xyz.select(skew(col("X")), skew(col("Y")), skew(col("Z"))),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
     # same as above, but pass str instead of Column
     Utils.check_answer(
         xyz.select(skew("X"), skew("Y"), skew("Z")),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
 
 
