@@ -10,8 +10,7 @@ import pytest
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
@@ -249,12 +248,6 @@ def test_any_bool_only(data, axis):
         )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("axis", [0, 1, None])
 @pytest.mark.parametrize(
     "data",
@@ -264,26 +257,14 @@ def test_any_bool_only(data, axis):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-def test_all_float_fallback(data, axis, skipna):
-    # Because axis=None calls the method with axis=0 twice, it incurs an extra query
-    # to check the length of the index after the first call is handled by a fallback
-    with SqlCounter(
-        query_count=9 if axis is None else 8, fallback_count=1, sproc_count=1
-    ):
-        eval_snowpark_pandas_result(
-            pd.DataFrame(data),
-            native_pd.DataFrame(data),
-            lambda df: df.all(axis=axis, skipna=skipna),
-            comparator=boolagg_comparator(axis),
-        )
+@sql_count_checker(query_count=0)
+def test_all_float_not_implemented(data, axis, skipna):
+    df = pd.DataFrame(data)
+    msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
+    with pytest.raises(NotImplementedError, match=msg):
+        df.all(axis=axis, skipna=skipna)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("axis", [0, 1, None])
 @pytest.mark.parametrize(
     "data",
@@ -293,26 +274,14 @@ def test_all_float_fallback(data, axis, skipna):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-def test_any_float_fallback(data, axis, skipna):
-    # Because axis=None calls the method with axis=0 twice, it incurs an extra query
-    # to check the length of the index after the first call is handled by a fallback
-    with SqlCounter(
-        query_count=9 if axis is None else 8, fallback_count=1, sproc_count=1
-    ):
-        eval_snowpark_pandas_result(
-            pd.DataFrame(data),
-            native_pd.DataFrame(data),
-            lambda df: df.any(axis=axis, skipna=skipna),
-            comparator=boolagg_comparator(axis),
-        )
+@sql_count_checker(query_count=0)
+def test_any_float_not_implemented(data, axis, skipna):
+    df = pd.DataFrame(data)
+    msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
+    with pytest.raises(NotImplementedError, match=msg):
+        df.any(axis=axis, skipna=skipna)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("axis", [0, 1, None])
 @pytest.mark.parametrize(
     "data",
@@ -320,26 +289,14 @@ def test_any_float_fallback(data, axis, skipna):
         {"a": ["", "b", "c"], "b": ["d", "e", "f"]},
     ],
 )
-def test_all_str_fallback(data, axis):
-    # Because axis=None calls the method with axis=0 twice, it incurs an extra query
-    # to check the length of the index after the first call is handled by a fallback
-    with SqlCounter(
-        query_count=9 if axis is None else 8, fallback_count=1, sproc_count=1
-    ):
-        eval_snowpark_pandas_result(
-            pd.DataFrame(data),
-            native_pd.DataFrame(data),
-            lambda df: df.all(axis=axis),
-            comparator=boolagg_comparator(axis),
-        )
+@sql_count_checker(query_count=0)
+def test_all_str_not_implemented(data, axis):
+    df = pd.DataFrame(data)
+    msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
+    with pytest.raises(NotImplementedError, match=msg):
+        df.all(axis=axis)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("axis", [0, 1, None])
 @pytest.mark.parametrize(
     "data",
@@ -347,15 +304,9 @@ def test_all_str_fallback(data, axis):
         {"a": ["", "b", "c"], "b": ["", "e", "f"]},
     ],
 )
-def test_any_str_fallback(data, axis):
-    # Because axis=None calls the method with axis=0 twice, it incurs an extra query
-    # to check the length of the index after the first call is handled by a fallback
-    with SqlCounter(
-        query_count=9 if axis is None else 8, fallback_count=1, sproc_count=1
-    ):
-        eval_snowpark_pandas_result(
-            pd.DataFrame(data),
-            native_pd.DataFrame(data),
-            lambda df: df.any(axis=axis),
-            comparator=boolagg_comparator(axis),
-        )
+@sql_count_checker(query_count=0)
+def test_any_str_not_implemented(data, axis):
+    df = pd.DataFrame(data)
+    msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
+    with pytest.raises(NotImplementedError, match=msg):
+        df.any(axis=axis)

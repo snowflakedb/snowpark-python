@@ -93,30 +93,17 @@ def test_applymap_numpy(func):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(
-    query_count=16, fallback_count=2, sproc_count=2, expect_high_count=True
-)
+@sql_count_checker(query_count=0)
 def test_applymap_na_action_ignore():
     snow_df = pd.DataFrame([1, 1.1, "NaN", None], dtype="Float64")
-
-    # In native pandas, the last two elements are NaN and pd.NA
-    assert snow_df.applymap(
-        lambda x: x is None, na_action="ignore"
-    ).values.tolist() == [[False], [False], [None], [None]]
+    msg = "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.applymap(lambda x: x is None, na_action="ignore")
 
     data = ["cat", "dog", np.nan, "rabbit"]
     snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda x: x.applymap("I am a {}".format, na_action="ignore"),
-    )
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.applymap("I am a {}".format, na_action="ignore")
 
 
 @pytest.mark.parametrize("invalid_input", ["min", [np.min], {"a": np.max}])

@@ -802,7 +802,9 @@ class DataFrame(BasePandasDataset):
         Compute the matrix multiplication between the ``DataFrame`` and `other`.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support 'dot' binary operation"
+        )
 
         if isinstance(other, BasePandasDataset):
             common = self.columns.union(other.index)

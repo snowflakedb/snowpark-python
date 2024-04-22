@@ -33,7 +33,8 @@ def test_str_cat_no_others(mock_str_register, mock_series):
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda s: s.str.casefold(), "casefold"),
+        # TODO: SNOW-1347401 cleanup all str methods that fallback
+        # (lambda s: s.str.casefold(), "casefold"),
         (lambda s: s.str.cat(["a", "b", "d", "foo"], na_rep="-"), "cat"),
         (lambda s: s.str.decode("utf-8"), "decode"),
         (lambda s: s.str.encode("utf-8"), "encode"),

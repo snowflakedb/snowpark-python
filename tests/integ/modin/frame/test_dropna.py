@@ -8,7 +8,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -76,19 +75,12 @@ def test_how_all_with_subset(test_dropna_df):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-def test_axis_1_fallback(test_dropna_df):
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_dropna_df),
-        test_dropna_df,
-        lambda df: df.dropna(axis="columns"),
-    )
+@sql_count_checker(query_count=0)
+def test_axis_1_not_implemented(test_dropna_df):
+    msg = "Snowpark pandas dropna API doesn't yet support axis == 1"
+    with pytest.raises(NotImplementedError, match=msg):
+        df = pd.DataFrame(test_dropna_df)
+        df.dropna(axis="columns")
 
 
 @sql_count_checker(query_count=1)

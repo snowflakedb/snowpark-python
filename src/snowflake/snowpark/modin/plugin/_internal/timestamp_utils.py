@@ -25,6 +25,7 @@ from snowflake.snowpark.functions import (
     to_decimal,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import (
     BooleanType,
@@ -304,44 +305,48 @@ def generate_timestamp_col(
     return new_col
 
 
-def to_datetime_require_fallback(
+def raise_if_to_datetime_not_supported(
     format: str,
     exact: Union[bool, lib.NoDefault] = lib.no_default,
     infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
     origin: DateTimeOrigin = "unix",
     errors: DateTimeErrorChoices = "raise",
-) -> bool:
+) -> None:
     """
-    check whether to_datetime requires fallback
+    Raise not implemented error to_datetime API has any unsupported parameter or
+    parameter value
     Args:
         format: the format argument for to_datetime
         exact: the exact argument for to_datetime
         infer_datetime_format: the infer_datetime_format argument for to_datetime
         origin: the origin argument for to_datetime
         errors: the errors argument for to_datetime
-
-    Returns:
-        True if fallback is required; otherwise False
     """
+    error_message = None
     if format is not None and not is_snowflake_timestamp_format_valid(
         to_snowflake_timestamp_format(format)
     ):
         # if format is not given, Snowflake's auto format detection may be different from pandas behavior
-        return True
-
-    if not exact:
+        error_message = (
+            f"Snowpark pandas to_datetime API doesn't yet support given format {format}"
+        )
+    elif not exact:
         # Snowflake does not allow the format to match anywhere in the target string when exact is False
-        return True
-    if infer_datetime_format != lib.no_default:
+        error_message = "Snowpark pandas to_datetime API doesn't yet support non exact format matching"
+    elif infer_datetime_format != lib.no_default:
         # infer_datetime_format is deprecated since version 2.0.0
-        return True
-    if origin == "julian":
+        error_message = "Snowpark pandas to_datetime API doesn't support 'infer_datetime_format' parameter"
+    elif origin == "julian":
         # default for julian calendar support
-        return True
-    if errors == "ignore":
+        error_message = (
+            "Snowpark pandas to_datetime API doesn't yet support julian calendar"
+        )
+    elif errors == "ignore":
         # ignore requires return the whole original input which is not applicable in Snowfalke
-        return True
-    return False
+        error_message = "Snowpark pandas to_datetime API doesn't yet support 'ignore' value for errors parameter"
+
+    if error_message:
+        ErrorMessage.not_implemented(error_message)
 
 
 def convert_dateoffset_to_interval(
