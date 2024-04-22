@@ -173,6 +173,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
         comment: Optional[str] = None,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
