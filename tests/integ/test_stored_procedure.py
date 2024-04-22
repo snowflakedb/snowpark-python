@@ -80,7 +80,7 @@ def setup(session, resources_path, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
 )
-@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@patch("snowflake.snowpark._internal.udf_utils.VERSION", (999, 9, 9))
 @pytest.mark.parametrize(
     "packages,should_fail",
     [
@@ -136,7 +136,7 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
         ([], ["pyyaml"]),
     ],
 )
-@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@patch("snowflake.snowpark._internal.udf_utils.VERSION", (999, 9, 9))
 def test__do_register_sp_submits_correct_packages(
     patched_resolve, session_packages, local_packages, db_parameters
 ):

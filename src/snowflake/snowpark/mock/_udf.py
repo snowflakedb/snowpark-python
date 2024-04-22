@@ -3,7 +3,7 @@
 #
 import os
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -117,6 +117,7 @@ class MockUDFRegistration(UDFRegistration):
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> UserDefinedFunction:
         if is_permanent:
             self._session._conn.log_not_supported_error(
