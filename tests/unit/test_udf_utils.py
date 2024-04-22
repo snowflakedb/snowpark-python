@@ -129,7 +129,6 @@ def test_resolve_imports_and_packages_in_sandbox():
         inline_code,
         all_imports,
         all_packages,
-        udf_level_imports,
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     ) = resolve_imports_and_packages(
@@ -147,7 +146,6 @@ def test_resolve_imports_and_packages_in_sandbox():
     assert inline_code is None
     assert all_imports == ""
     assert all_packages == ",".join([f"'{package}'" for package in packages])
-    assert udf_level_imports == {}
     assert upload_file_stage_location is None
     assert not custom_python_runtime_version_allowed
 
@@ -164,7 +162,6 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
             inline_code,
             all_imports,
             all_packages,
-            udf_level_imports,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -182,7 +179,6 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
         assert inline_code is None
         assert all_imports == ""
         assert all_packages == ""
-        assert str(a_temp_file) in udf_level_imports
         assert upload_file_stage_location is None
         assert not custom_python_runtime_version_allowed
 
@@ -192,7 +188,6 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
             inline_code,
             all_imports,
             all_packages,
-            udf_level_imports,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -210,29 +205,9 @@ def test_resolve_imports_and_packages_imports_as_str(tmp_path_factory):
         assert inline_code is None
         assert all_imports == ""
         assert all_packages == ",".join([f"'{package}'" for package in packages])
-        assert str(a_temp_file) in udf_level_imports
         assert upload_file_stage_location is None
         assert not custom_python_runtime_version_allowed
 
-        with pytest.raises(TypeError):
-            (
-                handler,
-                inline_code,
-                all_imports,
-                all_packages,
-                udf_level_imports,
-                upload_file_stage_location,
-                custom_python_runtime_version_allowed,
-            ) = resolve_imports_and_packages(
-                session=None,
-                object_type=TempObjectType.FUNCTION,
-                func=lambda: None,
-                arg_names=["dummy_args"],
-                udf_name="dummy_name",
-                stage_location=None,
-                imports=[{}],
-                packages=None,
-            )
     finally:
         os.remove(a_temp_file)
 
@@ -306,6 +281,7 @@ def test_create_python_udf_or_sp_with_none_session():
             object_name="",
             all_imports="",
             all_packages="",
+            raw_imports=None,
             is_permanent=True,
             replace=False,
             if_not_exists=False,
@@ -329,6 +305,7 @@ def test_generate_anonymous_python_sp_sql_with_none_session():
             object_name="",
             all_imports="",
             all_packages="",
+            raw_imports=None,
         )
 
     mock_callback.assert_called_once()

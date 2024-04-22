@@ -144,4 +144,4 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
             "schema": "some_schema",
             "application_roles": ["app_viewer"],
         }
-        assert callableProperties.import_paths == {}
+        assert callableProperties.raw_imports is None

@@ -643,7 +643,6 @@ class UDAFRegistration:
             code,
             all_imports,
             all_packages,
-            import_paths,
             upload_file_stage_location,
             custom_python_runtime_version_allowed,
         ) = resolve_imports_and_packages(
@@ -679,7 +678,7 @@ class UDAFRegistration:
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
-                import_paths=import_paths,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,

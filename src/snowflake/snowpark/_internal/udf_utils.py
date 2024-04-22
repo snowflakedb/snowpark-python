@@ -126,7 +126,7 @@ class ExtensionFunctionProperties:
         secrets: Optional[Dict[str, str]],
         inline_python_code: Optional[str],
         native_app_params: Optional[Dict[str, Any]],
-        import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
+        raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
         func: Union[Callable, Tuple[str, str]],
         replace: bool = False,
         if_not_exists: bool = False,
@@ -150,7 +150,7 @@ class ExtensionFunctionProperties:
         self.execute_as = execute_as
         self.inline_python_code = inline_python_code
         self.native_app_params = deepcopy(native_app_params)
-        self.import_paths = deepcopy(import_paths)
+        self.raw_imports = deepcopy(raw_imports)
         self.anonymous = anonymous
 
 
@@ -959,7 +959,6 @@ def resolve_imports_and_packages(
     Optional[str],
     Optional[str],
     Optional[str],
-    Optional[Dict[str, Tuple[Optional[str], Optional[str]]]],
     Optional[str],
     bool,
 ]:
@@ -997,45 +996,36 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-    # resolve imports
-    # This udf_level_imports will be used as a return value, as it contains information even if the session is None
-    udf_level_imports = {}
-    if imports:
-        for udf_import in imports:
-            if isinstance(udf_import, str):
-                resolved_import_tuple = snowflake.snowpark.Session._resolve_import_path(
-                    udf_import
-                )
-            elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                resolved_import_tuple = snowflake.snowpark.Session._resolve_import_path(
-                    udf_import[0], udf_import[1]
-                )
-            else:
-                raise TypeError(
-                    f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
-                    "or a tuple of the file path (str) and the import path (str)."
-                )
-            udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-        all_urls = (
-            session._resolve_imports(
+    if session:
+        if imports:
+            udf_level_imports = {}
+            for udf_import in imports:
+                if isinstance(udf_import, str):
+                    resolved_import_tuple = session._resolve_import_path(udf_import)
+                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                    resolved_import_tuple = session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
+                else:
+                    raise TypeError(
+                        f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
+                        "or a tuple of the file path (str) and the import path (str)."
+                    )
+                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            all_urls = session._resolve_imports(
                 import_only_stage,
                 upload_and_import_stage,
                 udf_level_imports,
                 statement_params=statement_params,
             )
-            if session
-            else []
-        )
-    elif imports is None:
-        all_urls = (
-            session._resolve_imports(
+        elif imports is None:
+            all_urls = session._resolve_imports(
                 import_only_stage,
                 upload_and_import_stage,
                 statement_params=statement_params,
             )
-            if session
-            else []
-        )
+        else:
+            all_urls = []
     else:
         all_urls = []
 
@@ -1135,7 +1125,6 @@ def resolve_imports_and_packages(
         inline_code,
         all_imports,
         all_packages,
-        udf_level_imports,  # We return this extra dict since all_imports is an empty string when session is None.
         upload_file_stage_location,
         custom_python_runtime_version_allowed,
     )
@@ -1154,7 +1143,7 @@ def create_python_udf_or_sp(
     is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
-    import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+    raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
@@ -1241,7 +1230,7 @@ $$
             execute_as=execute_as,
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
-            import_paths=import_paths,
+            raw_imports=raw_imports,
         )
         continue_registration = _should_continue_registration(
             extension_function_properties
@@ -1297,7 +1286,7 @@ def generate_anonymous_python_sp_sql(
     object_name: str,
     all_imports: str,
     all_packages: str,
-    import_paths: Optional[Dict[str, Tuple[Optional[str], Optional[str]]]] = None,
+    raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
@@ -1358,7 +1347,7 @@ $$
             handler=handler,
             inline_python_code=inline_python_code,
             native_app_params=native_app_params,
-            import_paths=import_paths,
+            raw_imports=raw_imports,
             func=func,
         )
         # The result of the function call below does not matter because we are not using session object here

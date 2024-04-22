@@ -165,5 +165,5 @@ def test_do_register_udaf_sandbox(session_sandbox, cleanup_registration_patch):
     assert extension_function_properties.handler is None
     assert extension_function_properties.execute_as is None
     assert extension_function_properties.inline_python_code is None
-    assert extension_function_properties.import_paths == {}
+    assert extension_function_properties.raw_imports is None
     assert extension_function_properties.native_app_params is None
