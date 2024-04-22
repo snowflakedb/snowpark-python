@@ -113,7 +113,9 @@ class StringMethods:
         self._query_compiler = series._query_compiler
 
     def casefold(self):
-        return Series(query_compiler=self._query_compiler.str_casefold())
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support casefold method"
+        )
 
     def cat(self, others=None, sep=None, na_rep=None, join=None):
         compiler_result = self._query_compiler.str_cat(

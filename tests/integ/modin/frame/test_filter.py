@@ -71,28 +71,25 @@ def test_filtering_with_self(func):
     eval_snowpark_pandas_result(snow_df, native_df, func)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=16, join_count=1, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "func",
     [
         # Note 1: can't use B here e.g., because column contains None - but Snowflake would allow this.
-        # Note 2: Make sure that some unsupported operation is used below for the fallback to happen.
+        # Note 2: Make sure that some unsupported operation is used below
         lambda df: df[df.A.str.casefold().str.startswith("P")],
         lambda df: df[df.A.str.casefold().str.lower() == "zebra"],
     ],
 )
-def test_filtering_with_self_fallback(
+def test_filtering_with_self_not_implemented(
     func,
 ):
     data = _generate_data()
     snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    with pytest.raises(
+        NotImplementedError, match="Snowpark pandas doesn't yet support casefold method"
+    ):
+        func(snow_df)
 
 
 @pytest.mark.parametrize(
