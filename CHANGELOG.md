@@ -52,6 +52,7 @@
 - Added support for dynamic pivot.  This feature is currently in private preview.
 
 ### Improvements
+
 - Improved the generated query performance for both compilation and execution by converting duplicate subqueries to Common Table Expressions (CTEs). It is still an experimental feature, and can be enabled by setting `session.cte_optimization_enabled` to `True`.
 
 ### Bug Fixes
@@ -62,6 +63,7 @@
 - Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
 - Fixed a bug in local testing implementation that timestamp data comparison can not handle year beyond 2262.
 - Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
+- Fixed a bug that an internal type hint in `utils.py` might raise AttributeError in case the underlying module can not be found.
 
 ## 1.14.0 (2024-03-20)
 
