@@ -713,6 +713,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
+            self.sproc._import_file(path, import_path=import_path)
 
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -755,6 +756,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
+            self.sproc._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(
