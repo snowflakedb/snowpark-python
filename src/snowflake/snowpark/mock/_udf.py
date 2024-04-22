@@ -26,7 +26,6 @@ class MockUDFRegistration(UDFRegistration):
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
         self._udf_level_imports = dict()  # maps udf name to a set of file paths
         self._session_level_imports = set()
-        self._udf_import_directories = dict()  # maps udf name to a temporary directory
 
     def _clear_session_imports(self):
         self._session_level_imports.clear()

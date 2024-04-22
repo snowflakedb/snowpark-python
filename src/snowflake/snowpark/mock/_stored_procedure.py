@@ -282,7 +282,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
     ) -> StoredProcedure:
         (
             sproc_name,
-            _,
+            is_pandas_udf,
             is_dataframe_input,
             return_type,
             input_types,
@@ -303,6 +303,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 f"002002 (42710): SQL compilation error: \nObject '{sproc_name}' already exists.",
                 error_code="1304",
             )
+
+        if is_pandas_udf:
+            raise TypeError("pandas stored procedure is not supported")
 
         if packages:
             pass  # NO-OP
