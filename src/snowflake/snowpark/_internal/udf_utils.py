@@ -8,6 +8,7 @@ import pickle
 import sys
 import typing
 import zipfile
+from copy import deepcopy
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -48,7 +49,9 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
+from snowflake.snowpark.context import _should_continue_registration
 from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.version import VERSION
 
 if installed_pandas:
     from snowflake.snowpark.types import (
@@ -87,10 +90,68 @@ AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
 
 EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
 
+REGISTER_KWARGS_ALLOWLIST = {
+    "native_app_params",
+    "anonymous",
+    "force_inline_code",
+    "_from_pandas_udf_function",
+}
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+class ExtensionFunctionProperties:
+    """
+    This is a data class to hold all information, resolved or otherwise, about a UDF/UDTF/UDAF/Sproc object
+    that we want to create in a user's Snowflake account.
+    One of the use cases of this class is to be able to pass on information to a callback that may be installed
+    in the execution environment, such as for testing.
+    """
+
+    def __init__(
+        self,
+        object_type: TempObjectType,
+        object_name: str,
+        input_args: List[UDFColumn],
+        input_sql_types: List[str],
+        return_sql: str,
+        runtime_version: str,
+        all_imports: Optional[str],
+        all_packages: str,
+        handler: Optional[str],
+        external_access_integrations: Optional[List[str]],
+        secrets: Optional[Dict[str, str]],
+        inline_python_code: Optional[str],
+        native_app_params: Optional[Dict[str, Any]],
+        raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
+        func: Union[Callable, Tuple[str, str]],
+        replace: bool = False,
+        if_not_exists: bool = False,
+        execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+        anonymous: bool = False,
+    ) -> None:
+        self.func = func
+        self.replace = replace
+        self.object_type = object_type
+        self.if_not_exists = if_not_exists
+        self.object_name = object_name
+        self.input_args = deepcopy(input_args)
+        self.input_sql_types = input_sql_types
+        self.return_sql = return_sql
+        self.runtime_version = runtime_version
+        self.all_imports = all_imports
+        self.all_packages = all_packages
+        self.external_access_integrations = deepcopy(external_access_integrations)
+        self.secrets = deepcopy(secrets)
+        self.handler = handler
+        self.execute_as = execute_as
+        self.inline_python_code = inline_python_code
+        self.native_app_params = deepcopy(native_app_params)
+        self.raw_imports = deepcopy(raw_imports)
+        self.anonymous = anonymous
 
 
 def is_local_python_file(file_path: str) -> bool:
@@ -333,6 +394,14 @@ def get_error_message_abbr(object_type: TempObjectType) -> str:
     raise ValueError(f"Expect FUNCTION of PROCEDURE, but get {object_type}")
 
 
+def check_decorator_args(**kwargs):
+    for key, _ in kwargs.items():
+        if key not in REGISTER_KWARGS_ALLOWLIST:
+            raise ValueError(
+                f"Invalid key-value argument passed to the decorator: {key}"
+            )
+
+
 def check_register_args(
     object_type: TempObjectType,
     name: Optional[Union[str, Iterable[str]]] = None,
@@ -547,7 +616,7 @@ def process_registration_inputs(
         object_name = name if isinstance(name, str) else ".".join(name)
     else:
         object_name = random_name_for_temp_object(object_type)
-        if not anonymous:
+        if (not anonymous) and (session is not None):
             object_name = session.get_fully_qualified_name_if_possible(object_name)
     validate_object_name(object_name)
 
@@ -806,8 +875,68 @@ import pandas
 """.strip()
 
 
+def add_snowpark_package_to_sproc_packages(
+    session: Optional["snowflake.snowpark.Session"],
+    packages: Optional[List[Union[str, ModuleType]]],
+) -> List[Union[str, ModuleType]]:
+    major, minor, patch = VERSION
+    package_name = "snowflake-snowpark-python"
+    # Use == to ensure that the remote version matches the local version
+    this_package = f"{package_name}=={major}.{minor}.{patch}"
+
+    # When resolve_imports_and_packages is called below it will use the provided packages or
+    # default to the packages in the current session. If snowflake-snowpark-python is not
+    # included by either of those two mechanisms then create package list does include it and
+    # any other relevant packages.
+    if packages is None:
+        if session is None:
+            packages = [this_package]
+        elif package_name not in session._packages:
+            packages = list(session._packages.values()) + [this_package]
+    else:
+        if not any(package_name in p for p in packages):
+            packages.append(this_package)
+    return packages
+
+
+def resolve_packages_in_client_side_sandbox(
+    packages: Optional[List[Union[str, ModuleType]]],
+) -> List[str]:
+    """
+    Special function invoked only when executing Snowpark code in a sandbox environment created for a client,
+    which is different from regular XP sandbox.
+    """
+    resolved_packages: List[str] = []
+    if packages is not None:
+        parsed_packages = snowflake.snowpark.Session._parse_packages(packages)
+        # Similar to local testing we don't resolve the packages, we just return what is added
+        errors = []
+        resolved_packages_dict: Dict[str, str] = {}
+
+        for pkg_name, _, pkg_req in parsed_packages.values():
+            if (
+                pkg_name in resolved_packages_dict
+                and str(pkg_req) != resolved_packages_dict[pkg_name]
+            ):
+                errors.append(
+                    ValueError(
+                        f"Cannot add package '{str(pkg_req)}' because {resolved_packages_dict[pkg_name]} "
+                        "is already added."
+                    )
+                )
+            else:
+                resolved_packages_dict[pkg_name] = str(pkg_req)
+        if len(errors) == 1:
+            raise errors[0]
+        elif len(errors) > 0:
+            raise RuntimeError(errors)
+        resolved_packages = list(resolved_packages_dict.values())
+    return resolved_packages
+
+
+# TODO: SNOW-1338175 to add override function definition.
 def resolve_imports_and_packages(
-    session: "snowflake.snowpark.Session",
+    session: Optional["snowflake.snowpark.Session"],
     object_type: TempObjectType,
     func: Union[Callable, Tuple[str, str]],
     arg_names: List[str],
@@ -825,142 +954,166 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
-) -> Tuple[str, str, str, str, str, bool]:
-    import_only_stage = (
-        unwrap_stage_location_single_quote(stage_location)
-        if stage_location
-        else session.get_session_stage(statement_params=statement_params)
-    )
-
-    upload_and_import_stage = (
-        import_only_stage
-        if is_permanent
-        else session.get_session_stage(statement_params=statement_params)
-    )
+) -> Tuple[
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    Optional[str],
+    bool,
+]:
 
     # resolve packages
-    resolved_packages = (
-        session._resolve_packages(
-            packages, include_pandas=is_pandas_udf, statement_params=statement_params
+    if session is None:  # In case of sandbox
+        resolved_packages = resolve_packages_in_client_side_sandbox(packages=packages)
+    else:  # In any other scenario
+        resolved_packages = (
+            session._resolve_packages(
+                packages,
+                include_pandas=is_pandas_udf,
+                statement_params=statement_params,
+            )
+            if packages is not None
+            else session._resolve_packages(
+                [],
+                session._packages,
+                validate_package=False,
+                include_pandas=is_pandas_udf,
+                statement_params=statement_params,
+            )
         )
-        if packages is not None
-        else session._resolve_packages(
-            [],
-            session._packages,
-            validate_package=False,
-            include_pandas=is_pandas_udf,
-            statement_params=statement_params,
-        )
-    )
 
-    # resolve imports
-    if imports:
-        udf_level_imports = {}
-        for udf_import in imports:
-            if isinstance(udf_import, str):
-                resolved_import_tuple = session._resolve_import_path(udf_import)
-            elif isinstance(udf_import, tuple) and len(udf_import) == 2:
-                resolved_import_tuple = session._resolve_import_path(
-                    udf_import[0], udf_import[1]
-                )
-            else:
-                raise TypeError(
-                    f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
-                    "or a tuple of the file path (str) and the import path (str)."
-                )
-            udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
-        all_urls = session._resolve_imports(
-            import_only_stage,
-            upload_and_import_stage,
-            udf_level_imports,
-            statement_params=statement_params,
+    if session is not None:
+        import_only_stage = (
+            unwrap_stage_location_single_quote(stage_location)
+            if stage_location
+            else session.get_session_stage(statement_params=statement_params)
         )
-    elif imports is None:
-        all_urls = session._resolve_imports(
-            import_only_stage,
-            upload_and_import_stage,
-            statement_params=statement_params,
+
+        upload_and_import_stage = (
+            import_only_stage
+            if is_permanent
+            else session.get_session_stage(statement_params=statement_params)
         )
+
+    if session:
+        if imports:
+            udf_level_imports = {}
+            for udf_import in imports:
+                if isinstance(udf_import, str):
+                    resolved_import_tuple = session._resolve_import_path(udf_import)
+                elif isinstance(udf_import, tuple) and len(udf_import) == 2:
+                    resolved_import_tuple = session._resolve_import_path(
+                        udf_import[0], udf_import[1]
+                    )
+                else:
+                    raise TypeError(
+                        f"{get_error_message_abbr(object_type).replace(' ', '-')}-level import can only be a file path (str) "
+                        "or a tuple of the file path (str) and the import path (str)."
+                    )
+                udf_level_imports[resolved_import_tuple[0]] = resolved_import_tuple[1:]
+            all_urls = session._resolve_imports(
+                import_only_stage,
+                upload_and_import_stage,
+                udf_level_imports,
+                statement_params=statement_params,
+            )
+        elif imports is None:
+            all_urls = session._resolve_imports(
+                import_only_stage,
+                upload_and_import_stage,
+                statement_params=statement_params,
+            )
+        else:
+            all_urls = []
     else:
         all_urls = []
 
     dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
-    if isinstance(func, Callable):
-        custom_python_runtime_version_allowed = (
-            False  # As cloudpickle is being used, we cannot allow a custom runtime
-        )
-
-        # generate a random name for udf py file
-        # and we compress it first then upload it
-        udf_file_name_base = f"udf_py_{random_number()}"
-        udf_file_name = f"{udf_file_name_base}.zip"
-        code = generate_python_code(
-            func,
-            arg_names,
-            object_type,
-            is_pandas_udf,
-            is_dataframe_input,
-            max_batch_size,
-            source_code_display=source_code_display,
-        )
-        if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
-            dest_prefix = get_udf_upload_prefix(udf_name)
-            upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+    handler = inline_code = upload_file_stage_location = None
+    custom_python_runtime_version_allowed = False
+    if session is not None:
+        if isinstance(func, Callable):
+            custom_python_runtime_version_allowed = (
+                False  # As cloudpickle is being used, we cannot allow a custom runtime
             )
-            udf_file_name_base = os.path.splitext(udf_file_name)[0]
-            with io.BytesIO() as input_stream:
-                with zipfile.ZipFile(
-                    input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
-                ) as zf:
-                    zf.writestr(f"{udf_file_name_base}.py", code)
-                session._conn.upload_stream(
-                    input_stream=input_stream,
+
+            # generate a random name for udf py file
+            # and we compress it first then upload it
+            udf_file_name_base = f"udf_py_{random_number()}"
+            udf_file_name = f"{udf_file_name_base}.zip"
+            code = generate_python_code(
+                func,
+                arg_names,
+                object_type,
+                is_pandas_udf,
+                is_dataframe_input,
+                max_batch_size,
+                source_code_display=source_code_display,
+            )
+            if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:
+                dest_prefix = get_udf_upload_prefix(udf_name)
+                upload_file_stage_location = normalize_remote_file_or_dir(
+                    f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                udf_file_name_base = os.path.splitext(udf_file_name)[0]
+                with io.BytesIO() as input_stream:
+                    with zipfile.ZipFile(
+                        input_stream, mode="w", compression=zipfile.ZIP_DEFLATED
+                    ) as zf:
+                        zf.writestr(f"{udf_file_name_base}.py", code)
+                    session._conn.upload_stream(
+                        input_stream=input_stream,
+                        stage_location=upload_and_import_stage,
+                        dest_filename=udf_file_name,
+                        dest_prefix=dest_prefix,
+                        parallel=parallel,
+                        source_compression="DEFLATE",
+                        compress_data=False,
+                        overwrite=True,
+                        is_in_udf=True,
+                        skip_upload_on_content_match=skip_upload_on_content_match,
+                    )
+                all_urls.append(upload_file_stage_location)
+                inline_code = None
+                handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
+            else:
+                inline_code = code
+                upload_file_stage_location = None
+                handler = _DEFAULT_HANDLER_NAME
+        else:
+            custom_python_runtime_version_allowed = True
+            udf_file_name = os.path.basename(func[0])
+            # for a compressed file, it might have multiple extensions
+            # and we should remove all extensions
+            udf_file_name_base = udf_file_name.split(".")[0]
+            inline_code = None
+            handler = f"{udf_file_name_base}.{func[1]}"
+
+            if func[0].startswith(STAGE_PREFIX):
+                upload_file_stage_location = None
+                all_urls.append(func[0])
+            else:
+                upload_file_stage_location = normalize_remote_file_or_dir(
+                    f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
+                )
+                session._conn.upload_file(
+                    path=func[0],
                     stage_location=upload_and_import_stage,
-                    dest_filename=udf_file_name,
                     dest_prefix=dest_prefix,
                     parallel=parallel,
-                    source_compression="DEFLATE",
                     compress_data=False,
                     overwrite=True,
-                    is_in_udf=True,
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
-            all_urls.append(upload_file_stage_location)
-            inline_code = None
-            handler = f"{udf_file_name_base}.{_DEFAULT_HANDLER_NAME}"
-        else:
-            inline_code = code
-            upload_file_stage_location = None
-            handler = _DEFAULT_HANDLER_NAME
+                all_urls.append(upload_file_stage_location)
     else:
-        custom_python_runtime_version_allowed = True
-        udf_file_name = os.path.basename(func[0])
-        # for a compressed file, it might have multiple extensions
-        # and we should remove all extensions
-        udf_file_name_base = udf_file_name.split(".")[0]
-        inline_code = None
-        handler = f"{udf_file_name_base}.{func[1]}"
-
-        if func[0].startswith(STAGE_PREFIX):
-            upload_file_stage_location = None
-            all_urls.append(func[0])
+        if isinstance(func, Callable):
+            custom_python_runtime_version_allowed = False
         else:
-            upload_file_stage_location = normalize_remote_file_or_dir(
-                f"{upload_and_import_stage}/{dest_prefix}/{udf_file_name}"
-            )
-            session._conn.upload_file(
-                path=func[0],
-                stage_location=upload_and_import_stage,
-                dest_prefix=dest_prefix,
-                parallel=parallel,
-                compress_data=False,
-                overwrite=True,
-                skip_upload_on_content_match=skip_upload_on_content_match,
-            )
-            all_urls.append(upload_file_stage_location)
+            custom_python_runtime_version_allowed = True
 
     # build imports and packages string
     all_imports = ",".join(
@@ -978,17 +1131,19 @@ def resolve_imports_and_packages(
 
 
 def create_python_udf_or_sp(
-    session: "snowflake.snowpark.Session",
+    session: Optional["snowflake.snowpark.Session"],
+    func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
-    handler: str,
+    handler: Optional[str],
     object_type: TempObjectType,
     object_name: str,
-    all_imports: str,
+    all_imports: Optional[str],
     all_packages: str,
     is_permanent: bool,
     replace: bool,
     if_not_exists: bool,
+    raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner"]] = None,
     api_call_source: Optional[str] = None,
@@ -999,12 +1154,13 @@ def create_python_udf_or_sp(
     immutable: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
+    native_app_params: Optional[Dict[str, Any]] = None,
 ) -> None:
-    runtime_version = (
-        f"{sys.version_info[0]}.{sys.version_info[1]}"
-        if not session._runtime_version_from_requirement
-        else session._runtime_version_from_requirement
-    )
+    if session is not None and session._runtime_version_from_requirement:
+        runtime_version = session._runtime_version_from_requirement
+    else:
+        runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType):
@@ -1052,6 +1208,38 @@ $$
         else ""
     )
 
+    # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
+    if _should_continue_registration is None:
+        continue_registration = True
+    else:
+        extension_function_properties = ExtensionFunctionProperties(
+            func=func,
+            replace=replace,
+            object_type=object_type,
+            if_not_exists=if_not_exists,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            execute_as=execute_as,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            raw_imports=raw_imports,
+        )
+        continue_registration = _should_continue_registration(
+            extension_function_properties
+        )
+
+    # This means the execution environment does not want to continue creating the object in Snowflake
+    if not bool(continue_registration):
+        return
+
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
@@ -1091,17 +1279,20 @@ HANDLER='{handler}'{execute_as_sql}
 
 
 def generate_anonymous_python_sp_sql(
+    func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
     handler: str,
     object_name: str,
     all_imports: str,
     all_packages: str,
+    raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
     strict: bool = False,
     runtime_version: Optional[str] = None,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    native_app_params: Optional[Dict[str, Any]] = None,
 ):
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1138,6 +1329,29 @@ $$
         if secrets
         else ""
     )
+
+    # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
+    if _should_continue_registration is not None:
+        extension_function_properties = ExtensionFunctionProperties(
+            anonymous=True,
+            object_type=TempObjectType.PROCEDURE,
+            object_name=object_name,
+            input_args=input_args,
+            input_sql_types=input_sql_types,
+            return_sql=return_sql,
+            runtime_version=runtime_version,
+            all_imports=all_imports,
+            all_packages=all_packages,
+            external_access_integrations=external_access_integrations,
+            secrets=secrets,
+            handler=handler,
+            inline_python_code=inline_python_code,
+            native_app_params=native_app_params,
+            raw_imports=raw_imports,
+            func=func,
+        )
+        # The result of the function call below does not matter because we are not using session object here
+        _should_continue_registration(extension_function_properties)
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
