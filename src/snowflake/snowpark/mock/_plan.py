@@ -445,7 +445,6 @@ def handle_udf_expression(
 
     # Initialize import directory
     temporary_import_path = tempfile.TemporaryDirectory()
-    analyzer.session.udf._udf_import_directories[udf_name] = temporary_import_path
     last_import_directory = sys._xoptions.get("snowflake_import_directory")
     sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
 
@@ -470,7 +469,7 @@ def handle_udf_expression(
             del sys.modules[key]
 
         # Cleanup import directory
-        analyzer.session.udf._udf_import_directories[udf_name].cleanup()
+        temporary_import_path.cleanup()
 
         # Restore snowflake_import_directory
         if last_import_directory is not None:
