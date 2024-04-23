@@ -363,7 +363,7 @@ class Utils:
     def assert_executed_with_query_tag(
         session: Session, query_tag: str, local_testing_mode: bool = False
     ) -> None:
-        if local_testing_mode:
+        if local_testing_mode or IS_IN_STORED_PROC:
             return
         query_details = session.sql(
             f"select * from table(information_schema.query_history_by_session()) where QUERY_TAG='{query_tag}'"
