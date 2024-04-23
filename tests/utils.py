@@ -9,7 +9,7 @@ import os
 import platform
 import random
 import string
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -358,6 +358,19 @@ class Utils:
         assert (
             row_counter == row_number
         ), f"Expect {row_number} rows, Got {row_counter} instead"
+
+    @staticmethod
+    def assert_executed_with_query_tag(
+        session: Session, query_tag: str, local_testing_mode: bool = False
+    ) -> None:
+        if local_testing_mode:
+            return
+        query_details = session.sql(
+            f"select * from table(information_schema.query_history_by_session()) where QUERY_TAG='{query_tag}'"
+        )
+        assert (
+            len(query_details.collect()) > 0
+        ), f"query tag '{query_tag}' not present in query history for given session"
 
 
 class TestData:
@@ -786,6 +799,71 @@ class TestData:
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
                 StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
                 StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def datetime_primitives2(cls, session: "Session") -> DataFrame:
+        data = [
+            "9999-12-31 00:00:00.123456",
+            "1583-01-01 23:59:59.56789",
+        ]
+        schema = StructType(
+            [
+                StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data
+        data = [("01:02:03",), ("22:33:44",)]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives2(cls, session: "Session") -> DataFrame:
+        # string data needs format
+        data = [
+            ("01.02-03 PM",),
+            ("10.33-44 PM",),
+            ("12.55-19 PM",),
+        ]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives3(cls, session: "Session") -> DataFrame:
+        # timestamp data
+        data = [
+            (datetime(2024, 2, 1, 12, 13, 14),),
+            (datetime(2017, 2, 24, 20, 21, 22),),
+            ("1712265619",),
+            ("1712265619000",),
+            ("1712265619000000",),
+            ("1712265619000000000",),
+        ]
+        schema = StructType(
+            [
+                StructField("a", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives4(cls, session: "Session") -> DataFrame:
+        # variant data
+        data = [
+            ("01:02:03",),
+            ("1712265619",),
+            (None,),
+            (time(1, 2, 3),),
+        ]
+        schema = StructType(
+            [
+                StructField("a", VariantType()),
             ]
         )
         return session.create_dataframe(data, schema)

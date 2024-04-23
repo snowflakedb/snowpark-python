@@ -105,7 +105,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.context import _use_scoped_temp_objects
+from snowflake.snowpark.context import (
+    _is_execution_environment_sandboxed_for_client,
+    _use_scoped_temp_objects,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkClientException
@@ -211,6 +214,15 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+
+
+def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
+    # Precedence to checking sandbox to avoid any side effects
+    if _is_execution_environment_sandboxed_for_client:
+        session = None
+    else:
+        session = session or _get_active_session()
+    return session
 
 
 def _close_session_atexit():
@@ -538,6 +550,13 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
+    def cte_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+        """
+        return self._cte_optimization_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -589,6 +608,15 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @cte_optimization_enabled.setter
+    @experimental_parameter(version="1.15.0")
+    def cte_optimization_enabled(self, value: bool) -> None:
+        if value:
+            self._conn._telemetry_client.send_cte_optimization_telemetry(
+                self._session_id
+            )
+        self._cte_optimization_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -685,6 +713,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
+            self.sproc._import_file(path, import_path=import_path)
 
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -727,6 +756,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
+            self.sproc._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(

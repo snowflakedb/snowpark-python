@@ -133,7 +133,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -241,7 +241,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -430,7 +430,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
