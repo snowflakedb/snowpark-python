@@ -7,7 +7,7 @@
 
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -62,6 +62,7 @@ class UserDefinedAggregateFunction:
         name: str,
         return_type: DataType,
         input_types: List[DataType],
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -70,6 +71,8 @@ class UserDefinedAggregateFunction:
 
         self._return_type = return_type
         self._input_types = input_types
+
+        self._packages = packages
 
     def __call__(
         self,
@@ -291,7 +294,7 @@ class UDAFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -325,6 +328,7 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -402,6 +406,8 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -419,6 +425,8 @@ class UDAFRegistration:
             stage_location,
             parallel,
         )
+
+        native_app_params = kwargs.get("native_app_params", None)
 
         # register udaf
         return self._do_register_udaf(
@@ -439,6 +447,8 @@ class UDAFRegistration:
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -457,6 +467,7 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -543,6 +554,8 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment for the created object object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -583,6 +596,7 @@ class UDAFRegistration:
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
             immutable=immutable,
+            comment=comment,
         )
 
     def _do_register_udaf(
@@ -599,7 +613,9 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
@@ -645,7 +661,7 @@ class UDAFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -654,6 +670,7 @@ class UDAFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=handler,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler_name,
@@ -661,6 +678,7 @@ class UDAFRegistration:
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -669,6 +687,9 @@ class UDAFRegistration:
                 immutable=immutable,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                statement_params=statement_params,
+                comment=comment,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
@@ -691,5 +712,5 @@ class UDAFRegistration:
                 )
 
         return UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types
+            handler, udaf_name, return_type, input_types, packages=packages
         )
