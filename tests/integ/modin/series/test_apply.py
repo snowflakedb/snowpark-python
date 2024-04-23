@@ -527,7 +527,7 @@ import scipy  # noqa: E402
 
 @pytest.mark.parametrize(
     "package,expected_query_count",
-    [("scipy", 7), ("scipy>=1.0", 7), ("scipy<1.12.0", 7), (scipy, 11)],
+    [("scipy", 7), ("scipy>=1.0", 7), ("scipy<1.12.0", 7), (scipy, 9)],
 )
 def test_3rd_party_package_with_udf_annotation(package, expected_query_count):
 
