@@ -95,6 +95,7 @@ WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
 IF = " If "
 INSERT = " INSERT "
+OVERWRITE = " OVERWRITE "
 INTO = " INTO "
 VALUES = " VALUES "
 SEQ8 = " SEQ8() "
@@ -762,11 +763,14 @@ def create_table_statement(
 
 
 def insert_into_statement(
-    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+    table_name: str,
+    child: str,
+    column_names: Optional[Iterable[str]] = None,
+    overwrite: bool = False,
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
-        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
+        return f"{INSERT}{OVERWRITE if overwrite else EMPTY_STRING}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
