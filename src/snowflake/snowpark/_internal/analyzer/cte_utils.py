@@ -52,15 +52,21 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
-    def traverse(node: "TreeNode") -> None:
-        node_count_map[node] += 1
-        for child in node.children_plan_nodes:
-            # converting non-SELECT child query to SELECT query here,
-            # so we can further optimize
-            if isinstance(child, Selectable):
-                child = child.to_subqueryable()
-            node_parents_map[child].add(node)
-            traverse(child)
+    def traverse(root: "TreeNode") -> None:
+        """
+        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
+        """
+        current_level = [root]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                node_count_map[node] += 1
+                for child in node.children_plan_nodes:
+                    if isinstance(child, Selectable):
+                        child = child.to_subqueryable()
+                    node_parents_map[child].add(node)
+                    next_level.append(child)
+            current_level = next_level
 
     def is_duplicate_subtree(node: "TreeNode") -> bool:
         is_duplicate_node = node_count_map[node] > 1
@@ -80,56 +86,68 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
     return {node for node in node_count_map if is_duplicate_subtree(node)}
 
 
-def create_cte_query(node: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
+def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
     plan_to_query_map = {}
     duplicate_plan_to_cte_map = {}
     duplicate_plan_to_table_name_map = {}
 
-    def build_plan_to_query_map_in_post_order(node: "TreeNode") -> None:
+    def build_plan_to_query_map_in_post_order(root: "TreeNode") -> None:
         """
         Builds a mapping from query plans to queries that are optimized with CTEs,
         in post-traversal order. We can get the final query from the mapping value of the root node.
         The reason of using poster-traversal order is that chained CTEs have to be built
         from bottom (innermost subquery) to top (outermost query).
+        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
-        if node in plan_to_query_map:
-            return
+        stack1, stack2 = [root], []
 
-        if not node.children_plan_nodes or not node.placeholder_query:
-            plan_to_query_map[node] = (
-                node.sql_query if isinstance(node, Selectable) else node.queries[-1].sql
-            )
-        else:
-            plan_to_query_map[node] = node.placeholder_query
-            for child in node.children_plan_nodes:
-                if isinstance(child, Selectable):
-                    child = child.to_subqueryable()
-                build_plan_to_query_map_in_post_order(child)
-                # replace the placeholder (id) with child query
-                plan_to_query_map[node] = plan_to_query_map[node].replace(
-                    child._id, plan_to_query_map[child]
+        while stack1:
+            node = stack1.pop()
+            stack2.append(node)
+            for child in reversed(node.children_plan_nodes):
+                stack1.append(child)
+
+        while stack2:
+            node = stack2.pop()
+            if node in plan_to_query_map:
+                continue
+
+            if not node.children_plan_nodes or not node.placeholder_query:
+                plan_to_query_map[node] = (
+                    node.sql_query
+                    if isinstance(node, Selectable)
+                    else node.queries[-1].sql
                 )
+            else:
+                plan_to_query_map[node] = node.placeholder_query
+                for child in node.children_plan_nodes:
+                    if isinstance(child, Selectable):
+                        child = child.to_subqueryable()
+                    # replace the placeholder (id) with child query
+                    plan_to_query_map[node] = plan_to_query_map[node].replace(
+                        child._id, plan_to_query_map[child]
+                    )
 
-        # duplicate subtrees will be converted CTEs
-        if node in duplicate_plan_set:
-            # when a subquery is converted a CTE to with clause,
-            # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
-            table_name = random_name_for_temp_object(TempObjectType.CTE)
-            select_stmt = project_statement([], table_name)
-            duplicate_plan_to_table_name_map[node] = table_name
-            duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
-            plan_to_query_map[node] = select_stmt
+            # duplicate subtrees will be converted CTEs
+            if node in duplicate_plan_set:
+                # when a subquery is converted a CTE to with clause,
+                # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
+                table_name = random_name_for_temp_object(TempObjectType.CTE)
+                select_stmt = project_statement([], table_name)
+                duplicate_plan_to_table_name_map[node] = table_name
+                duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
+                plan_to_query_map[node] = select_stmt
 
-    build_plan_to_query_map_in_post_order(node)
+    build_plan_to_query_map_in_post_order(root)
 
     # construct with clause
     with_stmt = cte_statement(
         list(duplicate_plan_to_cte_map.values()),
         list(duplicate_plan_to_table_name_map.values()),
     )
-    final_query = with_stmt + SPACE + plan_to_query_map[node]
+    final_query = with_stmt + SPACE + plan_to_query_map[root]
     return final_query
 
 
