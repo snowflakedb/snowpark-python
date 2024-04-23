@@ -363,6 +363,8 @@ class Utils:
     def assert_executed_with_query_tag(
         session: Session, query_tag: str, local_testing_mode: bool = False
     ) -> None:
+        # inside the stored proc information_schema.query_history_by_session() is not accessible
+        # which leads to "Requested information on the current user is not accessible in stored procedure."
         if local_testing_mode or IS_IN_STORED_PROC:
             return
         query_details = session.sql(
