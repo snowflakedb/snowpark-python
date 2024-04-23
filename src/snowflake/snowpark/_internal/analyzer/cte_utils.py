@@ -62,6 +62,8 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
             for node in current_level:
                 node_count_map[node] += 1
                 for child in node.children_plan_nodes:
+                    # converting non-SELECT child query to SELECT query here,
+                    # so we can further optimize
                     if isinstance(child, Selectable):
                         child = child.to_subqueryable()
                     node_parents_map[child].add(node)
