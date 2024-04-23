@@ -25,6 +25,8 @@
   - snowflake.snowpark.functions
     - current_database
     - current_session
+    - concat
+    - concat_ws
     - date_trunc
     - object_construct
     - object_construct_keep_null

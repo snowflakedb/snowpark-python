@@ -17,6 +17,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
+from snowflake.connector.options import pandas
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -1008,8 +1009,6 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
 
 @patch("coalesce")
 def mock_coalesce(*exprs):
-    import pandas
-
     if len(exprs) < 2:
         raise SnowparkSQLException(
             f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
@@ -1155,8 +1154,6 @@ def mock_to_variant(expr: ColumnEmulator):
 
 
 def _object_construct(exprs, drop_nulls):
-    import pandas
-
     expr_count = len(exprs)
     if expr_count % 2 != 0:
         raise TypeError(
@@ -1202,10 +1199,8 @@ def add_years(date, duration):
 
 
 def add_months(scalar, date, duration):
-    import pandas as pd
-
     res = (
-        pd.to_datetime(date) + pd.DateOffset(months=scalar * duration)
+        pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
     ).to_pydatetime()
 
     if not isinstance(date, datetime.datetime):
@@ -1266,8 +1261,6 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
-    import pandas
-
     unaliased = unalias_datetime_part(part)
     datatype = datetime_expr.sf_type.datatype
 
@@ -1345,8 +1338,6 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
-    import pandas
-
     # Map snowflake time unit to pandas rounding alias
     # Not all units have an alias so handle those with a special case
     SUPPORTED_UNITS = {
@@ -1561,3 +1552,31 @@ def mock_current_database():
     return ColumnEmulator(
         data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
     )
+
+
+@patch("concat")
+def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
+    if len(columns) < 1:
+        raise ValueError("concat expects one or more column(s) to be passed in.")
+    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
+    result = pdf.T.apply(
+        lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
+    )
+    result.sf_type = ColumnType(StringType(), False)
+    return result
+
+
+@patch("concat_ws")
+def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
+    if len(columns) < 2:
+        raise ValueError(
+            "concat_ws expects a seperator column and one or more value column(s) to be passed in."
+        )
+    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
+    result = pdf.T.apply(
+        lambda c: None
+        if c.isnull().values.any()
+        else c[1:].astype(str).str.cat(sep=c[0])
+    )
+    result.sf_type = ColumnType(StringType(), False)
+    return result

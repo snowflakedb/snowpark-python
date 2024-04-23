@@ -265,6 +265,7 @@ def test_regexp_extract(session):
     assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -274,13 +275,30 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
-    res = df.select(concat_ws(lit(","), col("a"), col("b"), col("c"))).collect()
+    res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.localtest
+def test_concat_edge_cases(session):
+    df = session.create_dataframe(
+        [[None, 1, 2, 3], [4, None, 6, 7], [8, 9, None, 11], [12, 13, 14, None]]
+    ).to_df(["a", "b", "c", "d"])
+
+    single = df.select(concat("a")).collect()
+    single_ws = df.select(concat_ws(lit(","), "a")).collect()
+    assert single == single_ws == [Row(None), Row("4"), Row("8"), Row("12")]
+
+    nulls = df.select(concat("a", "b", "c")).collect()
+    nulls_ws = df.select(concat_ws(lit(","), "a", "b", "c")).collect()
+    assert nulls == [Row(None), Row(None), Row(None), Row("121314")]
+    assert nulls_ws == [Row(None), Row(None), Row(None), Row("12,13,14")]
 
 
 @pytest.mark.localtest
