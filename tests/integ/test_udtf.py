@@ -169,11 +169,12 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
         ],
     )
 
+    query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     my_udtf_with_statement_params = session.udtf.register_from_file(
         test_files.test_udtf_py_file,
         "MyUDTFWithTypeHints",
         output_schema=schema,
-        statement_params={"SF_PARTNER": "FAKE_PARTNER"},
+        statement_params={"QUERY_TAG": query_tag},
     )
     assert isinstance(my_udtf_with_statement_params.handler, tuple)
     df = session.table_function(
@@ -201,6 +202,7 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
             )
         ],
     )
+    Utils.assert_executed_with_query_tag(session, query_tag)
 
 
 def test_strict_udtf(session):
@@ -1041,6 +1043,26 @@ def test_register_vectorized_udtf_process_with_type_hints_and_output_schema(sess
         expected_data,
         statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
     )
+
+
+def test_udtf_comment(session):
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+    class EchoUDTF:
+        def process(
+            self,
+            num: int,
+        ) -> Iterable[Tuple[int]]:
+            return [(num,)]
+
+    echo_udtf = session.udtf.register(
+        EchoUDTF,
+        output_schema=["num"],
+        comment=comment,
+    )
+
+    ddl_sql = f"select get_ddl('FUNCTION', '{echo_udtf.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
 
 
 @pytest.mark.parametrize("from_file", [True, False])
