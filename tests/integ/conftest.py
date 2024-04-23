@@ -251,3 +251,9 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope="session")
+def sql_simplifier_enabled(pytestconfig):
+    disable_sql_simplifier = pytestconfig.getoption("disable_sql_simplifier")
+    return not disable_sql_simplifier

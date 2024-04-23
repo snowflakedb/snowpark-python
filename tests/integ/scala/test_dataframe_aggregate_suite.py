@@ -39,7 +39,7 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 def test_pivot(session):
@@ -192,6 +192,7 @@ def test_pivot_on_join(session):
 # TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
 # pivot will materialize the data before executing pivot, otherwise would fail with not finding the
 # data when doing a later schema call.
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     original_df = session.create_dataframe(
         [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
