@@ -35,7 +35,9 @@ from snowflake.snowpark.functions import (
     builtin,
     cast,
     coalesce,
+    col,
     count,
+    count_distinct,
     get,
     greatest,
     iff,
@@ -261,6 +263,7 @@ SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
     np.var: variance,
     "array_agg": array_agg,
     "quantile": column_quantile,
+    "nunique": count_distinct,
 }
 
 
@@ -699,6 +702,19 @@ def generate_aggregation_column(
             pandas_column_labels=index_column_snowflake_quoted_identifier,  # type: ignore
             is_groupby=is_groupby_agg,
         )
+    elif snowflake_agg_func == count_distinct:
+        if agg_kwargs.get("dropna", True) is False:
+            # count_distinct does only count distinct non-NULL values.
+            # Check if NULL is contained, then add +1 in this case.
+            if not isinstance(snowpark_column, SnowparkColumn):
+                snowpark_column = col(snowpark_column)
+            agg_snowpark_column = snowflake_agg_func(snowpark_column) + iff(
+                sum_(snowpark_column.is_null().cast(IntegerType())) > pandas_lit(0),
+                pandas_lit(1),
+                pandas_lit(0),
+            )
+        else:
+            agg_snowpark_column = snowflake_agg_func(snowpark_column)
     else:
         agg_snowpark_column = snowflake_agg_func(snowpark_column)
 
@@ -870,11 +886,11 @@ def get_agg_func_to_col_map(
     agg_func_to_col_map: dict[
         AggFuncTypeBase, list[PandasLabelToSnowflakeIdentifierPair]
     ] = defaultdict(list)
-    for col, agg_funcs in col_to_agg_func_map.items():
+    for column_identifier, agg_funcs in col_to_agg_func_map.items():
         # iterate over each aggregation function
         agg_funcs_list = agg_funcs if is_list_like(agg_funcs) else [agg_funcs]
         for agg_func in agg_funcs_list:
-            agg_func_to_col_map[agg_func].append(col)
+            agg_func_to_col_map[agg_func].append(column_identifier)
 
     return agg_func_to_col_map
 

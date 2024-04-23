@@ -36,3 +36,7 @@ class BasePandasDataset:
 
     def astype():
         """This is a test of the documentation module for BasePandasDataSet.astype."""
+
+    @property
+    def loc():
+        """This is a test of the documentation module for BasePandasDataset.loc."""

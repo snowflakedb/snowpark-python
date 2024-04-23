@@ -732,7 +732,11 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     def nunique(self, dropna=True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="nunique", class_="GroupBy")
+        return self._wrap_aggregation(
+            qc_method=type(self._query_compiler).groupby_nunique,
+            agg_func="nunique",
+            agg_kwargs=dict(dropna=dropna),
+        )
 
     def resample(self, rule, *args, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions

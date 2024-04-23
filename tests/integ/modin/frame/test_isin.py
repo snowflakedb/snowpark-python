@@ -102,7 +102,8 @@ def test_isin_with_listlike_scalars(values, data, columns):
 @pytest.mark.parametrize(
     "values",
     [
-        native_pd.Series([]),
+        # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
+        native_pd.Series([], index=pd.Index([], dtype=object)),
         native_pd.Series(index=[1, 2, 3]),
         native_pd.Series([1, 3], index=[10, 11]),
         native_pd.Series([1, 10], index=[10, 11]),

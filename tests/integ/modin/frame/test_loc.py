@@ -1381,7 +1381,8 @@ def test_df_loc_set_number_of_cols_mismatch_negative():
     [
         ([[1, 2, 3], [4, 5, 6], [7, 8, 9]], None, ["A", "B", "C"]),
         ([1, 2, 3], None, ["A"]),
-        (None, None, ["A", "B"]),
+        # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
+        (None, pd.Index([], dtype=object), ["A", "B"]),
         (None, ["A", "B"], ["X"]),
     ],
 )
@@ -1460,7 +1461,8 @@ def test_df_loc_set_for_empty_dataframe_negative(index, key, value):
     "native_df",
     [
         native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["A", "B", "C"]),
-        native_pd.DataFrame(),
+        # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
+        native_pd.DataFrame(index=pd.Index([], dtype=object)),
     ],
 )
 def test_df_loc_set_row_col_with_non_matching_scalar_key(
@@ -2553,7 +2555,8 @@ def test_empty_df_loc_set_scalar():
     ],
 )
 def test_empty_df_loc_set_series_and_list(native_item):
-    snow_df = pd.DataFrame()
+    # To prevent dtype mismatch error in Snowpark pandas, we cast the empty index (default int dtype) to object
+    snow_df = pd.DataFrame(index=pd.Index([], dtype=object))
     native_df = native_pd.DataFrame()
     snow_item = (
         pd.Series(native_item)

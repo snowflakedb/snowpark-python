@@ -1945,13 +1945,7 @@ class BaseQueryCompiler(abc.ABC):
         refer_to="nunique",
     )
     def groupby_nunique(
-        self,
-        by,
-        axis,
-        groupby_kwargs,
-        agg_args,
-        agg_kwargs,
-        drop=False,
+        self, by, axis, groupby_kwargs, agg_args, agg_kwargs, drop=False, **kwargs
     ):
         return self.groupby_agg(
             by=by,

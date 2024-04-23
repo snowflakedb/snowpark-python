@@ -383,9 +383,12 @@ def _replace_doc(
 # inherited docstrings.
 _docstring_inheritance_calls: list[Callable[[str], None]] = []
 
-# This is a list of class attributes whose docstrings we have already
-# replaced since we last updated DocModule.
-_attributes_with_docstrings_replaced: set[Hashable] = set()
+# This is a set of (class, attribute_name) pairs whose docstrings we have
+# already replaced since we last updated DocModule. Note that we don't store
+# the attributes themselves since we replace property attributes instead of
+# modifying them in place:
+# https://github.com/modin-project/modin/blob/e9dbcc127913db77473a83936e8b6bb94ef84f0d/modin/utils.py#L353
+_attributes_with_docstrings_replaced: set[tuple[type, str]] = set()
 
 
 def _documentable_obj(obj: object) -> bool:
@@ -461,7 +464,7 @@ def _inherit_docstrings_in_place(
             if base is object:
                 continue
             for attr, obj in base.__dict__.items():
-                if attr in seen or obj in _attributes_with_docstrings_replaced:
+                if attr in seen or (base, attr) in _attributes_with_docstrings_replaced:
                     continue
                 seen.add(attr)
                 # Try to get the attribute from the docs class first, then
@@ -485,7 +488,7 @@ def _inherit_docstrings_in_place(
                     modify_doc=modify_doc,
                 )
 
-                _attributes_with_docstrings_replaced.add(obj)
+                _attributes_with_docstrings_replaced.add((base, attr))
 
 
 def _inherit_docstrings(

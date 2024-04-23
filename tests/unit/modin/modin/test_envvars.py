@@ -167,6 +167,18 @@ class TestDocModule:
             "This is a test of the documentation module for BasePandasDataSet.astype."
         )
 
+    def test_base_property_not_overridden_in_either_subclass_modin_issue_7113(self):
+        # Put the docs_module on the path
+        sys.path.append(f"{os.path.dirname(__file__)}")
+        DocModule.put("docs_module")
+
+        assert (
+            pd.base.BasePandasDataset.loc.__doc__
+            == "This is a test of the documentation module for BasePandasDataset.loc."
+        )
+        assert pd.DataFrame.loc.__doc__ == pd.base.BasePandasDataset.loc.__doc__
+        assert pd.Series.loc.__doc__ == pd.base.BasePandasDataset.loc.__doc__
+
 
 @pytest.mark.skip(reason="Not testing HDK")
 def test_hdk_envvar():
