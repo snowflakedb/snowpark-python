@@ -761,6 +761,28 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+        elif mode == SaveMode.TRUNCATE:
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_into_statement(
+                        full_table_name, x, [x.name for x in child.attributes], True
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=True,
+                        table_type=table_type,
+                        clustering_key=clustering_keys,
+                    ),
+                    child,
+                    None,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(

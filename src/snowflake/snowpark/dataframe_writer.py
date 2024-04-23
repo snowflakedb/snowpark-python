@@ -64,7 +64,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 
@@ -132,7 +134,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 
