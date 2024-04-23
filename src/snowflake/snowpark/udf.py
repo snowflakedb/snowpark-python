@@ -16,7 +16,7 @@ Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -462,7 +462,7 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -589,9 +589,10 @@ class UDFRegistration:
             comment: Adds a comment for the created object object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
         See Also:
-            - :func:`~snowflake.snowpark.functions.udf`
-            - :meth:`register_from_file`
+        - :func:`~snowflake.snowpark.functions.udf`
+        - :meth:`register_from_file`
         """
+
         if not callable(func):
             raise TypeError(
                 "Invalid function: not a function or callable "
@@ -603,6 +604,7 @@ class UDFRegistration:
         )
 
         _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+        native_app_params = kwargs.get("native_app_params", None)
 
         # register udf
         return self._do_register_udf(
@@ -624,6 +626,7 @@ class UDFRegistration:
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            native_app_params=native_app_params,
             statement_params=statement_params,
             source_code_display=source_code_display,
             api_call_source="UDFRegistration.register"
@@ -804,6 +807,7 @@ class UDFRegistration:
         immutable: bool = False,
         comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
@@ -860,7 +864,7 @@ class UDFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -869,6 +873,7 @@ class UDFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=func,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
@@ -876,6 +881,7 @@ class UDFRegistration:
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -888,6 +894,7 @@ class UDFRegistration:
                 immutable=immutable,
                 statement_params=statement_params,
                 comment=comment,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

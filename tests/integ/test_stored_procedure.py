@@ -6,7 +6,6 @@
 import datetime
 import logging
 import os
-import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -80,7 +79,7 @@ def setup(session, resources_path, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
 )
-@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@patch("snowflake.snowpark._internal.udf_utils.VERSION", (999, 9, 9))
 @pytest.mark.parametrize(
     "packages,should_fail",
     [
@@ -136,7 +135,7 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
         ([], ["pyyaml"]),
     ],
 )
-@patch("snowflake.snowpark.stored_procedure.VERSION", (999, 9, 9))
+@patch("snowflake.snowpark._internal.udf_utils.VERSION", (999, 9, 9))
 def test__do_register_sp_submits_correct_packages(
     patched_resolve, session_packages, local_packages, db_parameters
 ):
@@ -442,6 +441,7 @@ def test_annotation_syntax(session):
     assert snow() == "snow"
 
 
+@pytest.mark.localtest
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
@@ -511,128 +511,157 @@ def test_session_register_sp(session, local_testing_mode):
     Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
+@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
-    # This is a hack in the test such that we can just use `from test_sp import mod5`,
-    # instead of `from test.resources.test_sp.test_sp import mod5`. Then we can test
-    # `import_as` argument.
-    with patch.object(
-        sys, "path", [*sys.path, resources_path, test_files.test_sp_directory]
-    ):
 
-        def plus4_then_mod5(session_, x):
-            from test_sp_dir.test_sp_file import mod5
+    def plus4_then_mod5(session_, x):
+        from test_sp_dir.test_sp_file import mod5
 
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        def plus4_then_mod5_direct_import(session_, x):
-            from test_sp_file import mod5
-
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        session.add_import(
-            test_files.test_sp_py_file, import_path="test_sp_dir.test_sp_file"
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
-        plus4_then_mod5_sp = sproc(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+
+    def plus4_then_mod5_direct_import(session_, x):
+        from test_sp_file import mod5
+
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
-        assert plus4_then_mod5_sp(3) == 2
 
-        # if import_as argument changes, the checksum of the file will also change
-        # and we will overwrite the file in the stage
-        session.add_import(test_files.test_sp_py_file)
-        plus4_then_mod5_direct_import_sp = sproc(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        assert plus4_then_mod5_direct_import_sp(3) == 2
+    session.add_import(
+        test_files.test_sp_py_file, import_path="test_sp_dir.test_sp_file"
+    )
+    plus4_then_mod5_sp = sproc(
+        plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+    )
 
-        # clean
-        session.clear_imports()
+    assert plus4_then_mod5_sp(3) == 2
+
+    # if import_as argument changes, the checksum of the file will also change
+    # and we will overwrite the file in the stage
+    session.add_import(test_files.test_sp_py_file)
+    plus4_then_mod5_direct_import_sp = sproc(
+        plus4_then_mod5_direct_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    assert plus4_then_mod5_direct_import_sp(3) == 2
+
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
-    with patch.object(
-        sys, "path", [*sys.path, resources_path, os.path.dirname(resources_path)]
-    ):
 
-        def plus4_then_mod5(session_, x):
-            from resources.test_sp_dir.test_sp_file import mod5
+    def plus4_then_mod5(session_, x):
+        from resources.test_sp_dir.test_sp_file import mod5
 
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        def plus4_then_mod5_direct_import(session_, x):
-            from test_sp_dir.test_sp_file import mod5
-
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        session.add_import(
-            test_files.test_sp_directory, import_path="resources.test_sp_dir"
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
-        plus4_then_mod5_sp = sproc(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+
+    def plus4_then_mod5_direct_import(session_, x):
+        from test_sp_dir.test_sp_file import mod5
+
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
-        assert plus4_then_mod5_sp(3) == 2
 
-        session.add_import(test_files.test_sp_directory)
-        plus4_then_mod5_direct_import_sp = sproc(
-            plus4_then_mod5_direct_import,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
-        assert plus4_then_mod5_direct_import_sp(3) == 2
+    session.add_import(
+        test_files.test_sp_directory, import_path="resources.test_sp_dir"
+    )
+    plus4_then_mod5_sp = sproc(
+        plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    assert plus4_then_mod5_sp(3) == 2
 
-        # clean
-        session.clear_imports()
+    session.add_import(test_files.test_sp_directory)
+    plus4_then_mod5_direct_import_sp = sproc(
+        plus4_then_mod5_direct_import,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+    assert plus4_then_mod5_direct_import_sp(3) == 2
+
+    # clean
+    session.clear_imports()
 
 
+@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
-    with patch.object(sys, "path", [*sys.path, test_files.test_sp_directory]):
 
-        def plus4_then_mod5(session_, x):
-            from test_sp_file import mod5
+    def plus4_then_mod5(session_, x):
+        from test_sp_file import mod5
 
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
-        session.add_import(stage_file)
-        plus4_then_mod5_sp = sproc(
-            plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
 
-        assert plus4_then_mod5_sp(3) == 2
+    stage_file = f"@{tmp_stage_name}/{os.path.basename(test_files.test_sp_py_file)}"
+    session.add_import(stage_file)
+    plus4_then_mod5_sp = sproc(
+        plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
+    )
 
-        # clean
-        session.clear_imports()
+    assert plus4_then_mod5_sp(3) == 2
+
+    # clean
+    session.clear_imports()
 
 
-def test_sp_level_import(session, resources_path):
+@pytest.mark.localtest
+def test_sp_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
-    with patch.object(sys, "path", [*sys.path, resources_path]):
 
-        def plus4_then_mod5(session_, x):
-            from test_sp_dir.test_sp_file import mod5
+    def plus4_then_mod5(session_, x):
+        from test_sp_dir.test_sp_file import mod5
 
-            return mod5(session_, session_.sql(f"SELECT {x} + 4").collect()[0][0])
-
-        # with sp-level imports
-        plus4_then_mod5_sp = sproc(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            imports=[(test_files.test_sp_py_file, "test_sp_dir.test_sp_file")],
+        return mod5(
+            session_,
+            session_.create_dataframe([[x]], schema=["a"])
+            .select(col("a") + 4)
+            .collect()[0][0],
         )
-        assert plus4_then_mod5_sp(3) == 2
 
-        # without sp-level imports
-        plus4_then_mod5_sp = sproc(
-            plus4_then_mod5,
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-        )
+    # with sp-level imports
+    plus4_then_mod5_sp = sproc(
+        plus4_then_mod5,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        imports=[(test_files.test_sp_py_file, "test_sp_dir.test_sp_file")],
+    )
+    assert plus4_then_mod5_sp(3) == 2
+
+    # without sp-level imports
+    plus4_then_mod5_sp = sproc(
+        plus4_then_mod5,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+    )
+
+    if local_testing_mode:
+        with pytest.raises(ModuleNotFoundError) as ex_info:
+            plus4_then_mod5_sp(3)
+    else:
         with pytest.raises(SnowparkSQLException) as ex_info:
             plus4_then_mod5_sp(3)
         assert "No module named" in ex_info.value.message
@@ -706,21 +735,27 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
+@pytest.mark.localtest
 def test_register_sp_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
 import snowflake
 from snowflake.snowpark import Session
 from typing import Dict, List, Optional
+from snowflake.snowpark.functions import (
+    col,
+    iff,
+    lit
+)
 
 def add(session: snowflake.snowpark.Session, x: int, y: int) -> int:
-    return session.sql(f"select {x} + {y}").collect()[0][0]
+    return session.create_dataframe([[x, y]], schema=["x", "y"]).select(col("x")+col("y")).collect()[0][0]
 
 def snow(session_: Session, x: int) -> Optional[str]:
-    return session_.sql(f"SELECT IFF({x} % 2 = 0, 'snow', NULL)").collect()[0][0]
+    return session_.create_dataframe([[x]],schema=["x"]).select(iff(col("x")%2==0, lit('snow'), lit(None))).collect()[0][0]
 
 def double_str_list(session_: snowflake.snowpark.Session, x: str) -> List[str]:
-    val = session_.sql(f"SELECT '{x}'").collect()[0][0]
+    val = session_.create_dataframe([[str(x)]]).collect()[0][0]
     return [val, val]
 
 dt = datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f")
@@ -1461,6 +1496,7 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
@@ -1495,6 +1531,7 @@ def test_execute_as_options_while_registering_from_file(
     assert mod5_sp_stage(3) == 3
 
 
+@pytest.mark.localtest
 def test_call_sproc_with_session_as_first_argument(session):
     @sproc
     def return1(_: Session) -> int:
