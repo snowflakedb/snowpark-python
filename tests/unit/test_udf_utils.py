@@ -268,7 +268,7 @@ def test_create_python_udf_or_sp_with_none_session():
     mock_callback = mock.MagicMock(return_value=False)
 
     with mock.patch(
-        "snowflake.snowpark._internal.udf_utils._should_continue_registration",
+        "snowflake.snowpark.context._should_continue_registration",
         new=mock_callback,
     ):
         create_python_udf_or_sp(
@@ -294,7 +294,7 @@ def test_generate_anonymous_python_sp_sql_with_none_session():
     mock_callback = mock.MagicMock(return_value=False)
 
     with mock.patch(
-        "snowflake.snowpark._internal.udf_utils._should_continue_registration",
+        "snowflake.snowpark.context._should_continue_registration",
         new=mock_callback,
     ):
         generate_anonymous_python_sp_sql(

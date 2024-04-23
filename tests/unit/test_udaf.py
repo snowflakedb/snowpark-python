@@ -112,7 +112,7 @@ def test_do_register_udaf_sandbox(session_sandbox, cleanup_registration_patch):
         return False  # i.e. don't register with Snowflake.
 
     with mock.patch(
-        "snowflake.snowpark._internal.udf_utils._should_continue_registration",
+        "snowflake.snowpark.context._should_continue_registration",
         new=mock_callback,
     ):
 
