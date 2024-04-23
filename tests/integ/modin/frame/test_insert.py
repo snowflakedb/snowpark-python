@@ -6,6 +6,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.pandas as pd
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_NUMPY_PANDAS_SCALAR_DATA,
@@ -494,7 +495,9 @@ def test_insert_into_empty_dataframe_with_index(
         np.array([1, 2]),
         native_pd.Series(["abc", 4, 9.0]),
         native_pd.Series([7, 4, 1, 2, 3]).sort_values(),
-        native_pd.Series([8, None, None, 1], native_pd.Index(["a", None, None, "d"])),
+        native_pd.Series(
+            [8, None, None, 1], native_pd.Index([5, 10, 15, 20], dtype=int)
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -544,6 +547,21 @@ def test_insert_into_empty_dataframe(
             inplace=True,
             check_index_type=False,
         )
+
+
+@sql_count_checker(query_count=0)
+def test_insert_into_empty_dataframe_index_dtype_mismatch():
+    native_ser = native_pd.Series(
+        [8, None, None, 1], native_pd.Index(["a", None, None, "d"])
+    )
+    snow_ser = pd.Series(native_ser)
+    native_df = native_pd.DataFrame()
+    snow_df = pd.DataFrame()
+    # Snowpark pandas cannot insert value w/ object index into empty frame, which by default has an int index
+    native_df.insert(0, "X", native_ser)
+    snow_df.insert(0, "X", snow_ser)
+    with pytest.raises(SnowparkSQLException):
+        snow_df.to_pandas()
 
 
 @sql_count_checker(query_count=2, join_count=1)

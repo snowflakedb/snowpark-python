@@ -1,20 +1,27 @@
 ## 1.15.0a1 (tbd)
 
+### Bug Fixes
+- Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
+
+## 1.14.0a2 (2024-04-18)
+
 ### Behavior Changes
-- The `to_pandas` operation converts all integers to int64, instead of int8, int16 etc. To get more precise type, user need to explicitly specifying precision values for their Snowflake column. This is a general behavior change across whole Snowpark.
+- The `to_pandas` operation converts all integers to int64, instead of int8, int16 etc. To get an exact type, the user needs to explicitly specify precision values for their Snowflake column. This is a general behavior change across all of Snowpark.
 - The following API changes are made to align Snowpark pandas with the pandas 2.2.1 API:
   - Updated DateOffset strings to pandas 2.2.1 versions.
   - As part of this transition, we have a set of transitional API and test bugs:
-    - SNOW-1320623 - df.loc with column keys duplicated or extra fails
-    - SNOW-1320660 - qcut / cut with bin preparation is temporarily NotImplemented due to upstream changes
-    - SNOW-1321662 - merge fails when join is outer and sort is False
-    - SNOW-1321682 - df.melt w/ duplicated cols
-    - SNOW-1318223 - series.py::_flex_method list-like other (pd.Index) may not be supported in pandas now
-    - SNOW-1321719 - test_bitwise_operators.py xfails
+    - SNOW-1320623 - `df.loc` with column keys duplicated or extra fails.
+    - SNOW-1320660 - `qcut` / `cut` with bin preparation is temporarily NotImplemented due to upstream changes.
+    - SNOW-1321662 - `merge` fails when join is outer and sort is False.
+    - SNOW-1321682 - `df.melt` w/ duplicated cols.
+    - SNOW-1318223 - `series.py::_flex_method` list-like other (`pd.Index`) may not be supported in pandas now.
+    - SNOW-1321719 - `test_bitwise_operators.py` xfails.
+- Changed the dtype of the index of empty `DataFrame` and `Series` to be `int64` rather than `object` to match the behavior of pandas.
 
 ### New Features
 - Added support for `axis` argument for `df.where` and `df.mask` when `other` is a Series.
 - Added back `_repr_html_` to DataFrame class for pretty printing (partially reverts commit 576ba26586caca3fa063da1fed465c61091b6d9c).
+- Added support for `DataFrameGroupBy.nunique`.
 
 ## 1.14.0a1 (2024-04-11)
 

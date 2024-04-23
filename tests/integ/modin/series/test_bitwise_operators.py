@@ -198,14 +198,18 @@ def test_bitwise_binary_between_series(lhs, rhs, op):
                 [True, True, True, True, False, False],
                 index=native_pd.MultiIndex.from_tuples(
                     [
-                        (0, 2, 0),
+                        (2, 0, 0),
                         (0, 0, 0),
-                        (0, 1, 0),
-                        (1, 2, 0),
-                        (2, None, 0),
-                        (2, None, 1),
+                        (1, 0, 0),
+                        (2, 1, 0),
+                        (None, 2, 0),
+                        (None, 2, 1),
                     ],
-                    names=["x", "y", "z"],
+                    names=[
+                        "y",
+                        "x",
+                        "z",
+                    ],  # pandas 2.2.x introduces a new, weird order, In pandas 2.1.x the order is correctly preserved.
                 ),
             ),
             native_pd.Series(
@@ -229,7 +233,6 @@ def test_bitwise_binary_between_series(lhs, rhs, op):
 def test_bitwise_binary_between_series_with_deviating_behavior_or(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-    pytest.xfail("SNOW-1321719 - pandas 2.2.1 migration")
     snow_ans = try_cast_to_snow_series(lhs) | try_cast_to_snow_series(rhs)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_ans, expected_snowpark_pandas
@@ -237,7 +240,7 @@ def test_bitwise_binary_between_series_with_deviating_behavior_or(
 
     # test here pandas to track any version regressions
     native_ans = lhs | rhs
-    tm.assert_series_equal(native_ans, expected_pandas)
+    tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -280,14 +283,18 @@ def test_bitwise_binary_between_series_with_deviating_behavior_or(
                 [True, False, False, True, False, False],
                 index=native_pd.MultiIndex.from_tuples(
                     [
-                        (0, 2, 0),
+                        (2, 0, 0),
                         (0, 0, 0),
-                        (0, 1, 0),
-                        (1, 2, 0),
-                        (2, None, 0),
-                        (2, None, 1),
+                        (1, 0, 0),
+                        (2, 1, 0),
+                        (None, 2, 0),
+                        (None, 2, 1),
                     ],
-                    names=["x", "y", "z"],
+                    names=[
+                        "y",
+                        "x",
+                        "z",
+                    ],  # pandas 2.2.x introduces a new, weird order, In pandas 2.1.x the order is correctly preserved.
                 ),
             ),
             native_pd.Series(
@@ -311,7 +318,6 @@ def test_bitwise_binary_between_series_with_deviating_behavior_or(
 def test_bitwise_binary_between_series_with_deviating_behavior_and(
     lhs, rhs, expected_pandas, expected_snowpark_pandas
 ):
-    pytest.xfail("SNOW-1321719 - pandas 2.2.1 migration")
     snow_ans = try_cast_to_snow_series(lhs) & try_cast_to_snow_series(rhs)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_ans, expected_snowpark_pandas
@@ -320,4 +326,4 @@ def test_bitwise_binary_between_series_with_deviating_behavior_and(
     # test here pandas to track any version regressions
     native_ans = lhs & rhs
     print(native_ans.index)
-    tm.assert_series_equal(native_ans, expected_pandas)
+    tm.assert_series_equal(native_ans, expected_pandas, check_index_type=False)

@@ -455,23 +455,12 @@ def test_empty(input_dtype, expected_dtype, snowpark_dtype, to_pandas_dtype):
     assert roundtripped.dtype == to_pandas_dtype
 
 
-EMPTY_INDEX_FAIL_REASON = "SNOW-1049989: index of empty frames is coerced to object"
-
-
 @pytest.mark.parametrize(
     "index, expected_index_dtype",
     [
-        pytest.param(
-            None,
-            np.dtype("int64"),
-            marks=pytest.mark.xfail(strict=True, reason=EMPTY_INDEX_FAIL_REASON),
-        ),
+        (None, np.dtype("int64")),
         (native_pd.Index([]), np.dtype("object")),
-        pytest.param(
-            native_pd.Index([], dtype="float64"),
-            np.dtype("float64"),
-            marks=pytest.mark.xfail(strict=True, reason=EMPTY_INDEX_FAIL_REASON),
-        ),
+        (native_pd.Index([], dtype="float64"), np.dtype("float64")),
     ],
 )
 @sql_count_checker(query_count=2)

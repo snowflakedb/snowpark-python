@@ -192,7 +192,6 @@ def test_duplicate_index():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@pytest.mark.xfail(reason="SNOW-1321682 - pandas 2.2.1 upgrade", strict=True)
 @sql_count_checker(query_count=1, union_count=0, join_count=0)
 def test_duplicate_cols():
     native_df = npd.DataFrame([[1, 2], [3, 4]], columns=["dupe", "dupe"])

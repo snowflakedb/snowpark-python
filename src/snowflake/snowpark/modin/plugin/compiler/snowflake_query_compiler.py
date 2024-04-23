@@ -394,16 +394,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         # create copy of original dataframe
         df = df.copy()
-        if df.shape[0] == 0 and df.index.nlevels == 1:
-            # TODO SNOW-1049989 remove this workaround
-            # If the DF has no rows, then the index is empty. In pandas 2.x, the dtype of an empty
-            # frame's Index was changed from object to int64, which broke some of our tests that
-            # involved joining a frame with empty Index to a frame with a non-int Index.
-            # As a workaround, we set the source frame's index to explicitly have object dtype.
-            # This workaround is not robust, as empty frames constructed through other means
-            # (such as dropping rows from a non-empty frame) may still have an int64 index, and thus
-            # cause an error when a user attempts to insert a column.
-            df.index = native_pd.Index([], dtype=object, name=df.index.name)
         # encode column labels to snowflake compliant strings.
         # If df.columns is a MultiIndex, it will become a list of tuples
         original_column_labels = df.columns.tolist()
@@ -2588,6 +2578,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         how: str = "axis_wise",
         numeric_only: bool = False,
         is_series_groupby: bool = False,
+        drop=False,
     ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with aggregation functions.
@@ -2630,6 +2621,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             how: str. how the aggregation function can be applied.
             numeric_only: bool. whether to drop the non-numeric columns during aggregation.
             is_series_groupby: bool. whether the aggregation is called on SeriesGroupBy or not.
+            drop: Modin argument (??)
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """

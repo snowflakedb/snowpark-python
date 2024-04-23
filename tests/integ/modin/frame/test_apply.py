@@ -928,7 +928,7 @@ def test_apply_axis0_with_3rd_party_libraries_and_decorator(
     [
         (["scipy", "numpy"], 7),
         (["scipy>1.1", "numpy<2.0"], 7),
-        ([scipy, np], 9),
+        ([scipy, np], 11),
     ],
 )
 def test_apply_axis1_with_3rd_party_libraries_and_decorator(

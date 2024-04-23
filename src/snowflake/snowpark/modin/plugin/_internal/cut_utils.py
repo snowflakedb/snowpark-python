@@ -6,10 +6,11 @@ from typing import Sequence, Union
 
 import numpy as np
 import pandas
-from pandas import DatetimeTZDtype
+from pandas import Index, IntervalIndex
 from pandas._typing import Scalar
-from pandas.core.dtypes.common import DT64NS_DTYPE
+from pandas.core.dtypes.common import is_numeric_dtype
 from pandas.core.dtypes.inference import is_scalar
+from pandas.core.reshape.tile import _is_dt_or_td
 
 from snowflake.snowpark.functions import col, iff
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -19,10 +20,84 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import LongType
 
-# Missing upstream function
-# from pandas.core.reshape.tile import _convert_bin_to_numeric_type
+
+# This function stems from pandas 2.2.x and has been minimally modified to not require
+# the full data, but instead work with min/max values solely. It replaces
+# The pandas 2.1.x function from pandas.core.reshape.tile import _convert_bin_to_numeric_type.
+def _nbins_to_bins(x_min: Scalar, x_max: Scalar, nbins: int, right: bool) -> Index:
+    """
+    If a user passed an integer N for bins, convert this to a sequence of N
+    equal(ish)-sized bins.
+    """
+    if is_scalar(nbins) and nbins < 1:
+        raise ValueError("`bins` should be a positive integer.")  # pragma: no cover
+
+    # this snippet of original pandas code is handled outside of this function
+    # if x_idx.size == 0:
+    #    raise ValueError("Cannot cut empty array")
+
+    # retrieve type of original series used in cut. To speed up processing,
+    # infer from aggrgates as the type won't change when computing min/max.
+    x_dtype = pandas.Series([x_min, x_max]).dtype
+    rng = (x_min, x_max)
+    mn, mx = rng
+
+    if is_numeric_dtype(x_dtype) and (np.isinf(mn) or np.isinf(mx)):
+        # GH#24314
+        raise ValueError(  # pragma: no cover
+            "cannot specify integer `bins` when input data contains infinity"  # pragma: no cover
+        )  # pragma: no cover
+
+    if mn == mx:  # adjust end points before binning
+        if _is_dt_or_td(x_dtype):  # pragma: no cover
+            # original pandas code (commented):
+            # # using seconds=1 is pretty arbitrary here
+            # # error: Argument 1 to "dtype_to_unit" has incompatible type
+            # # "dtype[Any] | ExtensionDtype"; expected "DatetimeTZDtype | dtype[Any]"
+            # unit = dtype_to_unit(x_dtype)  # type: ignore[arg-type]
+            # td = Timedelta(seconds=1).as_unit(unit)
+            # # Use DatetimeArray/TimedeltaArray method instead of linspace
+            # # error: Item "ExtensionArray" of "ExtensionArray | ndarray[Any, Any]"
+            # # has no attribute "_generate_range"
+            # bins = x_idx._values._generate_range(  # type: ignore[union-attr]
+            #     start=mn - td, end=mx + td, periods=nbins + 1, freq=None, unit=unit
+            # )
+            ErrorMessage.not_implemented(
+                "no support for datetime types yet."
+            )  # pragma: no cover
+        else:
+            mn -= 0.001 * abs(mn) if mn != 0 else 0.001  # pragma: no cover
+            mx += 0.001 * abs(mx) if mx != 0 else 0.001  # pragma: no cover
+
+            bins = np.linspace(mn, mx, nbins + 1, endpoint=True)  # pragma: no cover
+    else:  # adjust end points after binning
+        if _is_dt_or_td(x_dtype):
+            # original pandas code (commented):
+            # # Use DatetimeArray/TimedeltaArray method instead of linspace
+            #
+            # # error: Argument 1 to "dtype_to_unit" has incompatible type
+            # # "dtype[Any] | ExtensionDtype"; expected "DatetimeTZDtype | dtype[Any]"
+            # unit = dtype_to_unit(x_dtype)  # type: ignore[arg-type]
+            # # error: Item "ExtensionArray" of "ExtensionArray | ndarray[Any, Any]"
+            # # has no attribute "_generate_range"
+            # bins = x_idx._values._generate_range(  # type: ignore[union-attr]
+            #     start=mn, end=mx, periods=nbins + 1, freq=None, unit=unit
+            # )
+            ErrorMessage.not_implemented(
+                "no support for datetime types yet."
+            )  # pragma: no cover
+        else:
+            bins = np.linspace(mn, mx, nbins + 1, endpoint=True)
+        adj = (mx - mn) * 0.001  # 0.1% of the range
+        if right:
+            bins[0] -= adj
+        else:
+            bins[-1] += adj
+
+    return Index(bins)
 
 
 def preprocess_bins_for_cut(
@@ -50,53 +125,19 @@ def preprocess_bins_for_cut(
     """
     # Code is mostly from original pandas and adjusted for Snowpark pandas API.
 
-    # pre-process bins
     if not np.iterable(bins):
-        if is_scalar(bins) and bins < 1:  # type: ignore[operator]
-            raise ValueError("`bins` should be a positive integer.")  # pragma: no cover
+        # Call adjusted function from pandas 2.2.x branch
+        bins = _nbins_to_bins(x_min, x_max, bins, right)
 
-        rng = (x_min, x_max)
-        mn, mx = (mi + 0.0 for mi in rng)
-
-        if np.isinf(mn) or np.isinf(mx):
-            # GH 24314
-            raise ValueError(  # pragma: no cover
-                "cannot specify integer `bins` when input data contains infinity"
-            )
-        if mn == mx:  # adjust end points before binning
-            mn -= 0.001 * abs(mn) if mn != 0 else 0.001  # pragma: no cover
-            mx += 0.001 * abs(mx) if mx != 0 else 0.001  # pragma: no cover
-            bins = np.linspace(mn, mx, bins + 1, endpoint=True)  # type: ignore[operator] # pragma: no cover
-        else:  # adjust end points after binning
-            bins = np.linspace(mn, mx, bins + 1, endpoint=True)  # type: ignore[operator]
-            adj = (mx - mn) * 0.001  # 0.1% of the range
-            if right:
-                bins[0] -= adj
-            else:
-                bins[-1] += adj
-
-    elif isinstance(bins, pandas.IntervalIndex):
+    elif isinstance(bins, IntervalIndex):
         if bins.is_overlapping:  # pragma: no cover
             raise ValueError(
                 "Overlapping IntervalIndex is not accepted."
             )  # pragma: no cover
 
     else:
-        if isinstance(getattr(bins, "dtype", None), DatetimeTZDtype):
-            bins = np.asarray(bins, dtype=DT64NS_DTYPE)  # pragma: no cover
-        else:
-            bins = np.asarray(bins)
-        # Missing upstream function
-        # retrieve type of original series used in cut. To speed up processing,
-        # infer from aggrgates as the type won't change when computing min/max.
-        # x_dtype = pandas.Series([x_min, x_max]).dtype
-        # bins = _convert_bin_to_numeric_type(bins, x_dtype)
-        raise NotImplementedError(
-            "SNOW-1320660 temporarily unimplemented, pandas 2.2.1 migration, _convert_bin_to_numeric_type function removed upstream"
-        )
-
-        # GH 26045: cast to float64 to avoid an overflow
-        if (np.diff(bins.astype("float64")) < 0).any():
+        bins = Index(bins)
+        if not bins.is_monotonic_increasing:
             raise ValueError("bins must increase monotonically.")
 
     # if include_lowest is True, then expand first bucket by 10 ** (-precision)
@@ -104,7 +145,7 @@ def preprocess_bins_for_cut(
     # If a is now contained in the values, it will fall into (a - 10**(-precision), b].
     # For right=False, this is irrelevant. The expansion only works for right=True.
     if include_lowest and right:
-        bins[0] -= 10 ** (-precision)
+        bins = Index([bins[0] - 10 ** (-precision)] + list(bins[1:].values))
 
     return bins
 

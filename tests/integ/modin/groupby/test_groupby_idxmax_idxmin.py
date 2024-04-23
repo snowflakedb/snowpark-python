@@ -151,4 +151,4 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
     df = native_pd.DataFrame(costs, columns=items)
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
     snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
-    assert_frame_equal(native_res, snow_res)
+    assert_frame_equal(native_res, snow_res, check_index_type=False)
