@@ -68,21 +68,6 @@ escape_regex_special_characters_map = {
     regex_special_characters_map[")"]: "\\)",
 }
 
-VALID_MONTH_ABBREVIATION = [
-    "jan",
-    "feb",
-    "mar",
-    "apr",
-    "may",
-    "jun",
-    "jul",
-    "aug",
-    "sep",
-    "oct",
-    "nov",
-    "dec",
-]
-
 
 def convert_wildcard_to_regex(wildcard: str):
     # convert regex in wildcard
