@@ -10,7 +10,7 @@
   - `DataFrame.write.json`
   - `DataFrame.write.csv`
   - `DataFrame.write.parquet`
-- Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
+- Added distributed tracing using open telemetry APIs for action functions in `DataFrame` and `DataFrameWriter`:
   - snowflake.snowpark.DataFrame:
     - collect
     - collect_nowait
@@ -38,8 +38,8 @@
 
 #### New Features
 
-- Added support for registering udfs and stored procedure to local testing.
-- Added support for the following local testing APIs:
+- Added support for registering UDFs and stored procedures.
+- Added support for the following APIs:
   - snowflake.snowpark.Session:
     - file.put
     - file.put_stream
