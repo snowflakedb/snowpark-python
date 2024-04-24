@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
@@ -341,7 +342,9 @@ def handle_function_expression(
             importlib.import_module("snowflake.snowpark.functions"), func_name
         )
     except AttributeError:
-        udf_name = exp.name.split(".")[-1]
+        current_schema = analyzer.session.get_current_schema()
+        current_database = analyzer.session.get_current_database()
+        udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
         # If udf name in the registry then this is a udf, not an actual function
         if udf_name in analyzer.session.udf._registry:
             exp.udf_name = udf_name
