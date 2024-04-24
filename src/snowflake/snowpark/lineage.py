@@ -57,11 +57,12 @@ class _ObjectField:
     REFINED_DOMAIN = "refinedDomain"
     USER_DOMAIN = "userDomain"
     NAME = "name"
-    PARENT_NAME = "parentName"
+    PROPERTIES = "properties"
     SCHEMA = "schema"
     DB = "db"
     STATUS = "status"
     CREATED_ON = "createdOn"
+    PARENT_NAME = "ParentName"
     VERSION = "version"
 
     # A list of fileds queried on each object in the lineage.
@@ -70,7 +71,7 @@ class _ObjectField:
         REFINED_DOMAIN,
         USER_DOMAIN,
         NAME,
-        PARENT_NAME,
+        PROPERTIES,
         SCHEMA,
         DB,
         STATUS,
@@ -289,14 +290,17 @@ class Lineage:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                         f"unexpected {_UserDomain.FEATURE_VIEW} name format."
                     )
-            elif _ObjectField.PARENT_NAME in graph_entity:
+            elif (
+                _ObjectField.PROPERTIES in graph_entity
+                and _ObjectField.PARENT_NAME in graph_entity[_ObjectField.PROPERTIES]
+            ):
                 return (
-                    f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.PARENT_NAME]}",
+                    f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.PROPERTIES][_ObjectField.PARENT_NAME]}",
                     graph_entity[_ObjectField.NAME],
                 )
             else:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
-                    f"missing version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
+                    f"missing name/version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
                 )
 
         return (
@@ -311,10 +315,20 @@ class Lineage:
         name, version = self._get_name_and_version(graph_entity)
 
         domain = (
-            graph_entity.get(_ObjectField.REFINED_DOMAIN)
+            graph_entity.get(_ObjectField.USER_DOMAIN)
             or graph_entity.get(_ObjectField.REFINED_DOMAIN)
             or graph_entity.get(_ObjectField.DOMAIN)
         )
+
+        if _ObjectField.CREATED_ON not in graph_entity:
+            raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
+                f"missing {_ObjectField.CREATED_ON} property."
+            )
+
+        if _ObjectField.STATUS not in graph_entity:
+            raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
+                f"missing {_ObjectField.STATUS} property."
+            )
 
         user_entity = {
             _ObjectField.NAME: name,
