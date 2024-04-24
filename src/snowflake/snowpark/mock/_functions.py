@@ -46,7 +46,6 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
-    auto_detect_snowflake_date_format_and_convert,
     convert_integer_value_to_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
@@ -326,6 +325,7 @@ def mock_to_date(
         date_format, _, _ = convert_snowflake_datetime_format(
             _fmt, default_format="%Y-%m-%d"
         )
+        import dateutil.parser
 
         if data is None:
             res.append(None)
@@ -342,7 +342,7 @@ def mock_to_date(
                     )
                 else:
                     if auto_detect:
-                        res.append(auto_detect_snowflake_date_format_and_convert(data))
+                        res.append(dateutil.parser.parse(data).date())
                     else:
                         res.append(datetime.datetime.strptime(data, date_format).date())
             elif isinstance(column.sf_type.datatype, VariantType):
@@ -355,7 +355,7 @@ def mock_to_date(
                         )
                     else:
                         # for variant type with string value, snowflake auto-detects the format
-                        res.append(auto_detect_snowflake_date_format_and_convert(data))
+                        res.append(dateutil.parser.parse(data).date())
                 elif isinstance(data, datetime.date):
                     res.append(data)
                 else:
@@ -517,7 +517,7 @@ def mock_to_time(
 
     def convert_int_string_to_time(d: str):
         return datetime.datetime.utcfromtimestamp(
-            auto_detect_snowflake_date_format_and_convert(d) % 86400
+            convert_integer_value_to_seconds(d) % 86400
         ).time()
 
     def convert_string_to_time(
@@ -673,7 +673,7 @@ def _to_timestamp(
                     isinstance(data, str) and data.isnumeric()
                 ):
                     parsed = datetime.datetime.utcfromtimestamp(
-                        auto_detect_snowflake_date_format_and_convert(data)
+                        convert_integer_value_to_seconds(data)
                     )
                     # utc timestamps should be in utc timezone
                     if add_timezone:

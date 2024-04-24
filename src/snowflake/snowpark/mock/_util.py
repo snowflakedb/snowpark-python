@@ -3,8 +3,6 @@
 #
 
 import math
-import re
-from datetime import datetime
 from functools import cmp_to_key, partial
 from typing import Any, Iterable, Tuple, Union
 
@@ -313,45 +311,6 @@ def unalias_datetime_part(part):
         return ALIASES_TO_DATETIME_PART[lowered_part]
     else:
         raise ValueError(f"{part} is not a recognized date or time part.")
-
-
-def auto_detect_snowflake_date_format_and_convert(date_string: str):
-    """
-    auto detect date according to format defined
-    in https://docs.snowflake.com/en/sql-reference/date-time-input-output#date-formats
-    and convert string to date object
-    """
-    # Regular expressions for the three date formats
-    formats = [
-        r"\d{2}-[A-Za-z]{3}-\d{4}",  # DD-MON-YYYY
-        r"\d{4}-\d{2}-\d{2}",  # YYYY-MM-DD
-        r"\d{2}/\d{2}/\d{4}",  # MM/DD/YYYY
-    ]
-    # Check if the date string matches any of the formats
-    for fmt in formats:
-        match = re.match(fmt, date_string)
-        if match:
-            if fmt == formats[0]:
-                day, month, year = match.group().split("-")
-                if month.lower() not in VALID_MONTH_ABBREVIATION:
-                    raise ValueError(
-                        f"[Local Testing] Unsupported conversion to_date of value {date_string}"
-                    )
-                return datetime.strptime(date_string, "%d-%b-%Y").date()
-            return (
-                # note the len("YYYY-MM-DD") here:
-                # you create a snowpark DF with datetime.datetime(yyyy, mm, dd) with column type being Variant
-                # however, snowpark would convert it to string first in ISO format first (yyyy-mm-ddThh:mm:ss)
-                # and when processing the value, we chain calls to get the original value: to_variant(parse_json(col))
-                # truncate the suffix is a short term workaround to control the scope of the change
-                # need to check if we can remove the to_json->parse_json in local testing
-                datetime.strptime(date_string[: len("YYYY-MM-DD")], "%Y-%m-%d").date()
-                if fmt == formats[1]
-                else datetime.strptime(date_string, "%m/%d/%Y").date()
-            )
-    raise ValueError(
-        f"[Local Testing] Unsupported conversion to_date of value {date_string}"
-    )
 
 
 def get_fully_qualified_name(
