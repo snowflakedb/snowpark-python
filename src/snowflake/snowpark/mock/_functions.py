@@ -833,7 +833,7 @@ def mock_to_double(
         res.sf_type = ColumnType(DoubleType(), res.hasnans)
         return res
     else:
-        raise NotImplementedError(
+        raise TypeError(
             f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 
