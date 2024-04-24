@@ -334,7 +334,7 @@ def mock_to_date(
             if isinstance(column.sf_type.datatype, TimestampType):
                 res.append(data.date())
             elif isinstance(column.sf_type.datatype, StringType):
-                if data.isnumeric():
+                if data.isdigit():
                     res.append(
                         datetime.datetime.utcfromtimestamp(
                             convert_integer_value_to_seconds(data)
@@ -347,7 +347,7 @@ def mock_to_date(
                         res.append(datetime.datetime.strptime(data, date_format).date())
             elif isinstance(column.sf_type.datatype, VariantType):
                 if isinstance(data, str):
-                    if data.isnumeric():
+                    if data.isdigit():
                         res.append(
                             datetime.datetime.utcfromtimestamp(
                                 convert_integer_value_to_seconds(data)
