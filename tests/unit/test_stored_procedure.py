@@ -18,6 +18,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.version import VERSION
 
 
 @pytest.mark.parametrize(
@@ -134,7 +135,7 @@ def test_do_register_sproc_sandbox(session_sandbox, cleanup_registration_patch):
             == f"{sys.version_info[0]}.{sys.version_info[1]}"
         )
         assert callableProperties.all_imports == ""
-        assert callableProperties.all_packages == "'snowflake-snowpark-python==1.14.0'"
+        assert callableProperties.all_packages == f"'snowflake-snowpark-python=={'.'.join(map(str, VERSION))}'"
         assert callableProperties.external_access_integrations is None
         assert callableProperties.secrets is None
         assert callableProperties.handler is None
