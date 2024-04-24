@@ -6,9 +6,10 @@ import math
 import re
 from datetime import datetime
 from functools import cmp_to_key, partial
-from typing import Any, Tuple
+from typing import Any, Iterable, Tuple, Union
 
 from snowflake.connector.options import pandas as pd
+from snowflake.snowpark._internal.utils import parse_table_name, quote_name
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,
@@ -173,18 +174,22 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int,
     return time_fmt, hour_delta, fractional_seconds
 
 
-def process_numeric_time(time: str) -> int:
+def convert_integer_value_to_seconds(time: str) -> int:
     """
     deal with time of numeric values, convert the time into value that Python datetime accepts
     spec here: https://docs.snowflake.com/en/sql-reference/functions/to_time#usage-notes
 
     """
     timestamp_values = int(time)
-    if 31536000000000 <= timestamp_values < 31536000000000:  # milliseconds
+    if 31536000000 <= timestamp_values < 31536000000000:
+        # milliseconds
         timestamp_values = timestamp_values / 1000
-    elif timestamp_values >= 31536000000000:
-        # nanoseconds
+    elif 31536000000000 <= timestamp_values < 31536000000000000:
+        # microseconds
         timestamp_values = timestamp_values / 1000000
+    elif timestamp_values >= 31536000000000000:
+        # nanoseconds
+        timestamp_values = timestamp_values / 1000000000
     # timestamp_values <  31536000000 are treated as seconds
     return int(timestamp_values)
 
@@ -214,6 +219,25 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         and col.apply(lambda x: x is None).any()
     ):  # non-object dtype converts None to NaN for numeric columns
         return col
+    """
+    notes for the timestamp object type drift here, ideally datetime64[us] should be used here because:
+    1. python doesn't have built-in datetime nanosecond support:
+      https://github.com/python/cpython/blob/3.12/Lib/_pydatetime.py
+
+    2. numpy datetime64 restrictions, https://numpy.org/doc/stable/reference/arrays.datetime.html#datetime-units:
+      datetime64[ns] supports nanoseconds, the year range is limited to [ 1678 AD, 2262 AD]
+      datetime64[us] supports milliseconds, the year range is more relaxed [290301 BC, 294241 AD]
+
+    3. snowflake date range recommendation
+      according to snowflake https://docs.snowflake.com/en/sql-reference/data-types-datetime#date
+      the recommend year range is 1582, 9999
+
+    however, on Python 3.8 max supported version pandas 2.0.3 + version numpy 1.24.4 does not recognize datetime64[us],
+    always defaults to unit ns, leading to time out of band error.
+
+    based upon these information and for simplicity, we can use object for now, then move onto datetime64[us],
+    then seek solution for nanosecond.
+    """
     sf_type_to_dtype = {
         ArrayType: object,
         BinaryType: object,
@@ -228,7 +252,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         NullType: object,
         ShortType: numpy.int8 if not col.sf_type.nullable else "Int8",
         StringType: object,
-        TimestampType: "datetime64[ns]",
+        TimestampType: object,  # "datetime64[us]", not working on Python3.8 pandas 2.0.8 + numpy 1.24.4
         TimeType: object,
         VariantType: object,
         MapType: object,
@@ -328,3 +352,15 @@ def auto_detect_snowflake_date_format_and_convert(date_string: str):
     raise ValueError(
         f"[Local Testing] Unsupported conversion to_date of value {date_string}"
     )
+
+
+def get_fully_qualified_name(
+    name: Union[str, Iterable[str]], current_schema: str, current_database: str
+) -> str:
+    if isinstance(name, str):
+        name = parse_table_name(name)
+    if len(name) == 1:
+        name = [current_schema] + name
+    if len(name) == 2:
+        name = [current_database] + name
+    return ".".join(quote_name(n) for n in name)
