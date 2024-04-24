@@ -26,7 +26,7 @@
 
 ### Improvements
 
-- Improved the generated query performance for both compilation and execution by converting duplicate subqueries to Common Table Expressions (CTEs). It is still an experimental feature, and can be enabled by setting `session.cte_optimization_enabled` to `True`.
+- Improved the generated query performance for both compilation and execution by converting duplicate subqueries to Common Table Expressions (CTEs). It is still an experimental feature not enabled by default, and can be enabled by setting `session.cte_optimization_enabled` to `True`.
 
 ### Bug Fixes
 
