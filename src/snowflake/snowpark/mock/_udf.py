@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
@@ -96,6 +97,10 @@ class MockUDFRegistration(UDFRegistration):
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
+
+        current_schema = self._session.get_current_schema()
+        current_database = self._session.get_current_database()
+        udf_name = get_fully_qualified_name(udf_name, current_schema, current_database)
 
         # allow registering pandas UDF from udf(),
         # but not allow registering non-pandas UDF from pandas_udf()

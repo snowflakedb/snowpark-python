@@ -49,7 +49,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.context import _should_continue_registration
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
 
@@ -1210,7 +1209,7 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    if _should_continue_registration is None:
+    if snowflake.snowpark.context._should_continue_registration is None:
         continue_registration = True
     else:
         extension_function_properties = ExtensionFunctionProperties(
@@ -1233,8 +1232,10 @@ $$
             native_app_params=native_app_params,
             raw_imports=raw_imports,
         )
-        continue_registration = _should_continue_registration(
-            extension_function_properties
+        continue_registration = (
+            snowflake.snowpark.context._should_continue_registration(
+                extension_function_properties
+            )
         )
 
     # This means the execution environment does not want to continue creating the object in Snowflake
@@ -1332,7 +1333,7 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    if _should_continue_registration is not None:
+    if snowflake.snowpark.context._should_continue_registration is not None:
         extension_function_properties = ExtensionFunctionProperties(
             anonymous=True,
             object_type=TempObjectType.PROCEDURE,
@@ -1352,7 +1353,9 @@ $$
             func=func,
         )
         # The result of the function call below does not matter because we are not using session object here
-        _should_continue_registration(extension_function_properties)
+        snowflake.snowpark.context._should_continue_registration(
+            extension_function_properties
+        )
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
