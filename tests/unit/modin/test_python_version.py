@@ -18,9 +18,8 @@ def test_error_on_import():
 
         with pytest.raises(RuntimeError):
             # Importing snowpark pandas should error
-            import modin.pandas  # noqa: F401
+            import snowflake.snowpark.modin.plugin  # noqa: F401
     else:
         # Should not error
-        import modin.pandas  # noqa: F401
-
         import snowflake.snowpark  # noqa: F401
+        import snowflake.snowpark.modin.plugin  # noqa: F401
