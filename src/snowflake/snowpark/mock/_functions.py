@@ -77,7 +77,7 @@ class LocalTimezone:
 
     @classmethod
     def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
-        """Replaces any existing tz info with the local tz info without adjucting the time."""
+        """Replaces any existing tz info with the local tz info without adjusting the time."""
         return d.replace(tzinfo=cls.LOCAL_TZ)
 
 
@@ -581,6 +581,8 @@ def _to_timestamp(
     add_timezone: bool = False,
 ):
     """
+    https://docs.snowflake.com/en/sql-reference/functions/to_timestamp
+
     [x] For NULL input, the result will be NULL.
 
     [ ] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
@@ -618,21 +620,65 @@ def _to_timestamp(
         [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     res = []
-    fmt_column = fmt if fmt is not None else [None] * len(column)
+    fmt_column = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
-    for data, format in zip(column, fmt_column):
-        auto_detect = bool(not format)
+    for data, _fmt in zip(column, fmt_column):
         default_format = "%Y-%m-%d %H:%M:%S.%f"
+        auto_detect = _fmt is None or str(_fmt).lower() == "auto"
         (
             timestamp_format,
             hour_delta,
             fractional_seconds,
-        ) = convert_snowflake_datetime_format(format, default_format=default_format)
+        ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
 
         try:
             if data is None:
                 res.append(None)
                 continue
+
+            datatype = column.sf_type.datatype
+            if isinstance(datatype, TimestampType):
+                # data is datetime.datetime type
+                parsed = data
+            if isinstance(datatype, DateType):
+                # data is datetime.date type
+                parsed = datetime.datetime.combine(data, datetime.datetime.min.time())
+            elif isinstance(datatype, StringType):
+                # data is string type
+                if data.isdigit():
+                    parsed = datetime.datetime.utcfromtimestamp(
+                        convert_integer_value_to_seconds(data)
+                    )
+                else:
+                    if auto_detect:
+                        import dateutil.parser
+
+                        parsed = dateutil.parser.parse(data)
+                    else:
+                        parsed = datetime.datetime.strptime(
+                            process_string_time_with_fractional_seconds(
+                                data, fractional_seconds
+                            ),
+                            timestamp_format,
+                        )
+            elif isinstance(datatype, _NumericType):
+                # handle scale
+                # scale = int(_fmt) if _fmt else 0
+                pass
+            elif isinstance(datatype, VariantType):
+                if isinstance(data, numbers.Number):
+                    # scale = 0
+                    pass
+                elif isinstance(data, str):
+                    pass
+                elif isinstance(data, datetime.datetime):
+                    # 1. same kind as result
+                    # 2. different kind as result
+                    pass
+                else:
+                    raise
+
+            ###############
 
             if auto_detect:
                 if isinstance(data, numbers.Number) or (
