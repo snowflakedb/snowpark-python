@@ -1,6 +1,6 @@
 # Release History
 
-## 1.15.0 (TBD)
+## 1.15.0 (2024-04-24)
 
 ### New Features
 
