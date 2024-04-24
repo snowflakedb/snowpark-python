@@ -2,11 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -52,6 +53,11 @@ def test_count():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "repeat, expected_result_data",
     [
@@ -68,6 +74,11 @@ def test_repeat(repeat, expected_result_data):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize("arg, repeat", [[None, 4], ["b", None]])
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_repeat_with_null(arg, repeat):
@@ -77,6 +88,11 @@ def test_repeat_with_null(arg, repeat):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_empty_str_empty_cat():
     assert pd.Series(dtype=object).str.cat() == ""
@@ -88,6 +104,11 @@ def test_empty_df_float_raises():
         pd.Series(dtype="float64").str.cat()
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=10, fallback_count=1, sproc_count=1)
 def test_empty_str_self_cat():
     # The query count is higher in this test because of the creation of a temp table for the
@@ -130,19 +151,29 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
 @pytest.mark.parametrize(
     "method, expected, query_count, fallback_count, sproc_count",
     [
-        (
+        pytest.param(
             "isalnum",
             [True, True, True, True, True, False, True, True, False, False],
             9,
             1,
             1,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
         ),
-        (
+        pytest.param(
             "isalpha",
             [True, True, True, False, False, False, True, False, False, False],
             9,
             1,
             1,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
         ),
         (
             "isdigit",
@@ -151,19 +182,29 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             0,
             0,
         ),
-        (
+        pytest.param(
             "isnumeric",
             [False, False, False, True, False, False, False, True, False, False],
             9,
             1,
             1,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
         ),
-        (
+        pytest.param(
             "isspace",
             [False, False, False, False, False, False, False, False, False, True],
             9,
             1,
             1,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
         ),
         (
             "islower",
@@ -205,6 +246,11 @@ def test_ismethods(method, expected, query_count, fallback_count, sproc_count):
         assert list(result.to_pandas()) == expected
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "method, expected",
     [
@@ -230,6 +276,11 @@ def test_isnumeric_unicode(method, expected):
     assert list(result.to_pandas()) == expected
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "method, expected",
     [
@@ -246,6 +297,11 @@ def test_isnumeric_unicode_missing(method, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
 def test_split_join_roundtrip():
     ser = pd.Series(["a_b_c", "c_d_e", np.nan, "f_g_h"], dtype=object)
@@ -265,6 +321,11 @@ def test_len():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "method,sub,start,end,expected",
     [
@@ -291,6 +352,11 @@ def test_index(method, sub, start, end, expected):
     assert list(result.to_pandas()) == expected
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=4)
 def test_index_not_found_raises():
     obj = pd.Series(["ABCDEFG", "BCDEFEF", "DEFGHIJEF", "EFGHEF"], dtype=object)
@@ -308,6 +374,11 @@ def test_index_wrong_type_raises(method):
         getattr(obj.str, method)(0)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "method, exp",
     [
@@ -324,6 +395,11 @@ def test_index_missing(method, exp):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "start, stop, step, expected",
     [
@@ -342,6 +418,11 @@ def test_slice(start, stop, step, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "start,stop,repl,expected",
     [
@@ -366,6 +447,11 @@ def test_slice_replace(start, stop, repl, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "method, exp",
     [
@@ -382,6 +468,11 @@ def test_lstrip_rstrip(method, exp):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "prefix, expected", [("a", ["b", " b c", "bc"]), ("ab", ["", "a b c", "bc"])]
 )
@@ -393,6 +484,11 @@ def test_removeprefix(prefix, expected):
     assert_snowpark_pandas_equal_to_pandas(result, ser_expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "suffix, expected", [("c", ["ab", "a b ", "b"]), ("bc", ["ab", "a b c", ""])]
 )
@@ -404,6 +500,11 @@ def test_removesuffix(suffix, expected):
     assert_snowpark_pandas_equal_to_pandas(result, ser_expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_encode_decode():
     ser = pd.Series(["a", "b", "a\xe4"], dtype=object).str.encode("utf-8")
@@ -413,6 +514,11 @@ def test_encode_decode():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "form, expected",
     [
@@ -435,6 +541,11 @@ def test_normalize(
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "width, data, expected_data",
     [
@@ -451,6 +562,11 @@ def test_zfill(width, data, expected_data):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_zfill_with_leading_sign():
     value = pd.Series(["-cat", "-1", "+dog"])
@@ -459,6 +575,11 @@ def test_zfill_with_leading_sign():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "key, expected_result",
     [

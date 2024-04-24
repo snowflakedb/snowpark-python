@@ -3,11 +3,12 @@
 #
 import logging
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING,

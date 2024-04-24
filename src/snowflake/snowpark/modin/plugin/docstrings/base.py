@@ -2531,6 +2531,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
 
     def sort_values():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values along either axis.
 
@@ -2643,7 +2644,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         Sorting with a key function
 
-        >>> df.sort_values(by='col4', key=lambda col: col.str.lower())
+        >>> df.sort_values(by='col4', key=lambda col: col.str.lower())  # doctest: +SKIP
            col1  col2  col3 col4
         0     A     2     0    a
         1     A     1     1    B

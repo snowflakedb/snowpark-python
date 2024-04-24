@@ -93,7 +93,8 @@ class BaseSparseAccessor:
         )
 
 
-@_inherit_docstrings(pandas.core.arrays.sparse.accessor.SparseFrameAccessor)
+# Snowpark pandas does not support sparse accessors - remove docstrings to prevent doctests from running
+# @_inherit_docstrings(pandas.core.arrays.sparse.accessor.SparseFrameAccessor)
 class SparseFrameAccessor(BaseSparseAccessor):
     @classmethod
     def _validate(cls, data):
@@ -131,7 +132,8 @@ class SparseFrameAccessor(BaseSparseAccessor):
         return self._default_to_pandas(pandas.DataFrame.sparse.to_coo)
 
 
-@_inherit_docstrings(pandas.core.arrays.sparse.accessor.SparseAccessor)
+# Snowpark pandas does not support sparse accessors - remove docstrings to prevent doctests from running
+# @_inherit_docstrings(pandas.core.arrays.sparse.accessor.SparseAccessor)
 class SparseAccessor(BaseSparseAccessor):
     @classmethod
     def _validate(cls, data):

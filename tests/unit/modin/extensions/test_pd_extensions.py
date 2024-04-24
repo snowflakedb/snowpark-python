@@ -15,8 +15,10 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
+import modin.pandas as pd
+from modin.pandas.api.extensions import register_pd_accessor
+
+import snowflake.snowpark.modin.plugin  # noqa: F401
 
 
 def test_pd_extension_simple_method():

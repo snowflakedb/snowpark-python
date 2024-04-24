@@ -52,7 +52,7 @@ class SnowpandasSessionHolder(ModuleType):
             if ex.error_code == "1409":
                 raise SnowparkSessionException(
                     "There are multiple active snowpark sessions, but you need to choose one for Snowpark pandas. "
-                    + "Please assign one to Snowpark pandas with a statement like `snowflake.snowpark.modin.pandas.session = session`."
+                    + "Please assign one to Snowpark pandas with a statement like `modin.pandas.session = session`."
                 ) from ex
             if ex.error_code == "1403":
                 raise SnowparkSessionException(
@@ -62,12 +62,23 @@ class SnowpandasSessionHolder(ModuleType):
             raise
 
     def __setattr__(self, attr: str, value: Any) -> None:
+        # If this module is modin.pandas, delegate the attribute to snowflake.snowpark.modin.pandas
+        if self.__package__ == "modin.pandas" and attr == "session":
+            import snowflake.snowpark.modin.pandas as spd
+
+            setattr(spd, attr, value)
+            return
         if attr == "session":
             self._session = value
         else:
             super().__setattr__(attr, value)
 
     def __getattr__(self, name: str) -> Any:
+        # If this module is modin.pandas, delegate the attribute to snowflake.snowpark.modin.pandas
+        if self.__package__ == "modin.pandas" and name == "session":
+            import snowflake.snowpark.modin.pandas as spd
+
+            return getattr(spd, name)
         return (
             self._get_active_session()
             if name == "session"

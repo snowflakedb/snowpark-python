@@ -4,12 +4,13 @@
 
 from collections import OrderedDict, defaultdict
 
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 from pandas.testing import assert_series_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 
 DICT_CLASSES = [dict, OrderedDict, defaultdict(int), defaultdict(list)]

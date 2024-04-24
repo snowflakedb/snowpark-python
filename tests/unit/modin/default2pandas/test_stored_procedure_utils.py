@@ -6,10 +6,10 @@ from typing import Any, Union
 from unittest import mock
 
 import pytest
+from modin.pandas import DataFrame, Series
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,

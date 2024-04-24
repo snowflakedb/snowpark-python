@@ -2,11 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -17,9 +18,25 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
     "interpolation,use_fallback",
     [
         ("linear", False),
-        ("lower", True),
+        pytest.param(
+            "lower",
+            True,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
+        ),
         ("nearest", False),
-        ("midpoint", True),
+        pytest.param(
+            "midpoint",
+            True,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -86,6 +103,11 @@ def test_quantile(interpolation, use_fallback, a_vals, b_vals, q):
         assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_quantile_array():
@@ -109,6 +131,11 @@ def test_quantile_array():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_quantile_array_list_like_q():
@@ -128,6 +155,11 @@ def test_quantile_array_list_like_q():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_quantile_array_no_sort():
@@ -148,6 +180,11 @@ def test_quantile_array_no_sort():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_quantile_array_multiple_levels():
@@ -165,6 +202,11 @@ def test_quantile_array_multiple_levels():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
 @pytest.mark.parametrize("groupby", [[0], [0, 1]])
@@ -213,6 +255,11 @@ def test_quantile_raises():
         df.groupby("key").quantile().to_pandas()
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=9)
 def test_quantile_out_of_bounds_q_raises():
@@ -258,6 +305,11 @@ def test_quantile_missing_group_values_correct_results(
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "interpolation, val1, val2", [("lower", 2, 2), ("higher", 2, 3), ("nearest", 2, 2)]
@@ -277,6 +329,11 @@ def test_groupby_quantile_all_na_group_masked(interpolation, val1, val2):
     assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_groupby_quantile_nonmulti_levels_order():

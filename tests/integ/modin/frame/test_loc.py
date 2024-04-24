@@ -4,15 +4,16 @@
 import random
 import re
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame
 from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas import DataFrame
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -100,12 +101,12 @@ diff2native_negative_row_inputs = [
     (
         native_pd.Series([2, 4]),
         TypeError,
-        "Please convert this to Snowpark pandas objects by calling snowflake",
+        "Please convert this to Snowpark pandas objects by calling modin",
     ),
     (
         native_pd.DataFrame(),
         TypeError,
-        "Please convert this to Snowpark pandas objects by calling snowflake",
+        "Please convert this to Snowpark pandas objects by calling modin",
     ),
 ]
 
@@ -1052,15 +1053,10 @@ LOC_SET_COL_KEYS = [
     native_pd.Series(
         [True, False, False, True], index=["B", "A", "D", "C"], dtype=bool
     ),  # boolean series list
-    # duplicates + new columns
-    pytest.param(
-        ["B", "E", 1, "B", "C", "X", "C", 2, "C"],
-        marks=pytest.mark.xfail(reason="SNOW-1320623 pandas 2.2.1 upgrade"),
-    ),
-    pytest.param(
-        native_pd.Series(["B", "E", 1, "B", "C", "X", "C", 2, "C"]),
-        marks=pytest.mark.xfail(reason="SNOW-1320623 pandas 2.2.1 upgrade"),
-    ),
+    # duplicates + new columns, deviating behavior: SNOW-1320623 pandas 2.2.1 upgrade for test:
+    # test_df_loc_set_general_col_key_type
+    ["B", "E", 1, "B", "C", "X", "C", 2, "C"],  #
+    native_pd.Series(["B", "E", 1, "B", "C", "X", "C", 2, "C"]),
 ]
 
 
@@ -1105,10 +1101,21 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
             )
         return _row_key
 
+    # There is a bug in pandas 2.2.0+ behavior; issue here: https://github.com/pandas-dev/pandas/issues/58317
+    # The problem arises with duplicated columns when a column key of the format: [existing column(s), new column,
+    # duplicated existing column(s)].
+    # Some of the existing columns are modified (when they are not supposed to be) and have empty values.
+    # In this test, this happens when the col_key is ["B", "E", 1, "B", "C", "X", "C", 2, "C"] or the Series version.
+    # We get around this by first assigning NaN values before the actual loc testing performed.
+
     def loc_set_helper(df):
         # convert row key to appropriate type
         row_key = key_converter(df)
         if isinstance(df, native_pd.DataFrame):
+            # 2 is a column only in the col_keys with deviating behavior
+            if isinstance(col_key, (list, native_pd.Series)) and 2 in col_key:
+                # Set the new columns to NaN values to prevent assignment of byte values.
+                df.loc[:, ["E", 1, "X", 2]] = np.nan
             df.loc[row_key, col_key] = item
         else:
             key = (
@@ -2357,6 +2364,13 @@ def test_df_loc_self_df_set_aligned_row_key(df):
 def test_df_loc_set_scalar_row_key_enlargement(
     row_key, col_key, item_values, data_index
 ):
+    """
+    Some tests above are marked as xfail since the new pandas behavior from versions 2.2.0+ seems like a bug in
+    pandas; issue here: https://github.com/pandas-dev/pandas/issues/58316
+
+    The problem arises when loc set with a scalar item is performed with new rows and columns. The "new" column values
+    contain byte values b'' instead of NaN.
+    """
     data = {
         "A": [5, 8, 11, 14],
         "B": [6, 9, 12, 15],
@@ -2372,6 +2386,76 @@ def test_df_loc_set_scalar_row_key_enlargement(
             df.loc[row_key] = item_values
         else:
             df.loc[row_key, col_key] = item_values
+
+    eval_snowpark_pandas_result(snow_df, native_df, set_loc_helper, inplace=True)
+
+
+@pytest.mark.parametrize(
+    "row_key, col_key, item_values",
+    [
+        # Test single row (existing) and combinations of existing/new columns
+        (
+            "a",
+            ["B", "B", "T", "T"],
+            95,
+        ),
+        # Test single row (new / not existing) and combinations of existing/new columns
+        (
+            "w",
+            ["V", "T"],
+            91,
+        ),
+        (
+            "u",
+            ["C", "T"],
+            90,
+        ),
+        (
+            "v",
+            ["B", "B", "T", "T"],
+            95,
+        ),
+        # Test list like item
+        (
+            "u",
+            ["X", "T"],
+            [90, 91],
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "data_index",
+    [
+        # Test with unique index values
+        ["a", "b", "c", "d"],
+        # Test with duplicate index values
+        ["a", "a", "c", "d"],
+    ],
+)
+@sql_count_checker(query_count=1, join_count=1)
+def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
+    row_key, col_key, item_values, data_index
+):
+    """
+    This test is to check whether the xfail'd tests above work as expected in Snowpark pandas.
+    See pandas issue: https://github.com/pandas-dev/pandas/issues/58316
+    """
+    data = {
+        "A": [5, 8, 11, 14],
+        "B": [6, 9, 12, 15],
+        "C": [7, 10, 13, 16],
+        "D": [8, 11, 14, 17],
+    }
+
+    snow_df = pd.DataFrame(data, index=data_index)
+    native_df = native_pd.DataFrame(data, index=data_index)
+
+    def set_loc_helper(df):
+        if isinstance(df, native_pd.DataFrame):
+            # Explicitly set the values in the new column to NaN to prevent byte data output.
+            new_col_key = [col for col in ["V", "X", "T"] if col in col_key]
+            df.loc[:, new_col_key] = np.nan
+        df.loc[row_key, col_key] = item_values
 
     eval_snowpark_pandas_result(snow_df, native_df, set_loc_helper, inplace=True)
 

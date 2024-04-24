@@ -1104,6 +1104,119 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         Encode the object as an enumerated type or categorical variable.
         """
 
+    def fillna():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
+        """
+        Fill NA/NaN values using the specified method.
+
+        Parameters
+        ----------
+        value : scalar, dict, Series, or DataFrame
+            Value to use to fill holes (e.g. 0), alternately a
+            dict/Series/DataFrame of values specifying which value to use for
+            each index (for a Series) or column (for a DataFrame).  Values not
+            in the dict/Series/DataFrame will not be filled. This value cannot
+            be a list.
+        method : {{'backfill', 'bfill', 'ffill', None}}, default None
+            Method to use for filling holes in reindexed Series:
+
+            * ffill: propagate last valid observation forward to next valid.
+            * backfill / bfill: use next valid observation to fill gap.
+
+            .. deprecated:: 2.1.0
+                Use ffill or bfill instead.
+
+        axis : {axes_single_arg}
+            Axis along which to fill missing values. For `Series`
+            this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any
+            other views on this object (e.g., a no-copy slice for a column in a
+            DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive
+            NaN values to forward/backward fill. In other words, if there is
+            a gap with more than this number of consecutive NaNs, it will only
+            be partially filled. If method is not specified, this is the
+            maximum number of entries along the entire axis where NaNs will be
+            filled. Must be greater than 0 if not None.
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible,
+            or the string 'infer' which will try to downcast to an appropriate
+            equal type (e.g. float64 to int64 if possible).
+
+            .. deprecated:: 2.2.0
+
+        Returns
+        -------
+        {klass} or None
+            Object with missing values filled or None if ``inplace=True``.
+
+        See Also
+        --------
+        ffill : Fill values by propagating the last valid observation to next valid.
+        bfill : Fill values by using the next valid observation to fill the gap.
+        interpolate : Fill NaN values using interpolation.
+        reindex : Conform object to new index.
+        asfreq : Convert TimeSeries to specified frequency.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        Replace all NaN elements with 0s.
+
+        >>> df.fillna(0)
+             A    B    C    D
+        0  0.0  2.0  0.0  0.0
+        1  3.0  4.0  0.0  1.0
+        2  0.0  0.0  0.0  0.0
+        3  0.0  3.0  0.0  4.0
+
+        Replace all NaN elements in column 'A', 'B', 'C', and 'D', with 0, 1,
+        2, and 3 respectively.
+
+        >>> values = {"A": 0, "B": 1, "C": 2, "D": 3}
+        >>> df.fillna(value=values)
+             A    B    C    D
+        0  0.0  2.0  2.0  0.0
+        1  3.0  4.0  2.0  1.0
+        2  0.0  1.0  2.0  3.0
+        3  0.0  3.0  2.0  4.0
+
+        Only replace the first NaN element.
+
+        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
+             A    B    C    D
+        0  0.0  2.0  2.0  0.0
+        1  3.0  4.0  NaN  1.0
+        2  NaN  1.0  NaN  3.0
+        3  NaN  3.0  NaN  4.0
+
+        When filling using a DataFrame, replacement happens along
+        the same column names and same indices
+
+        >>> df2 = pd.DataFrame(np.zeros((4, 4)), columns=list("ABCE"))
+        >>> df.fillna(df2)
+             A    B    C    D
+        0  0.0  2.0  0.0  0.0
+        1  3.0  4.0  0.0  1.0
+        2  0.0  0.0  0.0  NaN
+        3  0.0  3.0  0.0  4.0
+
+        Note that column D is not affected since it is not present in df2.
+        """
+
     @_create_operator_docstring(
         pandas.core.series.Series.floordiv, overwrite_existing=True
     )
@@ -1115,6 +1228,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         pass
 
     def groupby():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Group Series using a mapper or by a Series of columns.
 
@@ -1169,7 +1283,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Parrot     30.0
             Parrot     20.0
             Name: Max Speed, dtype: float64
-            >>> ser.groupby(["a", "b", "a", "b"]).mean()
+            >>> ser.groupby(["a", "b", "a", "b"]).mean()  # doctest: +SKIP
             a    210.0
             b    185.0
             Name: Max Speed, dtype: float64
@@ -1370,7 +1484,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
         value (e.g. ``defaultdict``):
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
+        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
         0    kitten
         1     puppy
         2      None
@@ -1389,7 +1503,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         To avoid applying the function to missing values (and keep them as
         ``NaN``) ``na_action='ignore'`` can be used:
 
-        >>> s.map('I am a {}'.format, na_action='ignore')
+        >>> s.map('I am a {}'.format, na_action='ignore')  # doctest: +SKIP
         0       I am a cat
         1       I am a dog
         2             None
@@ -1402,84 +1516,74 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     def mask():
         """
-        Map values of Series according to an input mapping or function.
+        Replace values where the condition is True.
 
-        Used for substituting each value in a Series with another value,
-        that may be derived from a function, a ``dict`` or
-        a :class:`Series`.
+        Args:
+            cond: bool Series/DataFrame, array-like or callable
+                Where cond is False, keep the original value. Where True, replace with corresponding value from other.
+                If cond is callable, it is computed on the Series/DataFrame and should return boolean Series/DataFrame
+                or array. The callable must not change input Series/DataFrame (though pandas doesn't check it).
 
-        Parameters
-        ----------
-        arg : function, collections.abc.Mapping subclass or Series
-            Mapping correspondence.
-        na_action : {None, 'ignore'}, default None
-            If 'ignore', propagate NULL values, without passing them to the
-            mapping correspondence. Note that, it will not bypass NaN values
-            in a FLOAT column in Snowflake.
+            other: scalar, Series/DataFrame, or callable
+                Entries where cond is True are replaced with corresponding value from other. If other is callable,
+                it is computed on the Series/DataFrame and should return scalar or Series/DataFrame. The callable
+                must not change input Series/DataFrame (though pandas doesn’t check it).
 
-        Returns
-        -------
-        Series
-            Same index as caller.
+            inplace: bool, default False
+                Whether to perform the operation in place on the data.
 
-        See Also
-        --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+            axis: int, default None
+                Alignment axis if needed. For Series this parameter is unused and defaults to 0.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+            level: int, default None
+                Alignment level if needed.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        Returns:
+            Same type as caller or None if inplace=True.
 
-        Notes
-        -----
-        When ``arg`` is a dictionary, values in Series that are not in the
-        dictionary (as keys) are converted to ``NaN``. However, if the
-        dictionary is a ``dict`` subclass that defines ``__missing__`` (i.e.
-        provides a method for default values), then this default is used
-        rather than ``NaN``.
+        See Also:
+            Series.where : Replace values where the condition is False.
 
-        Examples
-        --------
-        >>> s = pd.Series(['cat', 'dog', np.nan, 'rabbit'])
-        >>> s
-        0       cat
-        1       dog
-        2      None
-        3    rabbit
-        dtype: object
+        Notes:
+            The mask method is an application of the if-then idiom. For each element in the calling DataFrame, if cond
+            is False the element is used; otherwise the corresponding element from the DataFrame other is used. If the
+            axis of other does not align with axis of cond Series/DataFrame, the misaligned index positions will be
+            filled with True.
 
-        ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
-        in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``):
+            The signature for DataFrame.where() differs from numpy.where(). Roughly df1.where(m, df2) is equivalent to
+            np.where(m, df1, df2).
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
-        0    kitten
-        1     puppy
-        2      None
-        3      None
-        dtype: object
+            For further details and examples see the mask documentation in indexing.
+            The dtype of the object takes precedence. The fill value is casted to the object’s dtype, if this can be
+            done losslessly.
 
-        It also accepts a function:
+        Examples::
+        >>> s = pd.Series(range(5))
+        >>> s.mask(s > 0)  # doctest: +NORMALIZE_WHITESPACE
+        0    0.0
+        1    NaN
+        2    NaN
+        3    NaN
+        4    NaN
+        dtype: float64
 
-        >>> s.map('I am a {}'.format)
-        0       I am a cat
-        1       I am a dog
-        2      I am a <NA>
-        3    I am a rabbit
-        dtype: object
+        >>> s = pd.Series(range(5))
+        >>> t = pd.Series([True, False])
+        >>> s.mask(t, 99)  # doctest: +NORMALIZE_WHITESPACE
+        0    99
+        1     1
+        2    99
+        3    99
+        4    99
+        dtype: int64
 
-        To avoid applying the function to missing values (and keep them as
-        ``NaN``) ``na_action='ignore'`` can be used:
-
-        >>> s.map('I am a {}'.format, na_action='ignore')
-        0       I am a cat
-        1       I am a dog
-        2             None
-        3    I am a rabbit
-        dtype: object
-
-        Note that in the above example, the missing value in Snowflake is NULL,
-        it is mapped to ``None`` in a string/object column.
+        >>> s.mask(s > 1, 10)  # doctest: +NORMALIZE_WHITESPACE
+        0     0
+        1     1
+        2    10
+        3    10
+        4    10
+        dtype: int64
         """
 
     def memory_usage():
@@ -1581,6 +1685,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         pass
 
     def rename():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Alter Series index labels or name.
 
@@ -1633,7 +1738,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         1    2
         2    3
         Name: my_name, dtype: int64
-        >>> s.rename(lambda x: x ** 2)  # function, changes labels
+        >>> s.rename(lambda x: x ** 2)  # function, changes labels  # doctest: +SKIP
         0    1
         1    2
         4    3
@@ -2098,6 +2203,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def sort_values():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values.
 
@@ -2226,7 +2332,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2    c
         4    e
         dtype: object
-        >>> s.sort_values(key=lambda x: x.str.lower())
+        >>> s.sort_values(key=lambda x: x.str.lower())  # doctest: +SKIP
         0    a
         1    B
         2    c
@@ -2238,7 +2344,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         sort by the ``sin`` of the value
 
         >>> s = pd.Series([-4, -2, 0, 2, 4])
-        >>> s.sort_values(key=np.sin)
+        >>> s.sort_values(key=np.sin)  # doctest: +SKIP
         1   -2
         4    4
         2    0
@@ -2249,7 +2355,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         More complicated user-defined functions can be used,
         as long as they expect a Series and return an array-like
 
-        >>> s.sort_values(key=lambda x: (np.tan(x.cumsum())))
+        >>> s.sort_values(key=lambda x: (np.tan(x.cumsum())))  # doctest: +SKIP
         0   -4
         3    2
         4    4

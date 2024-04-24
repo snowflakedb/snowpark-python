@@ -1,12 +1,16 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa : F401
+
+# Because we cannot overwrite submodules of modin.pandas, we have to import these objects from
+# snowflake.snowpark.modin.pandas
 from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy as SnowparkPandasDFGroupBy,
     SeriesGroupBy as SnowparkPandasSerGroupBy,

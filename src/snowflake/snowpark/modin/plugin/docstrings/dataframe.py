@@ -219,7 +219,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def dropna():
-
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Remove missing values.
 
@@ -285,7 +285,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Drop the columns where at least one element is missing.
 
-        >>> df.dropna(axis='columns')
+        >>> df.dropna(axis='columns')  # doctest: +SKIP
                name
         0    Alfred
         1    Batman
@@ -722,6 +722,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
     agg = aggregate
 
     def apply():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Apply a function along an axis of the DataFrame.
 
@@ -826,7 +827,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         Using a numpy universal function (in this case the same as
         ``np.sqrt(df)``):
 
-        >>> df.apply(np.sqrt)
+        >>> df.apply(np.sqrt)  # doctest: +SKIP
                   A         B
         0  1.414062  0.000000
         1  1.732422  2.646484
@@ -835,12 +836,12 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Using a reducing function on either axis
 
-        >>> df.apply(np.sum, axis=0)
+        >>> df.apply(np.sum, axis=0)  # doctest: +SKIP
         A     9
         B    16
         dtype: int8
 
-        >>> df.apply(np.sum, axis=1)
+        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
         0     2
         1    10
         2    13
@@ -848,7 +849,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returning a list-like will result in a Series
 
-        >>> df.apply(lambda x: [1, 2], axis=1)
+        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
@@ -859,7 +860,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         and broadcast it along the axis. The resulting column names will
         be the originals.
 
-        >>> df.apply(lambda x: [1, 2], axis=1, result_type='broadcast')
+        >>> df.apply(lambda x: [1, 2], axis=1, result_type='broadcast')  # doctest: +SKIP
            A  B
         0  1  2
         1  1  2
@@ -870,7 +871,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         >>> import scipy.stats
         >>> pd.session.custom_package_usage_config['enabled'] = True
         >>> pd.session.add_packages(['numpy', scipy])
-        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)
+        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)  # doctest: +SKIP
         0     1.00
         1    14.50
         2    24.25
@@ -887,7 +888,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         ...    import statsmodels.tsa.stattools
         ...    return pd.Series(statsmodels.tsa.stattools.pacf_ols(column.values)).mean()
         ...
-        >>> df.apply(autocorr, axis=0)
+        >>> df.apply(autocorr, axis=0)  # doctest: +SKIP
         A    0.857143
         B    0.428571
         dtype: float64
@@ -993,6 +994,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def transform():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
         Currently only callable and string functions are supported since those can be directly mapped to
@@ -1008,17 +1010,17 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
             0     1     3
             1     2     4
             2     3     5
-            >>> df.transform(lambda x: x + 1)
+            >>> df.transform(lambda x: x + 1)  # doctest: +SKIP
                col1  col2
             0     2     4
             1     3     5
             2     4     6
-            >>> df.transform(np.square)
+            >>> df.transform(np.square)  # doctest: +SKIP
                col1  col2
             0     1     9
             1     4    16
             2     9    25
-            >>> df.transform("square")
+            >>> df.transform("square")  # doctest: +SKIP
                col1  col2
             0     1     9
             1     4    16
@@ -1169,6 +1171,119 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
     def eval():
         """
         Evaluate a string describing operations on ``DataFrame`` columns.
+        """
+
+    def fillna():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
+        """
+        Fill NA/NaN values using the specified method.
+
+        Parameters
+        ----------
+        value : scalar, dict, Series, or DataFrame
+            Value to use to fill holes (e.g. 0), alternately a
+            dict/Series/DataFrame of values specifying which value to use for
+            each index (for a Series) or column (for a DataFrame).  Values not
+            in the dict/Series/DataFrame will not be filled. This value cannot
+            be a list.
+        method : {{'backfill', 'bfill', 'ffill', None}}, default None
+            Method to use for filling holes in reindexed Series:
+
+            * ffill: propagate last valid observation forward to next valid.
+            * backfill / bfill: use next valid observation to fill gap.
+
+            .. deprecated:: 2.1.0
+                Use ffill or bfill instead.
+
+        axis : {axes_single_arg}
+            Axis along which to fill missing values. For `Series`
+            this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any
+            other views on this object (e.g., a no-copy slice for a column in a
+            DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive
+            NaN values to forward/backward fill. In other words, if there is
+            a gap with more than this number of consecutive NaNs, it will only
+            be partially filled. If method is not specified, this is the
+            maximum number of entries along the entire axis where NaNs will be
+            filled. Must be greater than 0 if not None.
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible,
+            or the string 'infer' which will try to downcast to an appropriate
+            equal type (e.g. float64 to int64 if possible).
+
+            .. deprecated:: 2.2.0
+
+        Returns
+        -------
+        {klass} or None
+            Object with missing values filled or None if ``inplace=True``.
+
+        See Also
+        --------
+        ffill : Fill values by propagating the last valid observation to next valid.
+        bfill : Fill values by using the next valid observation to fill the gap.
+        interpolate : Fill NaN values using interpolation.
+        reindex : Conform object to new index.
+        asfreq : Convert TimeSeries to specified frequency.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        Replace all NaN elements with 0s.
+
+        >>> df.fillna(0)
+             A    B    C    D
+        0  0.0  2.0  0.0  0.0
+        1  3.0  4.0  0.0  1.0
+        2  0.0  0.0  0.0  0.0
+        3  0.0  3.0  0.0  4.0
+
+        Replace all NaN elements in column 'A', 'B', 'C', and 'D', with 0, 1,
+        2, and 3 respectively.
+
+        >>> values = {"A": 0, "B": 1, "C": 2, "D": 3}
+        >>> df.fillna(value=values)
+             A    B    C    D
+        0  0.0  2.0  2.0  0.0
+        1  3.0  4.0  2.0  1.0
+        2  0.0  1.0  2.0  3.0
+        3  0.0  3.0  2.0  4.0
+
+        Only replace the first NaN element.
+
+        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
+             A    B    C    D
+        0  0.0  2.0  2.0  0.0
+        1  3.0  4.0  NaN  1.0
+        2  NaN  1.0  NaN  3.0
+        3  NaN  3.0  NaN  4.0
+
+        When filling using a DataFrame, replacement happens along
+        the same column names and same indices
+
+        >>> df2 = pd.DataFrame(np.zeros((4, 4)), columns=list("ABCE"))
+        >>> df.fillna(df2)
+             A    B    C    D
+        0  0.0  2.0  0.0  0.0
+        1  3.0  4.0  0.0  1.0
+        2  0.0  0.0  0.0  NaN
+        3  0.0  3.0  0.0  4.0
+
+        Note that column D is not affected since it is not present in df2.
         """
 
     def floordiv():
@@ -2066,6 +2181,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def rename():
+        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Rename columns or index labels.
 
@@ -2150,7 +2266,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         >>> df.index
         Index([0, 1, 2], dtype='int64')
-        >>> df.rename(index=str).index
+        >>> df.rename(index=str).index  # doctest: +SKIP
         Index(['0', '1', '2'], dtype='object')
 
         >>> df.rename(columns={"A": "a", "B": "b", "C": "c"}, errors="raise")

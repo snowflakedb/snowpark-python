@@ -4,11 +4,12 @@
 import logging
 from datetime import date, time
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -24,7 +25,20 @@ def downcast(request):
     return request.param
 
 
-@pytest.fixture(params=["ignore", "raise", "coerce"])
+@pytest.fixture(
+    params=[
+        pytest.param(
+            "ignore",
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
+        ),
+        "raise",
+        "coerce",
+    ]
+)
 def errors(request):
     return request.param
 
@@ -188,7 +202,19 @@ def test_to_numeric_errors(errors):
 )
 @pytest.mark.parametrize(
     "errors, expected_query_count, expected_fallback_count",
-    [["ignore", 7, 1], ["coerce", 0, 0]],
+    [
+        pytest.param(
+            "ignore",
+            7,
+            1,
+            marks=pytest.mark.xfail(
+                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                strict=True,
+                raises=RuntimeError,
+            ),
+        ),
+        ["coerce", 0, 0],
+    ],
 )
 def test_to_numeric_errors_dtype(
     input, errors, expected_query_count, expected_fallback_count
@@ -335,6 +361,7 @@ def test_datetime_like(errors):
         ),
     ],
 )
+@pytest.mark.parametrize("errors", ["ignore", "raise", "coerce"])
 def test_unsupported_types(
     session,
     test_table_name,

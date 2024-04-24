@@ -3,10 +3,11 @@
 #
 from typing import Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,

@@ -6,15 +6,16 @@ import json
 from typing import Any, Optional
 from unittest.mock import ANY, MagicMock, patch
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pytest
+from modin.pandas.dataframe import DataFrame
 from pandas._libs.lib import NoDefault, no_default
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _not_equal_to_default,
     _send_snowpark_pandas_telemetry_helper,
@@ -99,6 +100,11 @@ def test_standalone_api_telemetry():
     ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     """
@@ -182,6 +188,11 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     _ = json.dumps(body)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 def test_snowpark_pandas_telemetry_fallback(test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
@@ -359,6 +370,11 @@ def test_telemetry_args():
     ) == ["arg7_no_default_dataframe", "arg8_nodefault_detaframe"]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=7, fallback_count=1, sproc_count=1)
 def test_property_methods_telemetry():
     datetime_series = pd.date_range("2000-01-01", periods=3, freq="h")

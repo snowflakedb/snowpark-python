@@ -3,12 +3,13 @@
 #
 import re
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._testing import assert_almost_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 

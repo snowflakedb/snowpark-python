@@ -5,6 +5,7 @@ import logging
 from datetime import date, time
 from itertools import product
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -23,7 +24,7 @@ from pandas.core.arrays.integer import (
 from pandas.core.arrays.string_ import StringDtype
 from pandas.core.dtypes.common import is_extension_array_dtype
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
     NUMPY_SNOWFLAKE_TYPE_PAIRS,
     PANDAS_EXT_SNOWFLAKE_TYPE_PAIRS,
@@ -415,6 +416,11 @@ def test_astype_copy():
     assert s2 is None
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data, expected",

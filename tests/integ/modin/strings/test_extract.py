@@ -2,11 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -25,6 +26,11 @@ def skip(pytestconfig):
 
 
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_extract.py
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=4)
 def test_extract_expand_kwarg_wrong_type_raises():
     values = pd.Series(["fooBAD__barBAD", np.nan, "foo"], dtype=object)
@@ -32,6 +38,11 @@ def test_extract_expand_kwarg_wrong_type_raises():
         values.str.extract(".*(BAD[_]+).*(BAD)", expand=None)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=24, fallback_count=3, sproc_count=3)
 def test_extract_expand_kwarg():
     s = pd.Series(["fooBAD__barBAD", np.nan, "foo"], dtype=object)
@@ -50,6 +61,11 @@ def test_extract_expand_kwarg():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 def test_extract_expand_capture_groups():
     s = pd.Series(["A1", "B2", "C3"], dtype=object)
     # one group, no matches

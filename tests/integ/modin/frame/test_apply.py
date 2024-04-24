@@ -4,12 +4,13 @@
 
 import datetime
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pytest import param
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -366,6 +367,11 @@ def test_axis_1_apply_args_kwargs():
 
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 class TestDefault2Pandas:
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
     @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
     def test_axis_0(self, data, func, return_type):
@@ -373,6 +379,11 @@ class TestDefault2Pandas:
         snow_df = pd.DataFrame(data)
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize("result_type", ["reduce", "expand", "broadcast"])
     @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
     def test_result_type(self, result_type):
@@ -384,6 +395,11 @@ class TestDefault2Pandas:
             lambda x: x.apply(lambda x: [1, 2], result_type=result_type),
         )
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @sql_count_checker(
         query_count=20, fallback_count=2, sproc_count=2, expect_high_count=True
     )
@@ -608,6 +624,11 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_basic_dataframe_transform(data, apply_func):
@@ -640,6 +661,11 @@ def test_dataframe_transform_aggregation_negative(func):
         snow_df.transform(func)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=4)
 def test_dataframe_transform_invalid_function_name_negative(session):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
@@ -854,6 +880,11 @@ import scipy.stats  # noqa: E402
 import statsmodels  # noqa: E402
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=SnowparkSQLException,
+)
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [

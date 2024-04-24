@@ -4,12 +4,13 @@
 
 import string
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._typing import Frequency
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.groupby.test_groupby_ngroups import assert_ngroups_equal
@@ -40,6 +41,11 @@ def tsframe() -> native_pd.DataFrame:
     return makeTimeDataFrame()[:5]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize("group_name", ["x", ["x"]])
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_groupby_axis_1(group_name):
@@ -56,6 +62,11 @@ def test_groupby_axis_1(group_name):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("group_name", ["x", ["x"]])
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
@@ -75,6 +86,11 @@ def test_groupby_axis_1_mi(group_name):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "by",
@@ -95,6 +111,11 @@ def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_timeseries_groupby_with_callable(tsframe):
     snow_ts_df = pd.DataFrame(tsframe)
@@ -105,6 +126,11 @@ def test_timeseries_groupby_with_callable(tsframe):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func, args",
@@ -127,6 +153,11 @@ def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func",
@@ -139,6 +170,11 @@ def test_groupby_invalid_agg_func_raises(basic_snowpark_pandas_df, agg_func):
         basic_snowpark_pandas_df.groupby(by=by).aggregate(agg_func)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=10, fallback_count=1, sproc_count=1)
 def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     by = [1, 1, 4, 2, 2, 4]
@@ -149,6 +185,11 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "by_list",
@@ -163,6 +204,11 @@ def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=22, fallback_count=2, sproc_count=2)
 def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
@@ -189,6 +235,11 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
     assert_frame_equal(result, expected, check_index_type=False, check_dtype=False)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "mapper, level",
     [
@@ -213,6 +264,11 @@ def test_groupby_level_mapper(mapper, level):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "grp_agg",
     [
@@ -228,10 +284,16 @@ def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, by):
     eval_snowpark_pandas_result(snowpark_pandas_group, native_group, grp_agg)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "by", [native_pd.Grouper(key="col1"), ["col5", native_pd.Grouper(key="col1")]]
 )
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_grouper_unsupported(basic_snowpark_pandas_df, by):
     snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
     native_group = basic_snowpark_pandas_df.to_pandas().groupby(by)
@@ -240,7 +302,11 @@ def test_grouper_unsupported(basic_snowpark_pandas_df, by):
     )
 
 
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_groupby_ngroups_axis_1():
@@ -260,6 +326,11 @@ def test_groupby_ngroups_axis_1():
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_groupby_ngroups_axis_1_mi():
     by = "x"

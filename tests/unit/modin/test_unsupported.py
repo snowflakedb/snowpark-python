@@ -3,10 +3,11 @@
 #
 from unittest import mock
 
+import modin.pandas as pd
 import pytest
+from modin.pandas import DataFrame, Series
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import DataFrame, Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )

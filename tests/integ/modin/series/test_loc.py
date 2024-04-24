@@ -6,14 +6,15 @@ import numbers
 import random
 import re
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import Series
 from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.frame.test_loc import (
     diff2native_negative_row_inputs,
     negative_snowpark_pandas_input_keys,

@@ -5,8 +5,9 @@ from typing import Any, Union
 
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame, Series
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,

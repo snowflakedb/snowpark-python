@@ -4,9 +4,10 @@
 
 from functools import reduce
 
+import modin.pandas as pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import (
     pivot_table_test_helper_expects_exception,
 )

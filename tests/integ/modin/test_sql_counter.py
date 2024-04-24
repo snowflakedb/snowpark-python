@@ -1,11 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark import QueryRecord
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
@@ -102,6 +103,11 @@ def test_sql_counter_with_context_manager_outside_loop():
     sc.__exit__(None, None, None)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_sql_counter_with_fallback_count():
     df_data = {
@@ -199,6 +205,11 @@ def test_sql_count_instances_by_query_substr():
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 # This test passes even though it exceeds the high query count because it is adjusted down based on the fallback count.
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_high_sql_count_with_fallback_pass():

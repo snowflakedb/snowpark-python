@@ -4,12 +4,13 @@
 import datetime
 import random
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas.utils import is_scalar
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.utils import is_scalar
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,

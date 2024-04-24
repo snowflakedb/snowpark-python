@@ -98,6 +98,7 @@ _SERIES_EXTENSIONS_ = {}
         pandas.Series.prod,
         pandas.Series.product,
         pandas.Series.reindex,
+        pandas.Series.fillna,
     ],
     apilink="pandas.Series",
 )
@@ -1110,7 +1111,6 @@ class Series(BasePandasDataset):
             use_na_sentinel=use_na_sentinel,
         )
 
-    @_inherit_docstrings(pandas.Series.fillna, apilink="pandas.Series.fillna")
     def fillna(
         self,
         value: Hashable | Mapping | Series = None,

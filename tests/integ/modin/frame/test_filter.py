@@ -4,11 +4,12 @@
 
 import random
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -70,6 +71,11 @@ def test_filtering_with_self(func):
     eval_snowpark_pandas_result(snow_df, native_df, func)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=16, join_count=1, fallback_count=1, sproc_count=1)
 @pytest.mark.parametrize(
     "func",

@@ -7,8 +7,8 @@ from unittest import mock
 
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame, Series
 
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
