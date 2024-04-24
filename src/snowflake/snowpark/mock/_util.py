@@ -4,9 +4,10 @@
 
 import math
 from functools import cmp_to_key, partial
-from typing import Any, Tuple
+from typing import Any, Iterable, Tuple, Union
 
 from snowflake.connector.options import pandas as pd
+from snowflake.snowpark._internal.utils import parse_table_name, quote_name
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,
@@ -295,3 +296,15 @@ def unalias_datetime_part(part):
         return ALIASES_TO_DATETIME_PART[lowered_part]
     else:
         raise ValueError(f"{part} is not a recognized date or time part.")
+
+
+def get_fully_qualified_name(
+    name: Union[str, Iterable[str]], current_schema: str, current_database: str
+) -> str:
+    if isinstance(name, str):
+        name = parse_table_name(name)
+    if len(name) == 1:
+        name = [current_schema] + name
+    if len(name) == 2:
+        name = [current_database] + name
+    return ".".join(quote_name(n) for n in name)

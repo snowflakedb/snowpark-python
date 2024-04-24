@@ -49,7 +49,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
 )
-from snowflake.snowpark.context import _should_continue_registration
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
 
@@ -894,7 +893,8 @@ def add_snowpark_package_to_sproc_packages(
         elif package_name not in session._packages:
             packages = list(session._packages.values()) + [this_package]
     else:
-        if not any(package_name in p for p in packages):
+        package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
+        if not any(p.startswith(package_name) for p in package_names):
             packages.append(this_package)
     return packages
 
@@ -1209,7 +1209,7 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    if _should_continue_registration is None:
+    if snowflake.snowpark.context._should_continue_registration is None:
         continue_registration = True
     else:
         extension_function_properties = ExtensionFunctionProperties(
@@ -1232,8 +1232,10 @@ $$
             native_app_params=native_app_params,
             raw_imports=raw_imports,
         )
-        continue_registration = _should_continue_registration(
-            extension_function_properties
+        continue_registration = (
+            snowflake.snowpark.context._should_continue_registration(
+                extension_function_properties
+            )
         )
 
     # This means the execution environment does not want to continue creating the object in Snowflake
@@ -1331,7 +1333,7 @@ $$
     )
 
     # As an FYI, _should_continue_registration is a function, and is defined outside the Snowpark context.
-    if _should_continue_registration is not None:
+    if snowflake.snowpark.context._should_continue_registration is not None:
         extension_function_properties = ExtensionFunctionProperties(
             anonymous=True,
             object_type=TempObjectType.PROCEDURE,
@@ -1351,7 +1353,9 @@ $$
             func=func,
         )
         # The result of the function call below does not matter because we are not using session object here
-        _should_continue_registration(extension_function_properties)
+        snowflake.snowpark.context._should_continue_registration(
+            extension_function_properties
+        )
 
     sql = f"""
 WITH {object_name} AS PROCEDURE ({sql_func_args})
