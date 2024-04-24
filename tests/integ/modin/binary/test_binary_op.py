@@ -773,9 +773,6 @@ class TestFillValue:
     )
     @pytest.mark.parametrize("fill_value", [24])
     @sql_count_checker(query_count=1, join_count=1)
-    @pytest.mark.xfail(
-        reason="SNOW-1318223 - list-like other (pd.Index) may not be supported in pandas now"
-    )
     def test_binary_arithmetic_ops_between_series_and_list_like(
         self, op, rhs, fill_value
     ):
@@ -789,9 +786,11 @@ class TestFillValue:
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
                 index_as_list = other.tolist()
-                # In the test cases here, index 1 is the only case where either lhs or rhs is NaN.
-                index_as_list[1] = fill_value
-                other = pd.Index(index_as_list)
+                # Since the behavior of all list-like objects is supposed to be the same, convert index to a list
+                # for native pandas and compare it with the index version for Snowpark pandas.
+                # The issue is that native pandas calls isna() directly on other and errors with:
+                # ValueError: The truth value of an array with more than one element is ambiguous. Use a.any() or a.all()
+                other = index_as_list
             return getattr(ser, op)(other=other, fill_value=fill_value)
 
         eval_snowpark_pandas_result(*create_test_series(lhs), op_helper)
