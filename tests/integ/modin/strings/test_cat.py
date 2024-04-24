@@ -2,11 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter
@@ -27,6 +28,11 @@ def snow_series():
     return pd.Series(["a", "a", "b", "b", "c", np.nan])
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_cat.py
 @pytest.mark.parametrize(
     "sep, na_rep, expected, query_count, fallback_count, sproc_count",
@@ -47,6 +53,11 @@ def test_str_cat_single_array(
         assert result == expected
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 def test_str_cat_series_with_array(snow_series):
     t = np.array(["a", np.nan, "b", "d", "foo", np.nan], dtype=object)
     expected = native_pd.Series(["aa", "a-", "bb", "bd", "cfoo", "--"])
@@ -61,6 +72,11 @@ def test_str_cat_series_with_array(snow_series):
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 def test_str_cat_incorrect_lengths(snow_series):
     # errors for incorrect lengths
     # rgx = r"If `others` contains arrays or lists \(or other list-likes.*"

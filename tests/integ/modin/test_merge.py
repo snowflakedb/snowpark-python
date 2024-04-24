@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
+
 # This file contains tests for pd.merge.  pd.merge is just a wrapper on top of
 # DataFrame.merge method, so we didn't duplicate all test cases but only
 # write tests for differences.
@@ -10,7 +12,7 @@
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
 
@@ -85,7 +87,7 @@ def test_merge_native_pandas_object_negative(left_df, right_df):
     left_native = left_df.to_pandas()
     msg = (
         f"{type(left_native)} is not supported as 'value' argument. Please convert this to Snowpark pandas"
-        r" objects by calling snowflake.snowpark.modin.pandas.Series\(\)/DataFrame\(\)"
+        r" objects by calling modin.pandas.Series\(\)/DataFrame\(\)"
     )
     # Left frame as native pandas object
     with pytest.raises(TypeError, match=msg):

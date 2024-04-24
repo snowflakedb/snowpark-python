@@ -5,6 +5,7 @@ import pathlib
 import re
 from datetime import datetime
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pytest
@@ -12,7 +13,7 @@ from pandas._typing import Frequency
 from pandas.core.indexing import IndexingError
 from pytest import fail
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.modin.sql_counter import (

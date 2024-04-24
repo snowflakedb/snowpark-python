@@ -657,6 +657,7 @@ def to_numeric(
     errors: Literal["ignore", "raise", "coerce"] = "raise",
     downcast: Literal["integer", "signed", "unsigned", "float"] | None = None,
 ) -> Series | Scalar | None:
+    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to a numeric type.
 
@@ -717,7 +718,7 @@ def to_numeric(
     2   -3.0
     dtype: float64
     >>> s = pd.Series(['apple', '1.0', '2', -3])
-    >>> pd.to_numeric(s, errors='ignore')
+    >>> pd.to_numeric(s, errors='ignore')  # doctest: +SKIP
     0    apple
     1      1.0
     2        2
@@ -1249,6 +1250,7 @@ def to_datetime(
     origin: Any = "unix",
     cache: bool = True,
 ) -> Series | DatetimeScalar | NaTType | None:
+    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to datetime.
 
@@ -1484,7 +1486,7 @@ def to_datetime(
     Passing ``errors='coerce'`` will force an out-of-bounds date to :const:`NaT`,
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
 
-    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')
+    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')  # doctest: +SKIP
     0    13000101
     1         abc
     dtype: object

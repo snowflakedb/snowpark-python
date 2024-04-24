@@ -132,6 +132,7 @@ _DATAFRAME_EXTENSIONS_ = {}
         pandas.DataFrame.merge,
         pandas.DataFrame.reindex,
         pandas.DataFrame.to_parquet,
+        pandas.DataFrame.fillna,
     ],
     apilink="pandas.DataFrame",
 )
@@ -923,7 +924,6 @@ class DataFrame(BasePandasDataset):
                 query_compiler=new_query_compiler
             )
 
-    @_inherit_docstrings(pandas.DataFrame.fillna, apilink="pandas.DataFrame.fillna")
     def fillna(
         self,
         value: Hashable | Mapping | Series | DataFrame = None,

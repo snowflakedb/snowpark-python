@@ -8,6 +8,7 @@ from datetime import date, time
 from decimal import Decimal
 from json import JSONDecodeError
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -15,7 +16,7 @@ from numpy import dtype
 from pandas import Timestamp
 from pandas._testing import assert_frame_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.utils import Utils
 

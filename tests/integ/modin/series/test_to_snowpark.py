@@ -3,10 +3,11 @@
 #
 import re
 
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import (
     extract_pandas_label_from_snowflake_quoted_identifier,
 )

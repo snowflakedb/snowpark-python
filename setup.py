@@ -10,6 +10,9 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
+MODIN_DEPENDENCY_VERSION = (
+    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
+)
 CONNECTOR_DEPENDENCY_VERSION = ">=3.6.0, <4.0.0"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
@@ -92,6 +95,9 @@ setup(
         "pandas": [
             f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
+        "modin": [
+            f"modin{MODIN_DEPENDENCY_VERSION}",
+        ],
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
@@ -109,7 +115,7 @@ setup(
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
-            "pandas==2.2.1",  # Snowpark pandas requires pandas 2.2.1
+            f"modin{MODIN_DEPENDENCY_VERSION}",
         ],
         "localtest": [
             "pandas",

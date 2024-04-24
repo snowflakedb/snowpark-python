@@ -6,13 +6,14 @@ import inspect
 import logging
 from collections import ChainMap
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame, Index, MultiIndex, Series
 from pandas._testing import assert_index_equal
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import DataFrame, Index, MultiIndex, Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
@@ -35,6 +36,11 @@ class TestRename:
             "errors",
         }
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize("klass", [Series, DataFrame])
     @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
     def test_rename_mi(self, klass):
@@ -78,10 +84,6 @@ class TestRename:
             renamed = df.rename(index={"foo": "foo2", "bar": "bar2"})
             assert_index_equal(renamed.index, Index(["foo2", "bar2"]))
 
-        with SqlCounter(query_count=8, fallback_count=1, sproc_count=1):
-            renamed = renamed.rename(index=str.upper)
-            assert_index_equal(renamed.index, Index(["FOO2", "BAR2"]))
-
         # have to pass something
         with SqlCounter(query_count=0):
             with pytest.raises(TypeError, match="must pass an index to rename"):
@@ -105,6 +107,17 @@ class TestRename:
             assert_index_equal(renamed.index, Index(["bar", "foo"], name="name"))
             assert renamed.index.name == renamer.index.name
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    def test_rename_str_upper_fallback(self):
+        data = {"A": {"foo": 0, "bar": 1}}
+        renamed = DataFrame(data).rename(index=str.upper)
+        assert_index_equal(renamed.index, Index(["FOO2", "BAR2"]))
+
     @pytest.mark.parametrize(
         "args,kwargs",
         [
@@ -124,6 +137,11 @@ class TestRename:
         expected = native_pd.DataFrame({"a": colAData, "b": colBdata})
         assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @sql_count_checker(query_count=22, fallback_count=2, sproc_count=2)
     def test_rename_multiindex_fallback(self):
@@ -314,6 +332,11 @@ class TestRename:
         result = df.rename({"X": "x", "Y": "y"}, axis="index")
         assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @sql_count_checker(query_count=24, fallback_count=3, sproc_count=3)
     def test_rename_axis_style_fallback(self):
@@ -328,6 +351,11 @@ class TestRename:
         result = df.rename(mapper=str.lower, axis="index")
         assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
     def test_rename_mapper_multi(self):
         df = DataFrame({"A": ["a", "b"], "B": ["c", "d"], "C": [1, 2]}).set_index(
@@ -337,6 +365,11 @@ class TestRename:
         expected = df.rename(index=str.upper)
         assert_frame_equal(result, expected)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
     def test_rename_positional_named(self):
         # https://github.com/pandas-dev/pandas/issues/12392

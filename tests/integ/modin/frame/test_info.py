@@ -4,9 +4,10 @@
 
 import io
 
+import modin.pandas as pd
 import pandas as native_pd
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 
 

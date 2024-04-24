@@ -7,19 +7,20 @@ from collections import namedtuple
 from math import isnan
 from typing import Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pandas.testing as tm
 import pytest
+from modin.pandas import DataFrame, Series
 from pandas import isna
 from pandas._testing import assert_index_equal
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_list_like
 from pandas.core.dtypes.inference import is_scalar
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType

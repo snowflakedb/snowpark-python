@@ -6,13 +6,15 @@ import re
 from collections.abc import Generator
 from typing import Callable, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from _pytest.logging import LogCaptureFixture
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark import Session
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.default2pandas.stored_procedure_utils import (
     PACKAGING_REQUIREMENT,
     SNOWPARK_PANDAS_IMPORT,
@@ -117,6 +119,11 @@ UNSUPPORTED_BINARY_METHODS = [
 # When any unsupported method gets supported, we should run the test to verify (expect failure)
 # and remove the corresponding method in the above list.
 # When most of the methods are supported, we should run all unsupported methods
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -130,6 +137,11 @@ def test_unsupported_dataframe_methods(func, func_name, caplog):
     eval_and_validate_unsupported_methods(func, func_name, [native_df], caplog)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(
     query_count=14,
     fallback_count=2,
@@ -169,6 +181,11 @@ def test_unsupported_dataframe_method_only_warns_once(caplog):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -180,6 +197,11 @@ def test_unsupported_series_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [native_series], caplog)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -200,6 +222,11 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -226,6 +253,11 @@ UNSUPPORTED_STR_METHODS = [
 ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -245,6 +277,11 @@ UNSUPPORTED_DT_METHODS = [
 ]
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "func, func_name",
@@ -258,6 +295,11 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=SnowparkSQLException,
+)
 @sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
 def test_fallback_in_stored_proc(session):
     def func(session: Session) -> int:
@@ -311,13 +353,16 @@ def test_fallback_transpose_after_apply_in_stored_proc_negative(session):
         packages=packages,
     )
 
-    from snowflake.snowpark.exceptions import SnowparkSQLException
-
     with pytest.raises(SnowparkSQLException) as ex_info:
         assert func_proc() == 42
     assert "Python Interpreter Error" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=SnowparkSQLException,
+)
 @sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
 def test_sum_in_stored_proc(session):
     def func(session: Session) -> int:
@@ -339,6 +384,11 @@ def test_sum_in_stored_proc(session):
     assert func_proc() == 24
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=SnowparkSQLException,
+)
 @sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
 def test_transpose_in_stored_proc(session):
     def func(session: Session) -> int:

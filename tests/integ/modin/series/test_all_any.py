@@ -3,11 +3,12 @@
 #
 
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_values_equal, eval_snowpark_pandas_result
@@ -90,6 +91,11 @@ def test_any_named_index():
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
@@ -111,6 +117,11 @@ def test_all_float_fallback(data, skipna):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
@@ -132,6 +143,11 @@ def test_any_float_fallback(data, skipna):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
@@ -147,6 +163,11 @@ def test_all_str_fallback(data):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",

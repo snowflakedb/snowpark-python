@@ -4,18 +4,19 @@
 
 from unittest.mock import MagicMock, patch
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.pandas.utils import (
     create_empty_native_pandas_frame,
     try_convert_builtin_func_to_str,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
 
-# Tests for snowflake.snowpark.modin.pandas.utils
+# Tests for modin.pandas.utils
 
 
 @pytest.mark.parametrize("index_names", [["C"], ["C", "D"], [None]])

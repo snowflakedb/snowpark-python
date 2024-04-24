@@ -8,12 +8,12 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame, Series
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_utils import DOUBLE_QUOTE
 from snowflake.snowpark._internal.type_utils import VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.indexing import is_boolean_array
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderedDataFrame
 from snowflake.snowpark.modin.plugin._internal.utils import (

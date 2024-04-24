@@ -2,10 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
@@ -13,6 +14,11 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 # TODO (SNOW-863790): This test file comes from pandas/tests/series/accessors/test_dt_accessor.py.
 #              Pull all tests from this file to enhance the coverage for series.dt methods
 class TestSeriesDatetimeValues:
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize("freq", ["D", "s", "ms"])
     @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
     def test_dt_namespace_accessor_datetime64(self, freq):
@@ -26,6 +32,11 @@ class TestSeriesDatetimeValues:
         freq_result = ser.dt.freq
         assert freq_result == native_pd.DatetimeIndex(ser.values, freq="infer").freq
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize(
         "method, dates",
         [
@@ -47,6 +58,11 @@ class TestSeriesDatetimeValues:
         expected = native_pd.Series(native_pd.to_datetime(dates), name="xxx")
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize(
         "date, format_string, expected",
         [

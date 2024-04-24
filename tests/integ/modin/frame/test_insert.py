@@ -1,11 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -162,7 +163,7 @@ def test_insert_pandas_types_negative(snow_df):
     # Verify pandas DataFrame is not allowed.
     msg = (
         f"{type(value)} is not supported as 'value' argument. Please convert this to Snowpark pandas"
-        r" objects by calling snowflake.snowpark.modin.pandas.Series\(\)/DataFrame\(\)"
+        r" objects by calling modin.pandas.Series\(\)/DataFrame\(\)"
     )
     with pytest.raises(TypeError, match=msg):
         snow_df.insert(0, "col3", value)
@@ -171,7 +172,7 @@ def test_insert_pandas_types_negative(snow_df):
     value = value["col1"]
     msg = (
         f"{type(value)} is not supported as 'value' argument. Please convert this to Snowpark pandas"
-        r" objects by calling snowflake.snowpark.modin.pandas.Series\(\)/DataFrame\(\)"
+        r" objects by calling modin.pandas.Series\(\)/DataFrame\(\)"
     )
     with pytest.raises(TypeError, match=msg):
         snow_df.insert(0, "col3", value)

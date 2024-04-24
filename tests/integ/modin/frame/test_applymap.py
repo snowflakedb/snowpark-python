@@ -1,11 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.series.test_apply import (
     BASIC_DATA_FUNC_RETURN_TYPE_MAP,
@@ -92,6 +93,11 @@ def test_applymap_numpy(func):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(
     query_count=16, fallback_count=2, sproc_count=2, expect_high_count=True
 )

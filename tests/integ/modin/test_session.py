@@ -4,9 +4,10 @@
 import os
 from typing import Optional
 
+import modin.pandas as pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.connector.constants import CONFIG_FILE, CONNECTIONS_FILE
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -26,7 +27,7 @@ NO_ACTIVE_SESSION_ERROR_PATTERN = (
 MULTIPLE_ACTIVE_SESSIONS_ERROR_PATTERN = (
     r"There are multiple active snowpark sessions, but you need to choose one "
     + r"for Snowpark pandas. Please assign one to Snowpark pandas with a "
-    + r"statement like `snowflake.snowpark.modin.pandas.session = session`."
+    + r"statement like `modin.pandas.session = session`."
 )
 
 

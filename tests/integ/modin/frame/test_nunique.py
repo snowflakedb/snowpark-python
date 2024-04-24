@@ -2,11 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
@@ -106,6 +107,11 @@ def test_dataframe_unique_dropna_negative():
         df.nunique(dropna=42)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize("dropna", [True, False])
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_dataframe_unique_axis1_fallback(dropna):

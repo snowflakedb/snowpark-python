@@ -3,11 +3,12 @@
 #
 import re
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.modin.plugin._internal.utils import (

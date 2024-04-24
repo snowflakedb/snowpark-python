@@ -1,10 +1,11 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 
 default_index_series_data = [1, 1.1, True, "a", "2021-01-01", (1,), [1]]
 loc_str_index = ["a", "b", "c", "d", "e", "f", "a"]

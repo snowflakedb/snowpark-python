@@ -6,12 +6,13 @@ import logging
 import math
 from typing import Callable
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas.testing import assert_series_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -373,6 +374,11 @@ def test_apply_args_kwargs():
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(
     query_count=20, fallback_count=2, sproc_count=2, expect_high_count=True
@@ -450,6 +456,11 @@ def test_apply_convert_dtype(caplog):
         assert "convert_dtype is ignored in Snowflake backend" in caplog.text
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "func",
     [[np.min], {2: np.min, 1: "max"}]
@@ -466,6 +477,11 @@ def test_apply_input_type_str_list_dict(func):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(
     query_count=16, fallback_count=2, sproc_count=2, expect_high_count=True
 )
@@ -487,6 +503,11 @@ def test_map_na_action_ignore():
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_map_dict():
     s = pd.Series(["cat", "dog", np.nan, "rabbit"])

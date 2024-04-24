@@ -6,13 +6,14 @@ import logging
 import re
 from datetime import datetime
 
+import modin.pandas as pd
 import numpy as np
 import pandas._testing as tm
 import pytest
+from modin.pandas import Index, MultiIndex, Series
 from pandas._testing import assert_index_equal
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import Index, MultiIndex, Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_series_equal
@@ -23,6 +24,11 @@ class TestRename:
     def snow_datetime_series(self, datetime_series):
         return pd.Series(datetime_series)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     def test_rename(self, snow_datetime_series):
         ts = snow_datetime_series
 
@@ -95,6 +101,11 @@ class TestRename:
         with pytest.raises(ValueError, match="No axis named 5"):
             ser.rename({}, axis=5)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
     def test_rename_inplace(self, snow_datetime_series):
         def renamer(x):
@@ -126,6 +137,11 @@ class TestRename:
         ser.rename(ix, inplace=True)
         assert ser.name is ix
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
     def test_rename_callable(self):

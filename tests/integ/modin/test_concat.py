@@ -5,12 +5,13 @@
 from collections import deque
 from collections.abc import Hashable, Iterable
 
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 from pandas import Index, MultiIndex
 from pandas.testing import assert_index_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -340,7 +341,7 @@ def test_concat_non_iterables_negative():
 def test_concat_native_object_negative(obj):
     msg = (
         f"{type(obj)} is not supported as 'value' argument. Please convert this to "
-        r"Snowpark pandas objects by calling snowflake.snowpark.modin.pandas.Series\(\)/DataFrame\(\)"
+        r"Snowpark pandas objects by calling modin.pandas.Series\(\)/DataFrame\(\)"
     )
     # As top level object
     with pytest.raises(TypeError, match=msg):

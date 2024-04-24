@@ -5,14 +5,15 @@ import random
 import re
 from typing import Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import Series
 from pandas._libs.lib import is_scalar
 from pandas.errors import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas import Series
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.frame.test_iloc import snowpark_pandas_input_keys
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -363,7 +364,7 @@ def test_series_iloc_get_with_float_scalar_negative(
             re.escape(
                 "<class 'pandas.core.series.Series'> is not supported as 'value' argument. "
                 + "Please convert this to Snowpark pandas objects by calling "
-                + "snowflake.snowpark.modin.pandas.Series()/DataFrame()"
+                + "modin.pandas.Series()/DataFrame()"
             ),
         ),
         (
@@ -371,7 +372,7 @@ def test_series_iloc_get_with_float_scalar_negative(
             re.escape(
                 "<class 'pandas.core.frame.DataFrame'> is not supported as 'value' argument. "
                 + "Please convert this to Snowpark pandas objects by calling "
-                + "snowflake.snowpark.modin.pandas.Series()/DataFrame()"
+                + "modin.pandas.Series()/DataFrame()"
             ),
         ),
         ([..., 0], re.escape("Object of type ellipsis is not JSON serializable")),

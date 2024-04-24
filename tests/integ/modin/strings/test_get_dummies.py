@@ -1,12 +1,13 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas import _testing as tm
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
@@ -23,6 +24,11 @@ def skip(pytestconfig):
         )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_get_dummies.py
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_get_dummies():
@@ -41,6 +47,11 @@ def test_get_dummies():
     assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_get_dummies_with_name_dummy():
     # GH 12180

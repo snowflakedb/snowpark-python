@@ -74,6 +74,8 @@ if is_in_stored_procedure():
 # `packaging`.
 PACKAGING_REQUIREMENT = "packaging>=21.0"
 
+MODIN_REQUIREMENT = "modin==0.28.1"
+
 FALLBACK_TAG = "FALLBACK"
 
 
@@ -427,6 +429,9 @@ class StoredProcedureDefault:
 
         if "packages" not in packages:
             packages.append(PACKAGING_REQUIREMENT)
+
+        if "modin" not in packages:
+            packages.append(MODIN_REQUIREMENT)
 
         # register stored procedure
         default_to_pandas_sp = session.sproc.register(

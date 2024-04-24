@@ -5,6 +5,7 @@ import datetime
 from typing import Any, Union
 from unittest.mock import patch
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -13,7 +14,7 @@ from pandas._testing import assert_frame_equal, assert_index_equal, assert_serie
 from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 import snowflake.snowpark
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,

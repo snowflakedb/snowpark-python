@@ -9,20 +9,20 @@ import locale
 import re
 from datetime import datetime, timedelta, timezone
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pandas._testing as tm
 import pytest
 import pytz
+from modin.pandas import DatetimeIndex, Index, NaT, Series, Timestamp, to_datetime
 from pandas.core.arrays import DatetimeArray
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.modin.pandas import DatetimeIndex, Index, NaT, Series, Timestamp
-from snowflake.snowpark.modin.pandas.general import to_datetime
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
@@ -101,6 +101,11 @@ class TestTimeConversionFormats:
         expected = Timestamp(expected)
         assert result == expected
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @pytest.mark.parametrize(
         "arg, format",
@@ -377,6 +382,11 @@ class TestTimeConversionFormats:
     def test_to_datetime_format_time(self, cache, value, format, dt):
         assert to_datetime(value, format=format, cache=cache) == dt
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
     def test_to_datetime_with_non_exact_fallback(self, cache):
@@ -411,6 +421,11 @@ class TestTimeConversionFormats:
         result = to_datetime(arg, format="%Y-%m-%d %H:%M:%S.%f", cache=cache)
         assert result == expected
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize(
         "value,fmt,expected",
         [
@@ -462,6 +477,11 @@ class TestTimeConversionFormats:
         # with SqlCounter(query_count=1):
         tm.assert_equal(result, expected_dates)
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize(
         "fmt,dates,expected_dates",
         [
@@ -664,6 +684,11 @@ class TestToDatetime:
             native_pd.to_datetime(sample),
         )
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @pytest.mark.parametrize(
         "sample",

@@ -5,9 +5,10 @@
 import pickle
 from unittest import mock
 
+import modin.pandas as pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 
 
 def test_pickle():
@@ -27,7 +28,7 @@ def test_pickle():
 def test_get_missing_attribute():
     with pytest.raises(
         AttributeError,
-        match="module 'snowflake.snowpark.modin.pandas' has no attribute 'missing_attribute'",
+        match="module 'modin.pandas' has no attribute 'missing_attribute'",
     ):
         pd.missing_attribute
 

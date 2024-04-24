@@ -2,9 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import pandas as native_pd
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 
 
 def test_class_equivalence():
@@ -56,7 +57,7 @@ def test_class_equivalence():
     assert pd.UInt64Dtype is native_pd.UInt64Dtype
     # TODO: SNOW-1316523
     # Modin defines its own `modin.pandas.api.extensions` module, which overwrites the attempted re-export
-    # of the native `pandas.api` module. Since our `snowflake.snowpark.modin.pandas` module follows this
+    # of the native `pandas.api` module. Since our `modin.pandas` module follows this
     # structure, we also overwrite this export.
     # assert pd.api is native_pd.api
     assert pd.array is native_pd.array

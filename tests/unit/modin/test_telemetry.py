@@ -179,8 +179,8 @@ def test_check_standalone_function_snowpark_pandas_telemetry_decorator():
     # Create a temporary file with sample code
     code = """
 from snowflake.snowpark.modin import pandas as pd
-from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-from snowflake.snowpark.modin.pandas.series import Series
+from modin.pandas.dataframe import DataFrame
+from modin.pandas.series import Series
 import test_decorator
 
 def func1() -> DataFrame:

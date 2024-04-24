@@ -112,11 +112,14 @@ from snowflake.snowpark.modin.pandas.general import (
     date_range,
     get_dummies,
     isna,
+    isnull,
     lreshape,
     melt,
     merge,
     merge_asof,
     merge_ordered,
+    notna,
+    notnull,
     pivot,
     pivot_table,
     qcut,
@@ -160,7 +163,11 @@ from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionH
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
 
-import snowflake.snowpark.modin.plugin.extensions.pd_extensions  # isort: skip  # noqa: E402,F401
+# base needs to be re-exported in order to properly override docstrings for BasePandasDataset
+# moving this import higher prevents sphinx from building documentation (??)
+from snowflake.snowpark.modin.pandas import base  # isort: skip  # noqa: E402,F401
+
+import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
@@ -300,8 +307,42 @@ __all__ = [  # noqa: F405
 
 del pandas
 
-# Make SnowpandasSessionHolder this module's __class__ so that we can make
-# "session" a lazy property of the module.
+# Make SnowpandasSessionHolder this module's and modin.pandas's __class__ so that we can make
+# "session" a lazy property of the modules.
 # This implementation follows Python's suggestion here:
 # https://docs.python.org/3.12/reference/datamodel.html#customizing-module-attribute-access
 sys.modules[__name__].__class__ = SnowpandasSessionHolder
+# When docs are generated, modin.pandas is not imported, so do not perform this overwrite
+if "modin.pandas" in sys.modules:
+    sys.modules["modin.pandas"].__class__ = SnowpandasSessionHolder
+
+_SKIP_TOP_LEVEL_ATTRS = [
+    # __version__ and show_versions are exported by __all__, but not currently defined in Snowpark pandas.
+    "__version__",
+    "show_versions",
+    # SNOW-1316523: Snowpark pandas should re-export the native pandas.api submodule, but doing so
+    # would override register_pd_accessor and similar methods defined in our own modin.pandas.extensions
+    # module.
+    "api",
+]
+
+# Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
+_EXTENSION_ATTRS = ["read_snowflake", "to_snowflake", "to_snowpark", "to_pandas"]
+# We also need to re-export native_pd.offsets, since modin.pandas doesn't re-export it.
+# snowflake.snowpark.pandas.base also needs to be re-exported to make docstring overrides for BasePandasDataset work.
+_ADDITIONAL_ATTRS = ["offsets", "base"]
+
+# This code should eventually be moved into the `snowflake.snowpark.modin.plugin` module instead.
+# Currently trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`
+# import submodules of `snowflake.snowpark.modin.plugin`, so we would encounter errors due to
+# partially initialized modules.
+import modin.pandas.api.extensions as _ext  # noqa: E402
+
+# This loop overrides all methods in the `modin.pandas` namespace so users can obtain Snowpark pandas objects from it.
+for name in __all__ + _ADDITIONAL_ATTRS:
+    if name not in _SKIP_TOP_LEVEL_ATTRS:
+        # instead of using this as a decorator, we can call the function directly
+        _ext.register_pd_accessor(name)(__getattr__(name))
+
+for name in _EXTENSION_ATTRS:
+    _ext.register_pd_accessor(name)(getattr(pd_extensions, name))

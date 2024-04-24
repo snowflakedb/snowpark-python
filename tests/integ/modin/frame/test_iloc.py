@@ -7,16 +7,17 @@ import re
 from collections.abc import Iterable
 from typing import Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas import DataFrame, Series
+from modin.pandas.indexing import is_range_like
 from pandas._libs.lib import is_bool, is_list_like, is_scalar
 from pandas.errors import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas import DataFrame, Series
-from snowflake.snowpark.modin.pandas.indexing import is_range_like
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -1166,7 +1167,7 @@ def test_df_iloc_get_with_float_scalar_negative(
             re.escape(
                 "<class 'pandas.core.series.Series'> is not supported as 'value' argument. "
                 + "Please convert this to Snowpark pandas objects by calling "
-                + "snowflake.snowpark.modin.pandas.Series()/DataFrame()"
+                + "modin.pandas.Series()/DataFrame()"
             ),
             TypeError,
         ),
@@ -1175,7 +1176,7 @@ def test_df_iloc_get_with_float_scalar_negative(
             re.escape(
                 "<class 'pandas.core.frame.DataFrame'> is not supported as 'value' argument. "
                 + "Please convert this to Snowpark pandas objects by calling "
-                + "snowflake.snowpark.modin.pandas.Series()/DataFrame()"
+                + "modin.pandas.Series()/DataFrame()"
             ),
             TypeError,
         ),

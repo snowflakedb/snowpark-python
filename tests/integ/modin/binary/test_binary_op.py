@@ -6,6 +6,7 @@ import math
 import operator
 import random
 
+import modin.pandas as pd
 import numpy as np
 import pandas
 import pandas as native_pd
@@ -13,7 +14,7 @@ import pytest
 from pandas.core.dtypes.common import is_object_dtype
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series

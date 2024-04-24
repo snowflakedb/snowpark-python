@@ -20,12 +20,13 @@ import sys
 import unittest.mock
 import warnings
 
+import modin.pandas as pd
 import pandas
 import pytest
 from packaging import version
 
 import snowflake.snowpark.modin.config as cfg
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.config import DocModule
 from snowflake.snowpark.modin.config.envvars import _check_vars
 from snowflake.snowpark.modin.config.pubsub import _UNSET, ExactStr

@@ -1,11 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import VALID_PANDAS_LABELS, eval_snowpark_pandas_result
 
@@ -137,6 +138,11 @@ def test_sort_values_by_ascending_length_mismatch_negative(native_df_simple):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "sort_op",
     [
@@ -156,6 +162,11 @@ def test_sort_values_axis_1(sort_op):
     eval_snowpark_pandas_result(snow_df, native_df, sort_op)
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "sort_op",
     [
@@ -398,6 +409,11 @@ def test_sort_values_ignore_index(native_df_simple, ascending, ignore_index):
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "op",
     [

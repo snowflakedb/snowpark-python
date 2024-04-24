@@ -4,13 +4,14 @@
 
 from typing import Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas.io.formats.printing import PrettyDict
 from pytest import param
 
-import snowflake.snowpark.modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_dicts_equal, eval_snowpark_pandas_result
 

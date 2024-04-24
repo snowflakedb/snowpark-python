@@ -377,7 +377,7 @@ def raise_if_native_pandas_objects(obj: Any) -> None:
     if isinstance(obj, (pandas.DataFrame, pandas.Series)):
         raise TypeError(
             f"{type(obj)} is not supported as 'value' argument. Please convert this to "
-            "Snowpark pandas objects by calling snowflake.snowpark.modin.pandas.Series()/DataFrame()"
+            "Snowpark pandas objects by calling modin.pandas.Series()/DataFrame()"
         )
 
 
