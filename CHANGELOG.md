@@ -22,6 +22,8 @@
     - remove_package
     - udf.register
     - udf.register_from_file
+    - sproc.register
+    - sproc.register_from_file
   - snowflake.snowpark.functions
     - current_database
     - current_session
@@ -30,6 +32,8 @@
     - object_construct_keep_null
     - pow
     - sqrt
+    - udf
+    - sproc
 - Added `truncate` save mode in `DataFrameWrite` to overwrite existing tables by truncating the underlying table instead of dropping it.
 - Added support for StringType, TimestampType and VariantType data conversion in the local testing mocked function `to_time`.
 - Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
