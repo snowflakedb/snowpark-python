@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
@@ -341,7 +342,9 @@ def handle_function_expression(
             importlib.import_module("snowflake.snowpark.functions"), func_name
         )
     except AttributeError:
-        udf_name = exp.name.split(".")[-1]
+        current_schema = analyzer.session.get_current_schema()
+        current_database = analyzer.session.get_current_database()
+        udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
         # If udf name in the registry then this is a udf, not an actual function
         if udf_name in analyzer.session.udf._registry:
             exp.udf_name = udf_name
@@ -445,7 +448,6 @@ def handle_udf_expression(
 
     # Initialize import directory
     temporary_import_path = tempfile.TemporaryDirectory()
-    analyzer.session.udf._udf_import_directories[udf_name] = temporary_import_path
     last_import_directory = sys._xoptions.get("snowflake_import_directory")
     sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
 
@@ -470,7 +472,7 @@ def handle_udf_expression(
             del sys.modules[key]
 
         # Cleanup import directory
-        analyzer.session.udf._udf_import_directories[udf_name].cleanup()
+        temporary_import_path.cleanup()
 
         # Restore snowflake_import_directory
         if last_import_directory is not None:

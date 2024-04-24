@@ -47,8 +47,8 @@ from snowflake.snowpark.types import (
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
     auto_detect_snowflake_date_format_and_convert,
+    convert_integer_value_to_seconds,
     convert_snowflake_datetime_format,
-    process_numeric_time,
     process_string_time_with_fractional_seconds,
     unalias_datetime_part,
 )
@@ -337,7 +337,7 @@ def mock_to_date(
                 if data.isnumeric():
                     res.append(
                         datetime.datetime.utcfromtimestamp(
-                            process_numeric_time(data)
+                            convert_integer_value_to_seconds(data)
                         ).date()
                     )
                 else:
@@ -350,7 +350,7 @@ def mock_to_date(
                     if data.isnumeric():
                         res.append(
                             datetime.datetime.utcfromtimestamp(
-                                process_numeric_time(data)
+                                convert_integer_value_to_seconds(data)
                             ).date()
                         )
                     else:
@@ -503,71 +503,106 @@ def mock_to_time(
     try_cast: bool = False,
 ):
     """
-    [ ] For string_expr, the result of converting the string to a time.
+    https://docs.snowflake.com/en/sql-reference/functions/to_time
 
-    [ ] For timestamp_expr, the time portion of the input value.
+    [x] For string_expr, the result of converting the string to a time.
 
-    [ ] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+    [x] For timestamp_expr, the time portion of the input value.
 
-    [ ] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
+    [x] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+
+        [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+
+    def convert_int_string_to_time(d: str):
+        return datetime.datetime.utcfromtimestamp(
+            auto_detect_snowflake_date_format_and_convert(d) % 86400
+        ).time()
+
+    def convert_string_to_time(
+        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
+    ):
+        data_parts = _data.split(".")
+        if len(data_parts) == 2:
+            # there is a part of seconds
+            seconds_part = data_parts[1]
+            # find the idx that the seconds part ends
+            idx = 0
+            while seconds_part[idx].isdigit():
+                idx += 1
+            # truncate to precision
+            seconds_part = (
+                seconds_part[: min(idx, _fractional_seconds)] + seconds_part[idx:]
+            )
+            _data = f"{data_parts[0]}.{seconds_part}"
+
+        target_datetime = datetime.datetime.strptime(
+            process_string_time_with_fractional_seconds(_data, _fractional_seconds),
+            _time_format,
+        )
+        # there is a special case that if the time is 12 p.m noon, then no need to adjust
+        if _hour_delta == 12 and target_datetime.time().hour == 12:
+            _hour_delta = 0
+        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+
     res = []
 
     if not isinstance(fmt, ColumnEmulator):
         fmt = [fmt] * len(column)
 
     for data, _fmt in zip(column, fmt):
+        if data is None:
+            res.append(None)
+            continue
+        datatype = column.sf_type.datatype
         try:
-            auto_detect = _fmt is None
-
             (
                 time_fmt,
                 hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
-            if data is None:
-                res.append(None)
-                continue
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
-                    ).time()
-                )
-            else:
-                # handle seconds fraction
-                data_parts = data.split(".")
-                if len(data_parts) == 2:
-                    # there is a part of seconds
-                    seconds_part = data_parts[1]
-                    # find the idx that the seconds part ends
-                    idx = 0
-                    while seconds_part[idx].isdigit():
-                        idx += 1
-                    # truncate to precision
-                    seconds_part = (
-                        seconds_part[: min(idx, fractional_seconds)]
-                        + seconds_part[idx:]
-                    )
-                    data = f"{data_parts[0]}.{seconds_part}"
-                res.append(
-                    (
-                        datetime.datetime.strptime(
-                            process_string_time_with_fractional_seconds(
-                                data, fractional_seconds
-                            ),
-                            time_fmt,
+
+            if isinstance(datatype, StringType):
+                if data.isdigit():
+                    res.append(convert_int_string_to_time(data))
+                else:
+                    res.append(
+                        convert_string_to_time(
+                            data, time_fmt, hour_delta, fractional_seconds
                         )
-                        + datetime.timedelta(hours=hour_delta)
-                    ).time()
+                    )
+            elif isinstance(datatype, TimestampType):
+                res.append(data.time())
+            elif isinstance(datatype, VariantType):
+                if isinstance(data, str):
+                    if data.isdigit():
+                        res.append(convert_int_string_to_time(data))
+                    else:
+                        res.append(
+                            convert_string_to_time(
+                                data, time_fmt, hour_delta, fractional_seconds
+                            )
+                        )
+                elif isinstance(data, datetime.time):
+                    res.append(data)
+                else:
+                    raise ValueError(
+                        f"[Local Testing] Unsupported conversion to_time of value {data} of VariantType"
+                    )
+            else:
+                raise ValueError(
+                    f"[Local Testing] Unsupported conversion to_time of data type {type(datatype).__name__}"
                 )
         except BaseException:
             if try_cast:
                 data.append(None)
             else:
+                # TODO: local test error experience SNOW-1235716
                 raise
 
+    # TODO: TIME_OUTPUT_FORMAT is not supported, by default snowflake outputs time in the format HH24:MI:SS
+    #  check https://snowflakecomputing.atlassian.net/browse/SNOW-1305979
     return ColumnEmulator(
         data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
     )
@@ -638,7 +673,7 @@ def _to_timestamp(
                     isinstance(data, str) and data.isnumeric()
                 ):
                     parsed = datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
+                        auto_detect_snowflake_date_format_and_convert(data)
                     )
                     # utc timestamps should be in utc timezone
                     if add_timezone:
