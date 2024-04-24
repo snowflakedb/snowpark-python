@@ -68,7 +68,7 @@
     - sqrt
     - udf
     - sproc
-- Added support for StringType, TimestampType and VariantType data conversion in the local testing mocked function `to_time`.
+- Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_time`.
 
 #### Bug Fixes
 
