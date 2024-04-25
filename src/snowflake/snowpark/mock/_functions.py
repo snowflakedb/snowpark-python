@@ -613,6 +613,7 @@ def _to_timestamp(
     fmt: Optional[ColumnEmulator],
     try_cast: bool = False,
     add_timezone: bool = False,
+    caller=None,
 ):
     """
      https://docs.snowflake.com/en/sql-reference/functions/to_timestamp
@@ -662,11 +663,15 @@ def _to_timestamp(
     for data, _fmt in zip(column, fmt_column):
         default_format = "%Y-%m-%d %H:%M:%S.%f"
         auto_detect = _fmt is None or str(_fmt).lower() == "auto"
-        (
-            timestamp_format,
-            hour_delta,
-            fractional_seconds,
-        ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+        if not isinstance(_fmt, numbers.Number):
+            (
+                timestamp_format,
+                hour_delta,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+        else:
+            # if _fmt is a number, then snowflake expects <numeric_expr> + <scale>, format doesn't apply here
+            timestamp_format, hour_delta, fractional_seconds = None, 0, 0
 
         try:
             if data is None:
@@ -712,18 +717,28 @@ def _to_timestamp(
             elif isinstance(datatype, VariantType):
                 # An integer number of seconds or milliseconds.
                 if isinstance(data, numbers.Number):
-                    parsed = datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        timestamp_format,
-                    )
+                    # check https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
+                    # why we call fromtimestamp not utcfromtimestamp here
+                    # "When an INTEGER value is cast directly to TIMESTAMP_NTZ ...
+                    # However, if the INTEGER value is stored inside a VARIANT value,
+                    # for example as shown below, then the conversion is indirect,
+                    # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
+                    if caller and caller == "timestamp_ntz":
+                        parsed = datetime.datetime.fromtimestamp(data)
+                    else:
+                        parsed = datetime.datetime.utcfromtimestamp(data)
+                    # utc timestamps should be in utc timezone
+                    if add_timezone:
+                        parsed = parsed.replace(tzinfo=pytz.utc)
                 elif isinstance(data, str):
                     # A string containing an integer number of seconds or milliseconds.
                     if data.isdigit():
                         parsed = datetime.datetime.utcfromtimestamp(
                             convert_numeric_string_value_to_float_seconds(data)
                         )
+                        # # utc timestamps should be in utc timezone
+                        if add_timezone:
+                            parsed = parsed.replace(tzinfo=pytz.utc)
                     # A string from which to extract a timestamp.
                     else:
                         parsed = dateutil.parser.parse(data)
@@ -736,7 +751,7 @@ def _to_timestamp(
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
-
+            parsed = parsed + datetime.timedelta(hours=hour_delta)
             res.append(parsed)
         except BaseException:
             if try_cast:
@@ -765,7 +780,7 @@ def mock_timestamp_ntz(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = _to_timestamp(column, fmt, try_cast)
+    result = _to_timestamp(column, fmt, try_cast, caller="timestamp_ntz")
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
         data=[x.replace(tzinfo=None) for x in result],
@@ -808,7 +823,7 @@ def mock_to_timestamp_tz(
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
-        dtype=column.dtype,
+        dtype=object,  # dtype being object to support VariantType
     )
 
 
