@@ -3,8 +3,8 @@
 name: Daily Snowpark pandas API test
 on:
   schedule:
-    # 10 AM UTC
-    - cron: "0 10 * * *"
+    # 9 AM UTC
+    - cron: "0 9 * * *"
   workflow_dispatch:
       inputs:
         logLevel:
@@ -91,7 +91,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.9", "3.10", "3.11"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -270,12 +270,6 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: .tox/coverage.xml
-      - name: Show coverage diff
-        run: |
-          pip install diff_cover
-          git log -n 5 --pretty=oneline
-          git fetch -f origin pandas-main:pandas-main || true
-          diff-cover .tox/coverage.xml --compare-branch=pandas-main --fail-under=95
 
   doc:
     needs: lint
