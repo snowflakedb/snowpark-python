@@ -397,7 +397,7 @@ class Lineage:
         Args:
             object_name (str): The name of the Snowflake object to start trace, formatted as "database.schema.object".
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
-            object_version (Optional[str]): Version of the versioned Snowflake object like model/dataset to start trace, defaults to None.
+            object_version (Optional[str]):Version of the versioned Snowflake object (e.g., model or dataset) to begin tracing. Defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
             depth (int): Trace depth, defaults to 2, with a maximum of 10.
 
