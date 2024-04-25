@@ -42,6 +42,7 @@ from snowflake.snowpark.functions import (
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
+@pytest.mark.localtest
 def test_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
