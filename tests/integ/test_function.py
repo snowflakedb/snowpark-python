@@ -1825,6 +1825,7 @@ def test_create_map_negative(session):
     )
 
 
+@pytest.mark.localtest
 def test_to_double(session, local_testing_mode):
 
     # Test supported input type
