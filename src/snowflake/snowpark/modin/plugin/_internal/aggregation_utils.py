@@ -267,6 +267,14 @@ SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
 }
 
 
+class AggFuncWithLabel(NamedTuple):
+    """ """
+
+    func: AggFuncTypeBase
+
+    pandas_label: Hashable
+
+
 class AggFuncInfo(NamedTuple):
     """
     Information needed to distinguish between dummy and normal aggregate functions.
@@ -277,6 +285,8 @@ class AggFuncInfo(NamedTuple):
 
     # If true, the aggregate function is applied to "NULL" rather than a column
     is_dummy_agg: bool
+
+    post_agg_pandas_label: Optional[Hashable]
 
 
 def _columns_coalescing_min(*cols: SnowparkColumn) -> Callable:
@@ -503,6 +513,8 @@ def is_supported_snowflake_agg_func(
     Returns:
         is_valid: bool. Whether it is valid to implement with snowflake or not.
     """
+    if isinstance(agg_func, tuple) and len(agg_func) == 2:
+        agg_func = agg_func[0]
     return get_snowflake_agg_func(agg_func, agg_kwargs, axis) is not None
 
 
@@ -545,7 +557,7 @@ def check_is_aggregation_supported_in_snowflake(
         return all(
             (
                 are_all_agg_funcs_supported_by_snowflake(value, agg_kwargs, axis)
-                if is_list_like(value)
+                if is_list_like(value) and not is_named_tuple(value)
                 else is_supported_snowflake_agg_func(value, agg_kwargs, axis)
             )
             for value in agg_func.values()
@@ -910,7 +922,7 @@ def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> str:
 def generate_pandas_labels_for_agg_result_columns(
     pandas_label: Hashable,
     num_levels: int,
-    agg_func_list: list[AggFuncTypeBase],
+    agg_func_list: list[AggFuncInfo],
     include_agg_func_in_agg_label: bool,
     include_pandas_label_in_agg_label: bool,
 ) -> list[Hashable]:
@@ -947,17 +959,20 @@ def generate_pandas_labels_for_agg_result_columns(
     ), "the result aggregation label must at least contain at least the original label or the aggregation function name."
     agg_func_column_labels = []
     for agg_func in agg_func_list:
-        label_tuple = (
-            from_pandas_label(pandas_label, num_levels)
-            if include_pandas_label_in_agg_label
-            else ()
-        )
-        aggr_func_label = (
-            (get_pandas_aggr_func_name(agg_func),)
-            if include_agg_func_in_agg_label
-            else ()
-        )
-        label_tuple = label_tuple + aggr_func_label
+        if agg_func.post_agg_pandas_label is None:
+            label_tuple = (
+                from_pandas_label(pandas_label, num_levels)
+                if include_pandas_label_in_agg_label
+                else ()
+            )
+            aggr_func_label = (
+                (get_pandas_aggr_func_name(agg_func.func),)
+                if include_agg_func_in_agg_label
+                else ()
+            )
+            label_tuple = label_tuple + aggr_func_label
+        else:
+            label_tuple = (agg_func.post_agg_pandas_label,)
         agg_func_column_labels.append(to_pandas_label(label_tuple))
 
     return agg_func_column_labels
@@ -1011,8 +1026,13 @@ def generate_column_agg_info(
     # if any value in the dictionary is a list, the aggregation function name is added as
     # an extra level to the final pandas label, otherwise not. When any value in the dictionary is a list,
     # the aggregation function name will be added as an extra level for the result label.
+    # One exception to this rule is when the user passes in pd.NamedAgg for the aggregations
+    # instead of using the aggfunc argument. Then, each aggregation (even if on the same column)
+    # has an unique name, and so we do not need to insert the additional level.
     agg_func_level_included = any(
-        is_list_like(fn) and not is_named_tuple(fn)
+        is_list_like(fn)
+        and not is_named_tuple(fn)
+        and not any(f.post_agg_pandas_label is not None for f in fn)
         for fn in column_to_agg_func.values()
     )
     pandas_label_level_included = (
@@ -1031,7 +1051,7 @@ def generate_column_agg_info(
         agg_col_labels = generate_pandas_labels_for_agg_result_columns(
             pandas_label_to_identifier.pandas_label,
             num_levels,
-            [func for (func, _) in agg_func_list],
+            agg_func_list,
             agg_func_level_included,
             pandas_label_level_included,
         )
@@ -1045,7 +1065,8 @@ def generate_column_agg_info(
         for func_info, label, identifier in zip(
             agg_func_list, agg_col_labels, agg_col_identifiers
         ):
-            (func, is_dummy_agg) = func_info
+            func = func_info.func
+            is_dummy_agg = func_info.is_dummy_agg
             agg_func_col = pandas_lit(None) if is_dummy_agg else quoted_identifier
             snowflake_agg_func = get_snowflake_agg_func(func, agg_kwargs, axis=0)
             # once reach here, we require all func have a corresponding snowflake aggregation function.
