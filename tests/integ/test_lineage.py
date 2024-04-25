@@ -137,7 +137,7 @@ def test_lineage_trace(session):
     df = session.lineage.trace(
         f"{db}.{schema}.nonexistant",
         "table",
-        direction=LineageDirection.DOWNSTREAM,
+        direction="downstream",
         depth=3,
     ).to_pandas()
 
@@ -197,3 +197,44 @@ def test_lineage_trace(session):
     assert_frame_equal(df, expected_df, check_dtype=False)
 
     session.sql(f"drop schema {db}.{schema}").collect()
+
+    with pytest.raises(TypeError) as exc:
+        session.lineage.trace(
+            object_domain="table",
+            direction=LineageDirection.DOWNSTREAM,
+            depth=3,
+        )
+    assert "missing 1 required positional argument: 'object_name'" in str(exc)
+
+    with pytest.raises(TypeError) as exc:
+        session.lineage.trace(
+            object_name="table1",
+            direction=LineageDirection.DOWNSTREAM,
+            depth=3,
+        )
+    assert "missing 1 required positional argument: 'object_domain'" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        session.lineage.trace(
+            f"{db}.{schema}.T1",
+            "table",
+            direction="invalid",
+            depth=4,
+        )
+    assert "'LineageDirection' enum not found for" in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        session.lineage.trace(
+            f"{db}.{schema}.T1",
+            "table",
+            depth=-1,
+        )
+    assert "Depth must be between 1 and 10." in str(exc)
+
+    with pytest.raises(ValueError) as exc:
+        session.lineage.trace(
+            f"{db}.{schema}.T1",
+            "table",
+            depth=-11,
+        )
+    assert "Depth must be between 1 and 10." in str(exc)
