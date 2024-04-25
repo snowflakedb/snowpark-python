@@ -620,39 +620,39 @@ def _to_timestamp(
 
     [x] For NULL input, the result will be NULL.
 
-    [ ] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
+    [x] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
 
-    [ ] For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
+    [x] For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
 
-    [ ] For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
+    [x] For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
 
-    [ ] For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
+    [x] For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
 
     For variant_expr:
 
-        [ ] If the variant contains JSON null value, the result will be NULL.
+        [x] If the variant contains JSON null value, the result will be NULL.
 
-        [ ] If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
+        [x] If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
 
-        [ ] If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
+        [x] If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
 
-        [ ] If the variant contains a string, conversion from a string value will be performed (using automatic format).
+        [x] If the variant contains a string, conversion from a string value will be performed (using automatic format).
 
-        [ ] If the variant contains a number, conversion as if from numeric_expr will be performed.
+        [x] If the variant contains a number, conversion as if from numeric_expr will be performed.
 
-    [ ] If conversion is not possible, an error is returned.
+    [x] If conversion is not possible, an error is returned.
 
     If the format of the input parameter is a string that contains an integer:
 
         After the string is converted to an integer, the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch (1970-01-01 00:00:00.000000000 UTC).
 
-        [ ] If the integer is less than 31536000000 (the number of milliseconds in a year), then the value is treated as a number of seconds.
+        [x] If the integer is less than 31536000000 (the number of milliseconds in a year), then the value is treated as a number of seconds.
 
-        [ ] If the value is greater than or equal to 31536000000 and less than 31536000000000, then the value is treated as milliseconds.
+        [x] If the value is greater than or equal to 31536000000 and less than 31536000000000, then the value is treated as milliseconds.
 
-        [ ] If the value is greater than or equal to 31536000000000 and less than 31536000000000000, then the value is treated as microseconds.
+        [x] If the value is greater than or equal to 31536000000000 and less than 31536000000000000, then the value is treated as microseconds.
 
-        [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
+        [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     import dateutil.parser
 
@@ -747,7 +747,10 @@ def _to_timestamp(
                     parsed = data
                 else:
                     raise
-
+            else:
+                raise ValueError(
+                    f"[Local Testing] Unsupported conversion to_timestamp of data type {type(column.sf_type.datatype).__name__}"
+                )
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
