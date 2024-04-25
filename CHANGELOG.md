@@ -40,10 +40,6 @@
 ### Bug Fixes
 
 - Fixed a bug where `statement_params` was not passed to query executions that register stored procedures and user defined functions.
-- Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
-- Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
-- Fixed a bug in local testing implementation that timestamp data comparison can not handle year beyond 2262.
-- Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
 - Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations.
 - Fixed a bug that an internal type hint in `utils.py` might raise AttributeError in case the underlying module can not be found.
 
