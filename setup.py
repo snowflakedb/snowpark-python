@@ -114,6 +114,14 @@ setup(
             "pre-commit",
         ],
         "modin-development": [
+            f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+            "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
+            "pytest-cov",
+            "coverage",
+            "sphinx==5.0.2",
+            "cachetools",  # used in UDF doctest
+            "pytest-timeout",
+            "pre-commit",
             "pytest-assume",  # Snowpark pandas
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
