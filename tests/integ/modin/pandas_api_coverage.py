@@ -11,20 +11,27 @@ from functools import update_wrapper
 # once we are fully off vendored modin we can make these the
 # upstream modin classes
 import snowflake.snowpark.modin.pandas as pdi
-from snowflake.snowpark.modin.pandas import DataFrame as DataFrameClazz, Series as SeriesClazz
+import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas import (
+    DataFrame as DataFrameClazz,
+    Series as SeriesClazz,
+)
 from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy as DataFrameGroupByClazz,
     SeriesGroupBy as SeriesGroupByClazz,
 )
 from snowflake.snowpark.modin.pandas.plotting import Plotting as PlottingClazz
 from snowflake.snowpark.modin.pandas.resample import Resampler as ResamplerClazz
-from snowflake.snowpark.modin.pandas.series_utils import DatetimeProperties as DatetimePropertiesClazz
+from snowflake.snowpark.modin.pandas.series_utils import (
+    DatetimeProperties as DatetimePropertiesClazz,
+)
 
 # Not in current version of Modin
 # from modin.pandas.window import Expanding as ExpandingClazz
-from snowflake.snowpark.modin.pandas.window import Rolling as RollingClazz, Window as WindowClazz
-
-import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.window import (
+    Rolling as RollingClazz,
+    Window as WindowClazz,
+)
 
 # Used for instrumenting customer or client code.
 # import pandas as pdi
