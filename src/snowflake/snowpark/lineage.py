@@ -246,8 +246,8 @@ class Lineage:
         if (
             current_depth == total_depth
             or not lineage_edges
-            or self._is_masked_object(lineage_edges[0][0])
-            or self._is_masked_object(lineage_edges[0][1])
+            or self._is_terminal_entity(lineage_edges[0][0])
+            or self._is_terminal_entity(lineage_edges[0][1])
         ):
             return lineage_edges
 
@@ -268,11 +268,11 @@ class Lineage:
         lineage_edges.extend(deeper_lineage_edges)
         return lineage_edges
 
-    def _is_masked_object(self, entity) -> bool:
+    def _is_terminal_entity(self, entity) -> bool:
         """
-        Checks if given object is masked.
+        Determines if the entity should not be explored further.
         """
-        return entity[_ObjectField.STATUS] == "MASKED"
+        return entity[_ObjectField.STATUS] in {"MASKED", "DELETED"}
 
     def _get_name_and_version(self, graph_entity):
         """
