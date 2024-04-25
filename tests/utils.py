@@ -76,6 +76,12 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
+IS_STRUCTURED_TYPES_SUPPORTED = (
+    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+)
+ICEBERG_ENVIRONMENTS = {"dev", "aws"}
+IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 
 class Utils:
