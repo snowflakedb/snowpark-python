@@ -32,6 +32,20 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
 ]
+MODIN_REQUIREMENTS = [
+    *PANDAS_REQUIREMENTS,
+    f"modin{MODIN_DEPENDENCY_VERSION}",
+]
+DEVELOPMENT_REQUIREMENTS = [
+    "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
+    "pytest-cov",
+    "coverage",
+    "sphinx==5.0.2",
+    "cachetools",  # used in UDF doctest
+    "pytest-timeout",
+    "pytest-xdist",
+    "pre-commit",
+]
 
 # read the version
 VERSION = ()
@@ -97,28 +111,18 @@ setup(
     },
     extras_require={
         "pandas": PANDAS_REQUIREMENTS,
-        "modin": [
-            f"modin{MODIN_DEPENDENCY_VERSION}",
-            *PANDAS_REQUIREMENTS,
-        ],
+        "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
-        "development": [
-            "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
-            "pytest-cov",
-            "coverage",
-            "sphinx==5.0.2",
-            "cachetools",  # used in UDF doctest
-            "pytest-timeout",
-            "pre-commit",
-        ],
+        "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [
+            *MODIN_REQUIREMENTS,
+            *DEVELOPMENT_REQUIREMENTS,
             "pytest-assume",  # Snowpark pandas
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
-            f"modin{MODIN_DEPENDENCY_VERSION}",
         ],
         "localtest": [
             "pandas",
