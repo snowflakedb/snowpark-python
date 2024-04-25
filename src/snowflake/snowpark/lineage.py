@@ -4,7 +4,7 @@
 
 import json
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -34,6 +34,18 @@ class LineageDirection(Enum):
     def __str__(self):
         return self.value
 
+    @classmethod
+    def values(cls):
+        return [member.value for member in cls]
+
+    @classmethod
+    def value_of(cls, value):
+        for member in cls:
+            if member.value == value:
+                return member
+        else:
+            raise ValueError(f"'{cls.__name__}' enum not found for '{value}'")
+
 
 class _EdgeType(Enum):
     """
@@ -44,7 +56,7 @@ class _EdgeType(Enum):
     OBJECT_DEPENDENCY = "OBJECT_DEPENDENCY"
 
     @classmethod
-    def list(cls):
+    def values(cls):
         return [member.value for member in cls]
 
 
@@ -121,11 +133,11 @@ class Lineage:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self.user_to_system_domain_map = {
+        self._user_to_system_domain_map = {
             _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
             _UserDomain.MODEL: _SnowflakeDomain.MODULE,
         }
-        self.versioned_object_domains = {
+        self._versioned_object_domains = {
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,
             _SnowflakeDomain.DATASET,
@@ -142,7 +154,7 @@ class Lineage:
         Constructs a GraphQL query for lineage tracing based on the specified parameters.
         """
         properties_string = ", ".join(_ObjectField.GRAPH_ENTITY_PROPERTIES)
-        edge_types_formatted = ", ".join(_EdgeType.list())
+        edge_types_formatted = ", ".join(_EdgeType.values())
 
         parts = []
         edge_template = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}}}"
@@ -164,7 +176,7 @@ class Lineage:
                 )
             )
 
-        object_domain = self.user_to_system_domain_map.get(
+        object_domain = self._user_to_system_domain_map.get(
             object_domain.lower(), object_domain
         )
 
@@ -278,7 +290,7 @@ class Lineage:
         """
         Extracts and returns the name and version from the given graph entity.
         """
-        if graph_entity[_ObjectField.USER_DOMAIN] in self.versioned_object_domains:
+        if graph_entity[_ObjectField.USER_DOMAIN] in self._versioned_object_domains:
             if graph_entity[_ObjectField.USER_DOMAIN] == _UserDomain.FEATURE_VIEW:
                 if "$" in graph_entity[_ObjectField.NAME]:
                     parts = graph_entity[_ObjectField.NAME].split("$")
@@ -376,7 +388,7 @@ class Lineage:
         object_domain: str,
         *,
         object_version: Optional[str] = None,
-        direction: LineageDirection = LineageDirection.BOTH,
+        direction: Union[str, LineageDirection] = LineageDirection.BOTH,
         depth: int = 2,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
@@ -422,13 +434,11 @@ class Lineage:
                 ---------------------------------------------------------------------------------------------------------------------------------------
                 <BLANKLINE>
         """
-        if not object_name:
-            raise ValueError("Object name must be provided.")
-        if not object_domain:
-            raise ValueError("Object type must be provided.")
+        if depth < 1 or depth > 10:
+            raise ValueError("Depth must be between 1 and 10.")
 
-        if depth < 1 or depth > 5:
-            raise ValueError("Depth must be between 1 and 5.")
+        if isinstance(direction, str):
+            direction = LineageDirection.value_of(direction)
 
         if direction == LineageDirection.BOTH and depth == 1:
             lineage_trace = self._get_lineage(
