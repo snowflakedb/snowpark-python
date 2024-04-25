@@ -2,3 +2,4 @@
 /src/snowflake/snowpark/modin/ @snowflakedb/snowpandas
 /tests/integ/modin/ @snowflakedb/snowpandas
 /tests/unit/modin/ @snowflakedb/snowpandas
+setup.py @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
