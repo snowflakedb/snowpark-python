@@ -179,7 +179,7 @@ def convert_numeric_string_value_to_float_seconds(time: str) -> float:
 
 def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -> str:
     # deal with the fractional seconds part of the input time str, apply precision and reconstruct the time string
-    ret = time
+    ret = str(time)
     time_parts = ret.split(".")
     if len(time_parts) == 2:
         # there is a part of seconds
