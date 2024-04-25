@@ -682,13 +682,13 @@ def _to_timestamp(
                 parsed = datetime.datetime.combine(data, datetime.datetime.min.time())
             elif isinstance(datatype, StringType):
                 # data is string type
-                if data.isdigit():
-                    parsed = datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        timestamp_format,
+                if data.isdigit() and auto_detect:
+                    parsed = datetime.datetime.utcfromtimestamp(
+                        convert_numeric_string_value_to_float_seconds(data)
                     )
+                    # utc timestamps should be in utc timezone
+                    if add_timezone:
+                        parsed = parsed.replace(tzinfo=pytz.utc)
                 else:
                     if auto_detect:
                         parsed = dateutil.parser.parse(data)
