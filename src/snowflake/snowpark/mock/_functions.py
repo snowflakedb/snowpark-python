@@ -838,21 +838,21 @@ def mock_to_double(
     column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
 ) -> ColumnEmulator:
     """
-        [ ] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
+        [x] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
 
-        [ ] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
+        [x] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
 
         For VARIANT input:
 
-        [ ] If the variant contains a fixed-point value, the numeric conversion will be performed.
+        [x] If the variant contains a fixed-point value, the numeric conversion will be performed.
 
-        [ ] If the variant contains a floating-point value, the value will be preserved unchanged.
+        [x] If the variant contains a floating-point value, the value will be preserved unchanged.
 
-        [ ] If the variant contains a string, a string conversion will be performed.
+        [x] If the variant contains a string, a string conversion will be performed.
 
-        [ ] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
+        [x] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
 
-        [ ] If the variant contains JSON null value, the output will be NULL.
+        [x] If the variant contains JSON null value (None in Python), the output will be NULL.
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
@@ -863,21 +863,12 @@ def mock_to_double(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
+    if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
-        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
+        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
-    elif isinstance(column.sf_type.datatype, VariantType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_DOUBLE on Variant data",
-            internal_feature_name="mock_to_double",
-            parameters_info={
-                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
-            },
-            raise_error=NotImplementedError,
-        )
     else:
-        raise NotImplementedError(
+        raise TypeError(
             f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 
