@@ -665,3 +665,28 @@ def test_3rd_party_package_mix_and_match(udf_packages, session_packages):
         pd.session.clear_imports()
 
     assert len(ans) == 3
+
+
+@sql_count_checker(query_count=7, udf_count=1)
+def test_SNOW_1344784_udf_decorator():
+    # tests udf decorator with no packages specified
+
+    df = pd.DataFrame(
+        [[True, "test string"], [False, "another"], [True, "This is an emoji: 😀"]],
+        columns=["is_valid_unitno", "column"],
+    )
+
+    from snowflake.snowpark.functions import udf
+    from snowflake.snowpark.types import StringType
+
+    # can also specify packages here...
+    @udf(input_types=[StringType()], return_type=StringType())
+    def _remove_emoji(input_string):
+        """This functions takes a string and removes non-ascii characters like emojis"""
+        return input_string.encode("ascii", "ignore").decode("ascii").strip()
+
+    ans = df.loc[df["is_valid_unitno"], "column"].apply(_remove_emoji)
+    expected = native_pd.Series(
+        ["test string", "This is an emoji:"], index=[0, 2], name="column"
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, expected)
