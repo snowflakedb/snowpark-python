@@ -354,6 +354,7 @@ def test_dataframe_transpose_args_warning_log(caplog, score_test_data):
     )
 
 
+@sql_count_checker(query_count=1, union_count=1)
 def test_transpose_does_not_raise_pivot_warning_snow_1344848(caplog):
     # Test transpose, which calls snowflake.snowpark.dataframe.pivot() with
     # the `values` parameter as None or a Snowpark DataFrame.
