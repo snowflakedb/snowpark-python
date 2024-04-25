@@ -161,6 +161,25 @@ def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func",
+    [
+        lambda x: np.sum(x),  # callable
+        np.ptp,  # Unsupported aggregation function
+    ],
+)
+@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+def test_groupby_agg_func_unsupported_named_agg(basic_snowpark_pandas_df, agg_func):
+    by = "col1"
+    pandas_df = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        pandas_df,
+        lambda df: df.groupby(by).agg(new_col=("col2", agg_func)),
+    )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+@pytest.mark.parametrize(
+    "agg_func",
     [lambda x: x * 2, np.sin, {"col2": "max", "col4": np.sin}],
 )
 @sql_count_checker(query_count=4)

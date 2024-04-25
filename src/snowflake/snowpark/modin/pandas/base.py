@@ -692,6 +692,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             obj=self,
             allow_duplication=False,
             axis=axis,
+            **kwargs,
         )
 
         # This is to stay consistent with pandas result format, when the func is single

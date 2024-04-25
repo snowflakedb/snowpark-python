@@ -42,6 +42,7 @@ from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
     is_integer_dtype,
+    is_named_tuple,
     is_numeric_dtype,
     is_re_compilable,
     is_scalar,
@@ -2632,10 +2633,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) and check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
 
         def register_default_to_pandas() -> SnowflakeQueryCompiler:
+            # For named aggregates, those are passed via agg_kwargs. We should not pass `agg_func` since we have modified
+            # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
+            if isinstance(agg_func, dict) and all(
+                is_named_tuple(func) and len(func) == 2 for func in agg_func.values()
+            ):
+                func = None
+            else:
+                func = agg_func
             return GroupByDefault.register(GroupByDefault.get_aggregation_method(how))(
                 self,
                 by=by,
-                agg_func=agg_func,
+                agg_func=func,
                 axis=axis,
                 groupby_kwargs=groupby_kwargs,
                 agg_args=agg_args,
@@ -2659,6 +2668,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
+        uses_named_aggs = False
 
         original_index_column_labels = self._modin_frame.index_column_pandas_labels
 
@@ -2689,11 +2699,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
+        def convert_func_to_agg_func_info(func):
+            nonlocal uses_named_aggs
+            if is_named_tuple(func):
+                if not uses_named_aggs:
+                    uses_named_aggs = True
+                return AggFuncInfo(
+                    func=func.func,
+                    is_dummy_agg=False,
+                    post_agg_pandas_label=func.pandas_label,
+                )
+            else:
+                return AggFuncInfo(
+                    func=func, is_dummy_agg=False, post_agg_pandas_label=None
+                )
+
         column_to_agg_func = {
             agg_col: (
-                [AggFuncInfo(func=fn, is_dummy_agg=False) for fn in func]
-                if is_list_like(func)
-                else AggFuncInfo(func=func, is_dummy_agg=False)
+                [convert_func_to_agg_func_info(fn) for fn in func]
+                if is_list_like(func) and not is_named_tuple(func)
+                else convert_func_to_agg_func_info(func)
             )
             for (agg_col, func) in column_to_agg_func.items()
         }
@@ -2768,7 +2793,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
         drop = False
-        if not as_index:
+        if not as_index and not uses_named_aggs:
             # drop off the index columns that are from the original index columns and also the index
             # columns that are from data column with aggregation function applied.
             # For example: with the following dataframe, which has data column ['A', 'B', 'C', 'D', 'E']
