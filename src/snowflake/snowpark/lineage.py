@@ -392,17 +392,21 @@ class Lineage:
         depth: int = 2,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
-        Traces the lineage of a object within Snowflake and returns it as a DataFrame.
+        Traces the lineage of an object within Snowflake and returns it as a DataFrame.
 
         Args:
             object_name (str): The name of the Snowflake object to start trace, formatted as "database.schema.object".
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
-            object_version (Optional[str]): Version of the Snowflake object to start trace, defaults to None.
+            object_version (Optional[str]): Version of the versioned Snowflake object like model/dataset to start trace, defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
-            depth (int): The depth of the trace, defaults to 2.
+            depth (int): Trace depth, defaults to 2, with a maximum of 10.
 
         Returns:
-            snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage.
+            snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage with the following schema:
+                - source (str): The source of the lineage.
+                - target (str): The target of the lineage.
+                - direction (str): The direction of the lineage ('FORWARD', 'BACKWARD', or 'BOTH').
+                - depth (int): The depth of the lineage tracing.
 
             Example:
                 >>> db = "YOUR_DATABASE"
