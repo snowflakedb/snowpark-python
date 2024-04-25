@@ -35,6 +35,7 @@ class TelemetryField(Enum):
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
+    TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -62,6 +63,10 @@ class TelemetryField(Enum):
     # sql simplifier
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
+    CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
+    # dataframe query stats
+    QUERY_PLAN_HEIGHT = "query_plan_height"
+    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -142,8 +147,20 @@ def df_collect_api_telemetry(func):
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
-        # The first api call will indicate whether sql simplifier is enabled.
-        api_calls[0]["sql_simplifier_enabled"] = args[0]._session.sql_simplifier_enabled
+        # The first api call will indicate following:
+        # - sql simplifier is enabled.
+        # - height of the query plan
+        # - number of unique duplicate subtrees in the query plan
+        api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
+            0
+        ]._session.sql_simplifier_enabled
+        try:
+            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][
+                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan.num_duplicate_nodes
+        except Exception:
+            pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
@@ -337,6 +354,18 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.SQL_SIMPLIFIER_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_cte_optimization_telemetry(self, session_id: str) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CTE_OPTIMIZATION_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: True,
             },
         }
         self.send(message)

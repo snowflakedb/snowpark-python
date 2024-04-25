@@ -105,7 +105,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.context import _use_scoped_temp_objects
+from snowflake.snowpark.context import (
+    _is_execution_environment_sandboxed_for_client,
+    _use_scoped_temp_objects,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkClientException
@@ -137,6 +140,7 @@ from snowflake.snowpark.mock._pandas_util import (
     _extract_schema_and_data_from_pandas_df,
 )
 from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
 from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.row import Row
@@ -211,6 +215,15 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+
+
+def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
+    # Precedence to checking sandbox to avoid any side effects
+    if _is_execution_environment_sandboxed_for_client:
+        session = None
+    else:
+        session = session or _get_active_session()
+    return session
 
 
 def _close_session_atexit():
@@ -442,12 +455,14 @@ class Session:
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
+            self._sp_registration = MockStoredProcedureRegistration(self)
         else:
             self._udf_registration = UDFRegistration(self)
+            self._sp_registration = StoredProcedureRegistration(self)
 
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
-        self._sp_registration = StoredProcedureRegistration(self)
+
         self._plan_builder = (
             SnowflakePlanBuilder(self)
             if isinstance(self._conn, ServerConnection)
@@ -537,6 +552,13 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
+    def cte_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+        """
+        return self._cte_optimization_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -588,6 +610,15 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @cte_optimization_enabled.setter
+    @experimental_parameter(version="1.15.0")
+    def cte_optimization_enabled(self, value: bool) -> None:
+        if value:
+            self._conn._telemetry_client.send_cte_optimization_telemetry(
+                self._session_id
+            )
+        self._cte_optimization_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -684,6 +715,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
+            self.sproc._import_file(path, import_path=import_path)
 
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -726,6 +758,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
+            self.sproc._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(
@@ -2815,11 +2848,6 @@ class Session:
         Returns a :class:`stored_procedure.StoredProcedureRegistration` object that you can use to register stored procedures.
         See details of how to use this object in :class:`stored_procedure.StoredProcedureRegistration`.
         """
-        if isinstance(self, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.sproc",
-                raise_error=NotImplementedError,
-            )
         return self._sp_registration
 
     def _infer_is_return_table(
@@ -2927,6 +2955,11 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+        if isinstance(self._sp_registration, MockStoredProcedureRegistration):
+            return self._sp_registration.call(
+                sproc_name, *args, session=self, statement_params=statement_params
+            )
+
         validate_object_name(sproc_name)
         query = generate_call_python_sp_sql(self, sproc_name, *args)
 

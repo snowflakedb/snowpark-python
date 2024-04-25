@@ -10,6 +10,9 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
+MODIN_DEPENDENCY_VERSION = (
+    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
+)
 CONNECTOR_DEPENDENCY_VERSION = ">=3.6.0, <4.0.0"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
@@ -25,6 +28,10 @@ REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
+
+PANDAS_REQUIREMENTS = [
+    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+]
 
 # read the version
 VERSION = ()
@@ -65,6 +72,22 @@ setup(
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark.mock",
+        "snowflake.snowpark.modin",
+        "snowflake.snowpark.modin.config",
+        "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
+        "snowflake.snowpark.modin.core.execution.dispatching",
+        "snowflake.snowpark.modin.core.execution.dispatching.factories",
+        "snowflake.snowpark.modin.pandas",
+        "snowflake.snowpark.modin.pandas.api.extensions",
+        "snowflake.snowpark.modin.plugin",
+        "snowflake.snowpark.modin.plugin._internal",
+        "snowflake.snowpark.modin.plugin.compiler",
+        "snowflake.snowpark.modin.plugin.docstrings",
+        "snowflake.snowpark.modin.plugin.default2pandas",
+        "snowflake.snowpark.modin.plugin.docstrings",
+        "snowflake.snowpark.modin.plugin.extensions",
+        "snowflake.snowpark.modin.plugin.io",
+        "snowflake.snowpark.modin.plugin.utils",
     ],
     package_dir={
         "": "src",
@@ -73,8 +96,10 @@ setup(
         "snowflake.snowpark": ["LICENSE.txt", "py.typed"],
     },
     extras_require={
-        "pandas": [
-            f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+        "pandas": PANDAS_REQUIREMENTS,
+        "modin": [
+            f"modin{MODIN_DEPENDENCY_VERSION}",
+            *PANDAS_REQUIREMENTS,
         ],
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
@@ -88,9 +113,17 @@ setup(
             "pytest-timeout",
             "pre-commit",
         ],
+        "modin-development": [
+            "pytest-assume",  # Snowpark pandas
+            "decorator",  # Snowpark pandas
+            "scipy",  # Snowpark pandas 3rd party library testing
+            "statsmodels",  # Snowpark pandas 3rd party library testing
+            f"modin{MODIN_DEPENDENCY_VERSION}",
+        ],
         "localtest": [
             "pandas",
             "pyarrow",
+            "requests",
         ],
         "opentelemetry": [
             "opentelemetry-api>=1.0.0, <2.0.0",

@@ -95,6 +95,7 @@ WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
 IF = " If "
 INSERT = " INSERT "
+OVERWRITE = " OVERWRITE "
 INTO = " INTO "
 VALUES = " VALUES "
 SEQ8 = " SEQ8() "
@@ -161,6 +162,8 @@ INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
 WITH = "WITH "
+DEFAULT_ON_NULL = " DEFAULT ON NULL "
+ANY = " ANY "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -760,11 +763,14 @@ def create_table_statement(
 
 
 def insert_into_statement(
-    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+    table_name: str,
+    child: str,
+    column_names: Optional[Iterable[str]] = None,
+    overwrite: bool = False,
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
-        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
+        return f"{INSERT}{OVERWRITE if overwrite else EMPTY_STRING}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
@@ -1033,8 +1039,22 @@ def create_or_replace_dynamic_table_statement(
 
 
 def pivot_statement(
-    pivot_column: str, pivot_values: List[str], aggregate: str, child: str
+    pivot_column: str,
+    pivot_values: Optional[Union[str, List[str]]],
+    aggregate: str,
+    default_on_null: Optional[str],
+    child: str,
 ) -> str:
+    if isinstance(pivot_values, str):
+        # The subexpression in this case already includes parenthesis.
+        values_str = pivot_values
+    else:
+        values_str = (
+            LEFT_PARENTHESIS
+            + (ANY if pivot_values is None else COMMA.join(pivot_values))
+            + RIGHT_PARENTHESIS
+        )
+
     return (
         SELECT
         + STAR
@@ -1048,9 +1068,12 @@ def pivot_statement(
         + FOR
         + pivot_column
         + IN
-        + LEFT_PARENTHESIS
-        + COMMA.join(pivot_values)
-        + RIGHT_PARENTHESIS
+        + values_str
+        + (
+            (DEFAULT_ON_NULL + LEFT_PARENTHESIS + default_on_null + RIGHT_PARENTHESIS)
+            if default_on_null
+            else EMPTY_STRING
+        )
         + RIGHT_PARENTHESIS
     )
 
