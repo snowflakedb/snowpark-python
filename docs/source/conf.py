@@ -13,7 +13,6 @@
 import os
 import sys
 
-
 # -- Project information -----------------------------------------------------
 
 project = "Snowpark API Reference (Python)"
@@ -28,7 +27,6 @@ VERSION = (1, 1, 1, None)  # Default, needed so code will compile
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
     exec(f.read())
 release = ".".join([str(v) for v in VERSION if v is not None])
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -58,7 +56,6 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
-
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -126,10 +123,8 @@ def linkcode_resolve(domain, info):
             source, lineno = inspect.getsourcelines(obj)
         linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
     except TypeError:
-            linespec = ""
+        linespec = ""
     return (
         f"https://github.com/snowflakedb/snowpark-python/blob/"
-        f"v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
+        f"release-v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
     )
-    
-    

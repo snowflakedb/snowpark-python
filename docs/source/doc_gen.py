@@ -28,12 +28,11 @@ mapping = {
     "Exceptions": "exceptions",
 }
 
-
 # STRING LITERALS
 TAB = "    "
 NEWLINE_TAB = f"\n{TAB}"
 RUBRIC_HEADER = ".. rubric::"
-AUTOSUMMARY_HEADER=".. autosummary::"
+AUTOSUMMARY_HEADER = ".. autosummary::"
 
 
 def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = None) -> Union[Module, Class]:
@@ -66,7 +65,6 @@ def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = Non
         subprocess.run(["sphinx-autogen", fname, "-o", output_dir, "-t", "_templates"])
 
         section = ""
-
 
         with open(f"{output_dir}/{name}.rst") as fp:
             for line in fp:
@@ -102,15 +100,15 @@ def generate_autosummary_section(section: str, content: str) -> str:
         return ""
 
 
-def generate_module_header(title:str, module:str) -> str:
-    automodule_text = "" if module=="snowflake.snowpark" else f"""
+def generate_module_header(title: str, module: str) -> str:
+    automodule_text = "" if module == "snowflake.snowpark" else f"""
 .. automodule:: {module}
   :noindex:
 """
     return f"""
-{'='*(len(title)+5)}
+{'=' * (len(title) + 5)}
 {title}
-{'='*(len(title)+5)}
+{'=' * (len(title) + 5)}
 {automodule_text}
 
 .. currentmodule:: {module}
@@ -118,7 +116,7 @@ def generate_module_header(title:str, module:str) -> str:
 """
 
 
-def generate_classes(title:str, module:str, classes: Iterable[str]) -> str:
+def generate_classes(title: str, module: str, classes: Iterable[str]) -> str:
     results = [autogen_and_parse_for_info(module, c) for c in classes]
     names = NEWLINE_TAB.join(classes)
     methods = NEWLINE_TAB.join(itertools.chain.from_iterable(c.methods for c in results))
@@ -135,7 +133,7 @@ def generate_classes(title:str, module:str, classes: Iterable[str]) -> str:
 """
 
 
-def generate_module(title:str, module: str) -> str:
+def generate_module(title: str, module: str) -> str:
     mod = autogen_and_parse_for_info(module)
     attributes = NEWLINE_TAB.join(mod.attributes)
     functions = NEWLINE_TAB.join(mod.functions)
