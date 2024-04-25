@@ -6,4 +6,3 @@
 /scripts/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
 setup.py @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
 tox.ini @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
-/.github/workflows/daily_modin_precommit.yml @snowflakedb/snowpandas
