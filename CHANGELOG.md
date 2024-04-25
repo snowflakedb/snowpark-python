@@ -5,6 +5,15 @@
 ### New Features
 - Support stored procedure register with packages given as Python modules.
 
+### Local Testing Updates
+
+#### New Features
+
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - get
+
+
 ## 1.15.0 (2024-04-24)
 
 ### New Features
