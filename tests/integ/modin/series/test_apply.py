@@ -679,7 +679,7 @@ def test_SNOW_1344784_udf_decorator():
     from snowflake.snowpark.functions import udf
     from snowflake.snowpark.types import StringType
 
-    # can also specify packages here...
+    # note that we don't specify any packages in the udf() decorator.
     @udf(input_types=[StringType()], return_type=StringType())
     def _remove_emoji(input_string):
         """This functions takes a string and removes non-ascii characters like emojis"""
