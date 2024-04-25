@@ -2633,7 +2633,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) and check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
 
         def register_default_to_pandas() -> SnowflakeQueryCompiler:
-            # For named aggregates, those are passed via agg_kwargs. We should not pass `agg_func` since we have modified
+            # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
             # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
             if isinstance(agg_func, dict) and all(
                 is_named_tuple(func) and len(func) == 2 for func in agg_func.values()
@@ -2702,8 +2702,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         def convert_func_to_agg_func_info(func):
             nonlocal uses_named_aggs
             if is_named_tuple(func):
-                if not uses_named_aggs:
-                    uses_named_aggs = True
+                uses_named_aggs = True
                 return AggFuncInfo(
                     func=func.func,
                     is_dummy_agg=False,

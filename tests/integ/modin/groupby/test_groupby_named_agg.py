@@ -1,10 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import pytest
-
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -25,7 +22,6 @@ def test_invalid_named_agg_errors(basic_snowpark_pandas_df):
     )
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=5)
 def test_invalid_func_with_named_agg_errors(basic_snowpark_pandas_df):
     eval_snowpark_pandas_result(
