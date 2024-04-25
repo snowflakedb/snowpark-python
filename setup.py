@@ -32,6 +32,10 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
 ]
+MODIN_REQUIREMENTS = [
+    *PANDAS_REQUIREMENTS,
+    f"modin{MODIN_DEPENDENCY_VERSION}",
+]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
@@ -107,10 +111,7 @@ setup(
     },
     extras_require={
         "pandas": PANDAS_REQUIREMENTS,
-        "modin": [
-            f"modin{MODIN_DEPENDENCY_VERSION}",
-            *PANDAS_REQUIREMENTS,
-        ],
+        "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
@@ -118,9 +119,8 @@ setup(
             *DEVELOPMENT_REQUIREMENTS,
         ],
         "modin-development": [
-            *PANDAS_REQUIREMENTS,
+            *MODIN_REQUIREMENTS,
             *DEVELOPMENT_REQUIREMENTS,
-            f"modin{MODIN_DEPENDENCY_VERSION}",
             "pytest-assume",  # Snowpark pandas
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
