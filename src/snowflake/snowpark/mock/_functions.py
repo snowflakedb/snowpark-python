@@ -434,10 +434,10 @@ def mock_to_decimal(
             raise ValueError(
                 "Values of infinity and NaN cannot be converted to decimal"
             )
-        integer_part = str(round(abs(x)))
-        if len(integer_part) > precision:
+        integer_part_len = 1 if abs(x) < 1 else math.ceil(math.log10(abs(x)))
+        if integer_part_len > precision:
             raise SnowparkSQLException(f"Numeric value '{x}' is out of range")
-        remaining_decimal_len = min(precision - len(integer_part), scale)
+        remaining_decimal_len = min(precision - integer_part_len, scale)
         return Decimal(str(round(x, remaining_decimal_len)))
 
     if isinstance(e.sf_type.datatype, (_NumericType, BooleanType, NullType)):
