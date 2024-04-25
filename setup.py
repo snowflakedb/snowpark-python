@@ -115,9 +115,7 @@ setup(
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
         ],
-        "development": [
-            *DEVELOPMENT_REQUIREMENTS,
-        ],
+        "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [
             *MODIN_REQUIREMENTS,
             *DEVELOPMENT_REQUIREMENTS,
