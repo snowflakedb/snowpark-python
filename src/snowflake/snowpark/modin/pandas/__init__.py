@@ -25,21 +25,6 @@ from typing import Any
 
 import pandas
 
-__pandas_version__ = "2.2.1"
-
-
-if sys.version_info.major == 3 and sys.version_info.minor == 8:
-    raise RuntimeError(
-        "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later, and"
-        + f" update your pandas version to {__pandas_version__}."
-    )  # pragma: no cover
-
-if pandas.__version__ != __pandas_version__:
-    raise RuntimeError(
-        f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
-        + f" Snowpark pandas ({__pandas_version__}). Please update with `pip install pandas=={__pandas_version__}`."
-    )  # pragma: no cover
-
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from pandas import describe_option  # noqa: F401
