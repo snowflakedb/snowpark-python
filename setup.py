@@ -29,6 +29,12 @@ REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
 
+PANDAS_REQUIREMENTS = (
+    [
+        f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    ],
+)
+
 # read the version
 VERSION = ()
 with open(os.path.join(SNOWPARK_SRC_DIR, "version.py"), encoding="utf-8") as f:
@@ -92,11 +98,10 @@ setup(
         "snowflake.snowpark": ["LICENSE.txt", "py.typed"],
     },
     extras_require={
-        "pandas": [
-            f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
-        ],
+        "pandas": PANDAS_REQUIREMENTS,
         "modin": [
             f"modin{MODIN_DEPENDENCY_VERSION}",
+            *PANDAS_REQUIREMENTS,
         ],
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
