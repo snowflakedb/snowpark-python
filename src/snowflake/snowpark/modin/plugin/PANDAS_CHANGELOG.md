@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
+- Fixed `@udf` decorator when `packages=None` are specified preventing error in `Series.apply`.
 
 ## 1.14.0a2 (2024-04-18)
 
