@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -124,6 +125,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateViewCommand,
+    Pivot,
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
@@ -1376,6 +1378,19 @@ def execute_mock_plan(
             res.append(len(deleted_row_idx))
 
         return [Row(*res)]
+    elif isinstance(source_plan, Pivot):
+        child_rf = execute_mock_plan(source_plan.child)
+        aggregate_columns = [
+            plan.session._analyzer.analyze(exp, keep_alias=False)
+            for exp in source_plan.aggregates
+        ]
+        pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
+        pivot_values = [
+            exp.value
+            for exp in source_plan.pivot_values
+        ]
+        result = child_rf.pivot_table(columns=pivot_column, values='"AMOUNT"', aggfunc="sum", index='"EMPID"', sort=True)
+        __import__('pdb').set_trace()
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
