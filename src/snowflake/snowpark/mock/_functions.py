@@ -1562,7 +1562,7 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
     result = pdf.T.apply(
         lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
     )
-    result.sf_type = ColumnType(StringType(), False)
+    result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
 
 
@@ -1578,5 +1578,5 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
         if c.isnull().values.any()
         else c[1:].astype(str).str.cat(sep=c[0])
     )
-    result.sf_type = ColumnType(StringType(), False)
+    result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
