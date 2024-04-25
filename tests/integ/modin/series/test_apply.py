@@ -682,7 +682,7 @@ def test_SNOW_1344784_udf_decorator():
     # note that we don't specify any packages in the udf() decorator.
     @udf(input_types=[StringType()], return_type=StringType())
     def _remove_emoji(input_string):
-        """This functions takes a string and removes non-ascii characters like emojis"""
+        """This function takes a string and removes non-ascii characters like emojis"""
         return input_string.encode("ascii", "ignore").decode("ascii").strip()
 
     ans = df.loc[df["is_valid_unitno"], "column"].apply(_remove_emoji)
