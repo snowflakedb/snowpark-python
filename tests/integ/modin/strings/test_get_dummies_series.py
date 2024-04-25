@@ -58,6 +58,7 @@ def test_get_dummies_series_negative(data):
         )
 
 
+@sql_count_checker(query_count=1)
 def test_get_dummies_does_not_raise_pivot_warning_snow_1344848(caplog):
     # Test get_dummies, which uses the `default_on_null` parameter of
     # snowflake.snowpark.dataframe.pivot()
