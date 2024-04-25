@@ -9,5 +9,5 @@ from tests.integ.modin.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
-def test_snow_1345421():
+def test_simple_to_pandas():
     pd.DataFrame([1]).to_pandas()
