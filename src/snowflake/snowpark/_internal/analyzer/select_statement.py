@@ -283,6 +283,14 @@ class Selectable(LogicalPlan, ABC):
         return self._snowflake_plan
 
     @property
+    def plan_height(self) -> int:
+        return self.snowflake_plan.plan_height
+
+    @property
+    def num_duplicate_nodes(self) -> int:
+        return self.snowflake_plan.num_duplicate_nodes
+
+    @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
         This property is currently only used for traversing the query plan tree
@@ -397,7 +405,7 @@ class SelectSQL(Selectable):
 
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
-        if self.convert_to_select:
+        if self.convert_to_select or is_sql_select_statement(self._sql_query):
             return self
         new = SelectSQL(
             self._sql_query,

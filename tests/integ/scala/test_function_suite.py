@@ -184,11 +184,11 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
-    to_double,
     to_geography,
     to_geometry,
     to_json,
     to_object,
+    to_time,
     to_timestamp,
     to_timestamp_ltz,
     to_timestamp_ntz,
@@ -482,6 +482,7 @@ def test_random(session):
     df.select(random()).collect()
 
 
+@pytest.mark.localtest
 def test_sqrt(session):
     Utils.check_answer(
         TestData.test_data1(session).select(sqrt(col("NUM"))),
@@ -552,6 +553,7 @@ def test_log(session):
     )
 
 
+@pytest.mark.localtest
 def test_pow(session):
     Utils.check_answer(
         TestData.double2(session).select(pow(col("A"), col("B"))),
@@ -1283,6 +1285,73 @@ def test_to_timestamp(session):
             Row(datetime(2020, 4, 5, 2, 3, 4)),
         ],
     )
+
+
+@pytest.mark.localtest
+def test_to_time(session, local_testing_mode):
+    # basic string expr
+    df = TestData.time_primitives1(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+        ],
+    )
+
+    # string expr with format
+    df = TestData.time_primitives2(session)
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH12.MI-SS PM") for column in df.columns]),
+        [
+            Row(time(13, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(12, 55, 19)),
+        ],
+    )
+
+    # timestamp
+    df = TestData.time_primitives3(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(12, 13, 14)),
+            Row(time(20, 21, 22)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+        ],
+    )
+
+    # variant type
+    df = TestData.time_primitives4(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(21, 20, 19)),
+            Row(
+                None,
+            ),
+            Row(time(1, 2, 3)),
+        ],
+    )
+
+    # variant data
+
+    # invalid input for string expr with format
+    # TODO: local test error experience SNOW-1235716
+    # currently local testing throws ValueError while live connection throws SQLException
+    with pytest.raises(ValueError if local_testing_mode else SnowparkSQLException):
+        df = session.create_dataframe([("asdfgh",), ("qwerty",)]).to_df("a")
+        Utils.check_answer(
+            df.select(to_time("A", "HH12.MI-SS PM")),
+            [
+                Row(time(13, 2, 3)),
+                Row(time(22, 33, 44)),
+            ],
+        )
 
 
 @pytest.mark.localtest
@@ -3461,31 +3530,6 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
             sort=False,
         )
         LocalTimezone.set_local_timezone()
-
-
-@pytest.mark.localtest
-def test_to_double(session, local_testing_mode):
-    if not local_testing_mode:
-        # Local testing only covers partial implementation of to_double
-        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
-            ["a", "b", "fmt"]
-        )
-
-        Utils.check_answer(
-            df.select(
-                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
-            ),
-            [Row(1.2, -2.34, -2.34)],
-            sort=False,
-        )
-
-    df = session.create_dataframe([["1.2", "-2.34"]]).to_df(["a", "b"])
-
-    Utils.check_answer(
-        df.select(to_double("a"), to_double("b")),
-        [Row(1.2, -2.34)],
-        sort=False,
-    )
 
 
 def test_to_array(session):

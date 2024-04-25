@@ -334,6 +334,22 @@ class SnowflakePlan(LogicalPlan):
             }
         return self._output_dict
 
+    @cached_property
+    def plan_height(self) -> int:
+        height = 0
+        current_level = [self]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children_plan_nodes)
+            height += 1
+            current_level = next_level
+        return height
+
+    @cached_property
+    def num_duplicate_nodes(self) -> int:
+        return len(find_duplicate_subtrees(self))
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(
@@ -745,6 +761,28 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+        elif mode == SaveMode.TRUNCATE:
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_into_statement(
+                        full_table_name, x, [x.name for x in child.attributes], True
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=True,
+                        table_type=table_type,
+                        clustering_key=clustering_keys,
+                    ),
+                    child,
+                    None,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
@@ -801,13 +839,16 @@ class SnowflakePlanBuilder:
     def pivot(
         self,
         pivot_column: str,
-        pivot_values: List[str],
+        pivot_values: Optional[Union[str, List[str]]],
         aggregate: str,
+        default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: pivot_statement(pivot_column, pivot_values, aggregate, x),
+            lambda x: pivot_statement(
+                pivot_column, pivot_values, aggregate, default_on_null, x
+            ),
             child,
             source_plan,
         )

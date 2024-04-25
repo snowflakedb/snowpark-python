@@ -34,7 +34,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 @pytest.mark.localtest
@@ -129,6 +129,15 @@ def test_gt_and_lt(session):
     ]
     assert test_data1.where(test_data1["NUM"] < 2).collect() == [Row(1, True, "a")]
     assert test_data1.where(test_data1["NUM"] < lit(2)).collect() == [Row(1, True, "a")]
+
+    test_data_datetime = TestData.datetime_primitives2(session)
+    res = datetime.datetime(2000, 5, 6, 0, 0, 0)
+    assert test_data_datetime.where(
+        test_data_datetime["timestamp"] > res
+    ).collect() == [Row(datetime.datetime(9999, 12, 31, 0, 0, 0, 123456))]
+    assert test_data_datetime.where(
+        test_data_datetime["timestamp"] < res
+    ).collect() == [Row(datetime.datetime(1583, 1, 1, 23, 59, 59, 567890))]
 
 
 @pytest.mark.localtest
@@ -754,11 +763,8 @@ def test_in_expression_2_in_with_subquery(session):
     Utils.check_answer(df4, [Row(False), Row(True), Row(True)])
 
 
+@pytest.mark.localtest
 def test_in_expression_3_with_all_types(session, local_testing_mode):
-    # TODO: local testing support to_timestamp_ntz
-    #  stored proc by default uses timestime type according to:
-    #  https://docs.snowflake.com/en/sql-reference/parameters#timestamp-type-mapping
-    #  we keep the test here for future reference
     schema = StructType(
         [
             StructField("id", LongType()),
@@ -978,4 +984,22 @@ def test_in_expression_with_multiple_queries(session):
     df2 = session.create_dataframe([[1, "one"], [3, "three"]], schema=["a", "b"])
     Utils.check_answer(
         df2.select(col("a").in_(df1.select("a"))), [Row(True), Row(False)]
+    )
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
+def test_pivot_with_multiple_queries(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df1 = session.create_dataframe([[1, "one"], [2, "two"]], schema=["a", "b"])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+    df2 = session.create_dataframe(
+        [[1, "one"], [11, "one"], [3, "three"]], schema=["a", "b"]
+    )
+    Utils.check_answer(
+        df2.pivot(col("b"), df1.select(col("b"))).agg(avg(col("a"))), [Row(6, None)]
     )

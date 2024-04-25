@@ -38,7 +38,6 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     normalize_local_file,
-    parse_table_name,
     result_set_to_rows,
     unwrap_stage_location_single_quote,
 )
@@ -48,6 +47,7 @@ from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -91,27 +91,28 @@ class MockServerConnection:
             self.view_registry = {}
             self.conn = conn
 
-        def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
+        def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
             current_schema = self.conn._get_current_parameter("schema")
             current_database = self.conn._get_current_parameter("database")
-            if isinstance(name, str):
-                name = parse_table_name(name)
-            if len(name) == 1:
-                name = [current_schema] + name
-            if len(name) == 2:
-                name = [current_database] + name
-            return ".".join(quote_name(n) for n in name)
-
-        def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
-            qualified_name = self.get_fully_qualified_name(name)
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             return qualified_name in self.table_registry
 
         def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
-            qualified_name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            qualified_name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             if qualified_name in self.table_registry:
                 return copy(self.table_registry[qualified_name])
             else:
@@ -122,7 +123,9 @@ class MockServerConnection:
         def write_table(
             self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
         ) -> Row:
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             table = copy(table)
             if mode == SaveMode.APPEND:
                 # Fix append by index
@@ -145,6 +148,13 @@ class MockServerConnection:
                     raise SnowparkSQLException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
+            elif mode == SaveMode.TRUNCATE:
+                if name in self.table_registry:
+                    target_table = self.table_registry[name]
+                    if table.columns != target_table.columns:
+                        raise SnowparkSQLException("Column mismatch detected")
+
+                self.table_registry[name] = table
             else:
                 raise ProgrammingError(f"Unrecognized mode: {mode}")
             return [
@@ -152,18 +162,24 @@ class MockServerConnection:
             ]  # TODO: match message
 
         def drop_table(self, name: Union[str, Iterable[str]]) -> None:
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.table_registry:
                 self.table_registry.pop(name)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
         ):
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.view_registry:
                 return self.view_registry[name]
             raise SnowparkSQLException(f"View {name} does not exist")
@@ -207,7 +223,8 @@ class MockServerConnection:
             return log_and_telemetry
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
-        self._conn = Mock()
+        # TODO: mock connector connection support SNOW-1331149
+        self._conn = Mock(expired=False)
         self._cursor = Mock()
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()

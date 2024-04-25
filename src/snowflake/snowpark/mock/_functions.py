@@ -46,8 +46,8 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
+    convert_integer_value_to_seconds,
     convert_snowflake_datetime_format,
-    process_numeric_time,
     process_string_time_with_fractional_seconds,
     unalias_datetime_part,
 )
@@ -273,6 +273,20 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     )
 
 
+@patch("sqrt")
+def mock_sqrt(column: ColumnEmulator):
+    result = column.apply(math.sqrt)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
+@patch("pow")
+def mock_pow(left: ColumnEmulator, right: ColumnEmulator):
+    result = left.combine(right, lambda l, r: l**r)
+    result.sf_type = ColumnType(FloatType(), left.sf_type.nullable)
+    return result
+
+
 @patch("to_date")
 def mock_to_date(
     column: ColumnEmulator,
@@ -313,7 +327,7 @@ def mock_to_date(
             if auto_detect and data.isnumeric():
                 res.append(
                     datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
+                        convert_integer_value_to_seconds(data)
                     ).date()
                 )
             else:
@@ -455,71 +469,106 @@ def mock_to_time(
     try_cast: bool = False,
 ):
     """
-    [ ] For string_expr, the result of converting the string to a time.
+    https://docs.snowflake.com/en/sql-reference/functions/to_time
 
-    [ ] For timestamp_expr, the time portion of the input value.
+    [x] For string_expr, the result of converting the string to a time.
 
-    [ ] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+    [x] For timestamp_expr, the time portion of the input value.
 
-    [ ] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
+    [x] For 'integer' (a string containing an integer), the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch. See the Usage Notes below.
+
+        [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+
+    def convert_int_string_to_time(d: str):
+        return datetime.datetime.utcfromtimestamp(
+            convert_integer_value_to_seconds(d) % 86400
+        ).time()
+
+    def convert_string_to_time(
+        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
+    ):
+        data_parts = _data.split(".")
+        if len(data_parts) == 2:
+            # there is a part of seconds
+            seconds_part = data_parts[1]
+            # find the idx that the seconds part ends
+            idx = 0
+            while seconds_part[idx].isdigit():
+                idx += 1
+            # truncate to precision
+            seconds_part = (
+                seconds_part[: min(idx, _fractional_seconds)] + seconds_part[idx:]
+            )
+            _data = f"{data_parts[0]}.{seconds_part}"
+
+        target_datetime = datetime.datetime.strptime(
+            process_string_time_with_fractional_seconds(_data, _fractional_seconds),
+            _time_format,
+        )
+        # there is a special case that if the time is 12 p.m noon, then no need to adjust
+        if _hour_delta == 12 and target_datetime.time().hour == 12:
+            _hour_delta = 0
+        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+
     res = []
 
     if not isinstance(fmt, ColumnEmulator):
         fmt = [fmt] * len(column)
 
     for data, _fmt in zip(column, fmt):
+        if data is None:
+            res.append(None)
+            continue
+        datatype = column.sf_type.datatype
         try:
-            auto_detect = _fmt is None
-
             (
                 time_fmt,
                 hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
-            if data is None:
-                res.append(None)
-                continue
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
-                    ).time()
-                )
-            else:
-                # handle seconds fraction
-                data_parts = data.split(".")
-                if len(data_parts) == 2:
-                    # there is a part of seconds
-                    seconds_part = data_parts[1]
-                    # find the idx that the seconds part ends
-                    idx = 0
-                    while seconds_part[idx].isdigit():
-                        idx += 1
-                    # truncate to precision
-                    seconds_part = (
-                        seconds_part[: min(idx, fractional_seconds)]
-                        + seconds_part[idx:]
-                    )
-                    data = f"{data_parts[0]}.{seconds_part}"
-                res.append(
-                    (
-                        datetime.datetime.strptime(
-                            process_string_time_with_fractional_seconds(
-                                data, fractional_seconds
-                            ),
-                            time_fmt,
+
+            if isinstance(datatype, StringType):
+                if data.isdigit():
+                    res.append(convert_int_string_to_time(data))
+                else:
+                    res.append(
+                        convert_string_to_time(
+                            data, time_fmt, hour_delta, fractional_seconds
                         )
-                        + datetime.timedelta(hours=hour_delta)
-                    ).time()
+                    )
+            elif isinstance(datatype, TimestampType):
+                res.append(data.time())
+            elif isinstance(datatype, VariantType):
+                if isinstance(data, str):
+                    if data.isdigit():
+                        res.append(convert_int_string_to_time(data))
+                    else:
+                        res.append(
+                            convert_string_to_time(
+                                data, time_fmt, hour_delta, fractional_seconds
+                            )
+                        )
+                elif isinstance(data, datetime.time):
+                    res.append(data)
+                else:
+                    raise ValueError(
+                        f"[Local Testing] Unsupported conversion to_time of value {data} of VariantType"
+                    )
+            else:
+                raise ValueError(
+                    f"[Local Testing] Unsupported conversion to_time of data type {type(datatype).__name__}"
                 )
         except BaseException:
             if try_cast:
                 data.append(None)
             else:
+                # TODO: local test error experience SNOW-1235716
                 raise
 
+    # TODO: TIME_OUTPUT_FORMAT is not supported, by default snowflake outputs time in the format HH24:MI:SS
+    #  check https://snowflakecomputing.atlassian.net/browse/SNOW-1305979
     return ColumnEmulator(
         data=res, sf_type=ColumnType(TimeType(), column.sf_type.nullable)
     )
@@ -590,7 +639,7 @@ def _to_timestamp(
                     isinstance(data, str) and data.isnumeric()
                 ):
                     parsed = datetime.datetime.utcfromtimestamp(
-                        process_numeric_time(data)
+                        convert_integer_value_to_seconds(data)
                     )
                     # utc timestamps should be in utc timezone
                     if add_timezone:
@@ -789,21 +838,21 @@ def mock_to_double(
     column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
 ) -> ColumnEmulator:
     """
-        [ ] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
+        [x] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
 
-        [ ] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
+        [x] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
 
         For VARIANT input:
 
-        [ ] If the variant contains a fixed-point value, the numeric conversion will be performed.
+        [x] If the variant contains a fixed-point value, the numeric conversion will be performed.
 
-        [ ] If the variant contains a floating-point value, the value will be preserved unchanged.
+        [x] If the variant contains a floating-point value, the value will be preserved unchanged.
 
-        [ ] If the variant contains a string, a string conversion will be performed.
+        [x] If the variant contains a string, a string conversion will be performed.
 
-        [ ] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
+        [x] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
 
-        [ ] If the variant contains JSON null value, the output will be NULL.
+        [x] If the variant contains JSON null value (None in Python), the output will be NULL.
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
@@ -814,21 +863,12 @@ def mock_to_double(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
+    if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
-        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
+        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
-    elif isinstance(column.sf_type.datatype, VariantType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_DOUBLE on Variant data",
-            internal_feature_name="mock_to_double",
-            parameters_info={
-                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
-            },
-            raise_error=NotImplementedError,
-        )
     else:
-        raise NotImplementedError(
+        raise TypeError(
             f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 

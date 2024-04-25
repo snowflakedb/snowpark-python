@@ -64,7 +64,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 
@@ -87,7 +89,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> None:
@@ -102,7 +104,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
@@ -132,7 +134,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 

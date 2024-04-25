@@ -5,11 +5,13 @@
 
 from decimal import Decimal
 from math import sqrt
+from typing import NamedTuple
 
 import pytest
 
 from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
     SnowparkSQLException,
@@ -37,7 +39,7 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 def test_pivot(session):
@@ -95,6 +97,61 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+def test_group_by_pivot_dynamic_any(session):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 8000, 10400, 11000),
+            Row(2, 5300, 90700, 39500, 12000),
+        ],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid"), col("team")),
+        [
+            Row(1, "A", 10000, None, 10400, 5000),
+            Row(1, "B", 8000, 8000, None, 6000),
+            Row(2, "A", 5300, 90700, 4500, None),
+            Row(2, "B", None, None, 35000, 12000),
+        ],
+        sort=False,
+    )
+
+
+def test_group_by_pivot_dynamic_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(col("month") == "JAN")
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", subquery_df)
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400), Row(2, 39500)],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month", subquery_df, 999)
+        .agg(sum(col("amount")))
+        .sort(col("empid"), col("team")),
+        [Row(1, "A", 10400), Row(1, "B", 999), Row(2, "A", 4500), Row(2, "B", 35000)],
+        sort=False,
+    )
+
+
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
@@ -130,6 +187,144 @@ def test_pivot_on_join(session):
         ],
         sort=False,
     )
+
+
+# TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
+# pivot will materialize the data before executing pivot, otherwise would fail with not finding the
+# data when doing a later schema call.
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
+def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
+    original_df = session.create_dataframe(
+        [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    )
+
+    # Validate the data is backed by a temporary table
+    assert len(original_df.queries.get("post_actions", [])) > 0
+
+    pivot_op_df = original_df.pivot("a").agg(sum(col("b"))).sort(col("c"))
+
+    # Query and ensure the schema matches as expected, this would fail with an exception if the data is not
+    # materialized (happens internally) first.
+    assert {f.column_identifier.name for f in pivot_op_df.schema.fields} == set(
+        list("CDEFGHIJKLMNOPQRSTUVWXYZ") + ['"0"']
+    )
+
+    assert pivot_op_df.count() == 1
+
+
+def test_pivot_dynamic_any(session):
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month")
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 8000, 10400, 11000),
+            Row(2, 5300, 90700, 39500, 12000),
+        ],
+        sort=False,
+    )
+
+
+def test_pivot_dynamic_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(col("month") == "JAN")
+
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", subquery_df)
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [Row(1, 10400), Row(2, 39500)],
+        sort=False,
+    )
+
+
+@pytest.mark.skip(
+    "SNOW-847500: Currently fails because of snowpark is not using DISTINCT keyword expected by server"
+)
+@pytest.mark.parametrize("is_ascending", [True, False])
+def test_pivot_dynamic_subquery_with_sort(session, is_ascending):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(
+        (col("month") == "JAN") | (col("month") == "APR")
+    )
+
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot(
+            "month",
+            subquery_df.select("month")
+            .distinct()
+            .sort("month", ascending=is_ascending),
+        )
+        .agg(sum(col("amount")))
+        .sort(col("empid")),
+        [
+            Row(1, 18000, 10400) if is_ascending else Row(1, 10400, 18000),
+            Row(2, 5300, 39500) if is_ascending else Row(2, 39500, 5300),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.skip(
+    "SNOW-848987: Requires server changes in 7.22 so can unskip once sfctest0 is on >= 7.22"
+)
+def test_pivot_dynamic_subquery_with_bad_subquery(session):
+    src = TestData.monthly_sales(session)
+    subquery_df = src.select(col("month")).filter(
+        (col("month") == "JAN") | (col("month") == "APR")
+    )
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.monthly_sales(session).pivot(
+            "month", subquery_df.select("month").sort("month")
+        ).agg(sum(col("amount"))).collect()
+
+    assert "Invalid subquery pivot order by must be distinct query" in str(ex_info)
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.monthly_sales(session).pivot(
+            "month", subquery_df.select(["month", "empid"])
+        ).agg(sum(col("amount"))).collect()
+
+    assert "Pivot subquery must select single column" in str(ex_info.value)
+
+
+def test_pivot_default_on_none(session):
+    class MonthlySales(NamedTuple):
+        empid: int
+        amount: int
+        month: str
+
+    src = session.create_dataframe(
+        [
+            MonthlySales(1, 10000, "JAN"),
+            MonthlySales(1, 400, "JAN"),
+            MonthlySales(1, None, "FEB"),
+            MonthlySales(1, 6000, "MAR"),
+            MonthlySales(2, 9000, "MAR"),
+            MonthlySales(2, None, "MAR"),
+        ]
+    )
+
+    for default_on_null in [Decimal(1.5), lit(9999), 9999, 0, None]:
+        default_value = (
+            default_on_null._expression.value
+            if isinstance(default_on_null, Column)
+            else default_on_null
+        )
+        Utils.check_answer(
+            src.pivot("month", ["JAN", "FEB", "MAR"], default_on_null=default_on_null)
+            .agg(sum(col("amount")))
+            .sort(col("empid")),
+            [
+                Row(1, 10400, default_value, 6000),
+                Row(2, default_value, default_value, 9000),
+            ],
+            sort=False,
+        )
 
 
 @pytest.mark.localtest
@@ -256,7 +451,7 @@ def test_group_by_grouping_sets(session):
             GroupingSets([col("radio_license")]),
         )  # duplicated column is removed in the result
         .agg(col("radio_license"))
-        .sort(col("radio_license")),
+        .sort(col("radio_license"), col("medical_license")),
         [
             Row("LVN", None),
             Row("RN", None),
@@ -277,7 +472,7 @@ def test_group_by_grouping_sets(session):
             ]
         )  # duplicated column is removed in the result
         .agg(col("radio_license").as_("rl"))
-        .sort(col("rl"))
+        .sort(col("rl"), col("medical_license"))
         .select("medical_license", "rl"),
         [
             Row("LVN", None),
@@ -357,18 +552,28 @@ def test_rel_grouped_dataframe_median(session):
 
     expected = [Row("a", 2.0, 22.0), Row("b", 4, 44.0)]
     assert (
-        df1.group_by("key").median(col("value1"), col("value2")).collect() == expected
+        df1.group_by("key")
+        .median(col("value1"), col("value2"))
+        .sort(col("key"))
+        .collect()
+        == expected
     )
     assert (
         df1.group_by("key")
         .agg([median(col("value1")), median(col("value2"))])
+        .sort(col("key"))
         .collect()
         == expected
     )
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").median("value1", "value2").collect() == expected
     assert (
-        df1.group_by("key").agg([median("value1"), median("value2")]).collect()
+        df1.group_by("key").median("value1", "value2").sort("key").collect() == expected
+    )
+    assert (
+        df1.group_by("key")
+        .agg([median("value1"), median("value2")])
+        .sort("key")
+        .collect()
         == expected
     )
 
@@ -1015,12 +1220,14 @@ def test_listagg_within_group(session):
         schema=["v1", "v2", "length", "color", "unused"],
     )
     Utils.check_answer(
-        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())),
+        df.group_by("color")
+        .agg(listagg("length", ",").within_group(df.length.asc()))
+        .sort("color"),
         [
+            Row("blue", "14"),
+            Row("green", "11,77"),
             Row("orange", "12"),
             Row("red", "21,24,35"),
-            Row("green", "11,77"),
-            Row("blue", "14"),
         ],
         sort=False,
     )
