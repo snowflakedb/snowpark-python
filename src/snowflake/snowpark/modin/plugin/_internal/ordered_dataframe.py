@@ -827,7 +827,7 @@ class OrderedDataFrame:
         # pivot features. The user should have already been warned that
         # Snowpark pandas is in public or private preview. They likely don't
         # know or care that we are using Snowpark DataFrame pivot() internally,
-        # let alone that we are using a private preview features of Snowpark
+        # let alone that we are using private preview features of Snowpark
         # Python.
 
         class NoPivotWarningFilter(logging.Filter):
