@@ -10,7 +10,11 @@ from typing import NamedTuple
 import pytest
 
 from snowflake.snowpark import GroupingSets, Row
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    PIVOT_DEFAULT_ON_NULL_WARNING,
+    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+    TempObjectType,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
@@ -97,7 +101,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-def test_group_by_pivot_dynamic_any(session):
+def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
         .group_by("empid")
@@ -110,6 +114,8 @@ def test_group_by_pivot_dynamic_any(session):
         ],
         sort=False,
     )
+
+    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
 
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -292,7 +298,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
-def test_pivot_default_on_none(session):
+def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
         amount: int
@@ -325,6 +331,8 @@ def test_pivot_default_on_none(session):
             ],
             sort=False,
         )
+
+    assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
 @pytest.mark.localtest

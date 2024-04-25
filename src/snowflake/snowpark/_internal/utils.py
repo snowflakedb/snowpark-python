@@ -182,6 +182,9 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = "Parameter values is Optional or DataFrame is in private preview since v1.15.0.  Do not use it in production."
+PIVOT_DEFAULT_ON_NULL_WARNING = "Parameter default_on_null is not None is in private preview since v1.15.0.  Do not use it in production."
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
@@ -899,13 +902,13 @@ def prepare_pivot_arguments(
     if values is None or isinstance(values, DataFrame):
         warning(
             df_name,
-            "Parameter values is Optional or DataFrame is in private preview since v1.15.0.  Do not use it in production.",
+            PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
         )
 
     if default_on_null is not None:
         warning(
             df_name,
-            "Parameter default_on_null is not None is in private preview since v1.15.0.  Do not use it in production.",
+            PIVOT_DEFAULT_ON_NULL_WARNING,
         )
 
     if values is not None and not values:

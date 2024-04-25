@@ -15,7 +15,11 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
-from snowflake.snowpark._internal.utils import parse_positional_args_to_list
+from snowflake.snowpark._internal.utils import (
+    PIVOT_DEFAULT_ON_NULL_WARNING,
+    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+    parse_positional_args_to_list,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
@@ -818,16 +822,41 @@ class OrderedDataFrame:
         See detailed docstring in Snowpark DataFrame's pivot.
         """
         snowpark_dataframe = self.to_projected_snowpark_dataframe()
+
+        # Don't warn the user about our internal usage of private preview
+        # pivot features. The user should have already been warned that
+        # Snowpark pandas is in public or private preview. They likely don't
+        # know or care that we are using Snowpark DataFrame pivot() internally,
+        # let alone that we are using a private preview features of Snowpark
+        # Python.
+
+        class NoPivotWarningFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                message = record.getMessage()
+                return (
+                    PIVOT_DEFAULT_ON_NULL_WARNING not in message
+                    and PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in message
+                )
+
+        filter = NoPivotWarningFilter()
+
+        class NoPivotWarningContext:
+            def __enter__(self):
+                logging.getLogger("snowflake.snowpark").addFilter(filter)
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                logging.getLogger("snowflake.snowpark").removeFilter(filter)
+
+        with NoPivotWarningContext():
+            pivoted_snowpark_dataframe = snowpark_dataframe.pivot(
+                pivot_col=pivot_col,
+                values=values,
+                default_on_null=default_on_null,
+            )
         return OrderedDataFrame(
             # the pivot result columns for dynamic pivot are data dependent, a schema call is required
             # to know all the quoted identifiers for the pivot result.
-            DataFrameReference(
-                snowpark_dataframe.pivot(
-                    pivot_col=pivot_col,
-                    values=values,
-                    default_on_null=default_on_null,
-                ).agg(*agg_exprs)
-            )
+            DataFrameReference(pivoted_snowpark_dataframe.agg(*agg_exprs))
         )
 
     def unpivot(
