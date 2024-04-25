@@ -830,7 +830,7 @@ def mock_to_double(
         )
     if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
-        res.sf_type = ColumnType(DoubleType(), res.hasnans)
+        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
     else:
         raise TypeError(
