@@ -74,7 +74,8 @@ class _ObjectField:
     DB = "db"
     STATUS = "status"
     CREATED_ON = "createdOn"
-    PARENT_NAME = "ParentName"
+    PARENT_NAME = "parentName"
+    PARENT_NAME_DEPRECATED = "ParentName"
     VERSION = "version"
 
     # A list of fileds queried on each object in the lineage.
@@ -290,35 +291,40 @@ class Lineage:
         """
         Extracts and returns the name and version from the given graph entity.
         """
-        if graph_entity[_ObjectField.USER_DOMAIN] in self._versioned_object_domains:
-            if graph_entity[_ObjectField.USER_DOMAIN] == _UserDomain.FEATURE_VIEW:
-                if "$" in graph_entity[_ObjectField.NAME]:
-                    parts = graph_entity[_ObjectField.NAME].split("$")
-                    return (
-                        f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{parts[0]}",
-                        parts[1],
-                    )
+        user_domain = graph_entity[_ObjectField.USER_DOMAIN]
+        db = graph_entity[_ObjectField.DB]
+        schema = graph_entity[_ObjectField.SCHEMA]
+        name = graph_entity[_ObjectField.NAME]
+
+        if user_domain in self._versioned_object_domains:
+            if user_domain == _UserDomain.FEATURE_VIEW:
+                if "$" in name:
+                    parts = name.split("$")
+                    return (f"{db}.{schema}.{parts[0]}", parts[1])
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                         f"unexpected {_UserDomain.FEATURE_VIEW} name format."
                     )
-            elif (
-                _ObjectField.PROPERTIES in graph_entity
-                and _ObjectField.PARENT_NAME in graph_entity[_ObjectField.PROPERTIES]
-            ):
-                return (
-                    f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.PROPERTIES][_ObjectField.PARENT_NAME]}",
-                    graph_entity[_ObjectField.NAME],
-                )
+            elif _ObjectField.PROPERTIES in graph_entity:
+                properties = graph_entity[_ObjectField.PROPERTIES]
+                if _ObjectField.PARENT_NAME in properties:
+                    parent_name = properties[_ObjectField.PARENT_NAME]
+                elif (
+                    _ObjectField.PARENT_NAME_DEPRECATED
+                    in graph_entity[_ObjectField.PROPERTIES]
+                ):
+                    parent_name = properties[_ObjectField.PARENT_NAME_DEPRECATED]
+                else:
+                    raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
+                        f"missing name/version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
+                    )
+                return (f"{db}.{schema}.{parent_name}", name)
             else:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                     f"missing name/version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
                 )
 
-        return (
-            f"{graph_entity[_ObjectField.DB]}.{graph_entity[_ObjectField.SCHEMA]}.{graph_entity[_ObjectField.NAME]}",
-            None,
-        )
+        return (f"{db}.{schema}.{name}", None)
 
     def _get_user_entity(self, graph_entity) -> str:
         """
