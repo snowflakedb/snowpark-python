@@ -8,6 +8,8 @@
 
 ### Local Testing Updates
 
+#### New Features
+
 - Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
 
 
