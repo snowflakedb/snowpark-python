@@ -1159,6 +1159,7 @@ class SeriesGroupBy(DataFrameGroupBy):
             raise SpecificationError(
                 "Value for func argument in dict format is not allowed for SeriesGroupBy."
             )
+
         return super().aggregate(
             func, *args, engine=engine, engine_kwargs=engine_kwargs, **kwargs
         )

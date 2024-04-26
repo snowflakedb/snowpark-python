@@ -23,6 +23,7 @@ from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_snow_df_with_table_and_data,
     create_test_dfs,
     eval_snowpark_pandas_result,
@@ -460,6 +461,11 @@ def test_groupby_agg_on_groupby_columns_named_agg(
 ) -> None:
     query_count = 2
     kwargs = {}
+    # https://github.com/pandas-dev/pandas/issues/58446
+    # pandas (and Snowpark pandas) fail when duplicate columns are specified for
+    # by and `as_index` is False and `pd.NamedAgg`s are
+    # used for aggregation functions, but not when a dictionary
+    # is passed in.
     if by == ["col1", "col1", "col2"] and not as_index:
         kwargs = {
             "expect_exception": True,
@@ -1080,3 +1086,11 @@ def test_groupby_agg_on_valid_variant_column(session, test_table_name):
                 }
             ),
         )
+
+
+@sql_count_checker(query_count=2)
+def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
+        basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
+    )
