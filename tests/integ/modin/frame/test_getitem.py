@@ -376,7 +376,6 @@ def test_df_getitem_lambda_dataframe():
 @sql_count_checker(query_count=1)
 def test_df_getitem_boolean_df_comparator():
     """
-    Based on bug from SNOW-1348621.
     DataFrame keys (as a result of callables) are valid for getitem but not loc and iloc get.
     """
     eval_snowpark_pandas_result(
@@ -384,4 +383,19 @@ def test_df_getitem_boolean_df_comparator():
             [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
         ),
         lambda df: df[df > 7]
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_df_getitem_boolean_df_comparator_datetime_index():
+    """
+    Based on bug from SNOW-1348621.
+    Code adapted from the pandas 10 minute quick start (https://pandas.pydata.org/docs/user_guide/10min.html).
+    """
+    dates = native_pd.date_range("20130101", periods=6)
+    data = np.random.randn(6, 4)
+    native_df = native_pd.DataFrame(data, index=dates, columns=list("ABCD"))
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df[df > 0], check_freq=False
     )
