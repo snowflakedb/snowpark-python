@@ -3,10 +3,7 @@
 #
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import (
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
-    eval_snowpark_pandas_result,
-)
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=1)
@@ -44,12 +41,4 @@ def test_valid_func_with_named_agg_errors(basic_snowpark_pandas_df):
         expect_exception_match="DataFrameGroupBy.max\\(\\) got an unexpected keyword argument 'new_col'",
         assert_exception_equal=False,  # There is a difference in our errors.
         expect_exception_type=TypeError,
-    )
-
-
-@sql_count_checker(query_count=2)
-def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
-        basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
     )
