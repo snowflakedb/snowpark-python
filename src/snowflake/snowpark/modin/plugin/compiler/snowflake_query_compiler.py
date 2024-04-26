@@ -11583,7 +11583,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not regex:
             pat = re.escape(pat)
             flags = 0
-        pat = f"(.|\n)*{pat}(.|\n)*"
+        pat = f"(.|\n)*({pat})(.|\n)*"
         if flags & re.IGNORECASE == 0 and not case:
             flags = flags | re.IGNORECASE
         params = self._get_regex_params(flags)

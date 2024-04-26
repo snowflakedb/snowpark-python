@@ -3,6 +3,7 @@
 /tests/integ/modin/ @snowflakedb/snowpandas
 /tests/unit/modin/ @snowflakedb/snowpandas
 /.github/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
+/docs/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
 /scripts/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
 setup.py @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
 tox.ini @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
