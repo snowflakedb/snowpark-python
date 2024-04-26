@@ -205,7 +205,7 @@ def test_series_getitem_with_multiindex(
 
 @sql_count_checker(query_count=1)
 def test_series_getitem_lambda_series():
-    data = {"a": 1, "b": 2, "c": 3}
+    data = {"a": 1, "b": 2, "c": 3, "d": -1, "e": 0, "f": 10}
     snow_ser = pd.Series(data)
     native_ser = native_pd.Series(data)
 

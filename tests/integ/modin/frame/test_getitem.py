@@ -383,5 +383,5 @@ def test_df_getitem_boolean_df_comparator():
         *create_test_dfs(
             [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
         ),
-        lambda df: df[df > 0]
+        lambda df: df[df > 7]
     )
