@@ -346,6 +346,10 @@ def mock_to_date(
                     else:
                         res.append(datetime.datetime.strptime(data, date_format).date())
             elif isinstance(column.sf_type.datatype, VariantType):
+                if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
+                    raise TypeError(
+                        "[Local Tesing] to_date function does not allow format parameter for data of VariantType"
+                    )
                 if isinstance(data, str):
                     if data.isdigit():
                         res.append(
@@ -359,11 +363,11 @@ def mock_to_date(
                 elif isinstance(data, datetime.date):
                     res.append(data)
                 else:
-                    raise ValueError(
+                    raise TypeError(
                         f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
                     )
             else:
-                raise ValueError(
+                raise TypeError(
                     f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
                 )
         except BaseException:
