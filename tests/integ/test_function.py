@@ -136,8 +136,8 @@ from snowflake.snowpark.functions import (
     to_binary,
     to_char,
     to_date,
-    to_double,
     to_decimal,
+    to_double,
     to_json,
     to_object,
     to_variant,
@@ -1893,6 +1893,7 @@ def test_to_double(session, local_testing_mode):
             [Row(1.2, -2.34, -2.34)],
             sort=False,
         )
+
 
 @pytest.mark.localtest
 def test_to_decimal(session, local_testing_mode):
