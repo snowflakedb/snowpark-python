@@ -167,6 +167,10 @@ class Utils:
         session._run_query(f"drop schema if exists {name}")
 
     @staticmethod
+    def drop_database(session: "Session", name: str):
+        session._run_query(f"drop database if exists {name}")
+
+    @staticmethod
     def unset_query_tag(session: "Session"):
         session.query_tag = None
 
@@ -877,6 +881,45 @@ class TestData:
             to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
         ]
         return primitives_df.select(variant_cols)
+
+    @classmethod
+    def date_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data + auto detection
+        data = ["2023-03-16", "30-JUL-2010", "1713414143"]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives2(cls, session: "Session") -> DataFrame:
+        # datetime type
+        data = [
+            datetime(2023, 3, 16),
+            datetime(2010, 7, 30, 1, 2, 3),
+            datetime(2024, 4, 18),
+        ]
+        schema = StructType([StructField("a", TimestampType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives3(cls, session: "Session") -> DataFrame:
+        # variant type
+        data = ["1713414143", None, "2024-06-03", "03/21/2000", datetime(2025, 12, 31)]
+        schema = StructType([StructField("a", VariantType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives4(cls, session: "Session") -> DataFrame:
+        # string + format
+        data = [
+            ("2024-04-18", "AUTO"),
+            ("01-09-1999", "DD-MM-YYYY"),
+            ("10.2024.29", "MM.YYYY.DD"),
+            ("05/15/2015", "MM/DD/YYYY"),
+        ]
+        schema = StructType(
+            [StructField("a", StringType()), StructField("b", StringType())]
+        )
+        return session.create_dataframe(data, schema)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
