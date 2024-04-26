@@ -294,6 +294,8 @@ def mock_to_date(
     try_cast: bool = False,
 ):
     """
+    https://docs.snowflake.com/en/sql-reference/functions/to_date
+
     Converts an input expression to a date:
 
     [x] For a string expression, the result of converting the string to a date.
@@ -304,42 +306,75 @@ def mock_to_date(
 
         [x] If the variant contains a string, a string conversion is performed.
 
-        [ ] If the variant contains a date, the date value is preserved as is.
+        [x] If the variant contains a date, the date value is preserved as is.
 
-        [ ] If the variant contains a JSON null value, the output is NULL.
+        [x] If the variant contains a JSON null value, the output is NULL.
 
         [x] For NULL input, the output is NULL.
 
-        [ ] For all other values, a conversion error is generated.
+        [x] For all other values, a conversion error is generated.
     """
-    res = []
-    auto_detect = bool(not fmt)
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = [fmt] * len(column)
 
-    date_format, _, _ = convert_snowflake_datetime_format(
-        fmt, default_format="%Y-%m-%d"
-    )
+    def convert_date(row):
+        _fmt = fmt[row.name]
+        data = row[0]
 
-    for data in column:
+        auto_detect = _fmt is None or _fmt.lower() == "auto"
+
+        date_format, _, _ = convert_snowflake_datetime_format(
+            _fmt, default_format="%Y-%m-%d"
+        )
+        import dateutil.parser
+
         if data is None:
-            res.append(None)
-            continue
+            return None
         try:
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
+            if isinstance(column.sf_type.datatype, TimestampType):
+                return data.date()
+            elif isinstance(column.sf_type.datatype, StringType):
+                if data.isdigit():
+                    return datetime.datetime.utcfromtimestamp(
                         convert_integer_value_to_seconds(data)
                     ).date()
-                )
+                else:
+                    if auto_detect:
+                        return dateutil.parser.parse(data).date()
+                    else:
+                        return datetime.datetime.strptime(data, date_format).date()
+            elif isinstance(column.sf_type.datatype, VariantType):
+                if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
+                    raise TypeError(
+                        "[Local Tesing] to_date function does not allow format parameter for data of VariantType"
+                    )
+                if isinstance(data, str):
+                    if data.isdigit():
+                        return datetime.datetime.utcfromtimestamp(
+                            convert_integer_value_to_seconds(data)
+                        ).date()
+                    else:
+                        # for variant type with string value, snowflake auto-detects the format
+                        return dateutil.parser.parse(data).date()
+                elif isinstance(data, datetime.date):
+                    return data
+                else:
+                    raise TypeError(
+                        f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
+                    )
             else:
-                res.append(datetime.datetime.strptime(data, date_format).date())
+                raise TypeError(
+                    f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
+                )
         except BaseException:
             if try_cast:
-                res.append(None)
+                return None
             else:
                 raise
-    return ColumnEmulator(
-        data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
-    )
+
+    res = column.to_frame().apply(convert_date, axis=1)
+    res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
+    return res
 
 
 @patch("current_timestamp")
@@ -397,13 +432,13 @@ def mock_to_decimal(
     """
     [x] For NULL input, the result is NULL.
 
-    [ ] For fixed-point numbers:
+    [x] For fixed-point numbers:
 
         Numbers with different scales are converted by either adding zeros to the right (if the scale needs to be increased) or by reducing the number of fractional digits by rounding (if the scale needs to be decreased).
 
         Note that casts of fixed-point numbers to fixed-point numbers that increase scale might fail.
 
-    [ ] For floating-point numbers:
+    [x] For floating-point numbers:
 
         Numbers are converted if they are within the representable range, given the scale.
 
@@ -413,53 +448,47 @@ def mock_to_decimal(
 
         For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
 
-    [ ] Strings are converted as decimal, integer, fractional, or floating-point numbers.
+    [x] Strings are converted as decimal, integer, fractional, or floating-point numbers.
 
     [x] For fractional input, the precision is deduced as the number of digits after the point.
 
     For VARIANT input:
 
-        [ ] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
+        [x] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
 
-        [ ] If the variant contains a string, a string conversion is performed.
+        [x] If the variant contains a string, a string conversion is performed.
 
-        [ ] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
+        [x] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
 
-        [ ] If the variant contains JSON null value, the output is NULL.
+        [x] If the variant contains JSON null value, the output is NULL.
     """
-    res = []
 
-    for data in e:
-        if data is None:
-            res.append(data)
-            continue
-        try:
-            try:
-                float(data)
-            except ValueError:
-                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
-
-            integer_part = round(float(data))
-            integer_part_str = str(integer_part)
-            len_integer_part = (
-                len(integer_part_str) - 1
-                if integer_part_str[0] == "-"
-                else len(integer_part_str)
+    def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
+        x = float(x)
+        if x in (math.inf, -math.inf, math.nan):
+            raise ValueError(
+                "Values of infinity and NaN cannot be converted to decimal"
             )
-            if len_integer_part > precision:
-                raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
-            remaining_decimal_len = min(precision - len(str(integer_part)), scale)
-            res.append(Decimal(str(round(float(data), remaining_decimal_len))))
-        except BaseException:
-            if try_cast:
-                res.append(None)
-            else:
-                raise
+        integer_part_len = 1 if abs(x) < 1 else math.ceil(math.log10(abs(x)))
+        if integer_part_len > precision:
+            raise SnowparkSQLException(f"Numeric value '{x}' is out of range")
+        remaining_decimal_len = min(precision - integer_part_len, scale)
+        return Decimal(str(round(x, remaining_decimal_len)))
 
-    return ColumnEmulator(
-        data=res,
-        sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
+    if isinstance(e.sf_type.datatype, (_NumericType, BooleanType, NullType)):
+        res = e.apply(
+            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
+        )
+    elif isinstance(e.sf_type.datatype, (StringType, VariantType)):
+        res = e.replace({"E": 0}).apply(
+            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
+        )
+    else:
+        raise TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
+    res.sf_type = ColumnType(
+        DecimalType(precision, scale), nullable=e.sf_type.nullable or res.hasnans
     )
+    return res
 
 
 @patch("to_time")
@@ -838,21 +867,21 @@ def mock_to_double(
     column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
 ) -> ColumnEmulator:
     """
-        [ ] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
+        [x] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
 
-        [ ] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
+        [x] Strings are converted as decimal integer or fractional numbers, scientific notation and special values (nan, inf, infinity) are accepted.
 
         For VARIANT input:
 
-        [ ] If the variant contains a fixed-point value, the numeric conversion will be performed.
+        [x] If the variant contains a fixed-point value, the numeric conversion will be performed.
 
-        [ ] If the variant contains a floating-point value, the value will be preserved unchanged.
+        [x] If the variant contains a floating-point value, the value will be preserved unchanged.
 
-        [ ] If the variant contains a string, a string conversion will be performed.
+        [x] If the variant contains a string, a string conversion will be performed.
 
-        [ ] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
+        [x] If the variant contains a Boolean value, the result will be 0 or 1 (for false and true, correspondingly).
 
-        [ ] If the variant contains JSON null value, the output will be NULL.
+        [x] If the variant contains JSON null value (None in Python), the output will be NULL.
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
@@ -863,21 +892,12 @@ def mock_to_double(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    if isinstance(column.sf_type.datatype, (_NumericType, StringType)):
+    if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
-        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable)
+        res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
-    elif isinstance(column.sf_type.datatype, VariantType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_DOUBLE on Variant data",
-            internal_feature_name="mock_to_double",
-            parameters_info={
-                "column.sf_type.datatype": type(column.sf_type.datatype).__name__
-            },
-            raise_error=NotImplementedError,
-        )
     else:
-        raise NotImplementedError(
+        raise TypeError(
             f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
         )
 

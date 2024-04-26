@@ -6,6 +6,7 @@
 import datetime
 import decimal
 import json
+import math
 import re
 from itertools import chain
 
@@ -135,6 +136,8 @@ from snowflake.snowpark.functions import (
     to_binary,
     to_char,
     to_date,
+    to_decimal,
+    to_double,
     to_json,
     to_object,
     to_variant,
@@ -150,10 +153,15 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
+    DecimalType,
+    DoubleType,
     FloatType,
     MapType,
     StringType,
+    StructField,
+    StructType,
     VariantType,
 )
 from tests.utils import TestData, Utils
@@ -1818,3 +1826,146 @@ def test_create_map_negative(session):
         "The 'create_map' function requires an even number of parameters but the actual number is 3"
         in str(ex_info)
     )
+
+
+@pytest.mark.localtest
+def test_to_double(session, local_testing_mode):
+
+    # Test supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), "12", "12.34", "-inf", "3.45e-4", None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("str_col1", StringType()),
+                StructField("str_col2", StringType()),
+                StructField("str_col3", StringType()),
+                StructField("str_col4", StringType()),
+                StructField("str_col5", StringType()),
+            ]
+        ),
+    )
+
+    Utils.check_answer(
+        df.select([to_double(c) for c in df.columns]),
+        [Row(12.34, 12.0, 12.34, -float("inf"), 3.45e-4, None)],
+    )
+
+    # Test unsupported input type
+    df = session.create_dataframe(
+        [[False], [True]], schema=StructType([StructField("bool_col", BooleanType())])
+    )
+
+    expected_error = TypeError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_double(c) for c in df.columns]).collect()
+
+    # Test variant conversion
+    df = session.create_dataframe(
+        [[decimal.Decimal("56.78"), 90.12, "6.78e-10", True, False, None]],
+        StructType(
+            [
+                StructField("variant_col1", VariantType()),
+                StructField("variant_col2", VariantType()),
+                StructField("variant_col3", VariantType()),
+                StructField("variant_col4", VariantType()),
+                StructField("variant_col5", VariantType()),
+                StructField("variant_col6", VariantType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df.select([to_double(c) for c in df.columns]).collect(),
+        [Row(56.78, 90.12, 6.78e-10, 1.0, 0.0, None)],
+    )
+
+    # Test speicifying fmt, TODO: not supported in Local Testing
+    if not local_testing_mode:
+        # Local testing only covers partial implementation of to_double
+        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
+            ["a", "b", "fmt"]
+        )
+
+        Utils.check_answer(
+            df.select(
+                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
+            ),
+            [Row(1.2, -2.34, -2.34)],
+            sort=False,
+        )
+
+
+@pytest.mark.localtest
+def test_to_decimal(session, local_testing_mode):
+    # Supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), 12.345678, "3.14E-6", True, None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("float_col", DoubleType()),
+                StructField("str_col", StringType()),
+                StructField("bool_col1", BooleanType()),
+                StructField("bool_col2", BooleanType()),
+            ]
+        ),
+    )
+    # Test when scale is 0
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 0) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12"),
+                decimal.Decimal("12"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 2
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 2) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.35"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 6
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 6) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.345678"),
+                decimal.Decimal("0.000003"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Unsupported input
+    df = session.create_dataframe(
+        [[-math.inf, datetime.date.today()]],
+        schema=StructType(
+            [StructField("float_col", FloatType()), StructField("date_col", DateType())]
+        ),
+    )
+
+    # Test when input type is not supported
+    expected_error = TypeError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.date_col, 38, 0)]).collect()
+
+    # Test when input value is not supported
+    expected_error = ValueError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.float_col, 38, 0)]).collect()
