@@ -758,7 +758,10 @@ def _to_timestamp(
                 raise
 
     res = column.astype(object).to_frame().apply(convert_timestamp, axis=1)
-    return [x.to_pydatetime() if x is not None else None for x in res]
+    return [
+        x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
+        for x in res
+    ]
 
 
 @patch("to_timestamp")
