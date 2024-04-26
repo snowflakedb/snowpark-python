@@ -11,7 +11,7 @@ set -euxo pipefail
 # decrypt profile
 gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" $@
 
-# Install tox, not part of modin-development.
+# Install tox, which is by default not present in the environment.
 python -m pip install tox
 
 # Run snowpandas tests

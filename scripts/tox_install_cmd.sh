@@ -1,6 +1,7 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 set -e
+set -euxo pipefail
 
 # The options are passed to us with spaces and we need to get rid
 # of those spaces when we pump it into pip install
@@ -12,6 +13,9 @@ for val in "${input_options[@]}"; do
 done
 
 echo "${pip_options[*]}"
+
+# Default to empty, to ensure snowflake_path variable is defined.
+snowflake_path=${snowflake_path:-""}
 
 if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"
