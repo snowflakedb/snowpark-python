@@ -245,6 +245,7 @@ class Lineage:
         direction: str,
         current_depth: int,
         total_depth: int,
+        visited: set,
         object_version: Optional[str] = None,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
         """
@@ -252,6 +253,12 @@ class Lineage:
         """
         if current_depth > total_depth:
             return []
+
+        current_node = (object_name, object_domain, object_version)
+        if current_node in visited:
+            return []
+
+        visited.add(current_node)
 
         lineage_edges = self._get_lineage(
             object_name, object_domain, [direction], object_version, current_depth
@@ -275,6 +282,7 @@ class Lineage:
             direction,
             current_depth + 1,
             total_depth,
+            visited,
             next_object.get(_ObjectField.VERSION),
         )
 
@@ -467,7 +475,7 @@ class Lineage:
             for dir in directions:
                 lineage_trace.extend(
                     self._recursive_trace(
-                        object_name, object_domain, dir, 1, depth, object_version
+                        object_name, object_domain, dir, 1, depth, set(), object_version
                     )
                 )
 
