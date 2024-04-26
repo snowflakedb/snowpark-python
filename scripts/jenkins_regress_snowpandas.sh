@@ -11,5 +11,8 @@ set -euxo pipefail
 # decrypt profile
 gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" $@
 
+# Install tox, not part of modin-development.
+python -m pip install tox
+
 # Run snowpandas tests
 python -m tox -c $WORKING_DIR -e snowparkpandasjenkins-modin
