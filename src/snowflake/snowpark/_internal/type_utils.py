@@ -173,9 +173,7 @@ def convert_sf_to_sp_type(
         return ArrayType(StringType())
     if column_type_name == "VARIANT":
         return VariantType()
-    if column_type_name == "OBJECT":
-        return MapType(StringType(), StringType())
-    if column_type_name == "MAP":
+    if column_type_name in {"OBJECT", "MAP"}:
         return MapType(StringType(), StringType())
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
