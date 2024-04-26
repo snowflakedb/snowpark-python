@@ -1188,11 +1188,11 @@ class DatetimeProperties:
 
     @property
     def time(self):
-        return Series(query_compiler=self._query_compiler.dt_time())
+        return Series(query_compiler=self._query_compiler.dt_property("time"))
 
     @property
     def timetz(self):
-        return Series(query_compiler=self._query_compiler.dt_timetz())
+        return Series(query_compiler=self._query_compiler.dt_property("timetz"))
 
     @property
     def year(self):
@@ -1334,23 +1334,23 @@ class DatetimeProperties:
 
     @property
     def microsecond(self):
-        return Series(query_compiler=self._query_compiler.dt_microsecond())
+        return Series(query_compiler=self._query_compiler.dt_property("microsecond"))
 
     @property
     def nanosecond(self):
-        return Series(query_compiler=self._query_compiler.dt_nanosecond())
+        return Series(query_compiler=self._query_compiler.dt_property("nanosecond"))
 
     @property
     def dayofweek(self):
-        return Series(query_compiler=self._query_compiler.dt_dayofweek())
+        return Series(query_compiler=self._query_compiler.dt_property("dayofweek"))
 
     @property
     def weekday(self):
-        return Series(query_compiler=self._query_compiler.dt_weekday())
+        return Series(query_compiler=self._query_compiler.dt_property("weekday"))
 
     @property
     def dayofyear(self):
-        return Series(query_compiler=self._query_compiler.dt_dayofyear())
+        return Series(query_compiler=self._query_compiler.dt_property("dayofyear"))
 
     @property
     def quarter(self):
@@ -1377,39 +1377,41 @@ class DatetimeProperties:
 
     @property
     def is_month_start(self):
-        return Series(query_compiler=self._query_compiler.dt_is_month_start())
+        return Series(query_compiler=self._query_compiler.dt_property("is_month_start"))
 
     @property
     def is_month_end(self):
-        return Series(query_compiler=self._query_compiler.dt_is_month_end())
+        return Series(query_compiler=self._query_compiler.dt_property("is_month_end"))
 
     @property
     def is_quarter_start(self):
-        return Series(query_compiler=self._query_compiler.dt_is_quarter_start())
+        return Series(
+            query_compiler=self._query_compiler.dt_property("is_quarter_start")
+        )
 
     @property
     def is_quarter_end(self):
-        return Series(query_compiler=self._query_compiler.dt_is_quarter_end())
+        return Series(query_compiler=self._query_compiler.dt_property("is_quarter_end"))
 
     @property
     def is_year_start(self):
-        return Series(query_compiler=self._query_compiler.dt_is_year_start())
+        return Series(query_compiler=self._query_compiler.dt_property("is_year_start"))
 
     @property
     def is_year_end(self):
-        return Series(query_compiler=self._query_compiler.dt_is_year_end())
+        return Series(query_compiler=self._query_compiler.dt_property("is_year_end"))
 
     @property
     def is_leap_year(self):
-        return Series(query_compiler=self._query_compiler.dt_is_leap_year())
+        return Series(query_compiler=self._query_compiler.dt_property("is_leap_year"))
 
     @property
     def daysinmonth(self):
-        return Series(query_compiler=self._query_compiler.dt_daysinmonth())
+        return Series(query_compiler=self._query_compiler.dt_property("daysinmonth"))
 
     @property
     def days_in_month(self):
-        return Series(query_compiler=self._query_compiler.dt_days_in_month())
+        return Series(query_compiler=self._query_compiler.dt_property("days_in_month"))
 
     @property
     def tz(self) -> "tzinfo | None":
@@ -1420,7 +1422,7 @@ class DatetimeProperties:
 
     @property
     def freq(self):
-        return self._query_compiler.dt_freq().to_pandas().squeeze()
+        return self._query_compiler.dt_property("freq").to_pandas().squeeze()
 
     def to_period(self, *args, **kwargs):
         return Series(query_compiler=self._query_compiler.dt_to_period(*args, **kwargs))
@@ -1472,36 +1474,36 @@ class DatetimeProperties:
 
     @property
     def seconds(self):
-        return Series(query_compiler=self._query_compiler.dt_seconds())
+        return Series(query_compiler=self._query_compiler.dt_property("seconds"))
 
     @property
     def days(self):
-        return Series(query_compiler=self._query_compiler.dt_days())
+        return Series(query_compiler=self._query_compiler.dt_property("days"))
 
     @property
     def microseconds(self):
-        return Series(query_compiler=self._query_compiler.dt_microseconds())
+        return Series(query_compiler=self._query_compiler.dt_property("microseconds"))
 
     @property
     def nanoseconds(self):
-        return Series(query_compiler=self._query_compiler.dt_nanoseconds())
+        return Series(query_compiler=self._query_compiler.dt_property("nanoseconds"))
 
     @property
     def components(self):
 
-        return DataFrame(query_compiler=self._query_compiler.dt_components())
+        return DataFrame(query_compiler=self._query_compiler.dt_property("components"))
 
     @property
     def qyear(self):
-        return Series(query_compiler=self._query_compiler.dt_qyear())
+        return Series(query_compiler=self._query_compiler.dt_property("qyear"))
 
     @property
     def start_time(self):
-        return Series(query_compiler=self._query_compiler.dt_start_time())
+        return Series(query_compiler=self._query_compiler.dt_property("start_time"))
 
     @property
     def end_time(self):
-        return Series(query_compiler=self._query_compiler.dt_end_time())
+        return Series(query_compiler=self._query_compiler.dt_property("end_time"))
 
     def to_timestamp(self, *args, **kwargs):
         return Series(
