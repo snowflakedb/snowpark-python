@@ -1635,6 +1635,7 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here
     session.custom_package_usage_config["enabled"] = True
