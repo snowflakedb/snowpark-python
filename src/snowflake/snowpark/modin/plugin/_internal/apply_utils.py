@@ -614,7 +614,8 @@ def create_udf_for_series_apply(
         assert func._return_type == return_type
 
         # Append packages from function.
-        packages += func._packages
+        if func._packages:
+            packages += func._packages
 
         # Below the function func is wrapped again, extract here the underlying Python function.
         func = func.func

@@ -411,10 +411,69 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
+  test-modin-extra-without-pandas-extra:
+    name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
+    needs: build
+    runs-on: ${{ matrix.os.image_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - image_name: macos-latest
+            download_name: macos
+        python-version: ["3.9"]
+        cloud-provider: [aws]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: python -m pip install -U setuptools pip wheel
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run all tests
+        run: python -m tox -e "modin_extra_without_pandas_extra"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage_modin_extra_without_pandas_extra
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
+
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage
-    needs: test
+    needs:
+      - test
+      - test-snowpark-pandas
     runs-on: ubuntu-latest-64-cores
     steps:
       - uses: actions/checkout@v4
@@ -474,7 +533,7 @@ jobs:
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install Snowpark
-        run: python -m pip install ".[modin-development, development, pandas]"
+        run: python -m pip install ".[modin-development]"
       - name: Install Sphinx
         run: python -m pip install sphinx
       - name: Build document
