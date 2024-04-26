@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 set -e
-set -euxo pipefail
 
 # The options are passed to us with spaces and we need to get rid
 # of those spaces when we pump it into pip install
