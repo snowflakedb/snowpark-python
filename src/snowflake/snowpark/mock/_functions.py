@@ -712,13 +712,14 @@ def _to_timestamp(
                 # An integer number of seconds or milliseconds.
                 if isinstance(data, numbers.Number):
                     # check https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
-                    # why we call fromtimestamp not utcfromtimestamp here
+                    # why we call fromtimestamp not utcfromtimestamp here for timestamp_ntz
                     # "When an INTEGER value is cast directly to TIMESTAMP_NTZ ...
                     # However, if the INTEGER value is stored inside a VARIANT value,
                     # for example as shown below, then the conversion is indirect,
                     # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
                     if caller and caller == "timestamp_ntz":
                         parsed = datetime.datetime.fromtimestamp(data)
+                        parsed = LocalTimezone.replace_tz(parsed)
                     else:
                         parsed = datetime.datetime.utcfromtimestamp(data)
                     # utc timestamps should be in utc timezone
