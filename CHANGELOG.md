@@ -3,7 +3,15 @@
 ## 1.16.0 (TBD)
 
 ### New Features
+
 - Support stored procedure register with packages given as Python modules.
+
+### Local Testing Updates
+
+#### New Features
+
+- Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
+
 
 ## 1.15.0 (2024-04-24)
 
