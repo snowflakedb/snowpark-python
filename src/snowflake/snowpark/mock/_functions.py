@@ -648,6 +648,7 @@ def _to_timestamp(
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     import dateutil.parser
+    import pandas
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
@@ -757,7 +758,12 @@ def _to_timestamp(
             else:
                 raise
 
-    res = column.astype(object).to_frame().apply(convert_timestamp, axis=1)
+    res = (
+        column.astype(object)
+        .to_frame()
+        .apply(convert_timestamp, axis=1)
+        .replace({pandas.NaT: None})
+    )
     return [
         x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
         for x in res
