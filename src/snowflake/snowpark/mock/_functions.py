@@ -314,12 +314,13 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
-    res = []
-
     if not isinstance(fmt, ColumnEmulator):
         fmt = [fmt] * len(column)
 
-    for data, _fmt in zip(column, fmt):
+    def convert_date(row):
+        _fmt = fmt[row.name]
+        data = row[0]
+
         auto_detect = _fmt is None or _fmt.lower() == "auto"
 
         date_format, _, _ = convert_snowflake_datetime_format(
@@ -328,23 +329,20 @@ def mock_to_date(
         import dateutil.parser
 
         if data is None:
-            res.append(None)
-            continue
+            return None
         try:
             if isinstance(column.sf_type.datatype, TimestampType):
-                res.append(data.date())
+                return data.date()
             elif isinstance(column.sf_type.datatype, StringType):
                 if data.isdigit():
-                    res.append(
-                        datetime.datetime.utcfromtimestamp(
-                            convert_integer_value_to_seconds(data)
-                        ).date()
-                    )
+                    return datetime.datetime.utcfromtimestamp(
+                        convert_integer_value_to_seconds(data)
+                    ).date()
                 else:
                     if auto_detect:
-                        res.append(dateutil.parser.parse(data).date())
+                        return dateutil.parser.parse(data).date()
                     else:
-                        res.append(datetime.datetime.strptime(data, date_format).date())
+                        return datetime.datetime.strptime(data, date_format).date()
             elif isinstance(column.sf_type.datatype, VariantType):
                 if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
                     raise TypeError(
@@ -352,16 +350,14 @@ def mock_to_date(
                     )
                 if isinstance(data, str):
                     if data.isdigit():
-                        res.append(
-                            datetime.datetime.utcfromtimestamp(
-                                convert_integer_value_to_seconds(data)
-                            ).date()
-                        )
+                        return datetime.datetime.utcfromtimestamp(
+                            convert_integer_value_to_seconds(data)
+                        ).date()
                     else:
                         # for variant type with string value, snowflake auto-detects the format
-                        res.append(dateutil.parser.parse(data).date())
+                        return dateutil.parser.parse(data).date()
                 elif isinstance(data, datetime.date):
-                    res.append(data)
+                    return data
                 else:
                     raise TypeError(
                         f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
@@ -372,12 +368,13 @@ def mock_to_date(
                 )
         except BaseException:
             if try_cast:
-                res.append(None)
+                return None
             else:
                 raise
-    return ColumnEmulator(
-        data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
-    )
+
+    res = column.to_frame().apply(convert_date, axis=1)
+    res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
+    return res
 
 
 @patch("current_timestamp")
