@@ -269,7 +269,7 @@ if installed_pandas:
 
     PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
         {
-            pandas._libs.tslibs.nattype.NaTType: TimestampType,
+            type(pandas.NaT): TimestampType,
             numpy.float64: DecimalType,
         }
     )
