@@ -44,7 +44,7 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
 
 
 warnings.warn(
-    "Snowpark pandas is currently in Public Preview."
+    "Snowpark pandas is currently in Private Preview."
     + " See https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas for details.",
     stacklevel=1,
 )
