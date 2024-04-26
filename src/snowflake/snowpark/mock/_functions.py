@@ -294,6 +294,8 @@ def mock_to_date(
     try_cast: bool = False,
 ):
     """
+    https://docs.snowflake.com/en/sql-reference/functions/to_date
+
     Converts an input expression to a date:
 
     [x] For a string expression, the result of converting the string to a date.
@@ -304,42 +306,75 @@ def mock_to_date(
 
         [x] If the variant contains a string, a string conversion is performed.
 
-        [ ] If the variant contains a date, the date value is preserved as is.
+        [x] If the variant contains a date, the date value is preserved as is.
 
-        [ ] If the variant contains a JSON null value, the output is NULL.
+        [x] If the variant contains a JSON null value, the output is NULL.
 
         [x] For NULL input, the output is NULL.
 
-        [ ] For all other values, a conversion error is generated.
+        [x] For all other values, a conversion error is generated.
     """
-    res = []
-    auto_detect = bool(not fmt)
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = [fmt] * len(column)
 
-    date_format, _, _ = convert_snowflake_datetime_format(
-        fmt, default_format="%Y-%m-%d"
-    )
+    def convert_date(row):
+        _fmt = fmt[row.name]
+        data = row[0]
 
-    for data in column:
+        auto_detect = _fmt is None or _fmt.lower() == "auto"
+
+        date_format, _, _ = convert_snowflake_datetime_format(
+            _fmt, default_format="%Y-%m-%d"
+        )
+        import dateutil.parser
+
         if data is None:
-            res.append(None)
-            continue
+            return None
         try:
-            if auto_detect and data.isnumeric():
-                res.append(
-                    datetime.datetime.utcfromtimestamp(
+            if isinstance(column.sf_type.datatype, TimestampType):
+                return data.date()
+            elif isinstance(column.sf_type.datatype, StringType):
+                if data.isdigit():
+                    return datetime.datetime.utcfromtimestamp(
                         convert_integer_value_to_seconds(data)
                     ).date()
-                )
+                else:
+                    if auto_detect:
+                        return dateutil.parser.parse(data).date()
+                    else:
+                        return datetime.datetime.strptime(data, date_format).date()
+            elif isinstance(column.sf_type.datatype, VariantType):
+                if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
+                    raise TypeError(
+                        "[Local Tesing] to_date function does not allow format parameter for data of VariantType"
+                    )
+                if isinstance(data, str):
+                    if data.isdigit():
+                        return datetime.datetime.utcfromtimestamp(
+                            convert_integer_value_to_seconds(data)
+                        ).date()
+                    else:
+                        # for variant type with string value, snowflake auto-detects the format
+                        return dateutil.parser.parse(data).date()
+                elif isinstance(data, datetime.date):
+                    return data
+                else:
+                    raise TypeError(
+                        f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
+                    )
             else:
-                res.append(datetime.datetime.strptime(data, date_format).date())
+                raise TypeError(
+                    f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
+                )
         except BaseException:
             if try_cast:
-                res.append(None)
+                return None
             else:
                 raise
-    return ColumnEmulator(
-        data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
-    )
+
+    res = column.to_frame().apply(convert_date, axis=1)
+    res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
+    return res
 
 
 @patch("current_timestamp")
