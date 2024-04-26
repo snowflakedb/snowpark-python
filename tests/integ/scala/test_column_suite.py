@@ -34,7 +34,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 @pytest.mark.localtest
@@ -987,6 +987,7 @@ def test_in_expression_with_multiple_queries(session):
     )
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_with_multiple_queries(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 

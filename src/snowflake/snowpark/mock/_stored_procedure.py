@@ -26,6 +26,7 @@ from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
@@ -263,6 +264,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             anonymous,
         )
 
+        current_schema = self._session.get_current_schema()
+        current_database = self._session.get_current_database()
+        sproc_name = get_fully_qualified_name(
+            sproc_name, current_schema, current_database
+        )
+
         check_python_runtime_version(self._session._runtime_version_from_requirement)
 
         if sproc_name in self._registry and not replace:
@@ -319,6 +326,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ):
+        current_schema = self._session.get_current_schema()
+        current_database = self._session.get_current_database()
+        sproc_name = get_fully_qualified_name(
+            sproc_name, current_schema, current_database
+        )
+
         if sproc_name not in self._registry:
             raise SnowparkSQLException(
                 f"[Local Testing] sproc {sproc_name} does not exist."

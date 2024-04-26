@@ -1,11 +1,58 @@
 # Release History
 
-## 1.15.0 (TBD)
+## 1.16.0 (TBD)
 
 ### New Features
 
-- Added support for registering udfs and stored procedure to local testing.
-- Added support for the following local testing APIs:
+- Support stored procedure register with packages given as Python modules.
+
+### Local Testing Updates
+
+#### New Features
+
+- Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
+
+
+## 1.15.0 (2024-04-24)
+
+### New Features
+
+- Added `truncate` save mode in `DataFrameWrite` to overwrite existing tables by truncating the underlying table instead of dropping it.
+- Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
+- Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
+  - `DataFrame.write.json`
+  - `DataFrame.write.csv`
+  - `DataFrame.write.parquet`
+- Added distributed tracing using open telemetry APIs for action functions in `DataFrame` and `DataFrameWriter`:
+  - snowflake.snowpark.DataFrame:
+    - collect
+    - collect_nowait
+    - to_pandas
+    - count
+    - show
+  - snowflake.snowpark.DataFrameWriter:
+    - save_as_table
+- Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
+- Added support to register stored procedures and UDxFs with a `comment`.
+- UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
+- Added support for dynamic pivot.  This feature is currently in private preview.
+
+### Improvements
+
+- Improved the generated query performance for both compilation and execution by converting duplicate subqueries to Common Table Expressions (CTEs). It is still an experimental feature not enabled by default, and can be enabled by setting `session.cte_optimization_enabled` to `True`.
+
+### Bug Fixes
+
+- Fixed a bug where `statement_params` was not passed to query executions that register stored procedures and user defined functions.
+- Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations.
+- Fixed a bug that an internal type hint in `utils.py` might raise AttributeError in case the underlying module can not be found.
+
+### Local Testing Updates
+
+#### New Features
+
+- Added support for registering UDFs and stored procedures.
+- Added support for the following APIs:
   - snowflake.snowpark.Session:
     - file.put
     - file.put_stream
@@ -22,6 +69,8 @@
     - remove_package
     - udf.register
     - udf.register_from_file
+    - sproc.register
+    - sproc.register_from_file
   - snowflake.snowpark.functions
     - current_database
     - current_session
@@ -32,40 +81,16 @@
     - object_construct_keep_null
     - pow
     - sqrt
-- Added `truncate` save mode in `DataFrameWrite` to overwrite existing tables by truncating the underlying table instead of dropping it.
-- Added support for StringType, TimestampType and VariantType data conversion in the local testing mocked function `to_time`.
-- Added telemetry to calculate query plan height and number of duplicate nodes during collect operations.
-- Added the functions below to unload data from a `DataFrame` into one or more files in a stage:
-  - `DataFrame.write.json`
-  - `DataFrame.write.csv`
-  - `DataFrame.write.parquet`
-- Added distributed tracing using open telemetry apis for action functions in `DataFrame` and `DataFrameWriter`:
-  - snowflake.snowpark.DataFrame:
-    - collect
-    - collect_nowait
-    - to_pandas
-    - count
-    - show
-  - snowflake.snowpark.DataFrameWriter:
-    - save_as_table
-- Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
-- Added support to register stored procedures and UDxFs with a `comment`.
-- UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
-- Added support for dynamic pivot.  This feature is currently in private preview.
+    - udf
+    - sproc
+- Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_time`.
 
-### Improvements
+#### Bug Fixes
 
-- Improved the generated query performance for both compilation and execution by converting duplicate subqueries to Common Table Expressions (CTEs). It is still an experimental feature, and can be enabled by setting `session.cte_optimization_enabled` to `True`.
-
-### Bug Fixes
-
-- Fixed a bug in local testing that null filled columns for constant functions.
-- Fixed a bug where `statement_params` was not passed to query executions that register stored procedures and user defined functions.
-- Fixed a bug causing `snowflake.snowpark.Session.file.get_stream` to fail for quoted stage locations
-- Fixed a bug in local testing implementation of to_object, to_array and to_binary to better handle null inputs.
-- Fixed a bug in local testing implementation that timestamp data comparison can not handle year beyond 2262.
-- Fixed a bug in local testing that `Session.builder.getOrCreate` should return the created mock session.
-- Fixed a bug that an internal type hint in `utils.py` might raise AttributeError in case the underlying module can not be found.
+- Fixed a bug that null filled columns for constant functions.
+- Fixed a bug that implementation of to_object, to_array and to_binary to better handle null inputs.
+- Fixed a bug that timestamp data comparison can not handle year beyond 2262.
+- Fixed a bug that `Session.builder.getOrCreate` should return the created mock session.
 
 ## 1.14.0 (2024-03-20)
 

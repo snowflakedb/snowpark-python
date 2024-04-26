@@ -184,7 +184,6 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
-    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -1601,21 +1600,45 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
+@pytest.mark.localtest
 def test_to_date(session):
-    df = session.sql("select * from values('2020-05-11') as T(a)")
-    Utils.check_answer(df.select(to_date(col("A"))), [Row(date(2020, 5, 11))])
+    expected1 = expected2 = [
+        Row(date(2023, 3, 16)),
+        Row(date(2010, 7, 30)),
+        Row(date(2024, 4, 18)),
+    ]
+    expected3 = [
+        Row(date(2024, 4, 18)),
+        Row(None),
+        Row(date(2024, 6, 3)),
+        Row(date(2000, 3, 21)),
+        Row(date(2025, 12, 31)),
+    ]
+    # string type, timestamp type and variant type
+    for df, expected in zip(
+        [
+            TestData.date_primitives1(session),
+            TestData.date_primitives2(session),
+            TestData.date_primitives3(session),
+        ],
+        [expected1, expected2, expected3],
+    ):
+        Utils.check_answer(
+            df.select(*[to_date(column) for column in df.columns]), expected
+        )
+        Utils.check_answer(
+            df.select(*[to_date(col(column)) for column in df.columns]), expected
+        )
 
-    # same as above, but pass str instead of Column
-    Utils.check_answer(df.select(to_date("A")), [Row(date(2020, 5, 11))])
-
-    df = session.sql("select * from values('2020.07.23') as T(a)")
+    expected4 = [
+        Row(date(2024, 4, 18)),
+        Row(date(1999, 9, 1)),
+        Row(date(2024, 10, 29)),
+        Row(date(2015, 5, 15)),
+    ]
+    df = TestData.date_primitives4(session)
     Utils.check_answer(
-        df.select(to_date(col("A"), lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
-    )
-
-    # same as above, but pass str instead of Column
-    Utils.check_answer(
-        df.select(to_date("A", lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
+        df.select(to_date(*[col(column) for column in df.columns])), expected4
     )
 
 
@@ -3531,31 +3554,6 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
             sort=False,
         )
         LocalTimezone.set_local_timezone()
-
-
-@pytest.mark.localtest
-def test_to_double(session, local_testing_mode):
-    if not local_testing_mode:
-        # Local testing only covers partial implementation of to_double
-        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
-            ["a", "b", "fmt"]
-        )
-
-        Utils.check_answer(
-            df.select(
-                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
-            ),
-            [Row(1.2, -2.34, -2.34)],
-            sort=False,
-        )
-
-    df = session.create_dataframe([["1.2", "-2.34"]]).to_df(["a", "b"])
-
-    Utils.check_answer(
-        df.select(to_double("a"), to_double("b")),
-        [Row(1.2, -2.34)],
-        sort=False,
-    )
 
 
 def test_to_array(session):

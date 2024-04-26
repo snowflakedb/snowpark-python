@@ -1,0 +1,22 @@
+name: Snowpark pandas Changelog Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+    branches:
+      - pandas-main
+    paths:
+      - 'src/snowflake/snowpark/modin/**'
+
+jobs:
+  check_pandas_change_log:
+    runs-on: ubuntu-latest
+    if: ${{!contains(github.event.pull_request.labels.*.name, 'NO-PANDAS-CHANGELOG-UPDATES')}}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Ensure PANDAS_CHANGELOG.md is updated
+      run: git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -wq "src/snowflake/snowpark/modin/plugin/PANDAS_CHANGELOG.md"
