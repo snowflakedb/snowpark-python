@@ -1605,6 +1605,6 @@ def mock_get(
 
     return ColumnEmulator(
         result,
-        sf_type=ColumnType(column_expression.sf_type.datatype, None in result),
+        sf_type=ColumnType(column_expression.sf_type.datatype, True),
         dtype=object,
     )
