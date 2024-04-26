@@ -11,6 +11,7 @@
 #### New Features
 
 - Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
+- Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
 
 
 ## 1.15.0 (2024-04-24)
