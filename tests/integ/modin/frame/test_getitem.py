@@ -367,24 +367,21 @@ def test_df_getitem_with_multiindex(
         )
 
 
-@sql_count_checker(query_count=0)
-def test_getitem_lambda_dataframe():
+@sql_count_checker(query_count=1)
+def test_df_getitem_lambda_dataframe():
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
-    snow_df = pd.DataFrame(data)
-
-    # TODO SNOW-980818: Raise ValueError until dataframe key support is implemented
-    # The ValueError is being thrown by _validate_get_locator_key(col_key) in indexer.py
-    with pytest.raises(ValueError):
-        snow_df[lambda x: x < 2]
+    eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: df[lambda x: x < 2])
 
 
 @sql_count_checker(query_count=1)
-def test_getitem_lambda_series():
-    data = {"a": 1, "b": 2, "c": 3}
-    snow_ser = pd.Series(data)
-    native_ser = native_pd.Series(data)
-
-    def helper(ser):
-        return ser[lambda x: x < 2]
-
-    eval_snowpark_pandas_result(snow_ser, native_ser, helper)
+def test_df_getitem_boolean_df_comparator():
+    """
+    Based on bug from SNOW-1348621.
+    DataFrame keys (as a result of callables) are valid for getitem but not loc and iloc get.
+    """
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
+        ),
+        lambda df: df[df > 0]
+    )
