@@ -757,9 +757,8 @@ def _to_timestamp(
             else:
                 raise
 
-    res = column.to_frame().apply(convert_timestamp, axis=1)
-    res.sf_type = ColumnType(column.sf_type.datatype, column.sf_type.nullable)
-    return res
+    res = column.astype(object).to_frame().apply(convert_timestamp, axis=1)
+    return [x.to_pydatetime() if x is not None else None for x in res]
 
 
 @patch("to_timestamp")
