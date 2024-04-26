@@ -739,9 +739,11 @@ def _to_timestamp(
                 elif isinstance(data, datetime.datetime):
                     parsed = data
                 else:
-                    raise
+                    raise TypeError(
+                        f"[Local Testing] Unsupported conversion to_timestamp* of value {data} of VariantType"
+                    )
             else:
-                raise ValueError(
+                raise TypeError(
                     f"[Local Testing] Unsupported conversion to_timestamp* of data type {type(column.sf_type.datatype).__name__}"
                 )
             # Add the local timezone if tzinfo is missing and a tz is desired
