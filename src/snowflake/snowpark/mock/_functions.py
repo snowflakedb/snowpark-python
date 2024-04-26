@@ -432,13 +432,13 @@ def mock_to_decimal(
     """
     [x] For NULL input, the result is NULL.
 
-    [ ] For fixed-point numbers:
+    [x] For fixed-point numbers:
 
         Numbers with different scales are converted by either adding zeros to the right (if the scale needs to be increased) or by reducing the number of fractional digits by rounding (if the scale needs to be decreased).
 
         Note that casts of fixed-point numbers to fixed-point numbers that increase scale might fail.
 
-    [ ] For floating-point numbers:
+    [x] For floating-point numbers:
 
         Numbers are converted if they are within the representable range, given the scale.
 
@@ -448,53 +448,47 @@ def mock_to_decimal(
 
         For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
 
-    [ ] Strings are converted as decimal, integer, fractional, or floating-point numbers.
+    [x] Strings are converted as decimal, integer, fractional, or floating-point numbers.
 
     [x] For fractional input, the precision is deduced as the number of digits after the point.
 
     For VARIANT input:
 
-        [ ] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
+        [x] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
 
-        [ ] If the variant contains a string, a string conversion is performed.
+        [x] If the variant contains a string, a string conversion is performed.
 
-        [ ] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
+        [x] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
 
-        [ ] If the variant contains JSON null value, the output is NULL.
+        [x] If the variant contains JSON null value, the output is NULL.
     """
-    res = []
 
-    for data in e:
-        if data is None:
-            res.append(data)
-            continue
-        try:
-            try:
-                float(data)
-            except ValueError:
-                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
-
-            integer_part = round(float(data))
-            integer_part_str = str(integer_part)
-            len_integer_part = (
-                len(integer_part_str) - 1
-                if integer_part_str[0] == "-"
-                else len(integer_part_str)
+    def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
+        x = float(x)
+        if x in (math.inf, -math.inf, math.nan):
+            raise ValueError(
+                "Values of infinity and NaN cannot be converted to decimal"
             )
-            if len_integer_part > precision:
-                raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
-            remaining_decimal_len = min(precision - len(str(integer_part)), scale)
-            res.append(Decimal(str(round(float(data), remaining_decimal_len))))
-        except BaseException:
-            if try_cast:
-                res.append(None)
-            else:
-                raise
+        integer_part_len = 1 if abs(x) < 1 else math.ceil(math.log10(abs(x)))
+        if integer_part_len > precision:
+            raise SnowparkSQLException(f"Numeric value '{x}' is out of range")
+        remaining_decimal_len = min(precision - integer_part_len, scale)
+        return Decimal(str(round(x, remaining_decimal_len)))
 
-    return ColumnEmulator(
-        data=res,
-        sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
+    if isinstance(e.sf_type.datatype, (_NumericType, BooleanType, NullType)):
+        res = e.apply(
+            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
+        )
+    elif isinstance(e.sf_type.datatype, (StringType, VariantType)):
+        res = e.replace({"E": 0}).apply(
+            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
+        )
+    else:
+        raise TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
+    res.sf_type = ColumnType(
+        DecimalType(precision, scale), nullable=e.sf_type.nullable or res.hasnans
     )
+    return res
 
 
 @patch("to_time")

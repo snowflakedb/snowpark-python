@@ -6,6 +6,7 @@
 import datetime
 import decimal
 import json
+import math
 import re
 from itertools import chain
 
@@ -135,6 +136,7 @@ from snowflake.snowpark.functions import (
     to_binary,
     to_char,
     to_date,
+    to_decimal,
     to_double,
     to_json,
     to_object,
@@ -154,6 +156,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DateType,
     DecimalType,
+    DoubleType,
     FloatType,
     MapType,
     StringType,
@@ -1890,3 +1893,79 @@ def test_to_double(session, local_testing_mode):
             [Row(1.2, -2.34, -2.34)],
             sort=False,
         )
+
+
+@pytest.mark.localtest
+def test_to_decimal(session, local_testing_mode):
+    # Supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), 12.345678, "3.14E-6", True, None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("float_col", DoubleType()),
+                StructField("str_col", StringType()),
+                StructField("bool_col1", BooleanType()),
+                StructField("bool_col2", BooleanType()),
+            ]
+        ),
+    )
+    # Test when scale is 0
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 0) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12"),
+                decimal.Decimal("12"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 2
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 2) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.35"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 6
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 6) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.345678"),
+                decimal.Decimal("0.000003"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Unsupported input
+    df = session.create_dataframe(
+        [[-math.inf, datetime.date.today()]],
+        schema=StructType(
+            [StructField("float_col", FloatType()), StructField("date_col", DateType())]
+        ),
+    )
+
+    # Test when input type is not supported
+    expected_error = TypeError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.date_col, 38, 0)]).collect()
+
+    # Test when input value is not supported
+    expected_error = ValueError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.float_col, 38, 0)]).collect()
