@@ -3689,6 +3689,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 None,
@@ -3705,6 +3706,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(
                     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
                 ),
@@ -3714,6 +3716,7 @@ def test_as_time(session):
         (
             as_timestamp_tz,
             Row(
+                None,
                 None,
                 None,
                 None,
