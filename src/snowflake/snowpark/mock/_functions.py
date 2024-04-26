@@ -314,19 +314,17 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
-    if not isinstance(fmt, ColumnEmulator):
-        fmt = [fmt] * len(column)
+    import dateutil.parser
+
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
     def convert_date(row):
         _fmt = fmt[row.name]
         data = row[0]
-
         auto_detect = _fmt is None or _fmt.lower() == "auto"
-
         date_format, _, _ = convert_snowflake_datetime_format(
             _fmt, default_format="%Y-%m-%d"
         )
-        import dateutil.parser
 
         if data is None:
             return None
@@ -651,13 +649,14 @@ def _to_timestamp(
     """
     import dateutil.parser
 
-    res = []
-    parsed = None
-    fmt_column = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
-    for data, _fmt in zip(column, fmt_column):
-        default_format = "%Y-%m-%d %H:%M:%S.%f"
+    def convert_timestamp(row):
+        _fmt = fmt[row.name]
+        data = row[0]
         auto_detect = _fmt is None or str(_fmt).lower() == "auto"
+        default_format = "%Y-%m-%d %H:%M:%S.%f"
+
         if not isinstance(_fmt, numbers.Number):
             (
                 timestamp_format,
@@ -668,10 +667,9 @@ def _to_timestamp(
             # if _fmt is a number, then snowflake expects <numeric_expr> + <scale>, format doesn't apply here
             timestamp_format, hour_delta, fractional_seconds = None, 0, 0
 
+        if data is None:
+            return None
         try:
-            if data is None:
-                res.append(None)
-                continue
 
             datatype = column.sf_type.datatype
             if isinstance(datatype, TimestampType):
@@ -744,18 +742,21 @@ def _to_timestamp(
                     raise
             else:
                 raise ValueError(
-                    f"[Local Testing] Unsupported conversion to_timestamp of data type {type(column.sf_type.datatype).__name__}"
+                    f"[Local Testing] Unsupported conversion to_timestamp* of data type {type(column.sf_type.datatype).__name__}"
                 )
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
             parsed = parsed + datetime.timedelta(hours=hour_delta)
-            res.append(parsed)
+            return parsed
         except BaseException:
             if try_cast:
-                res.append(None)
+                return None
             else:
                 raise
+
+    res = column.to_frame().apply(convert_timestamp, axis=1)
+    res.sf_type = ColumnType(column.sf_type.datatype, column.sf_type.nullable)
     return res
 
 
