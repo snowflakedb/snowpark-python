@@ -720,8 +720,8 @@ def _to_timestamp(
                     if caller and caller == "timestamp_ntz":
                         # local timestamp
                         parsed = datetime.datetime.fromtimestamp(data)
-                        parsed = parsed.replace(tzinfo=pytz.utc)
-                        parsed = parsed.astimezone(pytz.utc)
+                        # Set the timezone
+                        parsed = pytz.utc.localize(parsed)
                     else:
                         parsed = datetime.datetime.utcfromtimestamp(data)
                     # utc timestamps should be in utc timezone
