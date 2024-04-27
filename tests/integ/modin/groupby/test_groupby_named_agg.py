@@ -1,6 +1,9 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
+
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
@@ -19,8 +22,13 @@ def test_invalid_named_agg_errors(basic_snowpark_pandas_df):
     )
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=6)
 def test_invalid_func_with_named_agg_errors(basic_snowpark_pandas_df):
+    # Temporary workaround until Anaconda uploads the Modin package
+    custom_package_usage_config = pd.session.custom_package_usage_config.get(
+        "enabled", False
+    )
+    pd.session.custom_package_usage_config["enabled"] = True
     eval_snowpark_pandas_result(
         basic_snowpark_pandas_df,
         basic_snowpark_pandas_df.to_pandas(),
@@ -29,6 +37,7 @@ def test_invalid_func_with_named_agg_errors(basic_snowpark_pandas_df):
         assert_exception_equal=False,  # We fallback and then raise the correct error.
         expect_exception_type=SnowparkSQLException,
     )
+    pd.session.custom_package_usage_config["enabled"] = custom_package_usage_config
 
 
 @sql_count_checker(query_count=1)
