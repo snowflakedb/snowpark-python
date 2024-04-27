@@ -718,8 +718,10 @@ def _to_timestamp(
                     # for example as shown below, then the conversion is indirect,
                     # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
                     if caller and caller == "timestamp_ntz":
+                        # local timestamp
                         parsed = datetime.datetime.fromtimestamp(data)
-                        parsed = LocalTimezone.replace_tz(parsed)
+                        parsed = parsed.replace(tzinfo=pytz.utc)
+                        parsed = parsed.astimezone(pytz.utc)
                     else:
                         parsed = datetime.datetime.utcfromtimestamp(data)
                     # utc timestamps should be in utc timezone
