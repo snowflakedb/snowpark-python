@@ -11,6 +11,10 @@
 #### New Features
 
 - Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - concat
+    - concat_ws
 
 
 ## 1.15.0 (2024-04-24)
