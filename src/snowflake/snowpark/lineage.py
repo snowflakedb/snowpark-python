@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -420,6 +421,7 @@ class Lineage:
         )
         return self._session.create_dataframe(transformed_results, schema=schema)
 
+    @private_preview(version="1.16.0")
     def trace(
         self,
         object_name: str,
