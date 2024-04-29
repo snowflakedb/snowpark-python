@@ -73,6 +73,18 @@ def test_get_name_and_version():
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "whatever"},
+        _ObjectField.NAME: "name1$name2$v1",
+    }
+    name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
+    print(name, version)
+    assert name == "db1.schema1.name1$name2"
+    assert version == "v1"
+
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "whatever"},
         _ObjectField.NAME: "name1v1",
     }
     with pytest.raises(SnowparkFetchDataException) as exc:

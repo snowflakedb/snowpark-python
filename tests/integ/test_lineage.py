@@ -229,7 +229,7 @@ def test_lineage_trace(session):
             "table",
             depth=-1,
         )
-    assert "Depth must be between 1 and 10." in str(exc)
+    assert "Depth must be between 1 and 5." in str(exc)
 
     with pytest.raises(ValueError) as exc:
         session.lineage.trace(
@@ -237,4 +237,4 @@ def test_lineage_trace(session):
             "table",
             depth=-11,
         )
-    assert "Depth must be between 1 and 10." in str(exc)
+    assert "Depth must be between 1 and 5." in str(exc)
