@@ -21,7 +21,7 @@ concurrency:
 jobs:
   lint:
     name: Check linting
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -40,7 +40,7 @@ jobs:
   build:
     needs: lint
     name: Build Wheel File
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
   test-unsupported-py38:
     name: Test importing Snowpark pandas with Python 3.8 fails
     needs: build
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -223,7 +223,7 @@ jobs:
     if: ${{ success() || failure() }}
     name: Combine coverage
     needs: test
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -274,7 +274,7 @@ jobs:
   doc:
     needs: lint
     name: Build Doc
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

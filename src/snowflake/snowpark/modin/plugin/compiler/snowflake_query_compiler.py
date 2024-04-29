@@ -7585,6 +7585,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ]
                 }
         else:
+            frame = frame.ensure_row_position_column()
+            cond_frame = cond_frame.ensure_row_position_column()
             joined_frame, result_column_mapper = join_utils.join(
                 frame,
                 cond_frame,
