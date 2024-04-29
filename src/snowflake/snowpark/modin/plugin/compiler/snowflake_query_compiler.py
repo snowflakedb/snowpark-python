@@ -671,8 +671,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Previously, Snowpark pandas would register a stored procedure that materializes the frame
         # and performs the native pandas operation. Because this fallback has extremely poor
         # performance, we now raise NotImplementedError instead.
+        args_str = ", ".join(args)
+        if args and kwargs:
+            args_str += ", "
+        if kwargs:
+            args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
         ErrorMessage.not_implemented(
-            f"{object_type}.{fn_name} is not yet available in Snowpark pandas API"
+            f"{object_type}.{fn_name}({args_str}) is not yet available in Snowpark pandas API"
         )
 
     @classmethod
@@ -3725,6 +3730,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 cumagg_func=sum_,
                 cumagg_func_name="cumsum",
             )
+        )
+
+    def groupby_nunique(
+        self, by, axis, groupby_kwargs, agg_args, agg_kwargs, drop=False, **kwargs
+    ):
+        # We have to override the Modin version of this function because our groupby frontend passes the
+        # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
+        # does not have **kwargs.
+        return self.groupby_agg(
+            by=by,
+            agg_func="nunique",
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            drop=drop,
         )
 
     def _get_dummies_helper(
