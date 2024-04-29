@@ -5,6 +5,7 @@
 - Fixed `@udf` decorator when `packages=None` are specified preventing error in `Series.apply`.
 - Fixed incorrect regex used in `Series.str.contains`.
 - Fixed DataFrame's `__getitem__` with boolean DataFrame key.
+- Fixed incorrect regex used in `DataFrame/Series.replace`.
 
 ## 1.14.0a2 (2024-04-18)
 
