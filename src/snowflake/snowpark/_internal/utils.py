@@ -187,7 +187,10 @@ PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = (
     + "DataFrame is in private preview since v1.15.0. Do not use this feature "
     + "in production."
 )
-PIVOT_DEFAULT_ON_NULL_WARNING = "Calling pivot() with the default_on_null is not None is in private preview since v1.15.0.  Do not use it in production."
+PIVOT_DEFAULT_ON_NULL_WARNING = (
+    "Calling pivot() with a non-None value for `default_on_null` is in "
+    + "private preview since v1.15.0. Do not use this feature in production."
+)
 
 
 class TempObjectType(Enum):
