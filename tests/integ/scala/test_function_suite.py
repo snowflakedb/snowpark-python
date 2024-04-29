@@ -306,9 +306,9 @@ def test_kurtosis(session):
         df,
         [
             Row(
-                float("-3.333333"),
-                float("5.0"),
-                float("3.613737"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
         float_equality_threshold=1e-5,
@@ -320,9 +320,9 @@ def test_kurtosis(session):
         df,
         [
             Row(
-                float("-3.333333"),
-                float("5.0"),
-                float("3.613737"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
         float_equality_threshold=1e-5,
