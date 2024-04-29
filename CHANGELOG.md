@@ -16,6 +16,10 @@
     - concat
     - concat_ws
 
+#### Bug Fixes
+
+- DataFrameReader.csv unable to handle quoted values containing delimiter.
+
 
 ## 1.15.0 (2024-04-24)
 
