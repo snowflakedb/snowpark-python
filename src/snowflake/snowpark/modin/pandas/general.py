@@ -73,7 +73,6 @@ from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_UNIT,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike, ListLikeOfFloats
-from snowflake.snowpark.modin.plugin.compiler import BaseQueryCompiler
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -86,6 +85,8 @@ if TYPE_CHECKING:
     # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
     # qualify return types in this file with `snowflake.snowpark.modin.pandas.DataFrame`.
     # SNOW-1233342: investigate how to fix these links without using absolute paths
+    from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+
     import snowflake  # pragma: no cover
 
 _logger = getLogger(__name__)

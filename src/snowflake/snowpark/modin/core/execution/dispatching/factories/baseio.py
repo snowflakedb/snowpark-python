@@ -30,9 +30,9 @@ from collections import OrderedDict
 from typing import Any
 
 import pandas
+from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.plugin.compiler import BaseQueryCompiler
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 _doc_default_io_method = """
