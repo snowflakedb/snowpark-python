@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from decimal import Decimal
 from math import sqrt
 from typing import NamedTuple
@@ -115,7 +116,10 @@ def test_group_by_pivot_dynamic_any(session, caplog):
         sort=False,
     )
 
-    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
+    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # Snowpark pandas users don't get warnings about dynamic pivot
+        # features. See SNOW-1344848.
+        assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
 
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -332,7 +336,10 @@ def test_pivot_default_on_none(session, caplog):
             sort=False,
         )
 
-    assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
+    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # Snowpark pandas users don't get warnings about dynamic pivot
+        # features. See SNOW-1344848.
+        assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
 @pytest.mark.localtest
