@@ -16,6 +16,10 @@
     - concat
     - concat_ws
 
+### Bug Fixes
+
+- Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
+
 
 ## 1.15.0 (2024-04-24)
 
