@@ -1600,7 +1600,7 @@ def mock_get(
         dtype=object,
     )
 
-  
+
 @patch("concat")
 def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
     if len(columns) < 1:
