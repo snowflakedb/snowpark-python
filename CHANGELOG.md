@@ -17,6 +17,10 @@
     - concat
     - concat_ws
 
+#### Bug Fixes
+
+- Fixed a bug that caused NaT and NaN values to not be recognized.
+
 ## 1.15.0 (2024-04-24)
 
 ### New Features
