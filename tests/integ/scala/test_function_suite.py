@@ -184,6 +184,7 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
+    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -300,7 +301,9 @@ def test_covariance(session, k, v1, v2):
 
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
-        to_double(kurtosis(col("X"))), to_double(kurtosis(col("Y"))), to_double(kurtosis(col("Z")))
+        to_double(kurtosis(col("X"))),
+        to_double(kurtosis(col("Y"))),
+        to_double(kurtosis(col("Z"))),
     )
     Utils.check_answer(
         df,
@@ -316,7 +319,8 @@ def test_kurtosis(session):
 
     # same as above, but pass str instead of Column
     df = TestData.xyz(session).select(
-        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z")))
+        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z"))
+    )
     Utils.check_answer(
         df,
         [
