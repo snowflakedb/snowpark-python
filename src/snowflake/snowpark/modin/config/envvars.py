@@ -884,7 +884,9 @@ def _check_vars() -> None:  # pragma: no cover
         and issubclass(obj, EnvironmentVariable)
         and not obj.is_abstract
     }
-    valid_names.update(["MODIN_PYTEST_CMD", "MODIN_PYTEST_DAILY_CMD"])
+    valid_names.update(
+        ["MODIN_PYTEST_CMD", "MODIN_PYTEST_DAILY_CMD", "MODIN_PYTEST_NO_COV_CMD"]
+    )
     found_names = {name for name in os.environ if name.startswith("MODIN_")}
     unknown = found_names - valid_names
     deprecated: dict[str, DeprecationDescriptor] = {

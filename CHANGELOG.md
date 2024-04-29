@@ -19,6 +19,7 @@
 #### Bug Fixes
 
 - DataFrameReader.csv unable to handle quoted values containing delimiter.
+- Fixed a bug that caused NaT and NaN values to not be recognized.
 
 
 ## 1.15.0 (2024-04-24)
