@@ -1008,7 +1008,10 @@ class OrderedDataFrame:
         # get the ordering columns for the right frame after rename
         new_ordering_columns = [
             OrderingColumn(
-                column_identifiers_rename_map[order_col.snowflake_quoted_identifier],
+                column_identifiers_rename_map.get(
+                    order_col.snowflake_quoted_identifier,
+                    order_col.snowflake_quoted_identifier,
+                ),
                 order_col.ascending,
                 order_col.na_last,
             )
@@ -1016,7 +1019,10 @@ class OrderedDataFrame:
         ]
 
         new_row_position_snowflake_quoted_identifier = (
-            column_identifiers_rename_map[self.row_position_snowflake_quoted_identifier]
+            column_identifiers_rename_map.get(
+                self.row_position_snowflake_quoted_identifier,
+                self.row_position_snowflake_quoted_identifier,
+            )
             if self.row_position_snowflake_quoted_identifier
             else None
         )
