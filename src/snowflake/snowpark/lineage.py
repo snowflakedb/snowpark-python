@@ -16,6 +16,9 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
+_MIN_TRACE_DEPTH = 1
+_MAX_TRACE_DEPTH = 5
+
 
 class LineageDirection(Enum):
     """
@@ -308,7 +311,10 @@ class Lineage:
             if user_domain == _UserDomain.FEATURE_VIEW:
                 if "$" in name:
                     parts = name.split("$")
-                    return (f"{db}.{schema}.{parts[0]}", parts[1])
+                    if len(parts) >= 2:
+                        base_name = "$".join(parts[:-1])
+                        version = parts[-1]
+                        return (f"{db}.{schema}.{base_name}", version)
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                         f"unexpected {_UserDomain.FEATURE_VIEW} name format."
@@ -452,8 +458,10 @@ class Lineage:
                 ---------------------------------------------------------------------------------------------------------------------------------------
                 <BLANKLINE>
         """
-        if depth < 1 or depth > 10:
-            raise ValueError("Depth must be between 1 and 10.")
+        if depth < _MIN_TRACE_DEPTH or depth > _MAX_TRACE_DEPTH:
+            raise ValueError(
+                f"Depth must be between {_MIN_TRACE_DEPTH} and {_MAX_TRACE_DEPTH}."
+            )
 
         if isinstance(direction, str):
             direction = LineageDirection.value_of(direction)
