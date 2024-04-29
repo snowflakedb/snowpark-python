@@ -300,7 +300,7 @@ def test_covariance(session, k, v1, v2):
 
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
-        kurtosis(col("X")), kurtosis(col("Y")), kurtosis(col("Z"))
+        to_double(kurtosis(col("X"))), to_double(kurtosis(col("Y"))), to_double(kurtosis(col("Z")))
     )
     Utils.check_answer(
         df,
@@ -315,7 +315,8 @@ def test_kurtosis(session):
     )
 
     # same as above, but pass str instead of Column
-    df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
+    df = TestData.xyz(session).select(
+        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z")))
     Utils.check_answer(
         df,
         [
