@@ -23,7 +23,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_copy_into_table_options,
     random_name_for_temp_object,
-    unwrap_single_quote,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -581,9 +580,7 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_query = infer_schema_statement(
-            unwrap_single_quote(path), file_format_name
-        )
+        infer_schema_query = infer_schema_statement(path, file_format_name)
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(
