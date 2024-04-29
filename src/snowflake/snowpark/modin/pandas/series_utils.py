@@ -113,9 +113,11 @@ class StringMethods:
         self._query_compiler = series._query_compiler
 
     def casefold(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_casefold())
 
     def cat(self, others=None, sep=None, na_rep=None, join=None):
+        ErrorMessage.not_implemented()
         compiler_result = self._query_compiler.str_cat(
             others=others, sep=sep, na_rep=na_rep, join=join
         )
@@ -127,6 +129,7 @@ class StringMethods:
         )
 
     def decode(self, encoding, errors="strict"):
+        ErrorMessage.not_implemented()
         return Series(
             query_compiler=self._query_compiler.str_decode(encoding, errors=errors)
         )
@@ -224,6 +227,8 @@ class StringMethods:
         2                                                  NaN
         dtype: object
         """
+        ErrorMessage.not_implemented()
+
         if not pat and pat is not None:
             raise ValueError("split() requires a non-empty pattern match.")
 
@@ -235,6 +240,8 @@ class StringMethods:
             )
 
     def rsplit(self, pat=None, n=-1, expand=False):
+        ErrorMessage.not_implemented()
+
         if not pat and pat is not None:
             raise ValueError("rsplit() requires a non-empty pattern match.")
 
@@ -246,14 +253,17 @@ class StringMethods:
             )
 
     def get(self, i):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_get(i))
 
     def join(self, sep):
+        ErrorMessage.not_implemented()
         if sep is None:
             raise AttributeError("'NoneType' object has no attribute 'join'")
         return Series(query_compiler=self._query_compiler.str_join(sep))
 
     def get_dummies(self, sep="|"):
+        ErrorMessage.not_implemented()
         return DataFrame(query_compiler=self._query_compiler.str_get_dummies(sep))
 
     def contains(
@@ -501,6 +511,7 @@ class StringMethods:
         )
 
     def pad(self, width, side="left", fillchar=" "):
+        ErrorMessage.not_implemented()
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
         return Series(
@@ -510,6 +521,7 @@ class StringMethods:
         )
 
     def center(self, width, fillchar=" "):
+        ErrorMessage.not_implemented()
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
         return Series(
@@ -517,6 +529,7 @@ class StringMethods:
         )
 
     def ljust(self, width, fillchar=" "):
+        ErrorMessage.not_implemented()
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
         return Series(
@@ -524,6 +537,7 @@ class StringMethods:
         )
 
     def rjust(self, width, fillchar=" "):
+        ErrorMessage.not_implemented()
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
         return Series(
@@ -531,14 +545,17 @@ class StringMethods:
         )
 
     def zfill(self, width):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_zfill(width))
 
     def wrap(self, width, **kwargs):
+        ErrorMessage.not_implemented()
         if width <= 0:
             raise ValueError(f"invalid width {width} (must be > 0)")
         return Series(query_compiler=self._query_compiler.str_wrap(width, **kwargs))
 
     def slice(self, start=None, stop=None, step=None):
+        ErrorMessage.not_implemented()
         if step == 0:
             raise ValueError("slice step cannot be zero")
         return Series(
@@ -548,6 +565,7 @@ class StringMethods:
         )
 
     def slice_replace(self, start=None, stop=None, repl=None):
+        ErrorMessage.not_implemented()
         return Series(
             query_compiler=self._query_compiler.str_slice_replace(
                 start=start, stop=stop, repl=repl
@@ -682,6 +700,7 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_startswith(pat, na=na))
 
     def encode(self, encoding, errors="strict"):
+        ErrorMessage.not_implemented()
         return Series(
             query_compiler=self._query_compiler.str_encode(encoding, errors=errors)
         )
@@ -747,6 +766,7 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_endswith(pat, na=na))
 
     def findall(self, pat, flags=0, **kwargs):
+        ErrorMessage.not_implemented()
         if not isinstance(pat, (str, _pattern_type)):
             raise TypeError("first argument must be string or compiled pattern")
         return Series(
@@ -754,6 +774,7 @@ class StringMethods:
         )
 
     def match(self, pat, case=True, flags=0, na=np.NaN):
+        ErrorMessage.not_implemented()
         if not isinstance(pat, (str, _pattern_type)):
             raise TypeError("first argument must be string or compiled pattern")
         return Series(
@@ -761,6 +782,7 @@ class StringMethods:
         )
 
     def extract(self, pat, flags=0, expand=True):
+        ErrorMessage.not_implemented()
         query_compiler = self._query_compiler.str_extract(
             pat, flags=flags, expand=expand
         )
@@ -771,6 +793,7 @@ class StringMethods:
         )
 
     def extractall(self, pat, flags=0):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_extractall(pat, flags))
 
     def len(self):
@@ -877,12 +900,15 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_strip(to_strip=to_strip))
 
     def rstrip(self, to_strip=None):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_rstrip(to_strip=to_strip))
 
     def lstrip(self, to_strip=None):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_lstrip(to_strip=to_strip))
 
     def partition(self, sep=" ", expand=True):
+        ErrorMessage.not_implemented()
         if sep is not None and len(sep) == 0:
             raise ValueError("empty separator")
 
@@ -891,15 +917,19 @@ class StringMethods:
         )
 
     def removeprefix(self, prefix):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_removeprefix(prefix))
 
     def removesuffix(self, suffix):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_removesuffix(suffix))
 
     def repeat(self, repeats):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_repeat(repeats))
 
     def rpartition(self, sep=" ", expand=True):
+        ErrorMessage.not_implemented()
         if sep is not None and len(sep) == 0:
             raise ValueError("empty separator")
 
@@ -964,6 +994,7 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_title())
 
     def find(self, sub, start=0, end=None):
+        ErrorMessage.not_implemented()
         if not isinstance(sub, str):
             raise TypeError(f"expected a string object, not {type(sub).__name__}")
         return Series(
@@ -971,6 +1002,7 @@ class StringMethods:
         )
 
     def rfind(self, sub, start=0, end=None):
+        ErrorMessage.not_implemented()
         if not isinstance(sub, str):
             raise TypeError(f"expected a string object, not {type(sub).__name__}")
         return Series(
@@ -978,6 +1010,7 @@ class StringMethods:
         )
 
     def index(self, sub, start=0, end=None):
+        ErrorMessage.not_implemented()
         if not isinstance(sub, str):
             raise TypeError(f"expected a string object, not {type(sub).__name__}")
         return Series(
@@ -985,6 +1018,7 @@ class StringMethods:
         )
 
     def rindex(self, sub, start=0, end=None):
+        ErrorMessage.not_implemented()
         if not isinstance(sub, str):
             raise TypeError(f"expected a string object, not {type(sub).__name__}")
         return Series(
@@ -1039,18 +1073,23 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_capitalize())
 
     def swapcase(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_swapcase())
 
     def normalize(self, form):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_normalize(form))
 
     def translate(self, table):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_translate(table))
 
     def isalnum(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isalnum())
 
     def isalpha(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isalpha())
 
     def isdigit(self):
@@ -1077,9 +1116,11 @@ class StringMethods:
         3    False
         dtype: bool
         """
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isdigit())
 
     def isspace(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isspace())
 
     def islower(self):
@@ -1150,9 +1191,11 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_istitle())
 
     def isnumeric(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isnumeric())
 
     def isdecimal(self):
+        ErrorMessage.not_implemented()
         return Series(query_compiler=self._query_compiler.str_isdecimal())
 
 
