@@ -14,10 +14,6 @@ on:
         tags:
           description: "Test scenario tags"
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   lint:
     name: Check linting
