@@ -20,6 +20,7 @@ from snowflake.snowpark.types import (
 
 _MIN_TRACE_DEPTH = 1
 _MAX_TRACE_DEPTH = 5
+_DEFAULT_TRACE_DEPTH = 2
 
 
 class LineageDirection(Enum):
@@ -429,7 +430,7 @@ class Lineage:
         *,
         object_version: Optional[str] = None,
         direction: Union[str, LineageDirection] = LineageDirection.BOTH,
-        depth: int = 2,
+        depth: int = _DEFAULT_TRACE_DEPTH,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Traces the lineage of an object within Snowflake and returns it as a DataFrame.
