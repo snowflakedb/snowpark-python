@@ -3,6 +3,7 @@
 #
 
 import json
+from collections import deque
 from enum import Enum
 from typing import List, Optional, Tuple, Union
 
@@ -241,56 +242,73 @@ class Lineage:
 
         return rows
 
-    def _recursive_trace(
+    def _trace(
         self,
         object_name: str,
         object_domain: str,
         direction: str,
-        current_depth: int,
         total_depth: int,
-        visited: set,
         object_version: Optional[str] = None,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
         """
-        Recursively traces lineage by making successive DGQL queries based on response nodes.
+        Traces lineage by making successive DGQL queries based on response nodes using BFS.
         """
-        if current_depth > total_depth:
-            return []
+        queue = deque([(object_name, object_domain, object_version, 0)])
+        visited = set()
+        results = []
 
-        current_node = (object_name, object_domain, object_version)
-        if current_node in visited:
-            return []
+        while queue:
+            (
+                current_object_name,
+                current_object_domain,
+                current_object_version,
+                current_depth,
+            ) = queue.popleft()
 
-        visited.add(current_node)
+            if current_depth == total_depth:
+                continue
 
-        lineage_edges = self._get_lineage(
-            object_name, object_domain, [direction], object_version, current_depth
-        )
-        if (
-            current_depth == total_depth
-            or not lineage_edges
-            or self._is_terminal_entity(lineage_edges[0][0])
-            or self._is_terminal_entity(lineage_edges[0][1])
-        ):
-            return lineage_edges
+            current_node = (
+                current_object_name,
+                current_object_domain,
+                current_object_version,
+            )
+            if current_node in visited:
+                continue
 
-        next_object = (
-            lineage_edges[0][1]
-            if direction == LineageDirection.DOWNSTREAM
-            else lineage_edges[0][0]
-        )
-        deeper_lineage_edges = self._recursive_trace(
-            next_object[_ObjectField.NAME],
-            next_object[_ObjectField.DOMAIN],
-            direction,
-            current_depth + 1,
-            total_depth,
-            visited,
-            next_object.get(_ObjectField.VERSION),
-        )
+            visited.add(current_node)
 
-        lineage_edges.extend(deeper_lineage_edges)
-        return lineage_edges
+            lineage_edges = self._get_lineage(
+                current_object_name,
+                current_object_domain,
+                [direction],
+                current_object_version,
+                current_depth + 1,
+            )
+
+            if not lineage_edges:
+                continue
+
+            results.extend(lineage_edges)
+
+            for edge in lineage_edges:
+                if self._is_terminal_entity(edge[0]) or self._is_terminal_entity(
+                    edge[1]
+                ):
+                    continue
+                next_object = (
+                    edge[1] if direction == LineageDirection.DOWNSTREAM else edge[0]
+                )
+                queue.append(
+                    (
+                        next_object[_ObjectField.NAME],
+                        next_object[_ObjectField.DOMAIN],
+                        next_object.get(_ObjectField.VERSION),
+                        current_depth + 1,
+                    )
+                )
+
+        return results
 
     def _is_terminal_entity(self, entity) -> bool:
         """
@@ -482,9 +500,7 @@ class Lineage:
             lineage_trace = []
             for dir in directions:
                 lineage_trace.extend(
-                    self._recursive_trace(
-                        object_name, object_domain, dir, 1, depth, set(), object_version
-                    )
+                    self._trace(object_name, object_domain, dir, depth, object_version)
                 )
 
         return self._get_result_dataframe(lineage_trace)
