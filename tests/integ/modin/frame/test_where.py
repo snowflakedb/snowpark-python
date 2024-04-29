@@ -991,3 +991,14 @@ def test_where_series_other_axis_1(index, data):
         native_df,
         perform_where,
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_where_series_cond_after_join():
+    snow_df1 = pd.DataFrame({"A": [1, 2]})
+    snow_df = snow_df1.join(snow_df1, lsuffix="_l", rsuffix="_r")
+    snow_df = snow_df.where(snow_df["A_l"] != snow_df["A_r"])
+    native_df1 = native_pd.DataFrame({"A": [1, 2]})
+    native_df = native_df1.join(native_df1, lsuffix="_l", rsuffix="_r")
+    native_df = native_df.where(native_df["A_l"] != native_df["A_r"])
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
