@@ -14,6 +14,8 @@
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - get
+    - concat
+    - concat_ws
 
 ## 1.15.0 (2024-04-24)
 

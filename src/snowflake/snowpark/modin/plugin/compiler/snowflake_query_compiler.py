@@ -7585,6 +7585,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ]
                 }
         else:
+            frame = frame.ensure_row_position_column()
+            cond_frame = cond_frame.ensure_row_position_column()
             joined_frame, result_column_mapper = join_utils.join(
                 frame,
                 cond_frame,
@@ -11583,7 +11585,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not regex:
             pat = re.escape(pat)
             flags = 0
-        pat = f"(.|\n)*{pat}(.|\n)*"
+        pat = f"(.|\n)*({pat})(.|\n)*"
         if flags & re.IGNORECASE == 0 and not case:
             flags = flags | re.IGNORECASE
         params = self._get_regex_params(flags)
