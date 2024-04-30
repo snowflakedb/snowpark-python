@@ -18,9 +18,9 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-_MIN_TRACE_DEPTH = 1
-_MAX_TRACE_DEPTH = 5
-_DEFAULT_TRACE_DEPTH = 2
+_MIN_TRACE_DISTANCE = 1
+_MAX_TRACE_DISTANCE = 5
+_DEFAULT_TRACE_DISTANCE = 2
 
 
 class LineageDirection(Enum):
@@ -212,10 +212,10 @@ class Lineage:
         object_domain: str,
         directions: list,
         object_version: Optional[str] = None,
-        current_depth=1,
+        current_distance=1,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
         """
-        Constructs and executes a query to trace the lineage of a given entity at a single depth level.
+        Constructs and executes a query to trace the lineage of a given entity at a distance one.
         """
         query_string = self._build_graphql_query(
             object_name, object_domain, directions, object_version
@@ -238,7 +238,7 @@ class Lineage:
                             edge[_DGQLFields.SOURCE],
                             edge[_DGQLFields.TARGET],
                             direction,
-                            current_depth,
+                            current_distance,
                         )
                     )
 
@@ -249,7 +249,7 @@ class Lineage:
         object_name: str,
         object_domain: str,
         direction: str,
-        total_depth: int,
+        total_distance: int,
         object_version: Optional[str] = None,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
         """
@@ -264,10 +264,10 @@ class Lineage:
                 current_object_name,
                 current_object_domain,
                 current_object_version,
-                current_depth,
+                current_distance,
             ) = queue.popleft()
 
-            if current_depth == total_depth:
+            if current_distance == total_distance:
                 continue
 
             current_node = (
@@ -285,7 +285,7 @@ class Lineage:
                 current_object_domain,
                 [direction],
                 current_object_version,
-                current_depth + 1,
+                current_distance + 1,
             )
 
             if not lineage_edges:
@@ -306,7 +306,7 @@ class Lineage:
                         next_object[_ObjectField.NAME],
                         next_object[_ObjectField.DOMAIN],
                         next_object.get(_ObjectField.VERSION),
-                        current_depth + 1,
+                        current_distance + 1,
                     )
                 )
 
@@ -417,7 +417,7 @@ class Lineage:
                 StructField("source_object", VariantType()),
                 StructField("target_object", VariantType()),
                 StructField("lineage", StringType()),
-                StructField("depth", IntegerType()),
+                StructField("distance", IntegerType()),
             ]
         )
         return self._session.create_dataframe(transformed_results, schema=schema)
@@ -430,7 +430,7 @@ class Lineage:
         *,
         object_version: Optional[str] = None,
         direction: Union[str, LineageDirection] = LineageDirection.BOTH,
-        depth: int = _DEFAULT_TRACE_DEPTH,
+        distance: int = _DEFAULT_TRACE_DISTANCE,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
         """
         Traces the lineage of an object within Snowflake and returns it as a DataFrame.
@@ -440,14 +440,14 @@ class Lineage:
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
             object_version (Optional[str]):Version of the versioned Snowflake object (e.g., model or dataset) to begin tracing. Defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
-            depth (int): Trace depth, defaults to 2, with a maximum of 10.
+            distance (int): Trace distance, defaults to 2, with a maximum of 10.
 
         Returns:
             snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage with the following schema:
                 - source (str): The source of the lineage.
                 - target (str): The target of the lineage.
                 - direction (str): The direction of the lineage ('FORWARD', 'BACKWARD', or 'BOTH').
-                - depth (int): The depth of the lineage tracing.
+                - distance (int): The distance of the lineage tracing from given object.
 
             Example:
                 >>> db = session.get_current_database()
@@ -465,27 +465,27 @@ class Lineage:
                 ...     direction=LineageDirection.DOWNSTREAM
                 ... )
                 >>> df.show()
-                ---------------------------------------------------------------------------------------------------------------------------------------
-                | "SOURCE_OBJECT"                                        | "TARGET_OBJECT"                                    | "LINEAGE"   | "DEPTH" |
-                ---------------------------------------------------------------------------------------------------------------------------------------
-                | {"createdOn": "1712881232230", "domain": "TABLE",      | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 1       |
-                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.T1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status": |             |         |
-                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |         |
-                | {"createdOn": "1712881232230", "domain": "VIEW",       | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 2       |
-                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V2", "status": |             |         |
-                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |         |
-                ---------------------------------------------------------------------------------------------------------------------------------------
+                ------------------------------------------------------------------------------------------------------------------------------------------
+                | "SOURCE_OBJECT"                                        | "TARGET_OBJECT"                                    | "LINEAGE"   | "DISTANCE" |
+                ------------------------------------------------------------------------------------------------------------------------------------------
+                | {"createdOn": "1712881232230", "domain": "TABLE",      | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 1          |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.T1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status": |             |            |
+                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |            |
+                | {"createdOn": "1712881232230", "domain": "VIEW",       | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 2          |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V2", "status": |             |            |
+                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |            |
+                ------------------------------------------------------------------------------------------------------------------------------------------
                 <BLANKLINE>
         """
-        if depth < _MIN_TRACE_DEPTH or depth > _MAX_TRACE_DEPTH:
+        if distance < _MIN_TRACE_DISTANCE or distance > _MAX_TRACE_DISTANCE:
             raise ValueError(
-                f"Depth must be between {_MIN_TRACE_DEPTH} and {_MAX_TRACE_DEPTH}."
+                f"Distance must be between {_MIN_TRACE_DISTANCE} and {_MAX_TRACE_DISTANCE}."
             )
 
         if isinstance(direction, str):
             direction = LineageDirection.value_of(direction)
 
-        if direction == LineageDirection.BOTH and depth == 1:
+        if direction == LineageDirection.BOTH and distance == 1:
             lineage_trace = self._get_lineage(
                 object_name,
                 object_domain,
@@ -501,7 +501,9 @@ class Lineage:
             lineage_trace = []
             for dir in directions:
                 lineage_trace.extend(
-                    self._trace(object_name, object_domain, dir, depth, object_version)
+                    self._trace(
+                        object_name, object_domain, dir, distance, object_version
+                    )
                 )
 
         return self._get_result_dataframe(lineage_trace)

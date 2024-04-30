@@ -21,6 +21,7 @@ except ImportError:
 
 
 def setup_test(session, db, schema, warehouse, test_role) -> None:
+    session.sql("SELECT CURRENT_ROLE()").collect()
     session.sql("USE ROLE ACCOUNTADMIN").collect()
     session.sql(f"CREATE OR REPLACE ROLE {test_role}").collect()
     session.sql(f"GRANT ROLE {test_role} TO ROLE ACCOUNTADMIN").collect()
