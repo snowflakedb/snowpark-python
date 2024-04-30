@@ -9,7 +9,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def session():
     with Session(MockServerConnection()) as s:
         yield s
