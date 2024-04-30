@@ -9,7 +9,7 @@ import os
 import platform
 import random
 import string
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -76,6 +76,14 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
+IS_STRUCTURED_TYPES_SUPPORTED = (
+    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+)
+ICEBERG_ENVIRONMENTS = {"dev", "aws"}
+IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 
 class Utils:
@@ -165,6 +173,10 @@ class Utils:
     @staticmethod
     def drop_schema(session: "Session", name: str):
         session._run_query(f"drop schema if exists {name}")
+
+    @staticmethod
+    def drop_database(session: "Session", name: str):
+        session._run_query(f"drop database if exists {name}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):
@@ -358,6 +370,21 @@ class Utils:
         assert (
             row_counter == row_number
         ), f"Expect {row_number} rows, Got {row_counter} instead"
+
+    @staticmethod
+    def assert_executed_with_query_tag(
+        session: Session, query_tag: str, local_testing_mode: bool = False
+    ) -> None:
+        # inside the stored proc information_schema.query_history_by_session() is not accessible
+        # which leads to "Requested information on the current user is not accessible in stored procedure."
+        if local_testing_mode or IS_IN_STORED_PROC:
+            return
+        query_details = session.sql(
+            f"select * from table(information_schema.query_history_by_session()) where QUERY_TAG='{query_tag}'"
+        )
+        assert (
+            len(query_details.collect()) > 0
+        ), f"query tag '{query_tag}' not present in query history for given session"
 
 
 class TestData:
@@ -791,12 +818,116 @@ class TestData:
         return session.create_dataframe(data, schema)
 
     @classmethod
+    def datetime_primitives2(cls, session: "Session") -> DataFrame:
+        data = [
+            "9999-12-31 00:00:00.123456",
+            "1583-01-01 23:59:59.56789",
+        ]
+        schema = StructType(
+            [
+                StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data
+        data = [("01:02:03",), ("22:33:44",)]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives2(cls, session: "Session") -> DataFrame:
+        # string data needs format
+        data = [
+            ("01.02-03 PM",),
+            ("10.33-44 PM",),
+            ("12.55-19 PM",),
+        ]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives3(cls, session: "Session") -> DataFrame:
+        # timestamp data
+        data = [
+            (datetime(2024, 2, 1, 12, 13, 14),),
+            (datetime(2017, 2, 24, 20, 21, 22),),
+            ("1712265619",),
+            ("1712265619000",),
+            ("1712265619000000",),
+            ("1712265619000000000",),
+        ]
+        schema = StructType(
+            [
+                StructField("a", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives4(cls, session: "Session") -> DataFrame:
+        # variant data
+        data = [
+            ("01:02:03",),
+            ("1712265619",),
+            (None,),
+            (time(1, 2, 3),),
+        ]
+        schema = StructType(
+            [
+                StructField("a", VariantType()),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
     def variant_datetimes1(cls, session: "Session") -> DataFrame:
         primitives_df = cls.datetime_primitives1(session)
         variant_cols = [
             to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
         ]
         return primitives_df.select(variant_cols)
+
+    @classmethod
+    def date_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data + auto detection
+        data = ["2023-03-16", "30-JUL-2010", "1713414143"]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives2(cls, session: "Session") -> DataFrame:
+        # datetime type
+        data = [
+            datetime(2023, 3, 16),
+            datetime(2010, 7, 30, 1, 2, 3),
+            datetime(2024, 4, 18),
+        ]
+        schema = StructType([StructField("a", TimestampType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives3(cls, session: "Session") -> DataFrame:
+        # variant type
+        data = ["1713414143", None, "2024-06-03", "03/21/2000", datetime(2025, 12, 31)]
+        schema = StructType([StructField("a", VariantType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives4(cls, session: "Session") -> DataFrame:
+        # string + format
+        data = [
+            ("2024-04-18", "AUTO"),
+            ("01-09-1999", "DD-MM-YYYY"),
+            ("10.2024.29", "MM.YYYY.DD"),
+            ("05/15/2015", "MM/DD/YYYY"),
+        ]
+        schema = StructType(
+            [StructField("a", StringType()), StructField("b", StringType())]
+        )
+        return session.create_dataframe(data, schema)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
