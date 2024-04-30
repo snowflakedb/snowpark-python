@@ -331,3 +331,15 @@ for name in __all__ + _ADDITIONAL_ATTRS:
 
 for name in _EXTENSION_ATTRS:
     _ext.register_pd_accessor(name)(getattr(pd_extensions, name))
+
+
+# TODO: https://github.com/modin-project/modin/issues/7233
+# Upstream Modin does not properly render property names in default2pandas warnings, so we need
+# to override DefaultMethod.register.
+import modin.core.dataframe.algebra.default2pandas  # noqa: E402
+
+import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  # noqa: E402
+
+modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
+    snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register,
+)
