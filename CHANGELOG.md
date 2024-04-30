@@ -5,6 +5,7 @@
 ### New Features
 
 - Support stored procedure register with packages given as Python modules.
+- Added support for structured type schema parsing.
 
 ### Local Testing Updates
 
