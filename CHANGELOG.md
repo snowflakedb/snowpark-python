@@ -13,11 +13,13 @@
 - Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
 - Added support for the following APIs:
   - snowflake.snowpark.functions
+    - get
     - concat
     - concat_ws
 
-### Bug Fixes
+#### Bug Fixes
 
+- Fixed a bug that caused NaT and NaN values to not be recognized.
 - Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
 
 
