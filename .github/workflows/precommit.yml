@@ -515,9 +515,6 @@ jobs:
         with:
           name: overall_cov_xml
           path: .tox/coverage.xml
-      - uses: codecov/codecov-action@v1
-        with:
-          file: .tox/coverage.xml
 
   doc:
     needs: lint
