@@ -2470,15 +2470,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
-            ErrorMessage.method_not_implemented_error(name="ngroups", class_="GroupBy")
+            ErrorMessage.not_implemented(
+                "GroupBy.ngroups is not implemented for the given parameter combination"
+            )
 
         query_compiler = get_frame_with_groupby_columns_as_index(
             self, by, level, dropna
         )
 
         if query_compiler is None:
-            raise NotImplementedError(
-                "GroupBy.ngroups is not implemented when both level and by are configured"
+            ErrorMessage.not_implemented(
+                "GroupBy.ngroups is not implemented for the given parameter combination"
             )
 
         internal_frame = query_compiler._modin_frame
@@ -2566,8 +2568,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=agg_kwargs.get("dropna", True),
                 )
             else:
-                ErrorMessage.method_not_implemented_error(
-                    name=agg_func, class_="GroupBy"
+                ErrorMessage.not_implemented(
+                    f"GroupBy.{agg_func} is not implemented for the given parameter combination"
                 )
 
         sort = groupby_kwargs.get("sort", True)
@@ -2581,8 +2583,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         if query_compiler is None:
-            raise NotImplementedError(
-                f"GroupBy.{agg_func} is not implemented when both level and by are configured"
+            ErrorMessage.not_implemented(
+                f"GroupBy.{agg_func} is not implemented for the given parameter combination"
             )
 
         by_list = query_compiler._modin_frame.index_column_pandas_labels
