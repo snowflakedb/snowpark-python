@@ -44,7 +44,7 @@ def test_groupby_axis_1(group_name):
 
     snow_df = pd.DataFrame(pandas_df)
 
-    msg = "GroupBy.max is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.max is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df.groupby(axis=1, by=group_name).max()
 
@@ -60,11 +60,11 @@ def test_groupby_axis_1_mi(group_name):
     )
     snow_df_mi = pd.DataFrame(pandas_df_mi)
 
-    msg = "GroupBy.sum is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.sum is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df_mi.groupby(axis=1, by=group_name).sum()
 
-    msg = "GroupBy.min is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.min is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df_mi.groupby(axis=1, level=0).min()
 
@@ -78,7 +78,7 @@ def test_groupby_axis_1_mi(group_name):
     ],
 )
 def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
-    msg = "GroupBy.min is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.min is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     expected_query_count = 0
     if isinstance(by, list):
         expected_query_count = 1
@@ -125,7 +125,7 @@ def test_groupby_invalid_agg_func_raises(basic_snowpark_pandas_df, agg_func):
 @sql_count_checker(query_count=1)
 def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     by = [1, 1, 4, 2, 2, 4]
-    msg = "GroupBy.max is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.max is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         basic_snowpark_pandas_df.groupby(by=by).max()
 
@@ -136,7 +136,7 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
 )
 @sql_count_checker(query_count=1)
 def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
-    msg = "GroupBy.max is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.max is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         series_multi_numeric.groupby(by=by_list).max()
 
@@ -147,13 +147,13 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
     snowpark_pandas_series = pd.Series(native_series)
 
     with SqlCounter(query_count=0):
-        msg = "GroupBy.sum is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+        msg = "GroupBy.sum is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
         with pytest.raises(NotImplementedError, match=msg):
             basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
 
     with SqlCounter(query_count=1):
         by_list = ["col1", "col2", snowpark_pandas_series]
-        msg = "GroupBy.sum is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+        msg = "GroupBy.sum is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
         with pytest.raises(NotImplementedError, match=msg):
             basic_snowpark_pandas_df.groupby(by=by_list).sum()
 
@@ -177,7 +177,7 @@ def test_groupby_level_mapper(mapper, level):
         index=index,
         columns=native_pd.Index(["A", "B", "C"], name="exp"),
     )
-    msg = "GroupBy.sum is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = "GroupBy.sum is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df.groupby(mapper, level=level).sum()
 
@@ -193,7 +193,7 @@ def test_groupby_level_mapper(mapper, level):
 @sql_count_checker(query_count=0)
 def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, by):
     snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-    msg = f"GroupBy.{agg_name} is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+    msg = f"GroupBy.{agg_name} is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
     with pytest.raises(NotImplementedError, match=msg):
         grp_agg(snowpark_pandas_group)
 
@@ -208,7 +208,7 @@ def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, b
 def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
     with SqlCounter(query_count=query_count):
         snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-        msg = "GroupBy.max is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+        msg = "GroupBy.max is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
         with pytest.raises(NotImplementedError, match=msg):
             snowpark_pandas_group.max()
 
@@ -223,7 +223,7 @@ def test_groupby_ngroups_axis_1():
     native_df.columns.name = "x"
     snow_df = pd.DataFrame(native_df)
 
-    msg = "GroupBy.ngroups is not implemented if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
+    msg = "GroupBy.ngroups is not implemented yet if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df.groupby(by=by, axis=1).ngroups
 
@@ -238,6 +238,6 @@ def test_groupby_ngroups_axis_1_mi():
     )
     snow_df = pd.DataFrame(native_df)
 
-    msg = "GroupBy.ngroups is not implemented if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
+    msg = "GroupBy.ngroups is not implemented yet if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
     with pytest.raises(NotImplementedError, match=msg):
         snow_df.groupby(by=by, axis=1).ngroups

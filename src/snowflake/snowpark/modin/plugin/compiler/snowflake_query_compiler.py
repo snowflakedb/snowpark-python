@@ -2471,7 +2471,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
         if not is_supported:
             ErrorMessage.not_implemented(
-                "GroupBy.ngroups is not implemented if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
+                "GroupBy.ngroups is not implemented yet if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
             )
 
         query_compiler = get_frame_with_groupby_columns_as_index(
@@ -2480,7 +2480,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if query_compiler is None:
             ErrorMessage.not_implemented(
-                "GroupBy.ngroups is not implemented if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
+                "GroupBy.ngroups is not implemented yet if axis == 1, both by and level are configured, or if `by` contains any non-pandas hashable labels."
             )
 
         internal_frame = query_compiler._modin_frame
@@ -2569,7 +2569,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             else:
                 ErrorMessage.not_implemented(
-                    f"GroupBy.{agg_func} is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+                    f"GroupBy.{agg_func} is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
                 )
 
         sort = groupby_kwargs.get("sort", True)
@@ -2584,7 +2584,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if query_compiler is None:
             ErrorMessage.not_implemented(
-                f"GroupBy.{agg_func} is not implemented for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
+                f"GroupBy.{agg_func} is not implemented yet for pd.Grouper, if axis == 1, if both by and level are configured, if by contains any non-pandas hashable labels, or for unsupported aggregation parameters."
             )
 
         by_list = query_compiler._modin_frame.index_column_pandas_labels
