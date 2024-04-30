@@ -341,5 +341,5 @@ import modin.core.dataframe.algebra.default2pandas  # noqa: E402
 import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  # noqa: E402
 
 modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
-    snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register,
+    snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
 )
