@@ -36,27 +36,6 @@ def test_udf_cleanup_on_err(session):
     )  # assert sys.path is cleaned up after UDF exits on exception
 
 
-a = [
-    "/Users/aling/Projects/snowpark-python/tests/mock_unit/files",
-    "/Users/aling/Projects/snowpark-python/tests/mock_unit",
-    "/Users/aling/Projects/snowpark-python",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/bin",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python310.zip",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10/lib-dynload",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10/site-packages",
-]
-b = [
-    "/Users/aling/Projects/snowpark-python/tests/mock_unit",
-    "/Users/aling/Projects/snowpark-python",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/bin",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python310.zip",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10/lib-dynload",
-    "/Users/aling/opt/anaconda3/envs/snowpark-python-env310/lib/python3.10/site-packages",
-]
-
-
 @pytest.mark.localtest
 def test_registering_udf_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
