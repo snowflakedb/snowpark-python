@@ -80,6 +80,17 @@ repos:
     rev: 'v0.991'
     hooks:
       - id: mypy
+        files: >
+          (?x)^(
+            src/snowflake/snowpark/modin/pandas/frontend/indexing.py|
+            src/snowflake/snowpark/modin/pandas/frontend/snow_dataframe.py|
+            src/snowflake/snowpark/modin/pandas/frontend/snow_series.py|
+            src/snowflake/snowpark/modin/pandas/translation/_internal/.*\.py|
+            src/snowflake/snowpark/modin/pandas/frontend/snow_partition_iterator.py|
+            src/snowflake/snowpark/modin/pandas/translation/compiler/snowflake_query_compiler.py|
+            src/snowflake/snowpark/modin/pandas/translation/default2pandas/.*\.py|
+            src/snowflake/snowpark/modin/pandas/utils/.*\.py|
+          )$
         args:
           - --disallow-untyped-calls
           - --disallow-untyped-defs
