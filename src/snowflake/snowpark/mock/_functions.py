@@ -1574,6 +1574,33 @@ def mock_current_database():
     )
 
 
+@patch("get")
+def mock_get(
+    column_expression: ColumnEmulator, value_expression: ColumnEmulator
+) -> ColumnEmulator:
+    def get(obj, key):
+        try:
+            if isinstance(obj, list):
+                return obj[key]
+            elif isinstance(obj, dict):
+                return obj.get(key, None)
+            else:
+                return None
+        except KeyError:
+            return None
+
+    # pandas.Series.combine does not work here because it will not allow Nones in int columns
+    result = []
+    for exp, k in zip(column_expression, value_expression):
+        result.append(get(exp, k))
+
+    return ColumnEmulator(
+        result,
+        sf_type=ColumnType(column_expression.sf_type.datatype, True),
+        dtype=object,
+    )
+
+
 @patch("concat")
 def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
     if len(columns) < 1:

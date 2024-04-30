@@ -3770,28 +3770,29 @@ def test_get_path(session, v, k):
     )
 
 
+@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get(col("obj"), col("k"))),
+        [Row("21"), Row(None)],
         sort=False,
     )
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get("obj", "k")),
+        [Row("21"), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
