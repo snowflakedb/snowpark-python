@@ -13,12 +13,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
-from modin.core.dataframe.algebra.default2pandas import (
-    BinaryDefault,
-    DataFrameDefault,
-    GroupByDefault,
-    SeriesDefault,
-)
 from modin.core.storage_formats import BaseQueryCompiler
 from numpy import dtype
 from pandas._libs import lib
