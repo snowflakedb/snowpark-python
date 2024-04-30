@@ -11,5 +11,6 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 
    snowpark/session
    snowpark/index
+   modin/index
 
 :ref:`genindex`
