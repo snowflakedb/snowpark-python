@@ -998,7 +998,9 @@ class Series(BasePandasDataset):
         Compute the dot product between the Series and the columns of `other`.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()  # pragma: no cover
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support 'dot' binary operation"
+        )
 
         if isinstance(other, BasePandasDataset):
             common = self.index.union(other.index)
