@@ -677,7 +677,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if kwargs:
             args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
         ErrorMessage.not_implemented(
-            f"{object_type}.{fn_name}({args_str}) is not yet available in Snowpark pandas API"
+            f"Snowpark pandas doesn't yet support {object_type}.{fn_name}({args_str}"
         )
 
     @classmethod
