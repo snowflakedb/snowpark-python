@@ -450,8 +450,8 @@ class Lineage:
                 - depth (int): The depth of the lineage tracing.
 
             Example:
-                >>> current_db = session.get_current_database()
-                >>> current_schema = session.get_current_schema()
+                >>> db = session.get_current_database()
+                >>> schema = session.get_current_schema()
                 >>> session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
                 >>> session.sql(
                 ...     f"CREATE OR REPLACE VIEW {db}.{schema}.V1 AS SELECT * FROM {db}.{schema}.T1"
