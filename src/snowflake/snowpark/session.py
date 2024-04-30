@@ -2772,7 +2772,7 @@ class Session:
                     # we do not validate here
                     object_type = match.group(1)
                     object_name = match.group(2)
-                    setattr(self, f"_active_{object_type}", object_name)
+                    setattr(self._conn, f"_active_{object_type}", object_name)
                 else:
                     self._run_query(query)
             else:
