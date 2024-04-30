@@ -6,6 +6,7 @@
 - Fixed incorrect regex used in `Series.str.contains`.
 - Fixed DataFrame's `__getitem__` with boolean DataFrame key.
 - Fixed incorrect regex used in `DataFrame/Series.replace`.
+- Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in following APIs:
