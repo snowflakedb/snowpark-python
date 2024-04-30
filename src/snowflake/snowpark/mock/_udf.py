@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import sys
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -45,12 +46,13 @@ class MockUDFRegistration(UDFRegistration):
         absolute_module_path, module_name = extract_import_dir_and_module_name(
             file_path, self._session._conn.stage_registry, import_path
         )
-        if udf_name:
+        if absolute_module_path not in sys.path:
             # TODO: check with Sophie, should this just be the path, see case test_udf_cleanup_on_err?
             # pytest ./tests/mock_unit/
-            self._udf_level_imports[udf_name].add(file_path)
-        else:
-            self._session_level_imports.add(file_path)
+            if udf_name:
+                self._udf_level_imports[udf_name].add(absolute_module_path)
+            else:
+                self._session_level_imports.add(absolute_module_path)
 
         return module_name
 
