@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from decimal import Decimal
 from math import sqrt
 from typing import NamedTuple
@@ -10,7 +11,11 @@ from typing import NamedTuple
 import pytest
 
 from snowflake.snowpark import GroupingSets, Row
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    PIVOT_DEFAULT_ON_NULL_WARNING,
+    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+    TempObjectType,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeException,
@@ -39,7 +44,7 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from tests.utils import TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 def test_pivot(session):
@@ -97,7 +102,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-def test_group_by_pivot_dynamic_any(session):
+def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
         .group_by("empid")
@@ -110,6 +115,11 @@ def test_group_by_pivot_dynamic_any(session):
         ],
         sort=False,
     )
+
+    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # Snowpark pandas users don't get warnings about dynamic pivot
+        # features. See SNOW-1344848.
+        assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
 
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -192,6 +202,7 @@ def test_pivot_on_join(session):
 # TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
 # pivot will materialize the data before executing pivot, otherwise would fail with not finding the
 # data when doing a later schema call.
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     original_df = session.create_dataframe(
         [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -291,7 +302,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
-def test_pivot_default_on_none(session):
+def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
         amount: int
@@ -324,6 +335,11 @@ def test_pivot_default_on_none(session):
             ],
             sort=False,
         )
+
+    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # Snowpark pandas users don't get warnings about dynamic pivot
+        # features. See SNOW-1344848.
+        assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
 @pytest.mark.localtest
@@ -450,7 +466,7 @@ def test_group_by_grouping_sets(session):
             GroupingSets([col("radio_license")]),
         )  # duplicated column is removed in the result
         .agg(col("radio_license"))
-        .sort(col("radio_license")),
+        .sort(col("radio_license"), col("medical_license")),
         [
             Row("LVN", None),
             Row("RN", None),
@@ -471,7 +487,7 @@ def test_group_by_grouping_sets(session):
             ]
         )  # duplicated column is removed in the result
         .agg(col("radio_license").as_("rl"))
-        .sort(col("rl"))
+        .sort(col("rl"), col("medical_license"))
         .select("medical_license", "rl"),
         [
             Row("LVN", None),
@@ -551,18 +567,28 @@ def test_rel_grouped_dataframe_median(session):
 
     expected = [Row("a", 2.0, 22.0), Row("b", 4, 44.0)]
     assert (
-        df1.group_by("key").median(col("value1"), col("value2")).collect() == expected
+        df1.group_by("key")
+        .median(col("value1"), col("value2"))
+        .sort(col("key"))
+        .collect()
+        == expected
     )
     assert (
         df1.group_by("key")
         .agg([median(col("value1")), median(col("value2"))])
+        .sort(col("key"))
         .collect()
         == expected
     )
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").median("value1", "value2").collect() == expected
     assert (
-        df1.group_by("key").agg([median("value1"), median("value2")]).collect()
+        df1.group_by("key").median("value1", "value2").sort("key").collect() == expected
+    )
+    assert (
+        df1.group_by("key")
+        .agg([median("value1"), median("value2")])
+        .sort("key")
+        .collect()
         == expected
     )
 
@@ -1209,12 +1235,14 @@ def test_listagg_within_group(session):
         schema=["v1", "v2", "length", "color", "unused"],
     )
     Utils.check_answer(
-        df.group_by("color").agg(listagg("length", ",").within_group(df.length.asc())),
+        df.group_by("color")
+        .agg(listagg("length", ",").within_group(df.length.asc()))
+        .sort("color"),
         [
+            Row("blue", "14"),
+            Row("green", "11,77"),
             Row("orange", "12"),
             Row("red", "21,24,35"),
-            Row("green", "11,77"),
-            Row("blue", "14"),
         ],
         sort=False,
     )

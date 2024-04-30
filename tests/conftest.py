@@ -9,7 +9,25 @@ from pathlib import Path
 
 import pytest
 
+from snowflake.snowpark._internal.utils import warning_dict
+
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+
+# TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
+excluded_frontend_files = [
+    "accessor.py",
+    "groupby.py",
+    "resample.py",
+    "series_utils.py",
+    "window.py",
+]
+
+
+def is_excluded_frontend_file(path):
+    for excluded in excluded_frontend_files:
+        if str(path).endswith(excluded):
+            return True
+    return False
 
 
 def pytest_addoption(parser):
@@ -22,6 +40,7 @@ def pytest_collection_modifyitems(items) -> None:
     """Applies tags to tests based on folders that they are in."""
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
+    modin_doctest_dir = top_doctest_dir.joinpath("modin/pandas")
     for item in items:
         item_path = Path(str(item.fspath)).parent
         try:
@@ -35,6 +54,10 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
+            elif str(item_path).startswith(str(modin_doctest_dir)):
+                if not is_excluded_frontend_file(item.fspath):
+                    item.add_marker("doctest")
+                    item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
                 raise e
 
@@ -70,3 +93,11 @@ def cte_optimization_enabled(pytestconfig):
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def clear_warning_dict():
+    yield
+    # clear the warning dict so that warnings from one test don't affect
+    # warnings from other tests.
+    warning_dict.clear()

@@ -15,14 +15,10 @@ on:
         tags:
           description: "Test scenario tags"
 
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   lint:
     name: Check linting
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -40,7 +36,7 @@ jobs:
 
   type_checking:
     name: Type Checking
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -59,7 +55,7 @@ jobs:
   build:
     needs: lint
     name: Build Wheel File
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -133,7 +129,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -241,7 +237,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -430,7 +426,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -453,7 +449,7 @@ jobs:
     if: ${{ success() || failure() }}
     name: Combine coverage
     needs: test
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -501,7 +497,7 @@ jobs:
   doc:
     needs: lint
     name: Build Doc
-    runs-on: ubuntu-latest-64-cores
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

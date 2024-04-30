@@ -189,6 +189,7 @@ from snowflake.snowpark.functions import (
     to_geometry,
     to_json,
     to_object,
+    to_time,
     to_timestamp,
     to_timestamp_ltz,
     to_timestamp_ntz,
@@ -300,30 +301,36 @@ def test_covariance(session, k, v1, v2):
 
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
-        kurtosis(col("X")), kurtosis(col("Y")), kurtosis(col("Z"))
+        to_double(kurtosis(col("X"))),
+        to_double(kurtosis(col("Y"))),
+        to_double(kurtosis(col("Z"))),
     )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
     # same as above, but pass str instead of Column
-    df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
+    df = TestData.xyz(session).select(
+        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z"))
+    )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
 
@@ -357,12 +364,14 @@ def test_skew(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
         xyz.select(skew(col("X")), skew(col("Y")), skew(col("Z"))),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
     # same as above, but pass str instead of Column
     Utils.check_answer(
         xyz.select(skew("X"), skew("Y"), skew("Z")),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
 
 
@@ -1288,6 +1297,73 @@ def test_to_timestamp(session):
 
 
 @pytest.mark.localtest
+def test_to_time(session, local_testing_mode):
+    # basic string expr
+    df = TestData.time_primitives1(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+        ],
+    )
+
+    # string expr with format
+    df = TestData.time_primitives2(session)
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH12.MI-SS PM") for column in df.columns]),
+        [
+            Row(time(13, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(12, 55, 19)),
+        ],
+    )
+
+    # timestamp
+    df = TestData.time_primitives3(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(12, 13, 14)),
+            Row(time(20, 21, 22)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+        ],
+    )
+
+    # variant type
+    df = TestData.time_primitives4(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(21, 20, 19)),
+            Row(
+                None,
+            ),
+            Row(time(1, 2, 3)),
+        ],
+    )
+
+    # variant data
+
+    # invalid input for string expr with format
+    # TODO: local test error experience SNOW-1235716
+    # currently local testing throws ValueError while live connection throws SQLException
+    with pytest.raises(ValueError if local_testing_mode else SnowparkSQLException):
+        df = session.create_dataframe([("asdfgh",), ("qwerty",)]).to_df("a")
+        Utils.check_answer(
+            df.select(to_time("A", "HH12.MI-SS PM")),
+            [
+                Row(time(13, 2, 3)),
+                Row(time(22, 33, 44)),
+            ],
+        )
+
+
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1533,21 +1609,45 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
+@pytest.mark.localtest
 def test_to_date(session):
-    df = session.sql("select * from values('2020-05-11') as T(a)")
-    Utils.check_answer(df.select(to_date(col("A"))), [Row(date(2020, 5, 11))])
+    expected1 = expected2 = [
+        Row(date(2023, 3, 16)),
+        Row(date(2010, 7, 30)),
+        Row(date(2024, 4, 18)),
+    ]
+    expected3 = [
+        Row(date(2024, 4, 18)),
+        Row(None),
+        Row(date(2024, 6, 3)),
+        Row(date(2000, 3, 21)),
+        Row(date(2025, 12, 31)),
+    ]
+    # string type, timestamp type and variant type
+    for df, expected in zip(
+        [
+            TestData.date_primitives1(session),
+            TestData.date_primitives2(session),
+            TestData.date_primitives3(session),
+        ],
+        [expected1, expected2, expected3],
+    ):
+        Utils.check_answer(
+            df.select(*[to_date(column) for column in df.columns]), expected
+        )
+        Utils.check_answer(
+            df.select(*[to_date(col(column)) for column in df.columns]), expected
+        )
 
-    # same as above, but pass str instead of Column
-    Utils.check_answer(df.select(to_date("A")), [Row(date(2020, 5, 11))])
-
-    df = session.sql("select * from values('2020.07.23') as T(a)")
+    expected4 = [
+        Row(date(2024, 4, 18)),
+        Row(date(1999, 9, 1)),
+        Row(date(2024, 10, 29)),
+        Row(date(2015, 5, 15)),
+    ]
+    df = TestData.date_primitives4(session)
     Utils.check_answer(
-        df.select(to_date(col("A"), lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
-    )
-
-    # same as above, but pass str instead of Column
-    Utils.check_answer(
-        df.select(to_date("A", lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
+        df.select(to_date(*[col(column) for column in df.columns])), expected4
     )
 
 
@@ -3465,31 +3565,6 @@ def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
-def test_to_double(session, local_testing_mode):
-    if not local_testing_mode:
-        # Local testing only covers partial implementation of to_double
-        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
-            ["a", "b", "fmt"]
-        )
-
-        Utils.check_answer(
-            df.select(
-                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
-            ),
-            [Row(1.2, -2.34, -2.34)],
-            sort=False,
-        )
-
-    df = session.create_dataframe([["1.2", "-2.34"]]).to_df(["a", "b"])
-
-    Utils.check_answer(
-        df.select(to_double("a"), to_double("b")),
-        [Row(1.2, -2.34)],
-        sort=False,
-    )
-
-
 def test_to_array(session):
     integer1 = TestData.integer1(session)
     Utils.check_answer(
@@ -3704,28 +3779,29 @@ def test_get_path(session, v, k):
     )
 
 
+@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get(col("obj"), col("k"))),
+        [Row("21"), Row(None)],
         sort=False,
     )
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get("obj", "k")),
+        [Row("21"), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 

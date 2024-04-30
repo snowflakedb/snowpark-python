@@ -188,6 +188,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
+from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     validate_object_name,
@@ -200,7 +201,10 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.stored_procedure import StoredProcedure
+from snowflake.snowpark.stored_procedure import (
+    StoredProcedure,
+    StoredProcedureRegistration,
+)
 from snowflake.snowpark.types import (
     DataType,
     FloatType,
@@ -209,9 +213,9 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
 )
-from snowflake.snowpark.udaf import UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UserDefinedFunction
-from snowflake.snowpark.udtf import UserDefinedTableFunction
+from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
+from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
+from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -7047,6 +7051,8 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7131,6 +7137,8 @@ def udf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDF result is deterministic or not for the same input.
+        comment: Adds a comment for the created object object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7198,10 +7206,21 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7220,9 +7239,11 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7242,6 +7263,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7265,6 +7288,8 @@ def udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -7335,6 +7360,8 @@ def udtf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDTF result is deterministic or not for the same input.
+        comment: Adds a comment for the created object object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7414,10 +7441,21 @@ def udtf(
         >>> session.table_function("alt_int", lit(1)).collect()
         [Row(NUMBER=1)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             name=name,
@@ -7434,9 +7472,11 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7454,6 +7494,8 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7475,6 +7517,8 @@ def udaf(
     immutable: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7545,6 +7589,8 @@ def udaf(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        comment: Adds a comment for the created object object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7632,10 +7678,21 @@ def udaf(
         >>> df.agg(PythonSumUDAF("a")).collect()
         [Row(SUM_INT("A")=6)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udaf_registration_method = UDAFRegistration(session=session).register
+    else:
+        udaf_registration_method = session.udaf.register
+
     if handler is None:
         return functools.partial(
-            session.udaf.register,
+            udaf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7650,9 +7707,11 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udaf.register(
+        return udaf_registration_method(
             handler,
             return_type=return_type,
             input_types=input_types,
@@ -7668,6 +7727,8 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7693,6 +7754,8 @@ def pandas_udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -7744,10 +7807,21 @@ def pandas_udf(
         ------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7767,9 +7841,11 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7790,6 +7866,8 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7815,6 +7893,8 @@ def pandas_udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     max_batch_size: Optional[int] = None,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7898,10 +7978,21 @@ def pandas_udtf(
         -----------------------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             input_names=input_names,
@@ -7920,9 +8011,11 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7942,6 +8035,8 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -8111,6 +8206,7 @@ def sproc(
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -8189,6 +8285,8 @@ def sproc(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        comment: Adds a comment for the created object object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -8244,10 +8342,23 @@ def sproc(
         >>> add_sp(1, 1)
         2
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        sproc_registration_method = StoredProcedureRegistration(
+            session=session
+        ).register
+    else:
+        sproc_registration_method = session.sproc.register
+
     if func is None:
         return functools.partial(
-            session.sproc.register,
+            sproc_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -8264,10 +8375,11 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             **kwargs,
         )
     else:
-        return session.sproc.register(
+        return sproc_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -8285,6 +8397,7 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             **kwargs,
         )
 
