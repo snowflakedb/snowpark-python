@@ -81,7 +81,7 @@ STRUCTURED_TYPES_EXAMPLES = {
         """
             select
               object_construct('k1', 1) :: map(varchar, int) as map,
-              object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
+              object_construct('A', 'foo', 'B', 0.05) :: object(A varchar, B float) as obj,
               [1.0, 3.1, 4.5] :: array(float) as arr
             """,
         [
@@ -312,8 +312,8 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
     df = session.sql(query)
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
-        df.obj["a"].alias("a"),
-        col("obj")["b"].alias("b"),
+        df.obj["A"].alias("a"),
+        col("obj")["B"].alias("b"),
         df.arr[0].alias("value2"),
         df.arr[1].alias("value3"),
         col("arr")[2].alias("value4"),
@@ -350,7 +350,7 @@ def test_structured_dtypes_pandas(session, query, expected_dtypes, expected_sche
     if IS_STRUCTURED_TYPES_SUPPORTED:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":{"k1":1.0}},"OBJ":{"0":{"a":"foo","b":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
+            == '{"MAP":{"0":[["k1",1.0]]},"OBJ":{"0":{"A":"foo","B":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
         )
     else:
         assert (
@@ -359,6 +359,9 @@ def test_structured_dtypes_pandas(session, query, expected_dtypes, expected_sche
         )
 
 
+@pytest.mark.skip(
+    "SNOW-1356851: Skipping until iceberg testing infrastructure is added."
+)
 @pytest.mark.skipif(
     not (IS_STRUCTURED_TYPES_SUPPORTED and IS_ICEBERG_SUPPORTED),
     reason="Test requires iceberg support and structured type support.",
@@ -395,6 +398,9 @@ def test_structured_dtypes_iceberg(session, query, expected_dtypes, expected_sch
         session.sql(f"drop table if exists {table_name}")
 
 
+@pytest.mark.skip(
+    "SNOW-1356851: Skipping until iceberg testing infrastructure is added."
+)
 @pytest.mark.skipif(
     not (IS_STRUCTURED_TYPES_SUPPORTED and IS_ICEBERG_SUPPORTED),
     reason="Test requires iceberg support and structured type support.",

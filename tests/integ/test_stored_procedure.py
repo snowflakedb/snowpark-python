@@ -351,7 +351,9 @@ def test_stored_procedure_with_structured_returns(session):
         [
             StructField("VEC", VectorType(int, 5), nullable=True),
             StructField(
-                "MAP", MapType(StringType(16777216), LongType()), nullable=True
+                "MAP",
+                MapType(StringType(16777216), LongType(), structured=True),
+                nullable=True,
             ),
             StructField(
                 "OBJ",
@@ -359,11 +361,12 @@ def test_stored_procedure_with_structured_returns(session):
                     [
                         StructField("A", StringType(16777216), nullable=True),
                         StructField("B", DoubleType(), nullable=True),
-                    ]
+                    ],
+                    structured=True,
                 ),
                 nullable=True,
             ),
-            StructField("ARR", ArrayType(DoubleType()), nullable=True),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
         ]
     )
 
