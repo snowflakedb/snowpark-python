@@ -46,9 +46,11 @@ class MockUDFRegistration(UDFRegistration):
             file_path, self._session._conn.stage_registry, import_path
         )
         if udf_name:
-            self._udf_level_imports[udf_name].add(absolute_module_path)
+            # TODO: check with Sophie, should this just be the path, see case test_udf_cleanup_on_err?
+            # pytest ./tests/mock_unit/
+            self._udf_level_imports[udf_name].add(file_path)
         else:
-            self._session_level_imports.add(absolute_module_path)
+            self._session_level_imports.add(file_path)
 
         return module_name
 

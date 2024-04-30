@@ -26,9 +26,8 @@ try:
 except ImportError:
     REQUESTS_AVAILABLE = False
 
-# 3 seconds setting in the connector oob could be too short that the oob service is unable to handle the request,
-# 5 seconds is more tolerant
-REQUEST_TIMEOUT = 5
+# the REQUEST_TIMEOUT affects user development experience
+REQUEST_TIMEOUT = 2
 
 logger = logging.getLogger(__name__)
 

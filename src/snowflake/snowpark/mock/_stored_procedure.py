@@ -215,9 +215,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         if sproc_name:
-            self._sproc_level_imports[sproc_name].add(absolute_module_path)
+            self._sproc_level_imports[sproc_name].add(file_path)
         else:
-            self._session_level_imports.add(absolute_module_path)
+            self._session_level_imports.add(file_path)
 
         return module_name
 
