@@ -86,6 +86,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -508,8 +509,10 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
+        ast_stmt: Optional[Any] = None,
     ) -> None:
         self._session = session
+        self._ast_stmt = ast_stmt
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -1316,17 +1319,29 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr
+        ast.sp_dataframe_filter.df.sp_dataframe_ref.id.CopyFrom(self._ast_stmt.var_id)
+        if isinstance(expr, Column):
+            pass  # TODO
+        elif isinstance(expr, str):
+            ast.sp_dataframe_filter.condition.sp_column_sql_expr.sql = expr
+        else:
+            assert False, f"Unexpected type of {expr}: {type(expr)}"
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
-                )
+                ),
+                ast_stmt=stmt
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
-            )
+            ),
+            ast_stmt=stmt
         )
 
     @df_api_usage
@@ -3285,6 +3300,22 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
+        # TODO: A little hack to prevent infinite recursion.
+        if not "snowpark_coprocessor" in query:
+            # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+            repr = self._session._ast_batch.assign()
+            repr.expr.sp_dataframe_show.id.CopyFrom(self._ast_stmt.var_id)
+            self._session._ast_batch.eval(repr)
+            
+            print(f'Original: {self._plan.queries}')
+            print(f'AST: {self._session._ast_batch._request}')
+            
+            ast = self._session._ast_batch.flush()
+            # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
+            preview_sql = f"select system$snowpark_coprocessor('{ast}')"
+            # print(f'Base 64: {preview_sql}')
+            self._session.sql(preview_sql).show()
+
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
                 self.limit(n)._plan, **kwargs
@@ -4093,8 +4124,8 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan) -> "DataFrame":
-        df = DataFrame(self._session, plan)
+    def _with_plan(self, plan, ast_stmt=None) -> "DataFrame":
+        df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
         df._statement_params = self._statement_params
         return df
 
