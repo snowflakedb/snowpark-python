@@ -110,9 +110,6 @@ from snowflake.snowpark.functions import (
     when,
     year,
 )
-from snowflake.snowpark.modin.core.dataframe.algebra.default2pandas import (
-    GroupByDefault,
-)
 from snowflake.snowpark.modin.plugin._internal import (
     concat_utils,
     generator_utils,
@@ -2471,36 +2468,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
 
-        can_be_distributed = check_is_groupby_supported_by_snowflake(by, level, axis)
-
-        def fallback_ngroups() -> int:
-            """
-            Creates a SnowflakeQueryCompiler through a fallback operation,
-            whose snowpark dataframe holds the result of the ngroups operation.
-            The snowpark dataframe has the form of [Row('0'=<ngroups_value>, ...)]
-            and we call collect to return this result. Please note that this will
-            trigger an eager evaluation.
-            """
-            query_compiler: SnowflakeQueryCompiler = GroupByDefault.register(
-                native_pd.core.groupby.DataFrameGroupBy.ngroups
-            )(
-                self,
-                by=by,
-                axis=axis,
-                groupby_kwargs=groupby_kwargs,
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
             )
-            ngroups_result = query_compiler._modin_frame.ordered_dataframe.collect()
-            return ngroups_result[0]["0"]
-
-        if not can_be_distributed:
-            return fallback_ngroups()
 
         query_compiler = get_frame_with_groupby_columns_as_index(
             self, by, level, dropna
         )
 
         if query_compiler is None:
-            return fallback_ngroups()
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+            )
 
         internal_frame = query_compiler._modin_frame
 
@@ -2571,22 +2552,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         level = groupby_kwargs.get("level", None)
-        can_be_distributed = check_is_groupby_supported_by_snowflake(
+        is_supported = check_is_groupby_supported_by_snowflake(
             by, level, axis
         ) and check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
 
-        def register_default_to_pandas() -> SnowflakeQueryCompiler:
-            return GroupByDefault.register(GroupByDefault.get_aggregation_method(how))(
-                self,
-                by=by,
-                agg_func=agg_func,
-                axis=axis,
-                groupby_kwargs=groupby_kwargs,
-                agg_args=agg_args,
-                agg_kwargs=agg_kwargs,
-            )
-
-        if not can_be_distributed:
+        if not is_supported:
             if agg_func in ["head", "tail"]:
                 # head and tail cannot be run per column - it is run on the
                 # whole table at once.
@@ -2598,7 +2568,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=agg_kwargs.get("dropna", True),
                 )
             else:
-                return register_default_to_pandas()
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -2611,7 +2583,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         if query_compiler is None:
-            return register_default_to_pandas()
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
 
         by_list = query_compiler._modin_frame.index_column_pandas_labels
 

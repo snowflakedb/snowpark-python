@@ -29,6 +29,7 @@
   - `DataFrame/Series.fillna` if given the `limit` or `downcast` parameter.
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
+  - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
 
 ## 1.14.0a2 (2024-04-18)
 
