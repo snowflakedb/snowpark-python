@@ -14,9 +14,7 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.StrDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.StrDefault.register")
 def test_str_cat_no_others(mock_str_register, mock_series):
     result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
     result_query_compiler.to_pandas.return_value = native_pd.DataFrame(["abc"])
@@ -27,9 +25,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     assert res == "abc"
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.StrDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.StrDefault.register")
 @pytest.mark.parametrize(
     "func, func_name",
     [
@@ -85,9 +81,7 @@ def test_str_methods_with_series_return(
     assert res._query_compiler == mock_single_col_query_compiler, func_name
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.StrDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.StrDefault.register")
 @pytest.mark.parametrize(
     "func, func_name",
     [
