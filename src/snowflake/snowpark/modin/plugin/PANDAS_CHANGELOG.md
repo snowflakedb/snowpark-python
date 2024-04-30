@@ -30,6 +30,7 @@
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
   - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
+- Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
 
 ## 1.14.0a2 (2024-04-18)
 
