@@ -1337,43 +1337,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Whether elements in `BasePandasDataset` are contained in `values`.
         """
 
-    def isna():
-        """
-        Detect missing values for an array-like object.
-
-        This function takes a scalar or array-like object and indicates whether values are missing (NaN in numeric
-        arrays, None or NaN in object arrays, NaT in datetimelike).
-
-        Parameters
-        ----------
-        obj : scalar or array-like
-                Object to check for null or missing values.
-
-        Returns
-        -------
-        bool or array-like of bool
-            For scalar input, returns a scalar boolean. For array input, returns an array of boolean indicating whether
-            each corresponding element is missing.
-
-        Examples
-        --------
-        >>> df = pd.DataFrame([['ant', 'bee', 'cat'], ['dog', None, 'fly']])
-        >>> df
-             0     1    2
-        0  ant   bee  cat
-        1  dog  None  fly
-        >>> df.isna()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        >>> df.isnull()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        """
-
-    isnull = isna
-
     @property
     def iloc():
         """

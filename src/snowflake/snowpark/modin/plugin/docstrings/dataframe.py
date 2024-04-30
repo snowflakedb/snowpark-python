@@ -1750,72 +1750,70 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
     def isna():
         """
-        Detect missing values for an array-like object.
+        Detect missing values.
 
-        This function takes a scalar or array-like object and indicates whether values are missing (NaN in numeric
-        arrays, None or NaN in object arrays, NaT in datetimelike).
-
-        Parameters
-        ----------
-        obj : scalar or array-like
-                Object to check for null or missing values.
+        Return a boolean same-sized object indicating if the values are NA. NA values, such as None
+        or `numpy.NaN`, gets mapped to True values. Everything else gets mapped to False values.
+        Characters such as empty strings `''` or `numpy.inf` are not considered NA values.
 
         Returns
         -------
-        bool or array-like of bool
-            For scalar input, returns a scalar boolean. For array input, returns an array of boolean indicating whether
-            each corresponding element is missing.
+        DataFrame
+            Mask of bool values for each element in DataFrame that indicates whether an element is an NA value.
 
         Examples
         --------
-        >>> df = pd.DataFrame([['ant', 'bee', 'cat'], ['dog', None, 'fly']])
+        >>> df = pd.DataFrame(dict(age=[5, 6, np.nan],
+        ...                   born=[pd.NaT, pd.Timestamp('1939-05-27'),
+        ...                         pd.Timestamp('1940-04-25')],
+        ...                   name=['Alfred', 'Batman', ''],
+        ...                   toy=[None, 'Batmobile', 'Joker']))
         >>> df
-             0     1    2
-        0  ant   bee  cat
-        1  dog  None  fly
+           age       born    name        toy
+        0  5.0        NaT  Alfred       None
+        1  6.0 1939-05-27  Batman  Batmobile
+        2  NaN 1940-04-25              Joker
+
         >>> df.isna()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        >>> df.isnull()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
+             age   born   name    toy
+        0  False   True  False   True
+        1  False  False  False  False
+        2   True  False  False  False
         """
 
     def isnull():
         """
-        Detect missing values for an array-like object.
+        `DataFrame.isnull` is an alias for `DataFrame.isna`.
 
-        This function takes a scalar or array-like object and indicates whether values are missing (NaN in numeric
-        arrays, None or NaN in object arrays, NaT in datetimelike).
+        Detect missing values.
 
-        Parameters
-        ----------
-        obj : scalar or array-like
-                Object to check for null or missing values.
+        Return a boolean same-sized object indicating if the values are NA. NA values, such as None
+        or `numpy.NaN`, gets mapped to True values. Everything else gets mapped to False values.
+        Characters such as empty strings `''` or `numpy.inf` are not considered NA values.
 
         Returns
         -------
-        bool or array-like of bool
-            For scalar input, returns a scalar boolean. For array input, returns an array of boolean indicating whether
-            each corresponding element is missing.
+        DataFrame
+            Mask of bool values for each element in DataFrame that indicates whether an element is an NA value.
 
         Examples
         --------
-        >>> df = pd.DataFrame([['ant', 'bee', 'cat'], ['dog', None, 'fly']])
+        >>> df = pd.DataFrame(dict(age=[5, 6, np.nan],
+        ...                   born=[pd.NaT, pd.Timestamp('1939-05-27'),
+        ...                         pd.Timestamp('1940-04-25')],
+        ...                   name=['Alfred', 'Batman', ''],
+        ...                   toy=[None, 'Batmobile', 'Joker']))
         >>> df
-             0     1    2
-        0  ant   bee  cat
-        1  dog  None  fly
+           age       born    name        toy
+        0  5.0        NaT  Alfred       None
+        1  6.0 1939-05-27  Batman  Batmobile
+        2  NaN 1940-04-25              Joker
+
         >>> df.isna()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        >>> df.isnull()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
+             age   born   name    toy
+        0  False   True  False   True
+        1  False  False  False  False
+        2   True  False  False  False
         """
 
     def isetitem():
