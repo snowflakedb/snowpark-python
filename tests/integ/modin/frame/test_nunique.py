@@ -107,19 +107,10 @@ def test_dataframe_unique_dropna_negative():
         df.nunique(dropna=42)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize("dropna", [True, False])
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-def test_dataframe_unique_axis1_fallback(dropna):
+@sql_count_checker(query_count=0)
+def test_dataframe_unique_axis1_not_implemented(dropna):
     df = pd.DataFrame(TEST_DATA, columns=TEST_LABELS)
-    native_df = native_pd.DataFrame(TEST_DATA, columns=TEST_LABELS)
-
-    eval_snowpark_pandas_result(
-        df,
-        native_df,
-        lambda df: df.nunique(axis=1, dropna=dropna),
-    )
+    msg = "Snowpark pandas nunique API doesn't yet support axis == 1"
+    with pytest.raises(NotImplementedError, match=msg):
+        df.nunique(axis=1, dropna=dropna)
