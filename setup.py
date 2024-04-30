@@ -88,7 +88,6 @@ setup(
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
-        "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas",
         "snowflake.snowpark.modin.core.execution.dispatching",
         "snowflake.snowpark.modin.core.execution.dispatching.factories",
         "snowflake.snowpark.modin.pandas",
