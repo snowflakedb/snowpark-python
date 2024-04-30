@@ -599,7 +599,8 @@ class OrderedDataFrame:
         this select has the following restrictions:
         1. To select an existing column, must use column name instead of column expression. For example:
             select(col("a")) is not allowed, but select("a") is allowed. Note: only existing active columns
-            can be selected, includes projected columns, ordering columns and row position column.
+            can be selected, which includes projected columns, ordering columns, row position column and
+            row_count column.
         2. if you want to select a Column object, it must have an alias.
         3. You can't select an aggregated column anymore (e.g., `max("a").as_("a")`).
            To select an aggregated column, use `agg()`.
@@ -793,7 +794,9 @@ class OrderedDataFrame:
             return self
 
         return OrderedDataFrame(
-            self._to_projected_snowpark_dataframe_reference(),
+            self._to_projected_snowpark_dataframe_reference(
+                include_row_count_column=True
+            ),
             projected_column_snowflake_quoted_identifiers=self.projected_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
             # should reset the row position column since ordering is updated
