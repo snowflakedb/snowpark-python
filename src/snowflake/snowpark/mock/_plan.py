@@ -558,11 +558,6 @@ def execute_mock_plan(
             },
             dtype=object,
         )
-        for column_name in table.columns:
-            sf_type = table.sf_types[column_name]
-            table[column_name].sf_type = table.sf_types[column_name]
-            if not isinstance(sf_type.datatype, _NumericType):
-                table.method({"col": column_name}).replace(np.nan, None, inplace=True)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
