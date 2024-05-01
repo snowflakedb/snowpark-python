@@ -2,11 +2,20 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import array_agg, col, lit, parse_json
 from snowflake.snowpark.types import StructField, StructType, VariantType
 from tests.utils import Utils
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getvalue('local_testing_mode')",
+        reason="Table function is not supported in Local Testing",
+    )
+]
 
 
 def test_dataframe_join_table_function(session):
