@@ -33,7 +33,9 @@ from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    pandas_module_level_function_not_implemented,
+)
 from snowflake.snowpark.modin.utils import (
     error_not_implemented_parameter,
     should_parse_header,
@@ -463,6 +465,7 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.query_compiler_cls.from_file("parquet", path, usecols=columns)
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_gbq(
         cls,
         query: str,
@@ -481,9 +484,10 @@ class PandasOnSnowflakeIO(BaseIO):
         progress_bar_type=None,
         max_results=None,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_html(
         cls,
         io,
@@ -504,17 +508,20 @@ class PandasOnSnowflakeIO(BaseIO):
         displayed_only=True,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_clipboard(cls, sep=r"\s+", **kwargs):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_excel(cls, **kwargs):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_hdf(
         cls,
         path_or_buf,
@@ -529,25 +536,28 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_feather(
         cls,
         path,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_stata(
         cls,
         filepath_or_buffer,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_sas(
         cls,
         filepath_or_buffer,
@@ -559,17 +569,19 @@ class PandasOnSnowflakeIO(BaseIO):
         iterator=False,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_pickle(
         cls,
         filepath_or_buffer,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_sql(
         cls,
         sql,
@@ -583,9 +595,10 @@ class PandasOnSnowflakeIO(BaseIO):
         dtype_backend=no_default,
         dtype=None,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_fwf(
         cls,
         filepath_or_buffer,
@@ -598,9 +611,10 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         **kwds,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_sql_table(
         cls,
         table_name,
@@ -613,26 +627,29 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         dtype_backend=no_default,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_sql_query(
         cls,
         sql,
         con,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def read_spss(cls, path, usecols, convert_categoricals, dtype_backend):
-        ErrorMessage.not_implemented()
+        pass
 
     @classmethod
+    @pandas_module_level_function_not_implemented()
     def to_pickle(
         cls,
         obj,
         filepath_or_buffer,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
+        pass
