@@ -29,7 +29,7 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_read_snowflake_basic_query_with_weird_formatting(session):
     # create table
@@ -58,7 +58,7 @@ def test_read_snowflake_basic_query_with_weird_formatting(session):
     assert pdf.values[1].tolist() == BASIC_TYPE_DATA2
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6)
 def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(session):
     # create table
@@ -122,7 +122,7 @@ def test_read_snowflake_basic_query_with_comment_preceding_sql_multiline_string(
     assert pdf.values[1].tolist() == BASIC_TYPE_DATA2
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 @pytest.mark.parametrize("only_nulls", [True, False])
 def test_read_snowflake_query_none_nan_condition(session, only_nulls):
@@ -147,7 +147,7 @@ def test_read_snowflake_query_none_nan_condition(session, only_nulls):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "col_name_and_alias_tuple", VALID_SNOWFLAKE_COLUMN_NAMES_AND_ALIASES
 )
@@ -167,7 +167,7 @@ def test_read_snowflake_query_aliased_columns(session, col_name_and_alias_tuple)
     )
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "col_name_and_alias_tuple", VALID_SNOWFLAKE_COLUMN_NAMES_AND_ALIASES
 )
@@ -253,7 +253,7 @@ def test_read_snowflake_query_with_index_col_and_columns_overlap(session):
     assert pdf.index.name == "index_col"
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_read_snowflake_query_additional_derived_column(session):
     # create table
@@ -342,7 +342,7 @@ def test_read_snowflake_query_table_bad_sql_negative(bad_sql) -> None:
     assert ex.value.error_code == SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6, join_count=2)
 def test_read_snowflake_query_complex_query_with_join(session):
     # create table
@@ -371,7 +371,7 @@ def test_read_snowflake_query_complex_query_with_join(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=7)
 def test_read_snowflake_query_connect_by(session):
     # create table

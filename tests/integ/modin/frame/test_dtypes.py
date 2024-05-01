@@ -37,7 +37,7 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
     assert snowpark_dtypes[0] == snowpark_type
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "dataframe_input, input_dtype, expected_dtype, logical_dtype",
     [
