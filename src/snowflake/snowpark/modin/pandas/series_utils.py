@@ -1341,14 +1341,6 @@ class DatetimeProperties:
         return Series(query_compiler=self._query_compiler.dt_nanosecond())
 
     @property
-    def week(self):
-        return Series(query_compiler=self._query_compiler.dt_week())
-
-    @property
-    def weekofyear(self):
-        return Series(query_compiler=self._query_compiler.dt_weekofyear())
-
-    @property
     def dayofweek(self):
         return Series(query_compiler=self._query_compiler.dt_dayofweek())
 
