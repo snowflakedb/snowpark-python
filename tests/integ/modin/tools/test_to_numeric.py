@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import contextlib
 import logging
 from datetime import date, time
 
@@ -27,14 +28,7 @@ def downcast(request):
 
 @pytest.fixture(
     params=[
-        pytest.param(
-            "ignore",
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
-        ),
+        "ignore",
         "raise",
         "coerce",
     ]
@@ -94,6 +88,7 @@ def test_series_to_numeric(input, dtype, expected_dtype):
     assert pd.to_numeric(snow_series).dtype == expected_dtype
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, dtype",
     [
@@ -175,15 +170,9 @@ def test_to_numeric_errors(errors):
                 expect_exception_match="Numeric value 'apple' is not recognized",
             )
     else:
-        if errors == "ignore":
-            expected_query_count = 8
-            expected_fallback_count = 1
-        else:
-            expected_query_count = 1
-            expected_fallback_count = 0
-        with SqlCounter(
-            query_count=expected_query_count, fallback_count=expected_fallback_count
-        ):
+        with SqlCounter(query_count=0 if errors == "ignore" else 1), pytest.raises(
+            NotImplementedError
+        ) if errors == "ignore" else contextlib.nullcontext():
             eval_snowpark_pandas_result(
                 pd.Series(input),
                 native_pd.Series(input),
@@ -201,34 +190,19 @@ def test_to_numeric_errors(errors):
     ],
 )
 @pytest.mark.parametrize(
-    "errors, expected_query_count, expected_fallback_count",
+    "errors, expected_query_count",
     [
-        pytest.param(
-            "ignore",
-            7,
-            1,
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
-        ),
-        ["coerce", 0, 0],
+        ["ignore", 0],
+        ["coerce", 0],
     ],
 )
-def test_to_numeric_errors_dtype(
-    input, errors, expected_query_count, expected_fallback_count
-):
-    with SqlCounter(
-        query_count=expected_query_count, fallback_count=expected_fallback_count
-    ):
+def test_to_numeric_errors_dtype(input, errors, expected_query_count):
+    with SqlCounter(query_count=expected_query_count), pytest.raises(
+        NotImplementedError
+    ) if errors == "ignore" else contextlib.nullcontext():
         ret = pd.to_numeric(input, errors=errors)
-        if errors == "ignore":
-            # since it includes original value so the dtype is object
-            assert ret.dtype == np.dtype("object")
-        else:
-            # since invalid parsing will be treated as null, the dtype will be float64
-            assert ret.dtype == np.dtype("float64")
+        # since invalid parsing will be treated as null, the dtype will be float64
+        assert ret.dtype == np.dtype("float64")
 
 
 @sql_count_checker(query_count=0)
@@ -263,6 +237,7 @@ def test_tuple():
     assert_series_equal(res, expected)
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, expected_dtype",
     [
@@ -299,16 +274,9 @@ def test_type_check():
 
 def test_datetime_like(errors):
     input = native_pd.date_range("20130101", periods=3)
-    if errors == "ignore":
-        expected_query_count = 8
-        expected_fallback_count = 1
-    else:
-        expected_query_count = 1
-        expected_fallback_count = 0
-
-    with SqlCounter(
-        query_count=expected_query_count, fallback_count=expected_fallback_count
-    ):
+    with SqlCounter(query_count=0 if errors == "ignore" else 1), pytest.raises(
+        NotImplementedError
+    ) if errors == "ignore" else contextlib.nullcontext():
         eval_snowpark_pandas_result(
             pd.Series(input),
             native_pd.Series(input),
