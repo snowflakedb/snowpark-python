@@ -104,6 +104,7 @@ def test_str_startswith_endswith_invlaid_na(func, na):
         "%_.*?|&^$",
         r"x.[za]",
         r"(.?:abc|xyz)[^abcxyz]",
+        r"a|b|c",
     ],
 )
 @pytest.mark.parametrize("case", [True, False])
