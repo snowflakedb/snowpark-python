@@ -82,14 +82,14 @@ repos:
       - id: mypy
         files: >
           (?x)^(
-            src/snowflake/snowpark/modin/pandas/frontend/indexing.py|
-            src/snowflake/snowpark/modin/pandas/frontend/snow_dataframe.py|
-            src/snowflake/snowpark/modin/pandas/frontend/snow_series.py|
-            src/snowflake/snowpark/modin/pandas/translation/_internal/.*\.py|
-            src/snowflake/snowpark/modin/pandas/frontend/snow_partition_iterator.py|
-            src/snowflake/snowpark/modin/pandas/translation/compiler/snowflake_query_compiler.py|
-            src/snowflake/snowpark/modin/pandas/translation/default2pandas/.*\.py|
-            src/snowflake/snowpark/modin/pandas/utils/.*\.py|
+            src/snowflake/snowpark/modin/pandas/indexing.py|
+            src/snowflake/snowpark/modin/pandas/dataframe.py|
+            src/snowflake/snowpark/modin/pandas/series.py|
+            src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
+            src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
+            src/snowflake/snowpark/modin/plugin/compiler/snowflake_query_compiler.py|
+            src/snowflake/snowpark/modin/plugin/default2pandas/.*\.py|
+            src/snowflake/snowpark/modin/plugin/utils/.*\.py|
           )$
         args:
           - --disallow-untyped-calls
