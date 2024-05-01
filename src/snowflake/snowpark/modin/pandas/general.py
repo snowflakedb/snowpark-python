@@ -77,7 +77,10 @@ from snowflake.snowpark.modin.plugin.compiler import BaseQueryCompiler
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    pandas_module_level_function_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
@@ -351,6 +354,7 @@ def merge(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_ordered, apilink="pandas.merge_ordered")
 def merge_ordered(
     left,
@@ -368,8 +372,6 @@ def merge_ordered(
     Perform a merge for ordered data with optional filling/interpolation.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(left, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
     if isinstance(right, DataFrame):
@@ -391,6 +393,7 @@ def merge_ordered(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_asof, apilink="pandas.merge_asof")
 def merge_asof(
     left,
@@ -412,8 +415,6 @@ def merge_asof(
     Perform a merge by key distance.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(left, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
 
@@ -638,14 +639,13 @@ def pivot_table(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.pivot, apilink="pandas.pivot")
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     """
     Return reshaped DataFrame organized by given index / column values.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(data, DataFrame):
         raise ValueError(f"can not pivot with instance of type {type(data)}")
     return data.pivot(index=index, columns=columns, values=values)
@@ -824,6 +824,7 @@ def unique(values) -> np.ndarray:
 
 # Adding docstring since pandas docs don't have web section for this function.
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def value_counts(
     values, sort=True, ascending=False, normalize=False, bins=None, dropna=True
 ):
@@ -851,8 +852,6 @@ def value_counts(
     Series
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     return Series(values).value_counts(
         sort=sort,
         ascending=ascending,
@@ -1761,6 +1760,7 @@ def melt(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.crosstab, apilink="pandas.crosstab")
 def crosstab(
     index,
@@ -1778,8 +1778,6 @@ def crosstab(
     Compute a simple cross tabulation of two (or more) factors.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     pandas_crosstab = pandas.crosstab(
         index,
         columns,
@@ -1797,6 +1795,7 @@ def crosstab(
 
 # Adding docstring since pandas docs don't have web section for this function.
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def lreshape(data: DataFrame, groups, dropna=True, label=None):
     """
     Reshape wide-format data to long. Generalized inverse of ``DataFrame.pivot``.
@@ -1822,8 +1821,6 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
         Reshaped DataFrame.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(data, DataFrame):
         raise ValueError(f"can not lreshape with instance of type {type(data)}")
     return DataFrame(
@@ -1833,6 +1830,7 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
 
 @_inherit_docstrings(pandas.wide_to_long, apilink="pandas.wide_to_long")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def wide_to_long(
     df: DataFrame, stubnames, i, j, sep: str = "", suffix: str = r"\d+"
 ) -> DataFrame:  # noqa: PR01, RT01, D200
@@ -1840,8 +1838,6 @@ def wide_to_long(
     Unpivot a DataFrame from wide to long format.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(df, DataFrame):
         raise ValueError(f"can not wide_to_long with instance of type {type(df)}")
     # ErrorMessage.default_to_pandas("`wide_to_long`")
@@ -1884,6 +1880,7 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
 
 @_inherit_docstrings(pandas.to_datetime, apilink="pandas.to_timedelta")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
     """
     Convert argument to timedelta.
@@ -1892,8 +1889,6 @@ def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
     Returns a Series if and only if arg is provided as a Series.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if isinstance(arg, Series):
         query_compiler = arg._query_compiler.to_timedelta(unit=unit, errors=errors)
         return Series(query_compiler=query_compiler)
