@@ -142,6 +142,7 @@ def test_unsupported_general(general_method, kwargs):
         ["tz_localize", {"tz": ""}],
         ["unstack", {}],
         ["xs", {"key": ""}],
+        ["__dataframe__", {}],
     ],
 )
 def test_unsupported_df(df_method, kwargs):
