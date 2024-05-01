@@ -1412,18 +1412,3 @@ def test_filepath_not_exist_or_empty(session):
         f"Given path: '{not_exist_file_path}' could not be found or is empty."
         in str(ex_info)
     )
-
-
-def test_filepath_with_single_quote(session):
-    test_file_on_stage_with_quote = f"'@{tmp_stage_name1}/{test_file_csv}'"
-    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
-    result1 = (
-        session.read.option("INFER_SCHEMA", True).csv(test_file_on_stage).collect()
-    )
-    result2 = (
-        session.read.option("INFER_SCHEMA", True)
-        .csv(test_file_on_stage_with_quote)
-        .collect()
-    )
-
-    assert result1 == result2

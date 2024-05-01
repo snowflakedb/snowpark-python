@@ -40,7 +40,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.coverage",
-    "sphinx.ext.linkcode",
+    "sphinx.ext.linkcode"
 ]
 
 # -- Options for autodoc --------------------------------------------------
@@ -95,7 +95,6 @@ html_show_sphinx = False
 def linkcode_resolve(domain, info):
     import warnings, inspect, pkg_resources
     import snowflake.snowpark
-
     if domain != "py":
         return None
 
@@ -127,8 +126,10 @@ def linkcode_resolve(domain, info):
             source, lineno = inspect.getsourcelines(obj)
         linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
     except TypeError:
-        linespec = ""
+            linespec = ""
     return (
         f"https://github.com/snowflakedb/snowpark-python/blob/"
         f"v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
     )
+    
+    

@@ -14,6 +14,7 @@ from modin.pandas import DataFrame, Index, MultiIndex, Series
 from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 
@@ -35,21 +36,21 @@ class TestRename:
             "errors",
         }
 
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
     @pytest.mark.parametrize("klass", [Series, DataFrame])
+    @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
     def test_rename_mi(self, klass):
         obj = klass(
             [11, 21, 31],
             index=MultiIndex.from_tuples([("A", x) for x in ["a", "B", "c"]]),
         )
-        msg = "Snowpark pandas rename API is not yet supported for multi-index objects"
-        if klass == DataFrame:
-            with SqlCounter(query_count=0):
-                with pytest.raises(NotImplementedError, match=msg):
-                    obj.rename(["A"])
-        else:
-            with SqlCounter(query_count=2):
-                native_obj = obj.to_pandas()
-                eval_snowpark_pandas_result(obj, native_obj, lambda x: x.rename("A"))
+        # obj.rename(str.lower)
+        native_obj = obj.to_pandas()
+        eval_snowpark_pandas_result(obj, native_obj, lambda x: x.rename(str.lower))
 
     @pytest.fixture(scope="function")
     def snow_float_frame(self, float_frame):
@@ -106,13 +107,16 @@ class TestRename:
             assert_index_equal(renamed.index, Index(["bar", "foo"], name="name"))
             assert renamed.index.name == renamer.index.name
 
-    @sql_count_checker(query_count=0)
-    def test_rename_str_upper_not_implemented(self):
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    def test_rename_str_upper_fallback(self):
         data = {"A": {"foo": 0, "bar": 1}}
-        df = DataFrame(data)
-        msg = "Snowpark pandas rename API doesn't yet support callable mapper"
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(index=str.upper)
+        renamed = DataFrame(data).rename(index=str.upper)
+        assert_index_equal(renamed.index, Index(["FOO2", "BAR2"]))
 
     @pytest.mark.parametrize(
         "args,kwargs",
@@ -133,14 +137,41 @@ class TestRename:
         expected = native_pd.DataFrame({"a": colAData, "b": colBdata})
         assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
-    @sql_count_checker(query_count=0)
-    def test_rename_multiindex_with_level(self):
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+    @sql_count_checker(query_count=22, fallback_count=2, sproc_count=2)
+    def test_rename_multiindex_fallback(self):
         tuples_index = [("foo1", "bar1"), ("foo2", "bar2")]
         tuples_columns = [("fizz1", "buzz1"), ("fizz2", "buzz2")]
         index = MultiIndex.from_tuples(tuples_index, names=["foo", "bar"])
         columns = MultiIndex.from_tuples(tuples_columns, names=["fizz", "buzz"])
         df = DataFrame([(0, 0), (1, 1)], index=index, columns=columns)
+        #
+        # without specifying level -> across all levels
 
+        renamed = df.rename(
+            index={"foo1": "foo3", "bar2": "bar3"},
+            columns={"fizz1": "fizz3", "buzz2": "buzz3"},
+        )
+        new_index = MultiIndex.from_tuples(
+            [("foo3", "bar1"), ("foo2", "bar3")], names=["foo", "bar"]
+        )
+        new_columns = MultiIndex.from_tuples(
+            [("fizz3", "buzz1"), ("fizz2", "buzz3")], names=["fizz", "buzz"]
+        )
+        assert_index_equal(renamed.index, new_index)
+        assert_index_equal(renamed.columns, new_columns)
+        assert renamed.index.names == df.index.names
+        assert renamed.columns.names == df.columns.names
+
+        #
+        # with specifying a level (GH13766)
+
+        # dict
         new_columns = MultiIndex.from_tuples(
             [("fizz3", "buzz1"), ("fizz2", "buzz2")], names=["fizz", "buzz"]
         )
@@ -175,24 +206,12 @@ class TestRename:
         renamed = df.rename(columns=func, level="buzz")
         assert_index_equal(renamed.columns, new_columns)
 
-    @sql_count_checker(query_count=0)
-    def test_rename_multiindex_not_implemented(self):
-        tuples_index = [("foo1", "bar1"), ("foo2", "bar2")]
-        tuples_columns = [("fizz1", "buzz1"), ("fizz2", "buzz2")]
-        index = MultiIndex.from_tuples(tuples_index, names=["foo", "bar"])
-        columns = MultiIndex.from_tuples(tuples_columns, names=["fizz", "buzz"])
-        df = DataFrame([(0, 0), (1, 1)], index=index, columns=columns)
-        # without specifying level -> across all levels
-
-        with pytest.raises(NotImplementedError):
-            df.rename(
-                index={"foo1": "foo3", "bar2": "bar3"},
-                columns={"fizz1": "fizz3", "buzz2": "buzz3"},
-            )
-
-        # specifying level
-        with pytest.raises(NotImplementedError):
-            df.rename(index={"foo1": "foo3", "bar2": "bar3"}, level=0)
+        # index
+        new_index = MultiIndex.from_tuples(
+            [("foo3", "bar1"), ("foo2", "bar2")], names=["foo", "bar"]
+        )
+        renamed = df.rename(index={"foo1": "foo3", "bar2": "bar3"}, level=0)
+        assert_index_equal(renamed.index, new_index)
 
     @sql_count_checker(query_count=2)
     def test_rename_nocopy(self, snow_float_frame):
@@ -313,33 +332,51 @@ class TestRename:
         result = df.rename({"X": "x", "Y": "y"}, axis="index")
         assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
-    @sql_count_checker(query_count=0)
-    def test_rename_axis_style_not_implemented(self):
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+    @sql_count_checker(query_count=24, fallback_count=3, sproc_count=3)
+    def test_rename_axis_style_fallback(self):
         df = DataFrame({"A": [1, 2], "B": [1, 2]}, index=["X", "Y"])
-        msg = "Snowpark pandas rename API doesn't yet support callable mapper"
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(str.lower, axis=0)
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(str.lower, axis="index")
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(mapper=str.lower, axis="index")
+        expected = native_pd.DataFrame({"A": [1, 2], "B": [1, 2]}, index=["x", "y"])
+        result = df.rename(str.lower, axis=0)
+        assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
-    @sql_count_checker(query_count=0)
+        result = df.rename(str.lower, axis="index")
+        assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
+
+        result = df.rename(mapper=str.lower, axis="index")
+        assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
+
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
     def test_rename_mapper_multi(self):
         df = DataFrame({"A": ["a", "b"], "B": ["c", "d"], "C": [1, 2]}).set_index(
             ["A", "B"]
         )
-        msg = "Snowpark pandas rename API is not yet supported for multi-index objects"
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(["X"])
+        result = df.rename(str.upper)
+        expected = df.rename(index=str.upper)
+        assert_frame_equal(result, expected)
 
-    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+        strict=True,
+        raises=RuntimeError,
+    )
+    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
     def test_rename_positional_named(self):
         # https://github.com/pandas-dev/pandas/issues/12392
         df = DataFrame({"a": [1, 2], "b": [1, 2]}, index=["X", "Y"])
-        msg = "Snowpark pandas rename API doesn't yet support callable mapper"
-        with pytest.raises(NotImplementedError, match=msg):
-            df.rename(index=str.lower, columns=str.upper)
+        result = df.rename(index=str.lower, columns=str.upper)
+        expected = native_pd.DataFrame({"A": [1, 2], "B": [1, 2]}, index=["x", "y"])
+        assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
     @sql_count_checker(query_count=0)
     def test_rename_axis_style_raises(self):

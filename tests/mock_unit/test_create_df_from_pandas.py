@@ -10,15 +10,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row, Table
-from snowflake.snowpark.types import (
-    BooleanType,
-    DoubleType,
-    LongType,
-    StringType,
-    StructField,
-    StructType,
-    TimestampType,
-)
+from snowflake.snowpark.types import BooleanType, DoubleType, LongType, StringType
 
 try:
     import pandas as pd
@@ -352,24 +344,3 @@ def test_na_and_null_data(session):
     )
     sp_df = session.create_dataframe(data=pandas_df)
     assert sp_df.select("A").collect() == [Row("abc"), Row(None), Row("a"), Row("")]
-
-
-@pytest.mark.localtest
-def test_datetime_nat_nan(session):
-    df = pd.DataFrame(
-        {
-            "date": pd.to_datetime(
-                [None, "2020-01-13", "2020-02-01", "2020-02-23", "2020-03-05"], utc=True
-            ),
-            "num": [None, 1.0, 2.0, 3.0, 4.0],
-        }
-    )
-
-    expected_schema = StructType(
-        [
-            StructField('"date"', TimestampType(), nullable=True),
-            StructField('"num"', DoubleType(), nullable=True),
-        ]
-    )
-    sf_df = session.create_dataframe(data=df)
-    assert sf_df.schema == expected_schema

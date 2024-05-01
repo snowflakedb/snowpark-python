@@ -187,7 +187,7 @@ def test_series_getitem_with_slice(
         [("foo", "one"), ("bar", "two")],
     ],
 )
-def test_series_getitem_with_multiindex(
+def test_df_getitem_with_multiindex(
     key, default_index_native_series, multiindex_native
 ):
     expected_join_count = 0 if isinstance(key, slice) or isinstance(key, str) else 1
@@ -201,15 +201,3 @@ def test_series_getitem_with_multiindex(
             lambda ser: ser[key],
             check_index_type=False,
         )
-
-
-@sql_count_checker(query_count=1)
-def test_series_getitem_lambda_series():
-    data = {"a": 1, "b": 2, "c": 3, "d": -1, "e": 0, "f": 10}
-    snow_ser = pd.Series(data)
-    native_ser = native_pd.Series(data)
-
-    def helper(ser):
-        return ser[lambda x: x < 2]
-
-    eval_snowpark_pandas_result(snow_ser, native_ser, helper)

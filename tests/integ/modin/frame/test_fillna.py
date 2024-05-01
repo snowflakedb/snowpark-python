@@ -11,6 +11,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -260,12 +261,19 @@ def test_value_scalar_inplace(test_fillna_df):
     )
 
 
-@sql_count_checker(query_count=0)
-def test_value_scalar_limit_not_implemented(test_fillna_df):
-    df = pd.DataFrame(test_fillna_df)
-    msg = "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
-    with pytest.raises(NotImplementedError, match=msg):
-        df.fillna(1, limit=1)
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_value_scalar_limit_fallback(test_fillna_df):
+    eval_snowpark_pandas_result(
+        pd.DataFrame(test_fillna_df),
+        test_fillna_df,
+        lambda df: df.fillna(1, limit=1),
+    )
 
 
 @sql_count_checker(query_count=0)

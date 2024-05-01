@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
 
@@ -12,9 +12,6 @@ for val in "${input_options[@]}"; do
 done
 
 echo "${pip_options[*]}"
-
-# Default to empty, to ensure snowflake_path variable is defined.
-snowflake_path=${snowflake_path:-""}
 
 if [[ -z "${snowflake_path}" ]]; then
   echo "Using Python Connector from PyPI"

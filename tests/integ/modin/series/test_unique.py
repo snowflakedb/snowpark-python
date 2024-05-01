@@ -26,12 +26,7 @@ HOMOGENEOUS_INPUT_DATA_FOR_SERIES = [
     [12.0, 11.999999, 11.999999],
     ["A", "A", "C", "C", "A"],
     [None, "A", None, "B"],
-    pytest.param(
-        native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
-        marks=pytest.mark.xfail(
-            reason="SNOW-1356685: Dtype with unsigned int results in precision error"
-        ),
-    ),
+    native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
     _make_nan_interleaved_float_series(),
 ]
 

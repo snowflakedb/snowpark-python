@@ -32,6 +32,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import _FractionalType, _IntegralType
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
@@ -415,6 +416,12 @@ def test_astype_copy():
     assert s2 is None
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data, expected",
     [
@@ -428,12 +435,10 @@ def test_astype_copy():
         ),
     ],
 )
-@sql_count_checker(query_count=0)
-def test_astype_errors_ignore_not_implemented(data, expected):
-    s1 = pd.Series(data)
-    msg = "Snowpark pandas astype API doesn't yet support errors == 'ignore'"
-    with pytest.raises(NotImplementedError, match=msg):
-        s1.astype("datetime64[ns]", errors="ignore")
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_astype_errors_ignore_fallback(data, expected):
+    s1 = pd.Series(data).astype("datetime64[ns]", errors="ignore")
+    assert_snowpark_pandas_equal_to_pandas(s1, expected)
 
 
 @sql_count_checker(query_count=0)
