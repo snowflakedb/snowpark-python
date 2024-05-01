@@ -336,7 +336,7 @@ for name in _EXTENSION_ATTRS:
 # TODO: https://github.com/modin-project/modin/issues/7233
 # Upstream Modin does not properly render property names in default2pandas warnings, so we need
 # to override DefaultMethod.register.
-import modin.core.dataframe.algebra.default2pandas  # noqa: E402
+import modin.core.dataframe.algebra.default2pandas  # type: ignore  # noqa: E402
 
 import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  # noqa: E402
 
