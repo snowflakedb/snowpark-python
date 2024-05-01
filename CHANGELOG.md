@@ -17,6 +17,7 @@
 ### New Features
 
 - Support stored procedure register with packages given as Python modules.
+- Added snowflake.snowpark.Session.lineage.trace to explore data lineage of snowfake objects.
 - Added support for structured type schema parsing.
 
 ### Local Testing Updates
