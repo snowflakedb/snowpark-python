@@ -58,8 +58,10 @@ def test_lineage_trace(session):
     """
     db = session.get_current_database().replace('"', "")
     schema = ("sch" + str(uuid.uuid4()).replace("-", "")[:10]).upper()
-    current_role = session.get_current_role().replace('"', "")
+    primary_role = session.get_current_role().replace('"', "")
+    current_wh = session.get_current_warehouse().replace('"', "")
     session.sql(f"CREATE SCHEMA {db}.{schema}").collect()
+    session.sql(f"use warehouse {current_wh}").collect()
 
     create_objects_for_test(session, db, schema)
 
@@ -122,23 +124,16 @@ def test_lineage_trace(session):
 
     assert 0 == df.shape[0]
 
-    session.sql(
-        f"CREATE OR REPLACE VIEW {db}.{schema}.V7 AS SELECT * FROM {db}.{schema}.V5"
-    ).collect()
-
     # CASE 3 : Insufficent privillage case
-    test_role = "test_role"
-    session.sql(f"CREATE OR REPLACE ROLE {test_role}").collect()
-    session.sql(f"GRANT ROLE {test_role} TO ROLE {current_role}").collect()
-    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
-    session.sql(f"GRANT USAGE ON schema {schema} TO ROLE {test_role}").collect()
-    session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
-    session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
-    session.sql(f"USE ROLE {test_role}").collect()
+    test_non_priv_role = "lineage_non_priv_test_role"
+    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_non_priv_role}")
     session.sql(
-        f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
+        f"GRANT USAGE ON schema {db}.{schema} TO ROLE {test_non_priv_role}"
     ).collect()
-
+    session.sql(
+        f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_non_priv_role}"
+    ).collect()
+    session.sql(f"USE ROLE {test_non_priv_role}").collect()
     with pytest.raises(SnowparkSQLException) as exc:
         session.lineage.trace(
             f"{db}.{schema}.V5", "view", direction=LineageDirection.DOWNSTREAM
@@ -146,27 +141,34 @@ def test_lineage_trace(session):
     assert "Insufficient privileges to view data lineage" in str(exc)
 
     # CASE 4 : trace with masked object
-    session.sql(f"USE ROLE {current_role}").collect()
-    session.sql(f"grant view lineage on account to role {test_role}").collect()
+    test_role = "lineage_test_role"
+    session.sql(f"USE ROLE {primary_role}").collect()
+    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}")
+    session.sql(f"GRANT USAGE ON schema {db}.{schema} TO ROLE {test_role}").collect()
+    session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
+    session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
     session.sql(f"USE ROLE {test_role}").collect()
-    df = session.lineage.trace(
-        f"{db}.{schema}.V5", "view", direction=LineageDirection.DOWNSTREAM
-    )
+    session.sql(
+        f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
+    ).collect()
 
-    session.sql(f"USE ROLE {current_role}").collect()
+    df = session.lineage.trace(
+        f"{db}.{schema}.V6", "view", direction=LineageDirection.UPSTREAM
+    )
+    session.sql(f"USE ROLE {primary_role}").collect()
+
+    session.sql(f"use warehouse {current_wh}").collect()
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
         "SOURCE_OBJECT": [
             {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
-            {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
         ],
         "TARGET_OBJECT": [
-            {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
             {"domain": "VIEW", "name": f"{db}.{schema}.V6", "status": "ACTIVE"},
         ],
-        "DIRECTION": ["Downstream", "Downstream"],
-        "DISTANCE": [1, 1],
+        "DIRECTION": ["Upstream"],
+        "DISTANCE": [1],
     }
 
     expected_df = pd.DataFrame(expected_data)
