@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import json
 from collections import deque
 from enum import Enum
@@ -382,10 +383,15 @@ class Lineage:
                 f"missing {_ObjectField.STATUS} property."
             )
 
+        dt_utc = datetime.datetime.utcfromtimestamp(
+            int(graph_entity[_ObjectField.CREATED_ON]) / 1000
+        )
+        # ISO 8601 format for UTC
+        formatted_date_iso = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
         user_entity = {
             _ObjectField.NAME: name,
             _ObjectField.DOMAIN: domain,
-            _ObjectField.CREATED_ON: graph_entity[_ObjectField.CREATED_ON],
+            _ObjectField.CREATED_ON: formatted_date_iso,
             _ObjectField.STATUS: graph_entity[_ObjectField.STATUS],
         }
 
@@ -416,7 +422,7 @@ class Lineage:
             [
                 StructField("source_object", VariantType()),
                 StructField("target_object", VariantType()),
-                StructField("lineage", StringType()),
+                StructField("direction", StringType()),
                 StructField("distance", IntegerType()),
             ]
         )
@@ -465,16 +471,16 @@ class Lineage:
                 ...     direction=LineageDirection.DOWNSTREAM
                 ... )
                 >>> df.show()
-                ------------------------------------------------------------------------------------------------------------------------------------------
-                | "SOURCE_OBJECT"                                        | "TARGET_OBJECT"                                    | "LINEAGE"   | "DISTANCE" |
-                ------------------------------------------------------------------------------------------------------------------------------------------
-                | {"createdOn": "1712881232230", "domain": "TABLE",      | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 1          |
-                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.T1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status": |             |            |
-                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |            |
-                | {"createdOn": "1712881232230", "domain": "VIEW",       | {"createdOn": "1712881232230", "domain": "VIEW",   | "Downstream"| 2          |
-                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":     |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V2", "status": |             |            |
-                |  "ACTIVE"}                                             |  "ACTIVE"}                                         |             |            |
-                ------------------------------------------------------------------------------------------------------------------------------------------
+                -------------------------------------------------------------------------------------------------------------------------------------------------
+                | "SOURCE_OBJECT"                                         | "TARGET_OBJECT"                                        | "DIRECTION"   | "DISTANCE" |
+                -------------------------------------------------------------------------------------------------------------------------------------------------
+                | {"createdOn": "2023-11-15T12:30:23Z", "domain": "TABLE",| {"createdOn": "2023-11-15T12:30:23Z", "domain": "VIEW",| "Downstream"  | 1          |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.T1", "status":      |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":     |               |            |
+                |  "ACTIVE"}                                              |  "ACTIVE"}                                             |               |            |
+                | {"createdOn": "2023-11-15T12:30:23Z", "domain": "VIEW", | {"createdOn": "2023-11-15T12:30:23Z", "domain": "VIEW",| "Downstream"  | 2          |
+                |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V1", "status":      |  "name": "YOUR_DATABASE.YOUR_SCHEMA.V2", "status":     |               |            |
+                |  "ACTIVE"}                                              |  "ACTIVE"}                                             |               |            |
+                -------------------------------------------------------------------------------------------------------------------------------------------------
                 <BLANKLINE>
         """
         if distance < _MIN_TRACE_DISTANCE or distance > _MAX_TRACE_DISTANCE:

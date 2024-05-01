@@ -90,7 +90,7 @@ def test_lineage_trace(session):
         f"{db}.{schema}.T1",
         "table",
         direction=LineageDirection.DOWNSTREAM,
-        depth=4,
+        distance=4,
     )
     df = remove_created_on_field(df.to_pandas())
 
@@ -107,8 +107,8 @@ def test_lineage_trace(session):
             {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "ACTIVE"},
             {"domain": "VIEW", "name": f"{db}.{schema}.V4", "status": "ACTIVE"},
         ],
-        "LINEAGE": ["Downstream", "Downstream", "Downstream", "Downstream"],
-        "DEPTH": [1, 2, 3, 4],
+        "DIRECTION": ["Downstream", "Downstream", "Downstream", "Downstream"],
+        "DISTANCE": [1, 2, 3, 4],
     }
 
     expected_df = pd.DataFrame(expected_data)
@@ -129,8 +129,8 @@ def test_lineage_trace(session):
             {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"},
             {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "ACTIVE"},
         ],
-        "LINEAGE": ["Upstream", "Downstream", "Downstream"],
-        "DEPTH": [1, 1, 2],
+        "DIRECTION": ["Upstream", "Downstream", "Downstream"],
+        "DISTANCE": [1, 1, 2],
     }
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
@@ -139,7 +139,7 @@ def test_lineage_trace(session):
         f"{db}.{schema}.nonexistant",
         "table",
         direction="downstream",
-        depth=3,
+        distance=3,
     ).to_pandas()
 
     assert 0 == df.shape[0]
@@ -165,8 +165,8 @@ def test_lineage_trace(session):
             {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
             {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
         ],
-        "LINEAGE": ["Downstream", "Downstream"],
-        "DEPTH": [1, 2],
+        "DIRECTION": ["Downstream", "Downstream"],
+        "DISTANCE": [1, 2],
     }
 
     expected_df = pd.DataFrame(expected_data)
@@ -188,10 +188,10 @@ def test_lineage_trace(session):
         "TARGET_OBJECT": [
             {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"}
         ],
-        "LINEAGE": [
+        "DIRECTION": [
             "Downstream",
         ],
-        "DEPTH": [1],
+        "DISTANCE": [1],
     }
 
     expected_df = pd.DataFrame(expected_data)
@@ -203,7 +203,7 @@ def test_lineage_trace(session):
         session.lineage.trace(
             object_domain="table",
             direction=LineageDirection.DOWNSTREAM,
-            depth=3,
+            distance=3,
         )
     assert "missing 1 required positional argument: 'object_name'" in str(exc)
 
@@ -211,7 +211,7 @@ def test_lineage_trace(session):
         session.lineage.trace(
             object_name="table1",
             direction=LineageDirection.DOWNSTREAM,
-            depth=3,
+            distance=3,
         )
     assert "missing 1 required positional argument: 'object_domain'" in str(exc)
 
@@ -220,7 +220,7 @@ def test_lineage_trace(session):
             f"{db}.{schema}.T1",
             "table",
             direction="invalid",
-            depth=4,
+            distance=4,
         )
     assert "'LineageDirection' enum not found for" in str(exc)
 
@@ -228,14 +228,14 @@ def test_lineage_trace(session):
         session.lineage.trace(
             f"{db}.{schema}.T1",
             "table",
-            depth=-1,
+            distance=-1,
         )
-    assert "Depth must be between 1 and 5." in str(exc)
+    assert "Distance must be between 1 and 5." in str(exc)
 
     with pytest.raises(ValueError) as exc:
         session.lineage.trace(
             f"{db}.{schema}.T1",
             "table",
-            depth=-11,
+            distance=-11,
         )
-    assert "Depth must be between 1 and 5." in str(exc)
+    assert "Distance must be between 1 and 5." in str(exc)
