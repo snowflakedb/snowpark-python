@@ -3312,9 +3312,11 @@ class DataFrame:
             
             ast = self._session._ast_batch.flush()
             # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
-            preview_sql = f"select system$snowpark_coprocessor('{ast}')"
+            # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
             # print(f'Base 64: {preview_sql}')
-            self._session.sql(preview_sql).show()
+            # self._session.sql(preview_sql).show()
+            res = self._session._conn.ast_query(ast)
+            print(f"AST response: {res}")
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
