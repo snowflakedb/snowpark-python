@@ -170,6 +170,7 @@ def test_value_type_mismatch_index_type(name, indices_dict):
             )
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_basic_type_data():
     check_result_from_and_to_pandas(
@@ -186,6 +187,7 @@ def test_basic_type_data():
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @sql_count_checker(query_count=1)
 def test_base_index():
     # base class index (appears sometimes as well!)
@@ -214,6 +216,7 @@ def test_base_index_with_variant_data(data, index, columns):
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @pytest.mark.parametrize("col_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_column_name(col_name):
@@ -223,6 +226,7 @@ def test_column_name(col_name):
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_index_name(index_name):
@@ -252,6 +256,7 @@ def test_to_pandas_column_index_names(name):
     assert pdf.columns.names == [name]
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @sql_count_checker(query_count=1)
 def test_from_to_pandas_datetime64_support():
     # This test verifies the datetime64 columns and index conversions, including from and to pandas.
