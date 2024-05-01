@@ -1476,33 +1476,6 @@ class BaseQueryCompiler(abc.ABC):
         """
         return DataFrameDefault.register(pandas.DataFrame.melt)(self, *args, **kwargs)
 
-    @doc_utils.add_refer_to("DataFrame.sort_values")
-    def sort_columns_by_row_values(self, rows, ascending=True, **kwargs):  # noqa: PR02
-        """
-        Reorder the columns based on the lexicographic order of the given rows.
-
-        Parameters
-        ----------
-        rows : label or list of labels
-            The row or rows to sort by.
-        ascending : bool, default: True
-            Sort in ascending order (True) or descending order (False).
-        kind : {"quicksort", "mergesort", "heapsort"}
-        na_position : {"first", "last"}
-        ignore_index : bool
-        key : callable(pandas.Index) -> pandas.Index, optional
-        **kwargs : dict
-            Serves the compatibility purpose. Does not affect the result.
-
-        Returns
-        -------
-        BaseQueryCompiler
-            New QueryCompiler that contains result of the sort.
-        """
-        return DataFrameDefault.register(pandas.DataFrame.sort_values)(
-            self, by=rows, axis=1, ascending=ascending, **kwargs
-        )
-
     # END Abstract map across rows/columns
 
     # Map across rows/columns
@@ -3609,13 +3582,6 @@ class BaseQueryCompiler(abc.ABC):
         return StrDefault.register(pandas.Series.str.cat)(
             self, others, sep, na_rep, join
         )
-
-    @doc_utils.doc_str_method(
-        refer_to="casefold",
-        params="",
-    )
-    def str_casefold(self):
-        return StrDefault.register(pandas.Series.str.casefold)(self)
 
     @doc_utils.doc_str_method(refer_to="__getitem__", params="key : object")
     def str___getitem__(self, key):

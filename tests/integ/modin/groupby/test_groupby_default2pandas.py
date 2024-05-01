@@ -11,15 +11,7 @@ import pytest
 from pandas._typing import Frequency
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
-from tests.integ.modin.groupby.test_groupby_ngroups import assert_ngroups_equal
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import (
-    assert_frame_equal,
-    create_test_dfs,
-    eval_snowpark_pandas_result,
-)
 
 
 def getTimeSeriesData(nper=30, freq: Frequency = "B") -> dict[str, native_pd.Series]:
@@ -41,13 +33,8 @@ def tsframe() -> native_pd.DataFrame:
     return makeTimeDataFrame()[:5]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize("group_name", ["x", ["x"]])
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_axis_1(group_name):
     pandas_df = native_pd.DataFrame(
         np.arange(12).reshape(3, 4), index=[0, 1, 0], columns=["a", "b", "a", "b"]
@@ -57,19 +44,13 @@ def test_groupby_axis_1(group_name):
 
     snow_df = pd.DataFrame(pandas_df)
 
-    eval_snowpark_pandas_result(
-        snow_df, pandas_df, lambda df: df.groupby(axis=1, by=group_name).max()
-    )
+    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.groupby(axis=1, by=group_name).max()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("group_name", ["x", ["x"]])
-@sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
+@sql_count_checker(query_count=0)
 def test_groupby_axis_1_mi(group_name):
     # test on MI column
     iterables = [["bar", "baz", "foo"], ["one", "two"]]
@@ -78,20 +59,16 @@ def test_groupby_axis_1_mi(group_name):
         np.arange(18).reshape(3, 6), index=[0, 1, 0], columns=mi
     )
     snow_df_mi = pd.DataFrame(pandas_df_mi)
-    eval_snowpark_pandas_result(
-        snow_df_mi, pandas_df_mi, lambda df: df.groupby(axis=1, by=group_name).sum()
-    )
-    eval_snowpark_pandas_result(
-        snow_df_mi, pandas_df_mi, lambda df: df.groupby(axis=1, level=0).min()
-    )
+
+    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df_mi.groupby(axis=1, by=group_name).sum()
+
+    msg = "Snowpark pandas GroupBy.min does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df_mi.groupby(axis=1, level=0).min()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "by",
     [
@@ -101,37 +78,22 @@ def test_groupby_axis_1_mi(group_name):
     ],
 )
 def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
-    pandas_df = basic_snowpark_pandas_df.to_pandas()
-    expected_query_count = 8
+    msg = "Snowpark pandas GroupBy.min does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    expected_query_count = 0
     if isinstance(by, list):
-        expected_query_count = 9
-    with SqlCounter(query_count=expected_query_count, fallback_count=1, sproc_count=1):
-        eval_snowpark_pandas_result(
-            basic_snowpark_pandas_df, pandas_df, lambda df: df.groupby(by).min()
-        )
+        expected_query_count = 1
+    with SqlCounter(query_count=expected_query_count):
+        with pytest.raises(NotImplementedError, match=msg):
+            basic_snowpark_pandas_df.groupby(by).min()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_timeseries_groupby_with_callable(tsframe):
     snow_ts_df = pd.DataFrame(tsframe)
-    eval_snowpark_pandas_result(
-        snow_ts_df,
-        tsframe,
-        lambda df: df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0),
-    )
+    with pytest.raises(NotImplementedError):
+        snow_ts_df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func, args",
     [
@@ -142,23 +104,13 @@ def test_timeseries_groupby_with_callable(tsframe):
         ({"col2": "max", "col4": lambda x: np.sum(x)}, []),  # dict includes callable
     ],
 )
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
     by = "col1"
-    pandas_df = basic_snowpark_pandas_df.to_pandas()
-    eval_snowpark_pandas_result(
-        basic_snowpark_pandas_df,
-        pandas_df,
-        lambda df: df.groupby(by).agg(agg_func, *args),
-    )
+    with pytest.raises(NotImplementedError):
+        basic_snowpark_pandas_df.groupby(by).agg(agg_func, *args)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func",
     [
@@ -169,96 +121,56 @@ def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
 @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
 def test_groupby_agg_func_unsupported_named_agg(basic_snowpark_pandas_df, agg_func):
     by = "col1"
-    pandas_df = basic_snowpark_pandas_df.to_pandas()
-    eval_snowpark_pandas_result(
-        basic_snowpark_pandas_df,
-        pandas_df,
-        lambda df: df.groupby(by).agg(new_col=("col2", agg_func)),
-    )
+    with pytest.raises(NotImplementedError):
+        basic_snowpark_pandas_df.groupby(by=by).agg(new_col=("col2", agg_func))
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "agg_func",
     [lambda x: x * 2, np.sin, {"col2": "max", "col4": np.sin}],
 )
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=0)
 def test_groupby_invalid_agg_func_raises(basic_snowpark_pandas_df, agg_func):
     by = "col1"
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(NotImplementedError):
         basic_snowpark_pandas_df.groupby(by=by).aggregate(agg_func)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=10, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     by = [1, 1, 4, 2, 2, 4]
-    eval_snowpark_pandas_result(
-        basic_snowpark_pandas_df,
-        basic_snowpark_pandas_df.to_pandas(),
-        lambda df: df.groupby(by=by).max(),
-    )
+    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        basic_snowpark_pandas_df.groupby(by=by).max()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "by_list",
     [[2, 1, 1, 2, 3, 3], [[2, 1, 1, 2, 3, 3], "a"]],
 )
-@sql_count_checker(query_count=10, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
-    eval_snowpark_pandas_result(
-        series_multi_numeric,
-        series_multi_numeric.to_pandas(),
-        lambda df: df.groupby(by=by_list).max(),
-    )
+    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        series_multi_numeric.groupby(by=by_list).max()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@sql_count_checker(query_count=22, fallback_count=2, sproc_count=2)
 def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
     series_data = [0, 1, 1, 0, 1]
     native_series = native_pd.Series(series_data)
     snowpark_pandas_series = pd.Series(native_series)
 
-    native_df = basic_snowpark_pandas_df.to_pandas()
+    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with SqlCounter(query_count=0):
+        with pytest.raises(NotImplementedError, match=msg):
+            basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
 
-    result = basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
-    expected = native_df.groupby(by=native_series).sum()
-    # groupby result in snowflake gives a type with precise precision, which
-    # continue gives a more precise integer type with to_pandas. Since snowpark python
-    # update the to_pandas to convert integer to int64 for default precision, the
-    # native_df will have type int64, and the expected result will also have int64
-    # with native pandas now. Because dtype are all controlled by snowflake, and
-    # checking dtype is not the purpose of this test, we skip the dtype check here.
-    assert_frame_equal(result, expected, check_index_type=False, check_dtype=False)
-
-    by_list = ["col1", "col2", snowpark_pandas_series]
-    native_by_list = ["col1", "col2", native_series]
-    result = basic_snowpark_pandas_df.groupby(by=by_list).sum()
-    expected = native_df.groupby(by=native_by_list).sum()
-    assert_frame_equal(result, expected, check_index_type=False, check_dtype=False)
+    with SqlCounter(query_count=1):
+        by_list = ["col1", "col2", snowpark_pandas_series]
+        with pytest.raises(NotImplementedError, match=msg):
+            basic_snowpark_pandas_df.groupby(by=by_list).sum()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "mapper, level",
     [
@@ -266,68 +178,55 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
         ({"one": 0, "two": 0, "three": 1}, 1),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_level_mapper(mapper, level):
     index = native_pd.MultiIndex(
         levels=[["foo", "bar", "baz", "qux"], ["one", "two", "three"]],
         codes=[[0, 0, 0, 1, 1, 2, 2, 3, 3, 3], [0, 1, 2, 0, 1, 1, 2, 0, 1, 2]],
         names=["first", "second"],
     )
-    eval_snowpark_pandas_result(
-        *create_test_dfs(
-            np.random.randn(10, 3),
-            index=index,
-            columns=native_pd.Index(["A", "B", "C"], name="exp"),
-        ),
-        lambda df: df.groupby(mapper, level=level).sum()
+    snow_df = pd.DataFrame(
+        np.random.randn(10, 3),
+        index=index,
+        columns=native_pd.Index(["A", "B", "C"], name="exp"),
     )
+    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.groupby(mapper, level=level).sum()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
-    "grp_agg",
+    "grp_agg, agg_name",
     [
-        lambda grp: grp.std(ddof=2),
-        lambda grp: grp.var(ddof=3),
+        (lambda grp: grp.std(ddof=2), "std"),
+        (lambda grp: grp.var(ddof=3), "var"),
     ],
 )
 @pytest.mark.parametrize("by", ["col1", ["col5", "col1"]])
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
-def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, by):
-    native_group = basic_snowpark_pandas_df.to_pandas().groupby(by)
+@sql_count_checker(query_count=0)
+def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, by):
     snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-    eval_snowpark_pandas_result(snowpark_pandas_group, native_group, grp_agg)
+    msg = f"Snowpark pandas GroupBy.{agg_name} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    with pytest.raises(NotImplementedError, match=msg):
+        grp_agg(snowpark_pandas_group)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
-    "by", [native_pd.Grouper(key="col1"), ["col5", native_pd.Grouper(key="col1")]]
+    "by, query_count",
+    [
+        (native_pd.Grouper(key="col1"), 0),
+        (["col5", native_pd.Grouper(key="col1")], 1),
+    ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-def test_grouper_unsupported(basic_snowpark_pandas_df, by):
-    snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-    native_group = basic_snowpark_pandas_df.to_pandas().groupby(by)
-    eval_snowpark_pandas_result(
-        snowpark_pandas_group, native_group, lambda grp: grp.max()
-    )
+def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
+    with SqlCounter(query_count=query_count):
+        snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
+        msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+        with pytest.raises(NotImplementedError, match=msg):
+            snowpark_pandas_group.max()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_ngroups_axis_1():
     by = "x"
     native_df = native_pd.DataFrame(
@@ -337,20 +236,12 @@ def test_groupby_ngroups_axis_1():
     native_df.columns.name = "x"
     snow_df = pd.DataFrame(native_df)
 
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.groupby(by=by, axis=1),
-        comparator=assert_ngroups_equal,
-    )
+    msg = "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.groupby(by=by, axis=1).ngroups
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_ngroups_axis_1_mi():
     by = "x"
     iterables = [["bar", "baz", "foo"], ["one", "two"]]
@@ -360,9 +251,6 @@ def test_groupby_ngroups_axis_1_mi():
     )
     snow_df = pd.DataFrame(native_df)
 
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.groupby(by=by, axis=1),
-        comparator=assert_ngroups_equal,
-    )
+    msg = "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df.groupby(by=by, axis=1).ngroups
