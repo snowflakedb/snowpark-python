@@ -28,7 +28,6 @@ def test_get_name_and_version():
         _ObjectField.NAME: "version1",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
-    print(name, version)
     assert name == "db1.schema1.name1"
     assert version == "version1"
 
@@ -40,7 +39,6 @@ def test_get_name_and_version():
         _ObjectField.NAME: "version1",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
-    print(name, version)
     assert name == "db1.schema1.name1"
     assert version == "version1"
 
@@ -52,7 +50,6 @@ def test_get_name_and_version():
         _ObjectField.NAME: "name1",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
-    print(name, version)
     assert name == "db1.schema1.name1"
     assert version is None
 
@@ -64,7 +61,6 @@ def test_get_name_and_version():
         _ObjectField.NAME: "name1$v1",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
-    print(name, version)
     assert name == "db1.schema1.name1"
     assert version == "v1"
 
@@ -76,7 +72,6 @@ def test_get_name_and_version():
         _ObjectField.NAME: "name1$name2$v1",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
-    print(name, version)
     assert name == "db1.schema1.name1$name2"
     assert version == "v1"
 
