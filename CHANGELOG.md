@@ -4,12 +4,12 @@
 
 ### New Features
 
-- Support stored procedure register with packages given as Python modules.
+- Support stored procedure registration with packages given as Python modules.
 - Added support for structured type schema parsing.
 
 ### Bug Fixes
 
-- Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
+- Fixed a bug that when inferring a schema, single quotes are added to stage files that already have single quotes.
 
 ### Local Testing Updates
 
