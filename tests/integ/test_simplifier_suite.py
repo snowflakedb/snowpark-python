@@ -40,8 +40,10 @@ else:
     from collections.abc import Iterable
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="This is a SQL test suite"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="This is a SQL test suite",
+        run=False,
     )
 ]
 

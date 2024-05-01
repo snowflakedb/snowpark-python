@@ -22,8 +22,10 @@ tmp_full_types_table_name = Utils.random_name_for_temp_object(TempObjectType.TAB
 tmp_full_types_table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="This is a SQL test suite"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="This is a SQL test suite",
+        run=False,
     )
 ]
 

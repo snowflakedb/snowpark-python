@@ -251,7 +251,6 @@ def test_special_frame_boundry(session):
 
 def test_rank_related_function_expression(session):
     df1 = session.create_dataframe([[1, "v"]], schema=["a", '" a"'])
-    # df1 = session.sql("select 1 as a, 'v' as \" a\"")
     window = Window.order_by(" a")
     df2 = df1.select(
         lag(df1[" a"]).over(window),
@@ -307,7 +306,7 @@ def test_literal(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: Interval is not supported in Local Testing",
+    reason="SNOW-1358946 TODO: Interval is not supported in Local Testing",
 )
 def test_interval(session):
     df1 = session.create_dataframe(
@@ -509,12 +508,11 @@ def test_udf(session, use_qualified_name, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="TODO: This is a bug"
+    "config.getvalue('local_testing_mode')", reason="SNOW-1359104 TODO: bug"
 )
 def test_unary_expression(session):
     """Alias, UnresolvedAlias, Cast, UnaryMinus, IsNull, IsNotNull, IsNaN, Not"""
     df1 = session.create_dataframe([[1, 2]], schema=['" a"', "a"])
-    # df1 = session.sql('select 1 as " a", 2 as a')
     df2 = df1.select(
         df1[" a"].cast("string"),
         df1[" a"].alias(" b"),
@@ -593,7 +591,10 @@ def test_list_agg_within_group_sort_order(session):
     )
 
 
-@pytest.mark.skipif("config.getvalue('local_testing_mode')", reason="TODO: Bug")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO: refactor this to avoid type mismatch",
+)
 def test_binary_expression(session):
     """=, !=, >, <, >=, <=, EQUAL_NULL, AND, OR, +, -, *, /, %, POWER, BITAND, BITOR, BITXOR"""
     df1 = session.create_dataframe(

@@ -14,8 +14,10 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="Query tag is a SQL feature"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="Query tag is a SQL feature",
+        run=False,
     )
 ]
 

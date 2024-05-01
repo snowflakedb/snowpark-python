@@ -194,8 +194,8 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             Utils.drop_stage(session, tmp_stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="This is a SQL test"
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')", reason="This is a SQL test", run=False
 )
 def test_show_using_with_select_statement(session):
     df = session.sql(
@@ -1481,7 +1481,6 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
-@pytest.mark.skipif("config.getvalue('local_testing_mode')", reason="TODO: bug")
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
@@ -1928,8 +1927,10 @@ def test_create_dataframe_from_none_data(session):
     assert session.create_dataframe([None] * 20000).collect() == [Row(None)] * 20000
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="Array binding is SQL feature"
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="Array binding is SQL feature",
+    run=False,
 )
 def test_create_dataframe_large_without_batch_insert(session):
     from snowflake.snowpark._internal.analyzer import analyzer
@@ -2021,7 +2022,7 @@ def test_attribute_reference_to_sql(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: Selecting columns of the same name is not supported in Local Testing",
+    reason="SNOW-936617 TODO: Selecting columns of the same name is not supported in Local Testing",
 )
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
@@ -2279,7 +2280,7 @@ def test_fillna(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: support coercion in Local Testing",
+    reason="SNOW-929218 TODO: support coercion in Local Testing",
 )
 def test_replace_with_coercion(session):
     df = session.create_dataframe(
@@ -2824,7 +2825,9 @@ def test_write_invalid_table_type(session):
         df.write.save_as_table(table_name, table_type="invalid")
 
 
-@pytest.mark.skipif("config.getvalue('local_testing_mode')", reason="TODO: enable")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')", reason="TODO: refactor and enable"
+)
 def test_append_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "a int, b int", is_temporary=True)

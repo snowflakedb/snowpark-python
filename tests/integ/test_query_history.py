@@ -8,8 +8,10 @@ from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="Query history is a SQL feature"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="Query history is a SQL feature",
+        run=False,
     ),
 ]
 
