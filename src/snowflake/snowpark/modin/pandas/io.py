@@ -75,7 +75,10 @@ from snowflake.snowpark.modin.config import ExperimentalNumPyAPI
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    pandas_module_level_function_not_implemented,
+)
 from snowflake.snowpark.modin.utils import (
     SupportsPrivateToNumPy,
     SupportsPrivateToPandas,
@@ -147,6 +150,7 @@ def _read(
 # TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
 @expanduser_path_arg("path_or_buffer")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def read_xml(
     path_or_buffer: FilePath | ReadBuffer[bytes] | ReadBuffer[str],
     *,
@@ -168,7 +172,7 @@ def read_xml(
 ) -> DataFrame:
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    ErrorMessage.not_implemented()
+    pass
 
 
 @_inherit_docstrings(pandas.read_csv, apilink="pandas.read_csv")
@@ -830,6 +834,7 @@ def read_spss(
 
 @_inherit_docstrings(pandas.json_normalize, apilink="pandas.json_normalize")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def json_normalize(
     data: dict | list[dict],
     record_path: str | list | None = None,
@@ -845,12 +850,13 @@ def json_normalize(
     """
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    ErrorMessage.not_implemented()
+    pass
 
 
 @_inherit_docstrings(pandas.read_orc, apilink="pandas.read_orc")
 @snowpark_pandas_telemetry_standalone_function_decorator
 @expanduser_path_arg("path")
+@pandas_module_level_function_not_implemented()
 def read_orc(
     path,
     columns: list[str] | None = None,
@@ -863,7 +869,7 @@ def read_orc(
     """
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    ErrorMessage.not_implemented()
+    pass
 
 
 @_inherit_docstrings(pandas.HDFStore)
