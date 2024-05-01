@@ -290,12 +290,7 @@ class Lineage:
             if not lineage_edges:
                 continue
 
-            for edge in lineage_edges:
-                if direction == LineageDirection.UPSTREAM and self._is_terminal_entity(
-                    edge[0]
-                ):
-                    continue
-                results.append(edge)
+            results.extend(lineage_edges)
 
             for edge in lineage_edges:
                 if self._is_terminal_entity(edge[0]) or self._is_terminal_entity(
