@@ -128,6 +128,7 @@ class _SnowflakeDomain:
     TABLE = "TABLE"
     MODULE = "MODULE"
     DATASET = "DATASET"
+    VIEW = "VIEW"
 
 
 class Lineage:
@@ -289,7 +290,12 @@ class Lineage:
             if not lineage_edges:
                 continue
 
-            results.extend(lineage_edges)
+            for edge in lineage_edges:
+                if direction == LineageDirection.UPSTREAM and self._is_terminal_entity(
+                    edge[0]
+                ):
+                    continue
+                results.append(edge)
 
             for edge in lineage_edges:
                 if self._is_terminal_entity(edge[0]) or self._is_terminal_entity(
@@ -370,6 +376,10 @@ class Lineage:
             or graph_entity.get(_ObjectField.DOMAIN)
         )
 
+        # TODO: Remove this hack to pass the tests after 8.18 is rolled out.
+        if graph_entity.get(_ObjectField.REFINED_DOMAIN) == _SnowflakeDomain.VIEW:
+            domain = _SnowflakeDomain.VIEW
+
         if _ObjectField.CREATED_ON not in graph_entity:
             raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                 f"missing {_ObjectField.CREATED_ON} property."
@@ -380,9 +390,8 @@ class Lineage:
                 f"missing {_ObjectField.STATUS} property."
             )
 
-        dt_utc = datetime.datetime.utcfromtimestamp(
-            int(graph_entity[_ObjectField.CREATED_ON]) / 1000
-        )
+        timestamp = int(graph_entity[_ObjectField.CREATED_ON]) / 1000
+        dt_utc = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
         # ISO 8601 format for UTC
         formatted_date_iso = dt_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
         user_entity = {
