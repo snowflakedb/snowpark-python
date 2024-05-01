@@ -298,6 +298,7 @@ def test_astype_from_DatetimeTZDtype_to_datetime64(from_tz):
         )
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_astype_uint():
     # Snowflake’s numeric types are always signed. So astype(‘uint8’) in this case has no effect on the original series.
