@@ -558,6 +558,8 @@ def execute_mock_plan(
             },
             dtype=object,
         )
+        for column_name in table.columns:
+            table[column_name].sf_type = table.sf_types[column_name]
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
