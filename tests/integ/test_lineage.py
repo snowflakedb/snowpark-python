@@ -158,17 +158,20 @@ def test_lineage_trace(session):
     session.sql(f"USE ROLE {primary_role}").collect()
 
     session.sql(f"use warehouse {current_wh}").collect()
+
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
         "SOURCE_OBJECT": [
             {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
         ],
         "TARGET_OBJECT": [
             {"domain": "VIEW", "name": f"{db}.{schema}.V6", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
         ],
-        "DIRECTION": ["Upstream"],
-        "DISTANCE": [1],
+        "DIRECTION": ["Upstream", "Upstream"],
+        "DISTANCE": [1, 2],
     }
 
     expected_df = pd.DataFrame(expected_data)
