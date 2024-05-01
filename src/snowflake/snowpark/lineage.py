@@ -371,7 +371,7 @@ class Lineage:
             or graph_entity.get(_ObjectField.DOMAIN)
         )
 
-        # TODO: Remove this hack to pass the tests after 8.18 is rolled out.
+        # TODO: Remove this workaround once version 8.18 is deployed.
         if graph_entity.get(_ObjectField.REFINED_DOMAIN) == _SnowflakeDomain.VIEW:
             domain = _SnowflakeDomain.VIEW
 
