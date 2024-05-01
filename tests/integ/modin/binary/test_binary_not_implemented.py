@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -38,17 +40,21 @@ def test_binary_op_xor(snow_and_native_df, func):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func,lhs_type",
     [
-        lambda df: df.dot(df),
-        lambda df: df[0].dot(df[1]),
-        lambda df: df[0] @ df,
-        lambda df: df @ df[1],
+        (lambda df: df.dot(df), "DataFrame"),
+        (lambda df: df[0].dot(df[1]), "Series"),
+        (lambda df: df[0] @ df, "Series"),
+        (lambda df: df @ df[1], "DataFrame"),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_binary_op_dot(snow_and_native_df, func):
+def test_binary_op_dot(snow_and_native_df, func, lhs_type):
     snow_df, _ = snow_and_native_df
-    msg = "Snowpark pandas doesn't yet support 'dot' binary operation"
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"Snowpark pandas does not yet support the method {lhs_type}.dot"
+        ),
+    ):
         func(snow_df)
