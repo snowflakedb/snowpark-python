@@ -1,11 +1,15 @@
 # Release History
 
-## 1.16.0 (TBD)
+## 1.16.0 (2024-05-01)
 
 ### New Features
 
 - Support stored procedure register with packages given as Python modules.
 - Added support for structured type schema parsing.
+
+### Bug Fixes
+
+- Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
 
 ### Local Testing Updates
 
@@ -21,8 +25,6 @@
 #### Bug Fixes
 
 - Fixed a bug that caused NaT and NaN values to not be recognized.
-- Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
-
 
 ## 1.15.0 (2024-04-24)
 
