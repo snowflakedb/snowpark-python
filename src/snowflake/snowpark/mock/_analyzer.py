@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -440,6 +441,9 @@ class MockAnalyzer:
                 else None,
                 expr.ignore_nulls,
             )
+
+        if isinstance(expr, Interval):
+            return expr.sql
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
             str(expr)

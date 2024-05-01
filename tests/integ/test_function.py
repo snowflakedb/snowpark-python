@@ -244,6 +244,10 @@ def test_current_date_and_time(session):
         ), f"Times should be within {max_delta} seconds of each other."
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="regexp_replace is not supported in Local Testing",
+)
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
     df = session.create_dataframe(
@@ -265,6 +269,10 @@ def test_regexp_replace(session, col_a):
     assert res[0][0] == "lastname, firstname middlename"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="regexp_extract is not supported in Local Testing",
+)
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
     res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
@@ -331,6 +339,10 @@ def test_date_to_char(session):
     assert res[0][0] == "12-21-2021"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="round is not supported in Local Testing",
+)
 def test_format_number(session):
     # Create a dataframe with a column of numbers
     data = [
@@ -347,6 +359,10 @@ def test_format_number(session):
     assert res[2].VALUE_FORMATTED == "1.41"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="month_between is not supported in Local Testing",
+)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
     df = session.create_dataframe(

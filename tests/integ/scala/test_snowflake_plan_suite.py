@@ -21,6 +21,12 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Generator
 
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getvalue('local_testing_mode')", reason="This is a SQL test suite"
+    ),
+]
+
 
 @pytest.fixture(scope="module")
 def temp_table(session: Session) -> Generator[str, None, None]:
