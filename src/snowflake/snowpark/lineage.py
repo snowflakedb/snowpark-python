@@ -38,9 +38,6 @@ class LineageDirection(Enum):
     UPSTREAM = "upstream"
     BOTH = "both"
 
-    def __str__(self):
-        return self.value
-
     @classmethod
     def values(cls):
         return [member.value for member in cls]
@@ -155,7 +152,7 @@ class Lineage:
         self,
         object_name: str,
         object_domain: str,
-        edge_directions: list,
+        edge_directions: List[LineageDirection],
         object_version: Optional[str] = None,
     ) -> str:
         """
@@ -177,7 +174,7 @@ class Lineage:
                     edge_key=_DGQLFields.EDGE,
                     source_key=_DGQLFields.SOURCE,
                     target_key=_DGQLFields.TARGET,
-                    direction=direction,
+                    direction=direction.value,
                     dir=dir_key,
                     edge_types=edge_types_formatted,
                     properties=properties_string,
@@ -211,7 +208,7 @@ class Lineage:
         self,
         object_name: str,
         object_domain: str,
-        directions: list,
+        directions: List[LineageDirection],
         object_version: Optional[str] = None,
         current_distance=1,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
@@ -249,7 +246,7 @@ class Lineage:
         self,
         object_name: str,
         object_domain: str,
-        direction: str,
+        direction: LineageDirection,
         total_distance: int,
         object_version: Optional[str] = None,
     ) -> List[Tuple[VariantType, VariantType, StringType, int]]:
@@ -456,21 +453,21 @@ class Lineage:
                 - distance (int): The distance of the lineage tracing from given object.
 
             Example:
-                >>> db = session.get_current_database()
-                >>> schema = session.get_current_schema()
-                >>> session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
-                >>> session.sql(
+                >>> db = session.get_current_database().replace('"', "")
+                >>> schema = session.get_current_schema().replace('"', "")
+                >>> _ = session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
+                >>> _ = session.sql(
                 ...     f"CREATE OR REPLACE VIEW {db}.{schema}.V1 AS SELECT * FROM {db}.{schema}.T1"
                 ... ).collect()
-                >>> session.sql(
+                >>> _ = session.sql(
                 ...     f"CREATE OR REPLACE VIEW {db}.{schema}.V2 AS SELECT * FROM {db}.{schema}.V1"
                 ... ).collect()
                 >>> df = session.lineage.trace(
                 ...     f"{db}.{schema}.T1",
                 ...     "table",
-                ...     direction=LineageDirection.DOWNSTREAM
+                ...     direction="downstream"
                 ... )
-                >>> df.show()
+                >>> df.show() # doctest: +SKIP
                 -------------------------------------------------------------------------------------------------------------------------------------------------
                 | "SOURCE_OBJECT"                                         | "TARGET_OBJECT"                                        | "DIRECTION"   | "DISTANCE" |
                 -------------------------------------------------------------------------------------------------------------------------------------------------
