@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import errno
 import glob
 import json
 import os
@@ -116,6 +117,16 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     return stage_name, dir_path
 
 
+def copy_files_and_dirs(src, dst):
+    try:
+        shutil.copytree(src, dst)
+    except OSError as exc:
+        if exc.errno in (errno.ENOTDIR, errno.EINVAL):
+            shutil.copy(src, dst)
+        else:
+            raise
+
+
 class StageEntity:
     def __init__(
         self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
@@ -187,7 +198,7 @@ class StageEntity:
             if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
             else:
-                shutil.copy(local_file_name, target_local_file_path)
+                copy_files_and_dirs(local_file_name, target_local_file_path)
                 status = "UPLOADED"
 
             file_size = os.path.getsize(local_file_name)
@@ -301,7 +312,7 @@ class StageEntity:
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
             stage_file = file
-            shutil.copy(stage_file, os.path.join(target_directory, file_name))
+            copy_files_and_dirs(stage_file, os.path.join(target_directory, file_name))
             file_size = os.path.getsize(stage_file)
             result_df.loc[len(result_df)] = dict(
                 zip(
