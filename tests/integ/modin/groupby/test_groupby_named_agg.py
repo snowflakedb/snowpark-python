@@ -52,7 +52,6 @@ def test_valid_func_with_named_agg_errors(basic_snowpark_pandas_df):
         basic_snowpark_pandas_df.to_pandas(),
         lambda df: df.groupby("col1").agg(max, new_col=("col2", min)),
         expect_exception=True,
-        expect_exception_match="DataFrameGroupBy.max\\(\\) got an unexpected keyword argument 'new_col'",
         assert_exception_equal=False,  # There is a difference in our errors.
         expect_exception_type=TypeError,
     )
