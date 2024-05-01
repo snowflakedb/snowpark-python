@@ -17,7 +17,6 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -295,8 +294,6 @@ def mock_to_date(
     try_cast: bool = False,
 ):
     """
-    https://docs.snowflake.com/en/sql-reference/functions/to_date
-
     Converts an input expression to a date:
 
     [x] For a string expression, the result of converting the string to a date.
@@ -307,75 +304,42 @@ def mock_to_date(
 
         [x] If the variant contains a string, a string conversion is performed.
 
-        [x] If the variant contains a date, the date value is preserved as is.
+        [ ] If the variant contains a date, the date value is preserved as is.
 
-        [x] If the variant contains a JSON null value, the output is NULL.
+        [ ] If the variant contains a JSON null value, the output is NULL.
 
         [x] For NULL input, the output is NULL.
 
-        [x] For all other values, a conversion error is generated.
+        [ ] For all other values, a conversion error is generated.
     """
-    if not isinstance(fmt, ColumnEmulator):
-        fmt = [fmt] * len(column)
+    res = []
+    auto_detect = bool(not fmt)
 
-    def convert_date(row):
-        _fmt = fmt[row.name]
-        data = row[0]
+    date_format, _, _ = convert_snowflake_datetime_format(
+        fmt, default_format="%Y-%m-%d"
+    )
 
-        auto_detect = _fmt is None or _fmt.lower() == "auto"
-
-        date_format, _, _ = convert_snowflake_datetime_format(
-            _fmt, default_format="%Y-%m-%d"
-        )
-        import dateutil.parser
-
+    for data in column:
         if data is None:
-            return None
+            res.append(None)
+            continue
         try:
-            if isinstance(column.sf_type.datatype, TimestampType):
-                return data.date()
-            elif isinstance(column.sf_type.datatype, StringType):
-                if data.isdigit():
-                    return datetime.datetime.utcfromtimestamp(
+            if auto_detect and data.isnumeric():
+                res.append(
+                    datetime.datetime.utcfromtimestamp(
                         convert_integer_value_to_seconds(data)
                     ).date()
-                else:
-                    if auto_detect:
-                        return dateutil.parser.parse(data).date()
-                    else:
-                        return datetime.datetime.strptime(data, date_format).date()
-            elif isinstance(column.sf_type.datatype, VariantType):
-                if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
-                    raise TypeError(
-                        "[Local Tesing] to_date function does not allow format parameter for data of VariantType"
-                    )
-                if isinstance(data, str):
-                    if data.isdigit():
-                        return datetime.datetime.utcfromtimestamp(
-                            convert_integer_value_to_seconds(data)
-                        ).date()
-                    else:
-                        # for variant type with string value, snowflake auto-detects the format
-                        return dateutil.parser.parse(data).date()
-                elif isinstance(data, datetime.date):
-                    return data
-                else:
-                    raise TypeError(
-                        f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
-                    )
-            else:
-                raise TypeError(
-                    f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
                 )
+            else:
+                res.append(datetime.datetime.strptime(data, date_format).date())
         except BaseException:
             if try_cast:
-                return None
+                res.append(None)
             else:
                 raise
-
-    res = column.to_frame().apply(convert_date, axis=1)
-    res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
-    return res
+    return ColumnEmulator(
+        data=res, sf_type=ColumnType(DateType(), column.sf_type.nullable)
+    )
 
 
 @patch("current_timestamp")
@@ -433,13 +397,13 @@ def mock_to_decimal(
     """
     [x] For NULL input, the result is NULL.
 
-    [x] For fixed-point numbers:
+    [ ] For fixed-point numbers:
 
         Numbers with different scales are converted by either adding zeros to the right (if the scale needs to be increased) or by reducing the number of fractional digits by rounding (if the scale needs to be decreased).
 
         Note that casts of fixed-point numbers to fixed-point numbers that increase scale might fail.
 
-    [x] For floating-point numbers:
+    [ ] For floating-point numbers:
 
         Numbers are converted if they are within the representable range, given the scale.
 
@@ -449,47 +413,53 @@ def mock_to_decimal(
 
         For floating-point input, omitting the mantissa or exponent is allowed and is interpreted as 0. Thus, E is parsed as 0.
 
-    [x] Strings are converted as decimal, integer, fractional, or floating-point numbers.
+    [ ] Strings are converted as decimal, integer, fractional, or floating-point numbers.
 
     [x] For fractional input, the precision is deduced as the number of digits after the point.
 
     For VARIANT input:
 
-        [x] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
+        [ ] If the variant contains a fixed-point or a floating-point numeric value, an appropriate numeric conversion is performed.
 
-        [x] If the variant contains a string, a string conversion is performed.
+        [ ] If the variant contains a string, a string conversion is performed.
 
-        [x] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
+        [ ] If the variant contains a Boolean value, the result is 0 or 1 (for false and true, correspondingly).
 
-        [x] If the variant contains JSON null value, the output is NULL.
+        [ ] If the variant contains JSON null value, the output is NULL.
     """
+    res = []
 
-    def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
-        x = float(x)
-        if x in (math.inf, -math.inf, math.nan):
-            raise ValueError(
-                "Values of infinity and NaN cannot be converted to decimal"
+    for data in e:
+        if data is None:
+            res.append(data)
+            continue
+        try:
+            try:
+                float(data)
+            except ValueError:
+                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
+
+            integer_part = round(float(data))
+            integer_part_str = str(integer_part)
+            len_integer_part = (
+                len(integer_part_str) - 1
+                if integer_part_str[0] == "-"
+                else len(integer_part_str)
             )
-        integer_part_len = 1 if abs(x) < 1 else math.ceil(math.log10(abs(x)))
-        if integer_part_len > precision:
-            raise SnowparkSQLException(f"Numeric value '{x}' is out of range")
-        remaining_decimal_len = min(precision - integer_part_len, scale)
-        return Decimal(str(round(x, remaining_decimal_len)))
+            if len_integer_part > precision:
+                raise SnowparkSQLException(f"Numeric value '{data}' is out of range")
+            remaining_decimal_len = min(precision - len(str(integer_part)), scale)
+            res.append(Decimal(str(round(float(data), remaining_decimal_len))))
+        except BaseException:
+            if try_cast:
+                res.append(None)
+            else:
+                raise
 
-    if isinstance(e.sf_type.datatype, (_NumericType, BooleanType, NullType)):
-        res = e.apply(
-            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
-        )
-    elif isinstance(e.sf_type.datatype, (StringType, VariantType)):
-        res = e.replace({"E": 0}).apply(
-            lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
-        )
-    else:
-        raise TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
-    res.sf_type = ColumnType(
-        DecimalType(precision, scale), nullable=e.sf_type.nullable or res.hasnans
+    return ColumnEmulator(
+        data=res,
+        sf_type=ColumnType(DecimalType(precision, scale), nullable=e.sf_type.nullable),
     )
-    return res
 
 
 @patch("to_time")
@@ -1029,6 +999,8 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
 
 @patch("coalesce")
 def mock_coalesce(*exprs):
+    import pandas
+
     if len(exprs) < 2:
         raise SnowparkSQLException(
             f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
@@ -1174,6 +1146,8 @@ def mock_to_variant(expr: ColumnEmulator):
 
 
 def _object_construct(exprs, drop_nulls):
+    import pandas
+
     expr_count = len(exprs)
     if expr_count % 2 != 0:
         raise TypeError(
@@ -1219,8 +1193,10 @@ def add_years(date, duration):
 
 
 def add_months(scalar, date, duration):
+    import pandas as pd
+
     res = (
-        pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
+        pd.to_datetime(date) + pd.DateOffset(months=scalar * duration)
     ).to_pydatetime()
 
     if not isinstance(date, datetime.datetime):
@@ -1281,6 +1257,8 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
+    import pandas
+
     unaliased = unalias_datetime_part(part)
     datatype = datetime_expr.sf_type.datatype
 
@@ -1358,6 +1336,8 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
+    import pandas
+
     # Map snowflake time unit to pandas rounding alias
     # Not all units have an alias so handle those with a special case
     SUPPORTED_UNITS = {
@@ -1572,58 +1552,3 @@ def mock_current_database():
     return ColumnEmulator(
         data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
     )
-
-
-@patch("get")
-def mock_get(
-    column_expression: ColumnEmulator, value_expression: ColumnEmulator
-) -> ColumnEmulator:
-    def get(obj, key):
-        try:
-            if isinstance(obj, list):
-                return obj[key]
-            elif isinstance(obj, dict):
-                return obj.get(key, None)
-            else:
-                return None
-        except KeyError:
-            return None
-
-    # pandas.Series.combine does not work here because it will not allow Nones in int columns
-    result = []
-    for exp, k in zip(column_expression, value_expression):
-        result.append(get(exp, k))
-
-    return ColumnEmulator(
-        result,
-        sf_type=ColumnType(column_expression.sf_type.datatype, True),
-        dtype=object,
-    )
-
-
-@patch("concat")
-def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
-    if len(columns) < 1:
-        raise ValueError("concat expects one or more column(s) to be passed in.")
-    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
-    result = pdf.T.apply(
-        lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
-    )
-    result.sf_type = ColumnType(StringType(), result.hasnans)
-    return result
-
-
-@patch("concat_ws")
-def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
-    if len(columns) < 2:
-        raise ValueError(
-            "concat_ws expects a seperator column and one or more value column(s) to be passed in."
-        )
-    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
-    result = pdf.T.apply(
-        lambda c: None
-        if c.isnull().values.any()
-        else c[1:].astype(str).str.cat(sep=c[0])
-    )
-    result.sf_type = ColumnType(StringType(), result.hasnans)
-    return result

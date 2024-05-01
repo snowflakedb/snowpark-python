@@ -21,6 +21,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ColumnSchema,
@@ -373,17 +374,29 @@ def test_apply_args_kwargs():
         )
 
 
-@sql_count_checker(query_count=0)
-def test_apply_args_kwargs_with_snowpark_pandas_object_not_implemented():
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+@sql_count_checker(
+    query_count=20, fallback_count=2, sproc_count=2, expect_high_count=True
+)
+def test_apply_args_kwargs_with_snowpark_pandas_object_fallback():
     def f(x, y=None) -> int:
         return x + (y.sum() if y is not None else 0)
 
+    native_series = native_pd.Series([1, 2, 3])
     snow_series = pd.Series([1, 2, 3])
-    msg = "Snowpark pandas apply API doesn't yet support DataFrame or Series in 'args' or 'kwargs' of 'func'"
-    with pytest.raises(NotImplementedError, match=msg):
-        snow_series.apply(f, args=(pd.Series([1, 2]),))
-    with pytest.raises(NotImplementedError, match=msg):
-        snow_series.apply(f, y=pd.Series([1, 2]))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_series.apply(f, args=(pd.Series([1, 2]),)),
+        native_series.apply(f, args=(native_pd.Series([1, 2]),)),
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_series.apply(f, y=pd.Series([1, 2])),
+        native_series.apply(f, y=native_pd.Series([1, 2])),
+    )
 
 
 @pytest.mark.parametrize("func", [str, int, float, bytes, list, dict])
@@ -443,39 +456,67 @@ def test_apply_convert_dtype(caplog):
         assert "convert_dtype is ignored in Snowflake backend" in caplog.text
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
 @pytest.mark.parametrize(
     "func",
     [[np.min], {2: np.min, 1: "max"}]
     # TODO SNOW-864025: enable following after str in df.apply is supported
     # ["min", "mode", "abs"]
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_apply_input_type_str_list_dict(func):
-    snow_series = pd.Series([1.0, 2.0, 3.0])
-    msg = "Snowpark pandas apply API only supports callables func"
-    with pytest.raises(NotImplementedError, match=msg):
-        snow_series.apply(func)
+    data = [1.0, 2.0, 3.0]
+    native_series = native_pd.Series(data)
+    snow_series = pd.Series(data)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda x: x.apply(func), check_index=False
+    )
 
 
-@sql_count_checker(query_count=0)
-def test_map_na_action_ignore_not_implemented():
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@sql_count_checker(
+    query_count=16, fallback_count=2, sproc_count=2, expect_high_count=True
+)
+def test_map_na_action_ignore():
     snow_series = pd.Series([1, 1.1, "NaN", None], dtype="Float64")
 
-    msg = "Snowpark pandas map API doesn't yet support na_action == 'ignore'"
-    with pytest.raises(NotImplementedError, match=msg):
-        snow_series.map(lambda x: x is None, na_action="ignore")
+    # In native pandas, the last two elements are NaN and pd.NA
+    assert snow_series.map(
+        lambda x: x is None, na_action="ignore"
+    ).to_pandas().to_list() == [False, False, None, None]
 
-    snow_series = pd.Series(["cat", "dog", np.nan, "rabbit"])
-    with pytest.raises(NotImplementedError, match=msg):
-        snow_series.map("I am a {}".format, na_action="ignore")
+    data = ["cat", "dog", np.nan, "rabbit"]
+    snow_series = pd.Series(data)
+    native_series = native_pd.Series(data)
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda x: x.map("I am a {}".format, na_action="ignore"),
+    )
 
 
-@sql_count_checker(query_count=0)
-def test_map_dict_not_implemented():
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_map_dict():
     s = pd.Series(["cat", "dog", np.nan, "rabbit"])
-    msg = "Snowpark pandas map API doesn't yet support non callable 'arg'"
-    with pytest.raises(NotImplementedError, match=msg):
-        s.map({"cat": "kitten", "dog": "puppy"})
+    assert s.map({"cat": "kitten", "dog": "puppy"}).to_pandas().tolist() == [
+        "kitten",
+        "puppy",
+        None,
+        None,
+    ]
 
 
 @sql_count_checker(query_count=8, udf_count=2)

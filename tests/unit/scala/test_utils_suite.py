@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
     warning,
+    warning_dict,
     zip_file_or_directory_to_stream,
 )
 from tests.utils import IS_WINDOWS, TestFiles
@@ -444,36 +445,43 @@ def test_warning(caplog):
     def f():
         return 1
 
-    with caplog.at_level(logging.WARNING):
-        warning("aaa", "bbb", 2)
-        warning("aaa", "bbb", 2)
-        warning("aaa", "bbb", 2)
-    assert caplog.text.count("bbb") == 2
-    with caplog.at_level(logging.WARNING):
-        warning(f.__qualname__, "ccc", 2)
-        warning(f.__qualname__, "ccc", 2)
-        warning(f.__qualname__, "ccc", 2)
-    assert caplog.text.count("ccc") == 2
+    try:
+        with caplog.at_level(logging.WARNING):
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+            warning("aaa", "bbb", 2)
+        assert caplog.text.count("bbb") == 2
+        with caplog.at_level(logging.WARNING):
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+            warning(f.__qualname__, "ccc", 2)
+        assert caplog.text.count("ccc") == 2
+    finally:
+        warning_dict.clear()
 
 
 @pytest.mark.parametrize("decorator", [deprecated, experimental])
 def test_func_decorator(caplog, decorator):
-    @decorator(
-        version="1.0.0",
-        extra_warning_text="extra_warning_text",
-        extra_doc_string="extra_doc_string",
-    )
-    def f():
-        return 1
+    try:
 
-    assert "extra_doc_string" in f.__doc__
-    with caplog.at_level(logging.WARNING):
-        f()
-        f()
+        @decorator(
+            version="1.0.0",
+            extra_warning_text="extra_warning_text",
+            extra_doc_string="extra_doc_string",
+        )
+        def f():
+            return 1
 
-    assert decorator.__name__ in caplog.text
-    assert caplog.text.count("1.0.0") == 1
-    assert caplog.text.count("extra_warning_text") == 1
+        assert "extra_doc_string" in f.__doc__
+        with caplog.at_level(logging.WARNING):
+            f()
+            f()
+
+        assert decorator.__name__ in caplog.text
+        assert caplog.text.count("1.0.0") == 1
+        assert caplog.text.count("extra_warning_text") == 1
+    finally:
+        warning_dict.clear()
 
 
 def test_is_sql_select_statement():
@@ -556,14 +564,18 @@ def test_private_preview_decorator(caplog):
         pass
 
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        foo()
-    assert extra_doc in foo.__doc__
-    assert expected_warning_text in caplog.messages
-    caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        foo()
-    assert expected_warning_text not in caplog.text
+    warning_dict.clear()
+    try:
+        with caplog.at_level(logging.WARNING):
+            foo()
+        assert extra_doc in foo.__doc__
+        assert expected_warning_text in caplog.messages
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            foo()
+        assert expected_warning_text not in caplog.text
+    finally:
+        warning_dict.clear()
 
 
 @pytest.mark.parametrize("function", [result_set_to_iter, result_set_to_rows])

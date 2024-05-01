@@ -9,6 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_values_equal, eval_snowpark_pandas_result
 
@@ -90,6 +91,12 @@ def test_any_named_index():
     )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
     [
@@ -100,14 +107,22 @@ def test_any_named_index():
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
-def test_all_float_not_implemented(data, skipna):
-    series = pd.Series(data)
-    msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        series.all(skipna=skipna)
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_all_float_fallback(data, skipna):
+    eval_snowpark_pandas_result(
+        pd.Series(data),
+        native_pd.Series(data),
+        lambda df: df.all(skipna=skipna),
+        comparator=assert_values_equal,
+    )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
     [
@@ -118,33 +133,51 @@ def test_all_float_not_implemented(data, skipna):
     ],
 )
 @pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=0)
-def test_any_float_not_implemented(data, skipna):
-    series = pd.Series(data)
-    msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        series.any(skipna=skipna)
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_any_float_fallback(data, skipna):
+    eval_snowpark_pandas_result(
+        pd.Series(data),
+        native_pd.Series(data),
+        lambda df: df.any(skipna=skipna),
+        comparator=assert_values_equal,
+    )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
     [["", "b", "c"], ["d", "e", "f"]],
 )
-@sql_count_checker(query_count=0)
-def test_all_str_not_implemented(data):
-    series = pd.Series(data)
-    msg = "Snowpark pandas all API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        series.all()
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_all_str_fallback(data):
+    eval_snowpark_pandas_result(
+        pd.Series(data),
+        native_pd.Series(data),
+        lambda df: df.all(),
+        comparator=assert_values_equal,
+    )
 
 
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "data",
     [["", "b", "c"], ["d", "e", "f"]],
 )
-@sql_count_checker(query_count=0)
-def test_any_str_not_implemented(data):
-    series = pd.Series(data)
-    msg = "Snowpark pandas any API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        series.any()
+@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+def test_any_str_fallback(data):
+    eval_snowpark_pandas_result(
+        pd.Series(data),
+        native_pd.Series(data),
+        lambda df: df.any(),
+        comparator=assert_values_equal,
+    )

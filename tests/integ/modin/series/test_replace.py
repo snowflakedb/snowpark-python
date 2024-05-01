@@ -21,9 +21,6 @@ def snow_series():
     "to_replace, value",
     [
         ("one", "ONE"),  # scalar -> scalar
-        ("on", "ON"),  # scalar prefix-> scalar
-        ("ne", "NE"),  # scalar suffix-> scalar
-        ("n", "N"),  # scalar infix-> scalar
         ("one", pd.NA),  # scalar -> NULL
         ("one", None),  # scalar -> None
         (pd.NA, "ONE"),  # NULL -> scalar

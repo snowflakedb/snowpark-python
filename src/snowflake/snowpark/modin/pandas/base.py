@@ -3892,10 +3892,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if isinstance(self, pd.Series):
             return self.loc[key]
 
-        # Sometimes the result of a callable is a DataFrame (e.g. df[df > 0]) - use where.
-        elif isinstance(key, pd.DataFrame):
-            return self.where(cond=key)
-
         # If the object is a boolean list-like object, use .loc[key] to filter index.
         # The if statement is structured this way to avoid calling dtype and reduce query count.
         if isinstance(key, pd.Series):

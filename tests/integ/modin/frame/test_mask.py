@@ -11,6 +11,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
@@ -424,17 +425,21 @@ def test_dataframe_mask_cond_is_none_negative(test_data):
     )
 
 
-@sql_count_checker(query_count=0)
-def test_dataframe_mask_not_implemented(test_data, test_cond, test_others):
+@pytest.mark.xfail(
+    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    strict=True,
+    raises=RuntimeError,
+)
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+@sql_count_checker(query_count=12, fallback_count=1, sproc_count=1)
+def test_dataframe_mask_with_fallback(test_data, test_cond, test_others):
     index_data = [["A", "B"], ["C", "D", "E"]]
-    df_data_list = [test_data, test_cond, test_others]
-    df_data_args = [index_data, index_data, index_data]
-    snow_dfs = [
-        make_snow_dataframe(data, data_args)
-        for data, data_args in zip(df_data_list, df_data_args)
-    ]
-    with pytest.raises(NotImplementedError):
-        snow_dfs[0].mask(snow_dfs[1], snow_dfs[2], axis=1)
+
+    mask_test_helper(
+        [test_data, test_cond, test_others],
+        [index_data, index_data, index_data],
+        extra_mask_args={"axis": 1},
+    )
 
 
 @sql_count_checker(query_count=3, join_count=1)

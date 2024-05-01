@@ -76,14 +76,6 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
-# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
-# Once rolled out this should be updated to include all accounts.
-STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
-IS_STRUCTURED_TYPES_SUPPORTED = (
-    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
-)
-ICEBERG_ENVIRONMENTS = {"dev", "aws"}
-IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 
 class Utils:
@@ -889,45 +881,6 @@ class TestData:
             to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
         ]
         return primitives_df.select(variant_cols)
-
-    @classmethod
-    def date_primitives1(cls, session: "Session") -> DataFrame:
-        # simple string data + auto detection
-        data = ["2023-03-16", "30-JUL-2010", "1713414143"]
-        schema = StructType([StructField("a", StringType())])
-        return session.create_dataframe(data, schema)
-
-    @classmethod
-    def date_primitives2(cls, session: "Session") -> DataFrame:
-        # datetime type
-        data = [
-            datetime(2023, 3, 16),
-            datetime(2010, 7, 30, 1, 2, 3),
-            datetime(2024, 4, 18),
-        ]
-        schema = StructType([StructField("a", TimestampType())])
-        return session.create_dataframe(data, schema)
-
-    @classmethod
-    def date_primitives3(cls, session: "Session") -> DataFrame:
-        # variant type
-        data = ["1713414143", None, "2024-06-03", "03/21/2000", datetime(2025, 12, 31)]
-        schema = StructType([StructField("a", VariantType())])
-        return session.create_dataframe(data, schema)
-
-    @classmethod
-    def date_primitives4(cls, session: "Session") -> DataFrame:
-        # string + format
-        data = [
-            ("2024-04-18", "AUTO"),
-            ("01-09-1999", "DD-MM-YYYY"),
-            ("10.2024.29", "MM.YYYY.DD"),
-            ("05/15/2015", "MM/DD/YYYY"),
-        ]
-        schema = StructType(
-            [StructField("a", StringType()), StructField("b", StringType())]
-        )
-        return session.create_dataframe(data, schema)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:

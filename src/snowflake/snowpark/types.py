@@ -217,10 +217,7 @@ class DecimalType(_FractionalType):
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
-    def __init__(
-        self, element_type: Optional[DataType] = None, structured: bool = False
-    ) -> None:
-        self.structured = structured
+    def __init__(self, element_type: Optional[DataType] = None) -> None:
         self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
@@ -231,15 +228,11 @@ class ArrayType(DataType):
 
 
 class MapType(DataType):
-    """Map data type. This maps to the OBJECT data type in Snowflake if key and value types are not defined otherwise MAP."""
+    """Map data type. This maps to the OBJECT data type in Snowflake."""
 
     def __init__(
-        self,
-        key_type: Optional[DataType] = None,
-        value_type: Optional[DataType] = None,
-        structured: bool = False,
+        self, key_type: Optional[DataType] = None, value_type: Optional[DataType] = None
     ) -> None:
-        self.structured = structured
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
 
@@ -373,12 +366,9 @@ class StructField:
 
 
 class StructType(DataType):
-    """Represents a table schema or structured column. Contains :class:`StructField` for each field."""
+    """Represents a table schema. Contains :class:`StructField` for each column."""
 
-    def __init__(
-        self, fields: Optional[List["StructField"]] = None, structured=False
-    ) -> None:
-        self.structured = structured
+    def __init__(self, fields: Optional[List["StructField"]] = None) -> None:
         if fields is None:
             fields = []
         self.fields = fields
