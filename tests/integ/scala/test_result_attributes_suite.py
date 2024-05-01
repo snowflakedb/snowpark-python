@@ -26,8 +26,10 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="This is a SQL test suite"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="This is a SQL test suite",
+        run=False,
     )
 ]
 

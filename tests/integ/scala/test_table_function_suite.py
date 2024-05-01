@@ -13,7 +13,7 @@ from tests.utils import Utils
 pytestmark = [
     pytest.mark.skipif(
         "config.getvalue('local_testing_mode')",
-        reason="Table function is not supported in Local Testing",
+        reason="SNOW-952138 Table function is not supported in Local Testing",
     )
 ]
 

@@ -59,10 +59,6 @@ from tests.utils import (
 
 pytestmark = [
     pytest.mark.udf,
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')",
-        reason="This is test suite is for inbound telemetry",
-    ),
 ]
 
 tmp_stage_name = Utils.random_stage_name()

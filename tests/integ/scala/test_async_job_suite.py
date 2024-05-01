@@ -38,8 +38,10 @@ test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
 
 pytestmark = [
-    pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')", reason="Async Job is a SQL feature"
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="Async Job is a SQL feature",
+        run=False,
     )
 ]
 

@@ -30,9 +30,10 @@ except ImportError:
     is_pandas_available = False
 
 pytestmark = [
-    pytest.mark.skipif(
+    pytest.mark.xfail(
         "config.getvalue('local_testing_mode')",
         reason="Variable binding is a SQL feature",
+        run=False,
     )
 ]
 
