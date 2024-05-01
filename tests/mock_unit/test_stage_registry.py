@@ -34,7 +34,9 @@ def test_stage_put_file():
     stage = stage_registry["test_stage"]
 
     result_df = stage_registry.put(
-        normalize_local_file("files/test_file_1"),
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+        ),
         "@test_stage/test_parent_dir/test_child_dir",
     )
     assert len(result_df) == 1
@@ -57,9 +59,12 @@ def test_stage_put_file():
     )
 
     result_df = stage_registry.put(
-        normalize_local_file("files/*"), "@test_stage/test_parent_dir"
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file*"
+        ),
+        "@test_stage/test_parent_dir",
     )
-    assert len(result_df) == 3
+    assert len(result_df) == 2
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
@@ -89,9 +94,12 @@ def test_stage_put_file():
 
     # skip uploading if existing
     result_df = stage_registry.put(
-        normalize_local_file("files/*"), "@test_stage/test_parent_dir"
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file*"
+        ),
+        "@test_stage/test_parent_dir",
     )
-    assert len(result_df) == 3
+    assert len(result_df) == 2
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
@@ -101,7 +109,9 @@ def test_stage_put_file():
     # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
     with pytest.raises(NotImplementedError):
         result_df = stage_registry.put(
-            normalize_local_file("files/test_file_1"),
+            normalize_local_file(
+                f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+            ),
             "@test_stage/test_parent_dir/test_file_1",
         )
         assert result_df.iloc[0].status == "UPLOADED"
@@ -189,7 +199,7 @@ def test_stage_put_stream():
 def test_stage_get_file():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.put(
-        normalize_local_file("files/*"),
+        normalize_local_file(f"{os.path.dirname(os.path.abspath(__file__))}/files/*"),
         "@test_stage/test_parent_dir/test_child_dir",
     )
 
