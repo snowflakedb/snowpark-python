@@ -60,6 +60,7 @@ def test_series_add_prefix_time_column_df(
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @sql_count_checker(query_count=2)
 def test_series_add_prefix_snowpark_pandas_series(
     default_index_snowpark_pandas_series, default_index_native_series

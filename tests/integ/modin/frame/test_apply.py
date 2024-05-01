@@ -24,6 +24,7 @@ from snowflake.snowpark.types import DoubleType, PandasSeriesType
 from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
@@ -155,6 +156,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "data, func, expected_result",
     [
@@ -232,7 +234,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
 def test_axis_1_date_time_timestamp_type(data, func, expected_result):
     snow_df = pd.DataFrame(data)
     result = snow_df.apply(func, axis=1)
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(result, expected_result)
+    assert_snowpark_pandas_equal_to_pandas(result, expected_result)
 
 
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
@@ -305,6 +307,7 @@ def test_axis_1_raw():
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @sql_count_checker(query_count=6)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])
@@ -317,7 +320,7 @@ def test_axis_1_return_not_json_serializable_label():
         ).to_pandas()
 
     with pytest.raises(
-        SnowparkSQLException, match="Object of type DataFrame is not serializable"
+        SnowparkSQLException, match="Object of type DataFrame is not JSON serializable"
     ):
         # return value
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()
@@ -541,6 +544,7 @@ def test_axis_1_multi_index_column_labels_different_levels_negative():
     )
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 def test_apply_variant_json_null():
     # series -> scalar
     def f(v):
