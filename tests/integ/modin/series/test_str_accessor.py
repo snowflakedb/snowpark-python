@@ -280,7 +280,7 @@ def test_str_split_neg(pat, n, expand):
         snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
 
 
-@pytest.mark.parametrize("func", ["islower", "isupper", "lower", "upper"])
+@pytest.mark.parametrize("func", ["isdigit", "islower", "isupper", "lower", "upper"])
 @sql_count_checker(query_count=1)
 def test_str_no_params(func):
     native_ser = native_pd.Series(TEST_DATA)
@@ -288,15 +288,6 @@ def test_str_no_params(func):
     eval_snowpark_pandas_result(
         snow_ser, native_ser, lambda ser: getattr(ser.str, func)()
     )
-
-
-@sql_count_checker(query_count=0)
-def test_str_isdigit_negative():
-    snow_ser = pd.Series(TEST_DATA)
-    with pytest.raises(
-        NotImplementedError, match="isdigit is not yet implemented for Series.str"
-    ):
-        snow_ser.str.isdigit()
 
 
 @pytest.mark.parametrize(
