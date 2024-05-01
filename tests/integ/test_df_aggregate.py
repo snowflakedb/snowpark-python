@@ -7,18 +7,31 @@ import math
 
 import pytest
 
+import snowflake.snowpark.mock._functions as snowpark_mock_functions
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    approx_percentile_combine,
+    array_agg,
     avg,
     col,
     count,
     covar_pop,
+    covar_samp,
+    function,
+    grouping,
+    listagg,
+    lit,
     max as max_,
     mean,
     median,
     min as min_,
+    stddev,
+    stddev_pop,
     sum as sum_,
 )
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+from snowflake.snowpark.types import DoubleType
 from tests.utils import Utils
 
 
@@ -457,3 +470,219 @@ def test_agg_double_column(session):
     assert math.isnan(origin_df.select(covar_pop("m", "n")).collect()[0][0])
     assert math.isnan(origin_df.select(sum_(col("m") + col("n"))).collect()[0][0])
     assert math.isnan(origin_df.select(sum_(col("m") - col("n"))).collect()[0][0])
+
+
+@pytest.mark.localtest
+def test_agg_function_multiple_parameters(session):
+    origin_df = session.create_dataframe(["k1", "k1", "k3", "k4", [None]], schema=["v"])
+    assert origin_df.select(listagg("v", delimiter='~!1,."')).collect() == [
+        Row('k1~!1,."k1~!1,."k3~!1,."k4')
+    ]
+
+    assert origin_df.select(
+        listagg("v", delimiter='~!1,."', is_distinct=True)
+    ).collect() == [Row('k1~!1,."k3~!1,."k4')]
+
+
+@pytest.mark.localtest
+def test_register_new_methods(session, local_testing_mode):
+    if not local_testing_mode:
+        pytest.skip("mock implementation does not apply to live code")
+
+    origin_df = session.create_dataframe(
+        [
+            [10.0, 11.0],
+            [20.0, 22.0],
+            [25.0, 0.0],
+            [30.0, 35.0],
+        ],
+        schema=["m", "n"],
+    )
+
+    # approx_percentile
+    with pytest.raises(NotImplementedError):
+        origin_df.select(function("approx_percentile")(col("m"), lit(0.5))).collect()
+        # snowflake.snowpark.functions.approx_percentile is being updated to use lit
+        # so `function` won't be needed here.
+
+    @snowpark_mock_functions.patch("approx_percentile")
+    def mock_approx_percentile(
+        column: ColumnEmulator, percentile: float
+    ) -> ColumnEmulator:
+        assert column.tolist() == [10.0, 20.0, 25.0, 30.0]
+        assert percentile == 0.5
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    assert origin_df.select(
+        function("approx_percentile")(col("m"), lit(0.5))
+    ).collect() == [Row(123)]
+
+    # covar_samp
+    with pytest.raises(NotImplementedError):
+        origin_df.select(covar_samp(col("m"), "n")).collect()
+
+    @snowpark_mock_functions.patch(covar_samp)
+    def mock_covar_samp(
+        column1: ColumnEmulator,
+        column2: ColumnEmulator,
+    ):
+        assert column1.tolist() == [10.0, 20.0, 25.0, 30.0]
+        assert column2.tolist() == [11.0, 22.0, 0.0, 35.0]
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    assert origin_df.select(covar_samp(col("m"), "n")).collect() == [Row(123)]
+
+    # stddev
+    with pytest.raises(NotImplementedError):
+        origin_df.select(stddev("n")).collect()
+
+    @snowpark_mock_functions.patch(stddev)
+    def mock_stddev(column: ColumnEmulator):
+        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    assert origin_df.select(stddev("n")).collect() == [Row(123)]
+
+    # array_agg
+    with pytest.raises(NotImplementedError):
+        origin_df.select(array_agg("n", False)).collect()
+
+    # instead of kwargs, positional argument also works
+    @snowpark_mock_functions.patch(array_agg)
+    def mock_mock_array_agg(column: ColumnEmulator, is_distinct):
+        assert is_distinct is True
+        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    assert origin_df.select(array_agg("n", True)).collect() == [Row(123)]
+
+    # grouping
+    with pytest.raises(NotImplementedError):
+        origin_df.select(grouping("m", col("n"))).collect()
+
+    @snowpark_mock_functions.patch(grouping)
+    def mock_mock_grouping(*columns):
+        assert len(columns) == 2
+        assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
+        assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
+
+
+@pytest.mark.localtest
+def test_group_by(session, local_testing_mode):
+    origin_df = session.create_dataframe(
+        [
+            ["a", "ddd", 11.0],
+            ["a", "ddd", 22.0],
+            ["b", "ccc", 9.0],
+            ["b", "ccc", 9.0],
+            ["b", "aaa", 35.0],
+            ["b", "aaa", 99.0],
+        ],
+        schema=["m", "n", "q"],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("m").agg(sum_("q")).collect(),
+        [
+            Row("a", 33.0),
+            Row("b", 152.0),
+        ],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("n").agg(min_("q")).collect(),
+        [
+            Row("ddd", 11.0),
+            Row("ccc", 9.0),
+            Row("aaa", 35.0),
+        ],
+    )
+
+    with pytest.raises(
+        NotImplementedError if local_testing_mode else SnowparkSQLException
+    ):
+        origin_df.group_by("n", "m").agg(approx_percentile_combine("q")).collect()
+
+    if not local_testing_mode:
+        pytest.skip("mock implementation does not apply to live code")
+
+    @snowpark_mock_functions.patch(approx_percentile_combine)
+    def mock_approx_percentile_combine(state: ColumnEmulator):
+        if state.iat[0] == 11:
+            return ColumnEmulator(data=-1.0, sf_type=ColumnType(DoubleType(), False))
+        if state.iat[0] == 9:
+            return ColumnEmulator(data=0.0, sf_type=ColumnType(DoubleType(), False))
+        if state.iat[0] == 35:
+            return ColumnEmulator(data=1.0, sf_type=ColumnType(DoubleType(), False))
+        raise RuntimeError("This error shall never be raised")
+
+    Utils.check_answer(
+        origin_df.group_by("n").agg(approx_percentile_combine("q")).collect(),
+        [
+            Row("ddd", -1.0),
+            Row("ccc", 0.0),
+            Row("aaa", 1.0),
+        ],
+    )
+
+    Utils.check_answer(
+        origin_df.group_by("m", "n").agg(mean("q")).collect(),
+        [
+            Row("a", "ddd", 16.5),
+            Row("b", "ccc", 9.0),
+            Row("b", "aaa", 67.0),
+        ],
+    )
+
+
+@pytest.mark.localtest
+def test_agg(session, local_testing_mode):
+    origin_df = session.create_dataframe(
+        [
+            [15.0, 11.0],
+            [2.0, 22.0],
+            [29.0, 9.0],
+            [30.0, 9.0],
+            [4.0, 35.0],
+            [54.0, 99.0],
+        ],
+        schema=["m", "n"],
+    )
+
+    Utils.check_answer(origin_df.agg(sum_("m")).collect(), Row(134.0))
+
+    Utils.check_answer(origin_df.agg(min_("m"), max_("n")).collect(), Row(2.0, 99.0))
+
+    Utils.check_answer(
+        origin_df.agg({"m": "count", "n": "sum"}).collect(), Row(6.0, 185.0)
+    )
+
+    if not local_testing_mode:
+        pytest.skip("mock implementation does not apply to live code")
+
+    snowpark_mock_functions._unregister_func_implementation("stddev")
+    snowpark_mock_functions._unregister_func_implementation("stddev_pop")
+
+    with pytest.raises(NotImplementedError):
+        origin_df.select(stddev("n"), stddev_pop("m")).collect()
+
+    @snowpark_mock_functions.patch("stddev")
+    def mock_stddev(column: ColumnEmulator):
+        assert column.tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
+        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
+
+    # stddev_pop is not implemented yet
+    with pytest.raises(NotImplementedError):
+        origin_df.select(stddev("n"), stddev_pop("m")).collect()
+
+    @snowpark_mock_functions.patch("stddev_pop")
+    def mock_stddev_pop(column: ColumnEmulator):
+        assert column.tolist() == [15.0, 2.0, 29.0, 30.0, 4.0, 54.0]
+        return ColumnEmulator(data=456, sf_type=ColumnType(DoubleType(), False))
+
+    Utils.check_answer(
+        origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
+    )
