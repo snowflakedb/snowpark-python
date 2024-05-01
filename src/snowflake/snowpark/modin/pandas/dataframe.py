@@ -3126,9 +3126,9 @@ class DataFrame(BasePandasDataset):
         ErrorMessage.not_implemented(
             "Snowpark pandas does not support the DataFrame interchange "
             + "protocol method `__dataframe__`. To use Snowpark pandas "
-            + "DataFrames with third-party libraries like plotly, seaborn, and "
-            + "scikit-learn that try to call the __dataframe__ method, please "
-            + "convert this Snowpark pandas DataFrame to pandas with to_pandas()."
+            + "DataFrames with third-party libraries that try to call the "
+            + "`__dataframe__` method, please convert this Snowpark pandas "
+            + "DataFrame to pandas with `to_pandas()`."
         )
 
         return self._query_compiler.to_dataframe(
