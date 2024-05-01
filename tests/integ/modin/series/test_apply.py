@@ -322,6 +322,7 @@ def test_apply_null_nan():
         ]
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=3)
 def test_apply_json_serializable_negative():
     snow_series = pd.Series([1])

@@ -7,12 +7,13 @@ import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import tzinfo
-from typing import Any, Callable, Literal, Optional, Union, get_args
+from typing import Any, Callable, Literal, NoReturn, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
+from modin.core.storage_formats import BaseQueryCompiler
 from numpy import dtype
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -227,10 +228,6 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     rule_to_snowflake_width_and_slice_unit,
     validate_resample_supported_by_snowflake,
 )
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    SnowparkPandasTelemetryField,
-    TelemetryField,
-)
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_DF_KEYS,
     DateTimeOrigin,
@@ -298,10 +295,6 @@ from snowflake.snowpark.modin.plugin._typing import (
     ListLike,
     PandasLabelToSnowflakeIdentifierPair,
     SnowflakeSupportedFileTypeLit,
-)
-from snowflake.snowpark.modin.plugin.compiler.query_compiler import BaseQueryCompiler
-from snowflake.snowpark.modin.plugin.default2pandas.stored_procedure_utils import (
-    StoredProcedureDefault,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -646,6 +639,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def free(self) -> None:
         pass
 
+    def execute(self) -> None:
+        pass
+
     def to_numpy(
         self,
         dtype: Optional[npt.DTypeLike] = None,
@@ -664,7 +660,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def default_to_pandas(
         self, pandas_op: Callable, *args: Any, **kwargs: Any
-    ) -> "SnowflakeQueryCompiler":
+    ) -> NoReturn:
         func_name = pandas_op.__name__
 
         # this is coming from Modin's encoding scheme in default.py:build_default_to_pandas
@@ -672,20 +668,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # extract DataFrame operation, following extraction fails if not adhering to above format
         object_type, fn_name = func_name[len("<function ") : -1].split(".")
 
-        # in case it's a column wise or other unspecified operation, use a stored procedure which
-        # will materialize everything as a pandas DataFrame within Snowflake.
-        # Because the Snowflake executor has limited memory, this fallback likely will fail for large datasets.
-        return_query_compiler = StoredProcedureDefault.register(
-            self._modin_frame, pandas_op, args, kwargs
+        # Previously, Snowpark pandas would register a stored procedure that materializes the frame
+        # and performs the native pandas operation. Because this fallback has extremely poor
+        # performance, we now raise NotImplementedError instead.
+        args_str = ", ".join(map(str, args))
+        if args and kwargs:
+            args_str += ", "
+        if kwargs:
+            args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str}"
         )
-        return_query_compiler.snowpark_pandas_api_calls.append(
-            {
-                TelemetryField.NAME.value: f"{object_type}.{fn_name}",
-                SnowparkPandasTelemetryField.IS_FALLBACK.value: True,
-            }
-        )
-
-        return return_query_compiler
 
     @classmethod
     def from_snowflake(
@@ -3739,6 +3732,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 cumagg_func=sum_,
                 cumagg_func_name="cumsum",
             )
+        )
+
+    def groupby_nunique(
+        self, by, axis, groupby_kwargs, agg_args, agg_kwargs, drop=False, **kwargs
+    ):
+        # We have to override the Modin version of this function because our groupby frontend passes the
+        # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
+        # does not have **kwargs.
+        return self.groupby_agg(
+            by=by,
+            agg_func="nunique",
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            drop=drop,
         )
 
     def _get_dummies_helper(

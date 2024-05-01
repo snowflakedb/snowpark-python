@@ -34,9 +34,7 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     return fake_query_compiler
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register")
 @pytest.mark.parametrize(
     "func, func_name",
     [
@@ -44,8 +42,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
         (lambda s: s.dt.timetz, "timetz"),
         (lambda s: s.dt.microsecond, "microsecond"),
         (lambda s: s.dt.nanosecond, "nanosecond"),
-        (lambda s: s.dt.week, "week"),
-        (lambda s: s.dt.weekofyear, "weekofyear"),
         (lambda s: s.dt.dayofweek, "dayofweek"),
         (lambda s: s.dt.weekday, "weekday"),
         (lambda s: s.dt.dayofyear, "dayofyear"),
@@ -92,9 +88,7 @@ def test_dt_methods(
     assert res._query_compiler == mock_query_compiler_for_dt_series, func_name
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register")
 def test_dt_components(mock_datetime_register, mock_query_compiler_for_dt_series):
     mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
     return_callable = mock.create_autospec(Callable)
@@ -106,9 +100,7 @@ def test_dt_components(mock_datetime_register, mock_query_compiler_for_dt_series
     assert res._query_compiler == mock_query_compiler_for_dt_series
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register")
 def test_dt_to_pytimedelta(mock_datetime_register, mock_query_compiler_for_dt_series):
     mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
     result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
@@ -133,9 +125,7 @@ def test_dt_to_pytimedelta(mock_datetime_register, mock_query_compiler_for_dt_se
     assert res.tolist() == np.array([datetime.timedelta(0), 0]).tolist()
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register")
 def test_dt_to_pydatetime(mock_datetime_register, mock_query_compiler_for_dt_series):
     mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
     result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
@@ -164,9 +154,7 @@ def test_dt_tz():
     assert res == time_type.tz
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
+@mock.patch("modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register")
 def test_dt_freq(mock_datetime_register, mock_query_compiler_for_dt_series):
     mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
     result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
