@@ -23,7 +23,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     return_callable.return_value = result_query_compiler
     mock_str_register.return_value = return_callable
     with pytest.raises(
-        NotImplementedError, match="cat is not yet implemented for StringMethods"
+        NotImplementedError, match="cat is not yet implemented for Series.str"
     ):
         mock_series.str.cat()
 
@@ -73,7 +73,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
 def test_str_methods_with_series_return(func, func_name, mock_series):
     with pytest.raises(
         NotImplementedError,
-        match=f"{func_name} is not yet implemented for StringMethods",
+        match=f"{func_name} is not yet implemented for Series.str",
     ):
         func(mock_series)
 
@@ -89,7 +89,7 @@ def test_str_methods_with_series_return(func, func_name, mock_series):
 )
 def test_str_methods_with_dataframe_return(func, func_name, mock_series):
     with pytest.raises(
-        NotImplementedError, match="is not yet implemented for StringMethods"
+        NotImplementedError, match="is not yet implemented for Series.str"
     ):
         func(mock_series)
 
