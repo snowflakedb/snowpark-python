@@ -127,6 +127,7 @@ def preprocess_bins_for_cut(
 
     if not np.iterable(bins):
         # Call adjusted function from pandas 2.2.x branch
+        assert type(bins) is int
         bins = _nbins_to_bins(x_min, x_max, bins, right)
 
     elif isinstance(bins, IntervalIndex):

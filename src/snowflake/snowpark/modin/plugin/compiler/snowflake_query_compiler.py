@@ -2336,7 +2336,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             key=key,
         )
 
-    def sort_columns_by_row_values(self, rows, ascending=True, **kwargs):
+    def sort_columns_by_row_values(
+        self, rows: IndexLabel, ascending: bool = True, **kwargs: Any
+    ) -> None:
         """
         Reorder the columns based on the lexicographic order of the given rows.
 
@@ -2503,7 +2505,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         how: str = "axis_wise",
         numeric_only: bool = False,
         is_series_groupby: bool = False,
-        drop=False,
+        drop: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with aggregation functions.
@@ -6535,11 +6537,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas nunique API doesn't yet support axis == 1"
             )
-        else:
-            # Result is basically a series with the column labels as index and the distinct count as values
-            # for each data column
-            # frame holds rows with nunique values, but result must be a series so transpose single row
-            return self._nunique_columns(dropna).transpose_single_row()
+        # Result is basically a series with the column labels as index and the distinct count as values
+        # for each data column
+        # frame holds rows with nunique values, but result must be a series so transpose single row
+        return self._nunique_columns(dropna).transpose_single_row()
 
     def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
@@ -12237,7 +12238,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return bins, SnowflakeQueryCompiler(ret_frame)
 
-    def str_casefold(self) -> "SnowflakeQueryCompiler":
+    def str_casefold(self) -> None:
         """
         Returns:
             New query compiler with updated values.
