@@ -307,7 +307,7 @@ def test_axis_1_raw():
     )
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])
@@ -544,7 +544,7 @@ def test_axis_1_multi_index_column_labels_different_levels_negative():
     )
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 def test_apply_variant_json_null():
     # series -> scalar
     def f(v):

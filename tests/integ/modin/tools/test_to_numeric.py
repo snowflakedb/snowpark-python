@@ -94,7 +94,7 @@ def test_series_to_numeric(input, dtype, expected_dtype):
     assert pd.to_numeric(snow_series).dtype == expected_dtype
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, dtype",
     [
@@ -264,7 +264,7 @@ def test_tuple():
     assert_series_equal(res, expected)
 
 
-@pytest.mark.skip(reason="SNOW-13588681")
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "input, expected_dtype",
     [

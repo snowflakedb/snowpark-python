@@ -160,7 +160,7 @@ class TestFuncReturnsDataFrame:
             ).apply(func),
         )
 
-    @pytest.mark.skip(reason="SNOW-13588681")
+    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
@@ -264,7 +264,7 @@ class TestFuncReturnsDataFrame:
             check_index_type=False,
         )
 
-    @pytest.mark.skip(reason="SNOW-13588681")
+    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         join_count=JOIN_COUNT,
@@ -700,7 +700,7 @@ class TestFuncReturnsScalar:
             ),
         )
 
-    @pytest.mark.skip(reason="SNOW-13588681")
+    @pytest.mark.skip(reason="SNOW-1358681")
     @sql_count_checker(
         query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
