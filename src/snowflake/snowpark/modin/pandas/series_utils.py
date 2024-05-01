@@ -1116,7 +1116,6 @@ class StringMethods:
         3    False
         dtype: bool
         """
-        ErrorMessage.method_not_implemented_error("isdigit", "Series.str")
         return Series(query_compiler=self._query_compiler.str_isdigit())
 
     def isspace(self):

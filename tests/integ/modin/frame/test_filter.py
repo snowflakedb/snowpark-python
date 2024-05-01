@@ -88,7 +88,8 @@ def test_filtering_with_self_not_implemented(
     data = _generate_data()
     snow_df = pd.DataFrame(data)
     with pytest.raises(
-        NotImplementedError, match=re.escape("Series.str.casefold() is not implemented")
+        NotImplementedError,
+        match=re.escape("casefold is not yet implemented for Series.str"),
     ):
         func(snow_df)
 

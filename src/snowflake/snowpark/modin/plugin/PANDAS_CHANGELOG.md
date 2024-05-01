@@ -30,7 +30,7 @@
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
   - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
-  - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isdigit`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
+  - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 
 ### Behavior Changes
 - As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
