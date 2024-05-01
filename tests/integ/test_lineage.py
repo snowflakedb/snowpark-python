@@ -8,7 +8,6 @@ import uuid
 
 import pytest
 
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.lineage import LineageDirection
 
 try:
@@ -125,6 +124,8 @@ def test_lineage_trace(session):
     assert 0 == df.shape[0]
 
     # CASE 3 : Insufficent privillage case
+    # Disabling this test until 8.17 is deployed.
+    """
     test_non_priv_role = "lineage_non_priv_test_role"
     session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_non_priv_role}")
     session.sql(
@@ -139,6 +140,7 @@ def test_lineage_trace(session):
             f"{db}.{schema}.V5", "view", direction=LineageDirection.DOWNSTREAM
         )
     assert "Insufficient privileges to view data lineage" in str(exc)
+    """
 
     # CASE 4 : trace with masked object
     test_role = "lineage_test_role"
