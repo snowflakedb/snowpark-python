@@ -42,16 +42,21 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
+    ArrayType,
     DateType,
     DoubleType,
     IntegerType,
+    LongType,
+    MapType,
     StringType,
     StructField,
     StructType,
+    VectorType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
+    IS_STRUCTURED_TYPES_SUPPORTED,
     TempObjectType,
     TestFiles,
     Utils,
@@ -329,6 +334,64 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
     finally:
         new_session.close()
         # restore active session
+
+
+@pytest.mark.skipif(
+    not IS_STRUCTURED_TYPES_SUPPORTED,
+    reason="Structured types not enabled in this account.",
+)
+def test_stored_procedure_with_structured_returns(session):
+    expected_dtypes = [
+        ("VEC", "vector<int,5>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("OBJ", "struct<string(16777216),double>"),
+        ("ARR", "array<double>"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("VEC", VectorType(int, 5), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(16777216), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("A", StringType(16777216), nullable=True),
+                        StructField("B", DoubleType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
+        ]
+    )
+
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    def test_sproc(session: Session) -> DataFrame:
+        return session.sql(
+            """
+        select
+          [1,2,3,4,5] :: vector(int, 5) as vec,
+          object_construct('k1', 1) :: map(varchar, int) as map,
+          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
+          [1.0, 3.1, 4.5] :: array(float) as arr
+         ;
+        """
+        )
+
+    session.sproc.register(
+        test_sproc,
+        name=sproc_name,
+        replace=True,
+    )
+    df = session.call(sproc_name)
+    assert df.schema == expected_schema
+    assert df.dtypes == expected_dtypes
 
 
 @pytest.mark.localtest
@@ -1635,6 +1698,7 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here
     session.custom_package_usage_config["enabled"] = True
