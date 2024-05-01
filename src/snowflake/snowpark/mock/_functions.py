@@ -149,7 +149,9 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
         if data is not None:
             try:
                 if math.isnan(data):
-                    continue
+                    res = math.nan
+                    all_item_is_none = False
+                    break
             except TypeError:
                 pass
             all_item_is_none = False
@@ -250,6 +252,13 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
     for x, y in zip(column1, column2):
+        if (x is not None and math.isnan(x)) or (y is not None and math.isnan(y)):
+            return ColumnEmulator(
+                data=math.nan,
+                sf_type=ColumnType(
+                    DoubleType(), column1.sf_type.nullable or column2.sf_type.nullable
+                ),
+            )
         if x is not None and y is not None and not math.isnan(x) and not math.isnan(y):
             non_nan_cnt += 1
             x_times_y_sum += x * y
