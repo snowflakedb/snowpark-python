@@ -2578,9 +2578,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     agg_func = ", ".join(
                         [f"{key}={value}" for key, value in agg_kwargs.items()]
                     )
+                    agg_func = f"agg({agg_func})"
 
                 ErrorMessage.not_implemented(
-                    f"Snowpark pandas GroupBy.agg({agg_func}) does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+                    f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
                 )
 
         sort = groupby_kwargs.get("sort", True)
