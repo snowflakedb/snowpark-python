@@ -7,13 +7,13 @@ import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import tzinfo
-from typing import Any, Callable, Literal, NoReturn, Optional, Union, get_args
+from typing import Any, Callable, Literal, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
-from modin.core.storage_formats import BaseQueryCompiler
+from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from numpy import dtype
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -658,9 +658,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
         return self
 
-    def default_to_pandas(
-        self, pandas_op: Callable, *args: Any, **kwargs: Any
-    ) -> NoReturn:
+    def default_to_pandas(self, pandas_op: Callable, *args: Any, **kwargs: Any) -> None:
         func_name = pandas_op.__name__
 
         # this is coming from Modin's encoding scheme in default.py:build_default_to_pandas
@@ -3735,8 +3733,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_nunique(
-        self, by, axis, groupby_kwargs, agg_args, agg_kwargs, drop=False, **kwargs
-    ):
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
