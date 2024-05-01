@@ -2,11 +2,23 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import decimal
+import math
 
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark.functions import col, count, sum as sum_
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    count,
+    covar_pop,
+    max as max_,
+    mean,
+    median,
+    min as min_,
+    sum as sum_,
+)
 from tests.utils import Utils
 
 
@@ -390,3 +402,58 @@ def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
     Utils.check_answer(df.agg(count(col1), sum_(col2)), [Row(4, 19)])
 
     assert df.agg(count(col1), sum_(col2)).columns == [alias1, alias2]
+
+
+@pytest.mark.localtest
+def test_agg_single_column(session, local_testing_mode):
+    # TODO: SNOW-1348452 precision
+    val = "86.333333" if not local_testing_mode else "86.33333333333333"
+    origin_df = session.create_dataframe(
+        [[1], [8], [6], [3], [100], [400], [None]], schema=["v"]
+    )
+    assert origin_df.select(sum_("v")).collect() == [Row(518)]
+    assert origin_df.select(max_("v")).collect() == [Row(400)]
+    assert origin_df.select(min_("v")).collect() == [Row(1)]
+    assert origin_df.select(median("v")).collect() == [Row(7.0)]
+    assert origin_df.select(avg("v")).collect() == [
+        Row(decimal.Decimal(val))
+    ]  # snowflake keeps scale of 5
+    assert origin_df.select(mean("v")).collect() == [Row(decimal.Decimal(val))]
+    assert origin_df.select(count("v")).collect() == [Row(6)]
+    assert origin_df.count() == 7
+
+
+@pytest.mark.localtest
+def test_agg_double_column(session):
+    origin_df = session.create_dataframe(
+        [
+            [10.0, 11.0],
+            [20.0, 22.0],
+            [25.0, 0.0],
+            [30.0, 35.0],
+            [999.0, None],
+            [None, 1234.0],
+        ],
+        schema=["m", "n"],
+    )
+    assert origin_df.select(covar_pop("m", "n")).collect() == [Row(38.75)]
+    assert origin_df.select(sum_(col("m") + col("n"))).collect() == [Row(153.0)]
+    assert origin_df.select(sum_(col("m") - col("n"))).collect() == [Row(17.0)]
+
+    # nan value will lead to nan result
+    origin_df = session.create_dataframe(
+        [
+            [10.0, 11.0],
+            [20.0, 22.0],
+            [25.0, 0.0],
+            [30.0, 35.0],
+            [999.0, None],
+            [None, 1234.0],
+            [math.nan, None],
+            [math.nan, 1.0],
+        ],
+        schema=["m", "n"],
+    )
+    assert math.isnan(origin_df.select(covar_pop("m", "n")).collect()[0][0])
+    assert math.isnan(origin_df.select(sum_(col("m") + col("n"))).collect()[0][0])
+    assert math.isnan(origin_df.select(sum_(col("m") - col("n"))).collect()[0][0])
