@@ -138,3 +138,40 @@ def test_get_user_entity():
     with pytest.raises(SnowparkFetchDataException) as exc:
         Lineage(fake_session)._get_user_entity(graph_entity)
     assert f"missing {_ObjectField.STATUS} property." in str(exc)
+
+    # Tests the work around.
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.TABLE,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.REFINED_DOMAIN: _SnowflakeDomain.VIEW,
+        _ObjectField.CREATED_ON: "123455",
+        _ObjectField.STATUS: "Active",
+        _ObjectField.NAME: "name1",
+    }
+
+    user_entity = Lineage(fake_session)._get_user_entity(graph_entity)
+    assert len(user_entity) == 4
+    assert _ObjectField.NAME in user_entity
+    assert user_entity[_ObjectField.NAME] == "db1.schema1.name1"
+    assert _ObjectField.DOMAIN in user_entity
+    assert user_entity[_ObjectField.DOMAIN] == _SnowflakeDomain.VIEW
+    assert _ObjectField.CREATED_ON in user_entity
+
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _UserDomain.FEATURE_VIEW,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.REFINED_DOMAIN: _SnowflakeDomain.VIEW,
+        _ObjectField.CREATED_ON: "123455",
+        _ObjectField.STATUS: "Active",
+        _ObjectField.NAME: "name1$v1",
+    }
+
+    user_entity = Lineage(fake_session)._get_user_entity(graph_entity)
+    assert len(user_entity) == 5
+    assert _ObjectField.NAME in user_entity
+    assert user_entity[_ObjectField.NAME] == "db1.schema1.name1"
+    assert _ObjectField.DOMAIN in user_entity
+    assert user_entity[_ObjectField.DOMAIN] == _UserDomain.FEATURE_VIEW
+    assert _ObjectField.CREATED_ON in user_entity
