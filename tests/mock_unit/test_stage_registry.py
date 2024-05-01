@@ -59,7 +59,7 @@ def test_stage_put_file():
     result_df = stage_registry.put(
         normalize_local_file("files/*"), "@test_stage/test_parent_dir"
     )
-    assert len(result_df) == 2
+    assert len(result_df) == 3
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
@@ -91,7 +91,7 @@ def test_stage_put_file():
     result_df = stage_registry.put(
         normalize_local_file("files/*"), "@test_stage/test_parent_dir"
     )
-    assert len(result_df) == 2
+    assert len(result_df) == 3
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
