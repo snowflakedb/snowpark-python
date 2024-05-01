@@ -12,6 +12,7 @@ import sys
 import tempfile
 import typing
 import uuid
+from collections import defaultdict
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -37,7 +38,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -1380,17 +1380,28 @@ def execute_mock_plan(
         return [Row(*res)]
     elif isinstance(source_plan, Pivot):
         child_rf = execute_mock_plan(source_plan.child)
-        aggregate_columns = [
-            plan.session._analyzer.analyze(exp, keep_alias=False)
-            for exp in source_plan.aggregates
-        ]
+
+        aggregate_map = defaultdict(lambda: set())
+        for agg in source_plan.aggregates:
+            assert (
+                len(agg.children) == 1
+            ), "Aggregate functions should take one parameter."
+            agg_column = plan.session._analyzer.analyze(agg.children[0])
+            if agg.name in {"sum"}:
+                aggregate_map[agg_column] |= {agg.name}
+
         pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
-        pivot_values = [
-            exp.value
-            for exp in source_plan.pivot_values
-        ]
-        result = child_rf.pivot_table(columns=pivot_column, values='"AMOUNT"', aggfunc="sum", index='"EMPID"', sort=True)
-        __import__('pdb').set_trace()
+        pivot_values = [exp.value for exp in source_plan.pivot_values]
+        agg_keys = set(aggregate_map.keys())
+        indices = set(child_rf.keys()) - (agg_keys | {pivot_column})
+
+        result = child_rf.pivot_table(
+            columns=pivot_column, values=agg_keys, aggfunc=aggregate_map, index=indices
+        )
+        result.columns = result.columns.get_level_values(-1)
+        __import__("pdb").set_trace()
+        result = result.reset_index()[list(indices) + pivot_values]
+        return result
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
