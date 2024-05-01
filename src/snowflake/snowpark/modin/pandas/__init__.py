@@ -318,10 +318,10 @@ _EXTENSION_ATTRS = ["read_snowflake", "to_snowflake", "to_snowpark", "to_pandas"
 _ADDITIONAL_ATTRS = ["offsets", "base"]
 
 # This code should eventually be moved into the `snowflake.snowpark.modin.plugin` module instead.
-# Currently trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`
+# Currently, trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`
 # import submodules of `snowflake.snowpark.modin.plugin`, so we would encounter errors due to
 # partially initialized modules.
-import modin.pandas.api.extensions as _ext  # noqa: E402
+import modin.pandas.api.extensions as _ext  # type: ignore  # noqa: E402
 
 # This loop overrides all methods in the `modin.pandas` namespace so users can obtain Snowpark pandas objects from it.
 for name in __all__ + _ADDITIONAL_ATTRS:

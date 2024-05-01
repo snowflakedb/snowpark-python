@@ -83,8 +83,6 @@ repos:
         files: >
           (?x)^(
             src/snowflake/snowpark/modin/pandas/indexing.py|
-            src/snowflake/snowpark/modin/pandas/dataframe.py|
-            src/snowflake/snowpark/modin/pandas/series.py|
             src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
             src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
             src/snowflake/snowpark/modin/plugin/compiler/snowflake_query_compiler.py|
