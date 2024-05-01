@@ -2,3 +2,10 @@
 /src/snowflake/snowpark/modin/ @snowflakedb/snowpandas
 /tests/integ/modin/ @snowflakedb/snowpandas
 /tests/unit/modin/ @snowflakedb/snowpandas
+/docs/modin_api_coverage/ @snowflakedb/snowpandas
+/docs/source/modin/ @snowflakedb/snowpandas
+/tests/notebooks/ @snowflakedb/snowpandas
+/.github/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
+/scripts/ @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
+setup.py @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers
+tox.ini @snowflakedb/snowpandas @snowflakedb/snowpark-python-api-reviewers

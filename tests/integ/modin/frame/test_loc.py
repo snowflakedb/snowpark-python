@@ -2736,13 +2736,7 @@ def test_df_loc_set_key_slice(
     "key",
     [
         ["A"],  # matching_item_columns_by_label = True
-        pytest.param(
-            "A",  # matching_item_columns_by_label = False
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="SNOW-1057861: Investigate locset behavior with missing index value",
-            ),
-        ),
+        "A",  # matching_item_columns_by_label = False
     ],
 )
 def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
@@ -2750,6 +2744,7 @@ def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
         [[91, -2, 83, 74], [95, -6, 87, 78], [99, -10, 811, 712], [913, -14, 815, 716]],
         index=["x", "x", "z", "w"],
         columns=["A", "B", "C", "D"],
+        dtype=float,
     )
 
     val = native_pd.DataFrame([100], columns=val_columns, index=val_index)
@@ -2758,7 +2753,16 @@ def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
         if isinstance(df, pd.DataFrame):
             df.loc[:, key] = pd.DataFrame(val)
         else:
-            df.loc[:, key] = val
+            # There is a bug in pandas when assigning a DataFrame item when the key is a scalar.
+            # In the case of this test, that is when `key == "A"`.
+            # To make sure Snowpark pandas works as expected, the column key is hard coded to ["A"], and the result
+            # for `df.loc[:, "A"] = val` is evaluated.
+            # SNOW-1057861, pandas issue: https://github.com/pandas-dev/pandas/issues/58482
+            if key == "A" and val_index == ["x"] and val_columns == ["Z"]:
+                df.iloc[[0, 1], 0] = 100
+                df.iloc[[2, 3], 0] = np.nan
+            else:
+                df.loc[:, ["A"]] = val
 
     with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
