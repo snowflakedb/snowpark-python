@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from snowflake.snowpark._internal.utils import warning_dict
+
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 # TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
@@ -91,3 +93,11 @@ def cte_optimization_enabled(pytestconfig):
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def clear_warning_dict():
+    yield
+    # clear the warning dict so that warnings from one test don't affect
+    # warnings from other tests.
+    warning_dict.clear()

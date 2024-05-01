@@ -6,6 +6,7 @@
 import datetime
 import decimal
 import json
+import math
 import re
 from itertools import chain
 
@@ -135,6 +136,7 @@ from snowflake.snowpark.functions import (
     to_binary,
     to_char,
     to_date,
+    to_decimal,
     to_double,
     to_json,
     to_object,
@@ -154,6 +156,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DateType,
     DecimalType,
+    DoubleType,
     FloatType,
     MapType,
     StringType,
@@ -270,6 +273,7 @@ def test_regexp_extract(session):
     assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -279,13 +283,30 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
+@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
 def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
-    res = df.select(concat_ws(lit(","), col("a"), col("b"), col("c"))).collect()
+    res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.localtest
+def test_concat_edge_cases(session):
+    df = session.create_dataframe(
+        [[None, 1, 2, 3], [4, None, 6, 7], [8, 9, None, 11], [12, 13, 14, None]]
+    ).to_df(["a", "b", "c", "d"])
+
+    single = df.select(concat("a")).collect()
+    single_ws = df.select(concat_ws(lit(","), "a")).collect()
+    assert single == single_ws == [Row(None), Row("4"), Row("8"), Row("12")]
+
+    nulls = df.select(concat("a", "b", "c")).collect()
+    nulls_ws = df.select(concat_ws(lit(","), "a", "b", "c")).collect()
+    assert nulls == [Row(None), Row(None), Row(None), Row("121314")]
+    assert nulls_ws == [Row(None), Row(None), Row(None), Row("12,13,14")]
 
 
 @pytest.mark.localtest
@@ -1890,3 +1911,79 @@ def test_to_double(session, local_testing_mode):
             [Row(1.2, -2.34, -2.34)],
             sort=False,
         )
+
+
+@pytest.mark.localtest
+def test_to_decimal(session, local_testing_mode):
+    # Supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), 12.345678, "3.14E-6", True, None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("float_col", DoubleType()),
+                StructField("str_col", StringType()),
+                StructField("bool_col1", BooleanType()),
+                StructField("bool_col2", BooleanType()),
+            ]
+        ),
+    )
+    # Test when scale is 0
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 0) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12"),
+                decimal.Decimal("12"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 2
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 2) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.35"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 6
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 6) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.345678"),
+                decimal.Decimal("0.000003"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Unsupported input
+    df = session.create_dataframe(
+        [[-math.inf, datetime.date.today()]],
+        schema=StructType(
+            [StructField("float_col", FloatType()), StructField("date_col", DateType())]
+        ),
+    )
+
+    # Test when input type is not supported
+    expected_error = TypeError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.date_col, 38, 0)]).collect()
+
+    # Test when input value is not supported
+    expected_error = ValueError if local_testing_mode else SnowparkSQLException
+    with pytest.raises(expected_error):
+        df.select([to_decimal(df.float_col, 38, 0)]).collect()

@@ -10,6 +10,10 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark._internal.utils import (
+    PIVOT_DEFAULT_ON_NULL_WARNING,
+    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+)
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UNPIVOT_NULL_REPLACE_VALUE,
 )
@@ -348,3 +352,12 @@ def test_dataframe_transpose_args_warning_log(caplog, score_test_data):
         "Transpose ignores args in Snowpark pandas API."
         in [r.msg for r in caplog.records]
     )
+
+
+@sql_count_checker(query_count=1, union_count=1)
+def test_transpose_does_not_raise_pivot_warning_snow_1344848(caplog):
+    # Test transpose, which calls snowflake.snowpark.dataframe.pivot() with
+    # the `values` parameter as None or a Snowpark DataFrame.
+    pd.DataFrame([1]).T.to_pandas()
+    assert PIVOT_DEFAULT_ON_NULL_WARNING not in caplog.text
+    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in caplog.text
