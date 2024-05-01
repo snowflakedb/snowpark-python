@@ -9,27 +9,6 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
 .. toctree::
    :maxdepth: 1
 
-   session
-   io
-   dataframe
-   column
-   types
-   row
-   functions 
-   window 
-   grouping 
-   table_function
-   table
-   async_job
-   stored_procedures
-   udf
-   udaf
-   udtf
-   observability
-   files
-   lineage
-   context
-   exceptions
    snowpark/session
    snowpark/index
    modin/index
