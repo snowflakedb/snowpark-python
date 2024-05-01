@@ -221,9 +221,10 @@ def test_str_replace_neg(pat, n, repl, error):
         snow_ser.str.replace(pat=pat, repl=repl, n=n)
 
 
+@pytest.mark.xfail(reason="Series.str.split() is not implemented", strict=True)
 @pytest.mark.parametrize("pat", [None, "a", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.NaN, 3, 2, 1, 0, -1, -2])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_str_split(pat, n):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
@@ -232,6 +233,20 @@ def test_str_split(pat, n):
         native_ser,
         lambda ser: ser.str.split(pat=pat, n=n, expand=False, regex=None),
     )
+
+
+@sql_count_checker(query_count=0)
+def test_str_split_negative():
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError, match="split is not yet implemented for StringMethods"
+    ):
+        eval_snowpark_pandas_result(
+            snow_ser,
+            native_ser,
+            lambda ser: ser.str.split(pat=None, n=None, expand=False, regex=None),
+        )
 
 
 @pytest.mark.parametrize("regex", [None, True])
@@ -249,24 +264,26 @@ def test_str_split_regex(regex):
 
 
 @pytest.mark.parametrize(
-    "pat, n, expand, error",
+    "pat, n, expand",
     [
-        ("", 1, False, ValueError),
-        (re.compile("a"), 1, False, NotImplementedError),
-        (-2.0, 1, False, NotImplementedError),
-        ("a", "a", False, NotImplementedError),
-        ("a", 1, True, NotImplementedError),
+        ("", 1, False),
+        (re.compile("a"), 1, False),
+        (-2.0, 1, False),
+        ("a", "a", False),
+        ("a", 1, True),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_split_neg(pat, n, expand, error):
+def test_str_split_neg(pat, n, expand):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(error):
+    with pytest.raises(
+        NotImplementedError, match="split is not yet implemented for StringMethods"
+    ):
         snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
 
 
-@pytest.mark.parametrize("func", ["isdigit", "islower", "isupper", "lower", "upper"])
+@pytest.mark.parametrize("func", ["islower", "isupper", "lower", "upper"])
 @sql_count_checker(query_count=1)
 def test_str_no_params(func):
     native_ser = native_pd.Series(TEST_DATA)
@@ -274,6 +291,15 @@ def test_str_no_params(func):
     eval_snowpark_pandas_result(
         snow_ser, native_ser, lambda ser: getattr(ser.str, func)()
     )
+
+
+@sql_count_checker(query_count=0)
+def test_str_isdigit_negative():
+    snow_ser = pd.Series(TEST_DATA)
+    with pytest.raises(
+        NotImplementedError, match="isdigit is not yet implemented for StringMethods"
+    ):
+        snow_ser.str.isdigit()
 
 
 @pytest.mark.parametrize(
