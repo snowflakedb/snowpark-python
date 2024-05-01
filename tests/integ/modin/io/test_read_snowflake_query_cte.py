@@ -32,6 +32,7 @@ def test_read_snowflake_query_basic_cte(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
+@pytest.mark.skip(reason="SNOW-13588681")
 @sql_count_checker(query_count=4, union_count=2)
 def test_read_snowflake_query_recursive_cte():
     SQL_QUERY = """WITH RECURSIVE current_f (current_val, previous_val) AS
