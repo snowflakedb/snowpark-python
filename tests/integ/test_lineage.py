@@ -20,18 +20,6 @@ except ImportError:
     is_pandas_available = False
 
 
-def setup_test(session, db, schema, warehouse, test_role) -> None:
-    session.sql("SELECT CURRENT_ROLE()").collect()
-    session.sql("USE ROLE ACCOUNTADMIN").collect()
-    session.sql(f"CREATE OR REPLACE ROLE {test_role}").collect()
-    session.sql(f"GRANT ROLE {test_role} TO ROLE ACCOUNTADMIN").collect()
-    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
-    session.sql(f"GRANT CREATE SCHEMA ON database {db} TO ROLE {test_role}").collect()
-    session.sql(f"GRANT USAGE ON WAREHOUSE {warehouse} TO ROLE {test_role}").collect()
-    session.sql(f"USE ROLE {test_role}").collect()
-    session.sql(f"CREATE SCHEMA {db}.{schema}").collect()
-
-
 def create_objects_for_test(session, db, schema) -> None:
     # Create table and views within the specified TESTDB and TESTSCHEMA
     session.sql(f"CREATE OR REPLACE TABLE {db}.{schema}.T1(C1 INT)").collect()
@@ -70,22 +58,12 @@ def test_lineage_trace(session):
     """
     db = session.get_current_database().replace('"', "")
     schema = ("sch" + str(uuid.uuid4()).replace("-", "")[:10]).upper()
-    warehouse = session.get_current_warehouse().replace('"', "")
-    test_role = "test_role"
+    current_role = session.get_current_role().replace('"', "")
+    session.sql(f"CREATE SCHEMA {db}.{schema}").collect()
 
-    setup_test(session, db, schema, warehouse, test_role)
     create_objects_for_test(session, db, schema)
 
-    # CASE 1 : trace with the role that does not have VIEW LINEAGE privillege.
-    with pytest.raises(SnowparkSQLException) as exc:
-        session.lineage.trace(f"{db}.{schema}.V1", "view").collect()
-    assert "Insufficient privileges to view data lineage" in str(exc)
-
-    # CASE 2 : trace with the role that has VIEW LINEAGE privillege.
-    session.sql("USE ROLE ACCOUNTADMIN").collect()
-    session.sql(f"GRANT VIEW LINEAGE ON ACCOUNT TO ROLE {test_role};").collect()
-    session.sql(f"USE ROLE {test_role}").collect()
-
+    # CASE 1 : trace with the role that has VIEW LINEAGE privillege.
     df = session.lineage.trace(
         f"{db}.{schema}.T1",
         "table",
@@ -114,7 +92,7 @@ def test_lineage_trace(session):
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
 
-    # CASE 3 : trace with default arguments
+    # CASE 2 : trace with default arguments
     df = session.lineage.trace(f"{db}.{schema}.V1", "view")
     df = remove_created_on_field(df.to_pandas())
 
@@ -144,29 +122,51 @@ def test_lineage_trace(session):
 
     assert 0 == df.shape[0]
 
-    # CASE 4 : trace with masked object
-    session.sql("USE ROLE ACCOUNTADMIN").collect()
+    session.sql(
+        f"CREATE OR REPLACE VIEW {db}.{schema}.V7 AS SELECT * FROM {db}.{schema}.V5"
+    ).collect()
+
+    # CASE 3 : Insufficent privillage case
+    test_role = "test_role"
+    session.sql(f"CREATE OR REPLACE ROLE {test_role}").collect()
+    session.sql(f"GRANT ROLE {test_role} TO ROLE {current_role}").collect()
+    session.sql(f"GRANT USAGE ON database {db} TO ROLE {test_role}").collect()
+    session.sql(f"GRANT USAGE ON schema {schema} TO ROLE {test_role}").collect()
+    session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
+    session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
+    session.sql(f"USE ROLE {test_role}").collect()
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()
-    session.sql(f"USE ROLE {test_role}").collect()
 
+    with pytest.raises(SnowparkSQLException) as exc:
+        session.lineage.trace(
+            f"{db}.{schema}.V5", "view", direction=LineageDirection.DOWNSTREAM
+        )
+    assert "Insufficient privileges to view data lineage" in str(exc)
+
+    # CASE 4 : trace with masked object
+    session.sql(f"USE ROLE {current_role}").collect()
+    session.sql(f"grant view lineage on account to role {test_role}").collect()
+    session.sql(f"USE ROLE {test_role}").collect()
     df = session.lineage.trace(
-        f"{db}.{schema}.V4", "view", direction=LineageDirection.DOWNSTREAM
+        f"{db}.{schema}.V5", "view", direction=LineageDirection.DOWNSTREAM
     )
+
+    session.sql(f"USE ROLE {current_role}").collect()
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
         "SOURCE_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V4", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
             {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
         ],
         "TARGET_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V5", "status": "ACTIVE"},
             {"domain": "VIEW", "name": "***.***.***", "status": "MASKED"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V6", "status": "ACTIVE"},
         ],
         "DIRECTION": ["Downstream", "Downstream"],
-        "DISTANCE": [1, 2],
+        "DISTANCE": [1, 1],
     }
 
     expected_df = pd.DataFrame(expected_data)
