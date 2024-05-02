@@ -5797,7 +5797,7 @@ def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
         >>> from snowflake.snowpark.functions import vector_l2_distance
         >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
         >>> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
-        ---------------------
+        ----------------------
         |"DIST"              |
         ----------------------
         |1.7320508075688772  |
