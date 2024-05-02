@@ -458,6 +458,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
+        # Modin Bug: https://github.com/modin-project/modin/issues/7236
         # For a Series interacting with a DataFrame, always return a DataFrame
         return (
             DataFrame(query_compiler=new_query_compiler)
