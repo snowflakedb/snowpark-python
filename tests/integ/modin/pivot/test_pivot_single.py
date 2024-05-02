@@ -73,8 +73,26 @@ def test_pivot_table_multi_index_single_column_single_value(df_data, aggfunc):
     )
 
 
+@pytest.mark.parametrize(
+    "aggfunc",
+    [
+        "count",
+        "sum",
+        "min",
+        "max",
+        "mean",
+    ],
+)
 @sql_count_checker(query_count=1)
-def test_pivot_table_empty_table_with_groupby_columns():
+def test_pivot_table_no_index(df_data, aggfunc):
+    pivot_table_test_helper(
+        df_data,
+        {"columns": "C", "values": "D", "aggfunc": aggfunc},
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_pivot_table_empty_table_with_index():
     # Cannot use pivot_table_test_helper since that checks the inferred types
     # on the resulting DataFrames' columns (which are empty), and the inferred type
     # on our DataFrame's columns is empty, while pandas has type floating.

@@ -159,7 +159,13 @@ def pivot_helper(
     # constructed and passed into the single pivot operation to prepend the remaining of the pandas labels.
     for pivot_aggr_grouping in pivot_aggr_groupings:
         existing_snowflake_quoted_identifiers = groupby_snowflake_quoted_identifiers
-        if last_ordered_dataframe is not None:
+        if (
+            last_ordered_dataframe is not None
+            and len(groupby_snowflake_quoted_identifiers) > 0
+        ):
+            # If there are no index columns, then we append the OrderedDataFrame's vertically, rather
+            # than horizontally, so we do not need to dedupe the columns (and in fact we want the columns
+            # to have the same name since we want them to match up during the union.
             existing_snowflake_quoted_identifiers = (
                 last_ordered_dataframe.projected_column_snowflake_quoted_identifiers
             )
@@ -179,25 +185,45 @@ def pivot_helper(
         )
 
         if last_ordered_dataframe:
-            last_ordered_dataframe = last_ordered_dataframe.join(
-                right=new_pivot_ordered_dataframe,
-                left_on_cols=groupby_snowflake_quoted_identifiers,
-                right_on_cols=groupby_snowflake_quoted_identifiers,
-                how="left",
-            )
+            # If there are index columns, then we join the two OrderedDataFrames
+            # (horizontally), while if there are no index columns, we concatenate
+            # them vertically, and have the index be the value column each row
+            # corresponds to.
+            # We also join vertically if there are multiple columns and multiple
+            # pivot values.
+            if (
+                len(groupby_snowflake_quoted_identifiers) > 0
+            ):  # or (not multiple_values_and_columns):
+                last_ordered_dataframe = last_ordered_dataframe.join(
+                    right=new_pivot_ordered_dataframe,
+                    left_on_cols=groupby_snowflake_quoted_identifiers,
+                    right_on_cols=groupby_snowflake_quoted_identifiers,
+                    how="left",
+                )
+                data_column_snowflake_quoted_identifiers.extend(
+                    new_data_column_snowflake_quoted_identifiers
+                )
+                data_column_pandas_labels.extend(new_data_column_pandas_labels)
+            else:
+                last_ordered_dataframe = last_ordered_dataframe.union_all(
+                    new_pivot_ordered_dataframe
+                )
         else:
             last_ordered_dataframe = new_pivot_ordered_dataframe
-
-        data_column_snowflake_quoted_identifiers.extend(
-            new_data_column_snowflake_quoted_identifiers
-        )
-        data_column_pandas_labels.extend(new_data_column_pandas_labels)
+            data_column_snowflake_quoted_identifiers.extend(
+                new_data_column_snowflake_quoted_identifiers
+            )
+            data_column_pandas_labels.extend(new_data_column_pandas_labels)
 
     ordered_dataframe = last_ordered_dataframe
 
+    # When there are no groupby columns, the index is the first column in the OrderedDataFrame.
+    # Otherwise, the index is the groupby columns.
+    length_of_index_columns = max(1, len(groupby_snowflake_quoted_identifiers))
+
     index_column_snowflake_quoted_identifiers = (
         ordered_dataframe.projected_column_snowflake_quoted_identifiers[
-            0 : len(groupby_snowflake_quoted_identifiers)
+            0:length_of_index_columns
         ]
     )
     index = index or [None] * len(index_column_snowflake_quoted_identifiers)
@@ -299,9 +325,7 @@ def single_pivot_helper(
         project_snowflake_quoted_identifiers
     )
 
-    index_snowflake_quoted_identifiers = (
-        groupby_snowflake_quoted_identifiers or pivot_snowflake_quoted_identifiers or []
-    )
+    index_snowflake_quoted_identifiers = groupby_snowflake_quoted_identifiers or []
 
     if not pivot_snowflake_quoted_identifiers or not aggr_snowflake_quoted_identifier:
         if not groupby_snowflake_quoted_identifiers:
@@ -400,6 +424,7 @@ def single_pivot_helper(
                 ),
                 "*",
             )
+            index_snowflake_quoted_identifiers = [pivot_snowflake_quoted_identifiers[0]]
 
     # Go through each of the non-group by columns and
     # 1. Generate corresponding pandas label (without prefix)
@@ -686,7 +711,6 @@ def generate_single_pivot_labels(
 
             if not pandas_aggfunc_list:
                 continue
-
             # 2. Loop through all aggregation functions for this aggregation value.
             for pandas_single_aggr_func in pandas_aggfunc_list:
                 # pandas only adds aggregation value as label if provided as a list

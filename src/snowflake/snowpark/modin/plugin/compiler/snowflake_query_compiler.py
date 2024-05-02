@@ -6290,11 +6290,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else []
         )
 
-        if len(groupby_snowflake_quoted_identifiers) == 0:
-            raise NotImplementedError(
-                "pivot_table with no index configuration is currently not supported"
-            )
-
         if values is None:
             # If no values (aggregation columns) are specified, then we use all data columns that are neither
             # groupby (index) nor pivot columns as the aggregation columns.  For example, a dataframe with
@@ -6316,12 +6311,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+        include_pivot_columns_in_label = len(
+            groupby_snowflake_quoted_identifiers
+        ) != 0 or (isinstance(aggfunc, list) and len(aggfunc) > 1)
         pivot_aggr_groupings = list(
             generate_single_pivot_labels(
                 values_label_to_identifier_pairs_list,
                 aggfunc,
                 len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list),
+                isinstance(values, list) and include_pivot_columns_in_label,
                 sort,
             )
         )
