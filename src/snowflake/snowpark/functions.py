@@ -5790,7 +5790,7 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the cosine distance between two vectors of equal dimension and element type.
+    """Returns the l2 distance between two vectors of equal dimension and element type.
 
     Example::
         >>> from snowflake.snowpark.functions import vector_l2_distance
