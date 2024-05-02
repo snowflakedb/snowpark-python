@@ -23,6 +23,7 @@
 
 - Fixed a bug that caused NaT and NaN values to not be recognized.
 - Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
+- Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
 
 
 ## 1.15.0 (2024-04-24)
