@@ -770,7 +770,7 @@ def create_table_statement(
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause} {comment_sql}"
+        f"{cluster_by_clause}{comment_sql}"
     )
 
 
