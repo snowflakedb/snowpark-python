@@ -22,6 +22,7 @@ Snowpark APIs
    udtf
    observability
    files
+   lineage
    context
    exceptions
 
