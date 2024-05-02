@@ -134,6 +134,15 @@ def normalize_output_sf_type(t: DataType) -> DataType:
     return t
 
 
+def reset_nan_to_none(col_a, col_b, res_col):
+    # in pandas arithmetic operation, None are automatically convert to nan
+    if isinstance(res_col.sf_type.datatype, _NumericType):
+        for idx, (x, y) in enumerate(zip(col_a, col_b)):
+            if x is None or y is None:
+                res_col[idx] = None
+    return res_col
+
+
 def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
@@ -330,6 +339,7 @@ class ColumnEmulator(PandasSeriesType):
         result = super().__add__(other)
         if self.sf_type:
             result.sf_type = calculate_type(self.sf_type, other.sf_type, op="+")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __radd__(self, other):
@@ -339,6 +349,7 @@ class ColumnEmulator(PandasSeriesType):
             return add_date_and_number(self, other)
         result = super().__radd__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="+")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __sub__(self, other):
@@ -348,21 +359,25 @@ class ColumnEmulator(PandasSeriesType):
             return add_date_and_number(self, -other)
         result = super().__sub__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="-")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __rsub__(self, other):
         result = super().__rsub__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="-")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __mul__(self, other):
         result = super().__mul__(other)
         result.sf_type = calculate_type(self.sf_type, other.sf_type, op="*")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __rmul__(self, other):
         result = super().__rmul__(other)
         result.sf_type = calculate_type(other.sf_type, self.sf_type, op="*")
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def __bool__(self):
@@ -484,7 +499,7 @@ class ColumnEmulator(PandasSeriesType):
         elif isinstance(sf_type.datatype, (FloatType, DoubleType)):
             result = result.astype("double").round(16)
         result.sf_type = sf_type
-
+        result = reset_nan_to_none(self, other, result)
         return result
 
     def isna(self):
