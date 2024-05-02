@@ -46,7 +46,6 @@ with warnings.catch_warnings():
         Float32Dtype,
         Float64Dtype,
         Grouper,
-        Index,
         IndexSlice,
         Int8Dtype,
         Int16Dtype,
@@ -115,6 +114,7 @@ from snowflake.snowpark.modin.pandas.general import (
     value_counts,
     wide_to_long,
 )
+from snowflake.snowpark.modin.pandas.index import Index
 from snowflake.snowpark.modin.pandas.io import (
     ExcelFile,
     HDFStore,
