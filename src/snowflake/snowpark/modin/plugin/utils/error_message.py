@@ -162,7 +162,7 @@ class ErrorMessage:
         class_: str
             The class of Snowpark pandas function associated with the method.
         """
-        message = f"{name} is not implemented for {class_}"
+        message = f"{name} is not yet implemented for {class_}"
         ErrorMessage.not_implemented(message)
 
     # TODO SNOW-840704: using Snowpark pandas exception class for the internal error
