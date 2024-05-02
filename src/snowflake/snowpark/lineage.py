@@ -372,7 +372,10 @@ class Lineage:
         )
 
         # TODO: Remove this workaround once version 8.18 is deployed.
-        if graph_entity.get(_ObjectField.REFINED_DOMAIN) == _SnowflakeDomain.VIEW:
+        if (
+            graph_entity.get(_ObjectField.USER_DOMAIN) == _SnowflakeDomain.TABLE
+            and graph_entity.get(_ObjectField.REFINED_DOMAIN) == _SnowflakeDomain.VIEW
+        ):
             domain = _SnowflakeDomain.VIEW
 
         if _ObjectField.CREATED_ON not in graph_entity:
