@@ -2045,7 +2045,7 @@ def test_binary_add_dataframe_and_series_axis0(df, s):
 
     # The other direction for axis=0 behaves like axis=1.
     with SqlCounter(
-        query_count=3,
+        query_count=2,
     ):
         snow_ans = snow_s.add(snow_df, axis=0)
         ans = s.add(df, axis=0)
