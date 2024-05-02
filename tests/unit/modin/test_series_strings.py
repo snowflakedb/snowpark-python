@@ -7,7 +7,6 @@ from unittest import mock
 
 import pandas as native_pd
 import pytest
-from modin.pandas import DataFrame, Series
 
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -21,16 +20,16 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     return_callable = mock.create_autospec(Callable)
     return_callable.return_value = result_query_compiler
     mock_str_register.return_value = return_callable
-    res = mock_series.str.cat()
-    assert res == "abc"
+    with pytest.raises(
+        NotImplementedError, match="cat is not yet implemented for Series.str"
+    ):
+        mock_series.str.cat()
 
 
-@mock.patch("modin.core.dataframe.algebra.default2pandas.StrDefault.register")
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        # TODO: SNOW-1347401 cleanup all str methods that fallback
-        # (lambda s: s.str.casefold(), "casefold"),
+        (lambda s: s.str.casefold(), "casefold"),
         (lambda s: s.str.cat(["a", "b", "d", "foo"], na_rep="-"), "cat"),
         (lambda s: s.str.decode("utf-8"), "decode"),
         (lambda s: s.str.encode("utf-8"), "encode"),
@@ -69,19 +68,14 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.isdecimal(), "isdecimal"),
     ],
 )
-def test_str_methods_with_series_return(
-    mock_str_register, func, func_name, mock_series, mock_single_col_query_compiler
-):
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = mock_single_col_query_compiler
-    mock_str_register.return_value = return_callable
-    res = func(mock_series)
-    mock_str_register.assert_called_once()
-    assert isinstance(res, Series), func_name
-    assert res._query_compiler == mock_single_col_query_compiler, func_name
+def test_str_methods_with_series_return(func, func_name, mock_series):
+    with pytest.raises(
+        NotImplementedError,
+        match=f"{func_name} is not yet implemented for Series.str",
+    ):
+        func(mock_series)
 
 
-@mock.patch("modin.core.dataframe.algebra.default2pandas.StrDefault.register")
 @pytest.mark.parametrize(
     "func, func_name",
     [
@@ -91,18 +85,14 @@ def test_str_methods_with_series_return(
         (lambda s: s.str.partition(","), "partition"),
     ],
 )
-def test_str_methods_with_dataframe_return(
-    mock_str_register, func, func_name, mock_series, mock_single_col_query_compiler
-):
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = mock_single_col_query_compiler
-    mock_str_register.return_value = return_callable
-    res = func(mock_series)
-    mock_str_register.assert_called_once()
-    assert isinstance(res, DataFrame), func_name
-    assert res._query_compiler == mock_single_col_query_compiler, func_name
+def test_str_methods_with_dataframe_return(func, func_name, mock_series):
+    with pytest.raises(
+        NotImplementedError, match="is not yet implemented for Series.str"
+    ):
+        func(mock_series)
 
 
+@pytest.mark.skip(reason="APIs not yet implemented")
 @pytest.mark.parametrize(
     "func, error_type, error_message",
     [
