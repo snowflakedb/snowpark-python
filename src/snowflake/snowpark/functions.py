@@ -5783,6 +5783,7 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
         ----------------------
         |0.9925833339709303  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_cosine_distance")
     v2 = _to_col_if_str(v2, "vector_cosine_distance")
@@ -5801,6 +5802,7 @@ def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
         ----------------------
         |1.7320508075688772  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_l2_distance")
     v2 = _to_col_if_str(v2, "vector_l2_distance")
@@ -5819,6 +5821,7 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
         ----------
         |20.0    |
         ----------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
