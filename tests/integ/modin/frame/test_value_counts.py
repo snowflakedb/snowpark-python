@@ -179,17 +179,13 @@ def test_value_counts_dropna(test_data, dropna):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_non_existing_labels():
-    # when subset contains non-existing labels, it will trigger fallback
+    # when subset contains non-existing labels, it is unimplemented
     # because of function `get_frame_with_groupby_columns_as_index`
     snow_df = pd.DataFrame({"A": [1, 2, 3]})
     native_df = native_pd.DataFrame({"A": [1, 2, 3]})
-    eval_snowpark_pandas_result(
-        snow_df, native_df, lambda x: x.value_counts(subset=["A", "B", "C"])
-    )
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda x: x.value_counts(subset=["A", "B", "C"])
+        )

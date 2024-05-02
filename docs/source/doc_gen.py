@@ -12,10 +12,7 @@ from typing import Iterable, Optional, Union
 import tempfile
 import itertools
 
-Class = namedtuple(
-    "Class",
-    ["module", "methods", "attributes"]
-)
+Class = namedtuple("Class", ["module", "methods", "attributes"])
 Module = namedtuple(
     "Module", ["name", "attributes", "functions", "classes", "exceptions"]
 )
@@ -33,10 +30,12 @@ mapping = {
 TAB = "    "
 NEWLINE_TAB = f"\n{TAB}"
 RUBRIC_HEADER = ".. rubric::"
-AUTOSUMMARY_HEADER=".. autosummary::"
+AUTOSUMMARY_HEADER = ".. autosummary::"
 
 
-def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = None) -> Union[Module, Class]:
+def autogen_and_parse_for_info(
+    module_name: str, class_name: Optional[str] = None
+) -> Union[Module, Class]:
     if class_name:
         res = Class(module_name, [], [])
         name = f"{module_name}.{class_name}"
@@ -45,7 +44,6 @@ def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = Non
         name = module_name
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        
         rst_content = f"""
 
 .. currentmodule:: snowflake.snowpark
@@ -62,11 +60,10 @@ def autogen_and_parse_for_info(module_name: str, class_name: Optional[str] = Non
         with open(fname, "w") as fp:
             fp.write(rst_content)
 
-        output_dir = os.path.join(tmpdir, 'output')
+        output_dir = os.path.join(tmpdir, "output")
         subprocess.run(["sphinx-autogen", fname, "-o", output_dir, "-t", "_templates"])
 
         section = ""
-
 
         with open(f"{output_dir}/{name}.rst") as fp:
             for line in fp:
@@ -102,11 +99,15 @@ def generate_autosummary_section(section: str, content: str) -> str:
         return ""
 
 
-def generate_module_header(title:str, module:str) -> str:
-    automodule_text = "" if module=="snowflake.snowpark" else f"""
+def generate_module_header(title: str, module: str) -> str:
+    automodule_text = (
+        ""
+        if module == "snowflake.snowpark"
+        else f"""
 .. automodule:: {module}
   :noindex:
 """
+    )
     return f"""
 {'='*(len(title)+5)}
 {title}
@@ -118,10 +119,12 @@ def generate_module_header(title:str, module:str) -> str:
 """
 
 
-def generate_classes(title:str, module:str, classes: Iterable[str]) -> str:
+def generate_classes(title: str, module: str, classes: Iterable[str]) -> str:
     results = [autogen_and_parse_for_info(module, c) for c in classes]
     names = NEWLINE_TAB.join(classes)
-    methods = NEWLINE_TAB.join(itertools.chain.from_iterable(c.methods for c in results))
+    methods = NEWLINE_TAB.join(
+        itertools.chain.from_iterable(c.methods for c in results)
+    )
     attributes = NEWLINE_TAB.join(
         itertools.chain.from_iterable(c.attributes for c in results)
     )
@@ -135,7 +138,7 @@ def generate_classes(title:str, module:str, classes: Iterable[str]) -> str:
 """
 
 
-def generate_module(title:str, module: str) -> str:
+def generate_module(title: str, module: str) -> str:
     mod = autogen_and_parse_for_info(module)
     attributes = NEWLINE_TAB.join(mod.attributes)
     functions = NEWLINE_TAB.join(mod.functions)
@@ -161,9 +164,12 @@ if __name__ == "__main__":
         "module", help="The module or the parent module of the classes to be documented"
     )
     parser.add_argument("-c", "--classes", nargs="*", help="Classes to be documented")
-    parser.add_argument("-t", "--title", help="Title of the rst file generated", default="PLACEHOLDER")
     parser.add_argument(
-        "-f", "--filename", help="File to write the generated content to")
+        "-t", "--title", help="Title of the rst file generated", default="PLACEHOLDER"
+    )
+    parser.add_argument(
+        "-f", "--filename", help="File to write the generated content to"
+    )
 
     args = parser.parse_args()
     if args.classes:
@@ -176,4 +182,3 @@ if __name__ == "__main__":
             fp.write(content)
     else:
         print(content)
-
