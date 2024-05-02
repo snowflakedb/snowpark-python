@@ -45,6 +45,20 @@ def test_create_view(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
+@pytest.mark.parametrize("is_temp", [True, False])
+def test_comment_on_view(session, is_temp):
+    df = session.create_dataframe([(1,), (2,)], schema=["a"])
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+    if is_temp:
+        df.create_or_replace_temp_view(view_name, comment=comment)
+    else:
+        df.create_or_replace_view(view_name, comment=comment)
+
+    ddl_sql = f"select get_ddl('VIEW', '{view_name}')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
+
+
 @pytest.mark.localtest
 def test_view_name_with_special_character(session, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)

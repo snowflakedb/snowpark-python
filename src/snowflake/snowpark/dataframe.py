@@ -3363,6 +3363,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -3376,6 +3377,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3390,6 +3393,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3405,6 +3409,7 @@ class DataFrame:
         *,
         warehouse: str,
         lag: str,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3420,6 +3425,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             warehouse: The name of the warehouse used to refresh the dynamic table.
             lag: specifies the target data freshness
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3445,6 +3452,7 @@ class DataFrame:
             formatted_name,
             warehouse,
             lag,
+            comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3455,6 +3463,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -3472,6 +3481,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3486,6 +3497,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3493,11 +3505,14 @@ class DataFrame:
             ),
         )
 
-    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
+    def _do_create_or_replace_view(
+        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+    ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            comment,
             self._plan,
         )
 
@@ -3506,13 +3521,14 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, **kwargs
+        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
     ):
         validate_object_name(name)
         cmd = CreateDynamicTableCommand(
             name,
             warehouse,
             lag,
+            comment,
             self._plan,
         )
 
