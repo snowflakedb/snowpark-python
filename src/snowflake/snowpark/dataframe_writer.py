@@ -156,8 +156,8 @@ class DataFrameWriter:
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
             comment: Adds a comment for the created table. See
-                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a table already exists and
-                save mode is ``append`` or ``truncate``.
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a
+                table already exists and save mode is ``append`` or ``truncate``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
