@@ -27,6 +27,7 @@
 - Fixed a bug in function `sum` and `covar_pop` that when there is `math.nan` in the data, the output should also be `math.nan`.
 - Fixed a bug that stage operation can not handle directories.
 - Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
+- Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
 
 ## 1.15.0 (2024-04-24)
 
