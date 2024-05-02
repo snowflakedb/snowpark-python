@@ -69,6 +69,7 @@ def test_registering_udf_with_qualified_identifier(session):
 @pytest.mark.localtest
 def test_registering_sproc_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
+    session.use_database("mock_database")
 
     def increment_by_one_fn(session: Session, x: int) -> int:
         df = session.create_dataframe([[]]).select((lit(1) + lit(x)).as_("RESULT"))

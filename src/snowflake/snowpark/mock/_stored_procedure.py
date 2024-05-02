@@ -214,10 +214,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             file_path, self._session._conn.stage_registry, import_path
         )
 
-        if sproc_name:
-            self._sproc_level_imports[sproc_name].add(absolute_module_path)
-        else:
-            self._session_level_imports.add(absolute_module_path)
+        if absolute_module_path not in sys.path:
+            # if absolute_module_path is already in sys.path, it is not an import
+            if sproc_name:
+                self._sproc_level_imports[sproc_name].add(absolute_module_path)
+            else:
+                self._session_level_imports.add(absolute_module_path)
 
         return module_name
 
