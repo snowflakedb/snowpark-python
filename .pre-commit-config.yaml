@@ -32,6 +32,13 @@ repos:
     rev: v4.1.0
     hooks:
     -   id: trailing-whitespace
+        # In .github/pull_request_template.md, we require leading whitespace
+        # in indentend, multiline markdown comments to preserve indentation
+        # for subsequent lines.
+        exclude: >
+            (?x)^(
+                .*\.md
+            )$
     -   id: end-of-file-fixer
         exclude: >
             (?x)^(
