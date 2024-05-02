@@ -11008,11 +11008,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if squeeze_self:
             # self is a Series, other a DataFrame.
             series_self = self.to_pandas()
-            if series_self.size > 1:
-                series = series_self.squeeze()
-            else:
-                # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
-                series = series_self.squeeze(axis=0)
+            # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
+            series = (
+                series_self.squeeze()
+                if series_self.size > 1
+                else series_self.squeeze(axis=0)
+            )
 
             self_column_labels = list(series.index.values)
             other_column_labels = other._modin_frame.data_column_pandas_labels
@@ -11026,11 +11027,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             # self is a DataFrame, other a Series.
             series_other = other.to_pandas()
-            if series_other.size > 1:
-                series = series_other.squeeze()
-            else:
-                # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
-                series = series_other.squeeze(axis=0)
+            # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
+            series = (
+                series_other.squeeze()
+                if series_other.size > 1
+                else series_other.squeeze(axis=0)
+            )
 
             self_column_labels = self._modin_frame.data_column_pandas_labels
             other_column_labels = list(series.index.values)

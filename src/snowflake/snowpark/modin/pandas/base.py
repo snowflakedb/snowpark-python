@@ -442,14 +442,17 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # pandas itself will ignore the axis argument when using Series.<op>.
         # Per default, it is set to axis=0. However, for the case of a Series interacting with
         # a DataFrame the behavior is axis=1. Manually check here for this case and adjust the axis.
-        lhs_series_rhs_dataframe = False
-        if isinstance(self, pd.Series) and isinstance(other, pd.DataFrame):
-            lhs_series_rhs_dataframe = True
+
+        is_lhs_series_and_rhs_dataframe = (
+            True
+            if isinstance(self, pd.Series) and isinstance(other, pd.DataFrame)
+            else False
+        )
 
         new_query_compiler = self._query_compiler.binary_op(
             op=op,
             other=other,
-            axis=1 if lhs_series_rhs_dataframe else axis,
+            axis=1 if is_lhs_series_and_rhs_dataframe else axis,
             level=level,
             fill_value=fill_value,
             squeeze_self=squeeze_self,
@@ -462,7 +465,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # For a Series interacting with a DataFrame, always return a DataFrame
         return (
             DataFrame(query_compiler=new_query_compiler)
-            if lhs_series_rhs_dataframe
+            if is_lhs_series_and_rhs_dataframe
             else self._create_or_update_from_compiler(new_query_compiler)
         )
 
