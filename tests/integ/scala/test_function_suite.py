@@ -1699,6 +1699,10 @@ def test_to_date(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="arrays_overlap is not yet supported in local testing mode.",
+)
 def test_arrays_overlap(session):
     Utils.check_answer(
         TestData.array1(session).select(arrays_overlap(col("ARR1"), col("ARR2"))),
@@ -1714,6 +1718,10 @@ def test_arrays_overlap(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_intersection is not yet supported in local testing mode.",
+)
 def test_array_intersection(session):
     Utils.check_answer(
         TestData.array1(session).select(array_intersection(col("ARR1"), col("ARR2"))),
@@ -2382,6 +2390,10 @@ def test_array_agg(session, col_amount):
     ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2407,6 +2419,10 @@ def test_array_agg_within_group(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group_order_by_desc(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2432,6 +2448,10 @@ def test_array_agg_within_group_order_by_desc(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group_order_by_multiple_columns(session):
     sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
     amount_values = (
@@ -2448,6 +2468,10 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_window_function_array_agg_within_group(session):
     value1 = "[\n  1,\n  3\n]"
     value2 = "[\n  1,\n  3,\n  10\n]"
@@ -2459,6 +2483,10 @@ def test_window_function_array_agg_within_group(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_append is not yet supported in local testing mode.",
+)
 def test_array_append(session):
     Utils.check_answer(
         [
@@ -2524,6 +2552,10 @@ def test_array_append(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_cat is not yet supported in local testing mode.",
+)
 def test_array_cat(session):
     Utils.check_answer(
         TestData.array1(session).select(array_cat(col("arr1"), col("arr2"))),
@@ -2545,6 +2577,10 @@ def test_array_cat(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_compact is not yet supported in local testing mode.",
+)
 def test_array_compact(session):
     Utils.check_answer(
         TestData.null_array1(session).select(array_compact(col("arr1"))),
@@ -2560,6 +2596,10 @@ def test_array_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_construct is not yet supported in local testing mode.",
+)
 def test_array_construct(session):
     assert (
         TestData.zero1(session)
@@ -2594,6 +2634,10 @@ def test_array_construct(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_construct_compact is not yet supported in local testing mode.",
+)
 def test_array_construct_compact(session):
     assert (
         TestData.zero1(session)
@@ -2635,6 +2679,10 @@ def test_array_construct_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_contains is not yet supported in local testing mode.",
+)
 def test_array_contains(session):
     assert (
         TestData.zero1(session)
@@ -2670,6 +2718,10 @@ def test_array_contains(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_insert is not yet supported in local testing mode.",
+)
 def test_array_insert(session):
     Utils.check_answer(
         TestData.array2(session).select(array_insert(col("arr1"), col("d"), col("e"))),
@@ -2685,6 +2737,10 @@ def test_array_insert(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_position is not yet supported in local testing mode.",
+)
 def test_array_position(session):
     Utils.check_answer(
         TestData.array2(session).select(array_position(col("d"), col("arr1"))),
@@ -2700,6 +2756,10 @@ def test_array_position(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_prepend is not yet supported in local testing mode.",
+)
 def test_array_prepend(session):
     Utils.check_answer(
         TestData.array1(session).select(
@@ -2745,6 +2805,10 @@ def test_array_prepend(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_size is not yet supported in local testing mode.",
+)
 def test_array_size(session):
     Utils.check_answer(
         TestData.array2(session).select(array_size(col("arr1"))),
@@ -2784,6 +2848,10 @@ def test_array_size(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_slice is not yet supported in local testing mode.",
+)
 def test_array_slice(session):
     Utils.check_answer(
         TestData.array3(session).select(array_slice(col("arr1"), col("d"), col("e"))),
@@ -2799,6 +2867,10 @@ def test_array_slice(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_to_string is not yet supported in local testing mode.",
+)
 def test_array_to_string(session):
     Utils.check_answer(
         TestData.array3(session).select(array_to_string(col("arr1"), col("f"))),
@@ -3057,6 +3129,10 @@ def test_object_pick(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_array is not yet supported in local testing mode.",
+)
 def test_as_array(session):
     Utils.check_answer(
         TestData.array1(session).select(as_array(col("ARR1"))),
@@ -4284,6 +4360,10 @@ def test_row_number(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_listagg(session):
     df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
     Utils.check_answer(
