@@ -27,6 +27,7 @@ from pandas._typing import (
     DateTimeErrorChoices,
     DtypeBackend,
     FillnaOptions,
+    Frequency,
     IgnoreRaise,
     IndexKeyFunc,
     IndexLabel,
@@ -12261,7 +12262,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support casefold method"
         )
 
-    def dt_to_period(self, freq=None):
+    def dt_to_period(self, freq: Optional[str] = None) -> None:
         """
         Convert underlying data to the period at a particular frequency.
 
@@ -12278,7 +12279,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.to_period'"
         )
 
-    def dt_to_pydatetime(self):
+    def dt_to_pydatetime(self) -> None:
         """
         Convert underlying data to array of python native ``datetime``.
 
@@ -12293,7 +12294,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     # FIXME: there are no references to this method, we should either remove it
     # or add a call reference at the DataFrame level (Modin issue #3103).
-    def dt_to_pytimedelta(self):
+    def dt_to_pytimedelta(self) -> None:
         """
         Convert underlying data to array of python native ``datetime.timedelta``.
 
@@ -12306,7 +12307,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.to_pytimedelta'"
         )
 
-    def dt_to_timestamp(self):
+    def dt_to_timestamp(self) -> None:
         """
         Convert underlying data to the timestamp
 
@@ -12319,7 +12320,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.to_timestamp'"
         )
 
-    def dt_tz_localize(self, tz, ambiguous="raise", nonexistent="raise"):
+    def dt_tz_localize(
+        self,
+        tz: Union[str, tzinfo],
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+    ) -> None:
         """
         Localize tz-naive to tz-aware.
         Args:
@@ -12335,7 +12341,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.tz_localize'"
         )
 
-    def dt_tz_convert(self, tz):
+    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> None:
         """
         Convert time-series data to the specified time zone.
 
@@ -12349,7 +12355,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.tz_convert'"
         )
 
-    def dt_ceil(self, freq, ambiguous="raise", nonexistent="raise"):
+    def dt_ceil(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
         """
         Args:
             freq: The frequency level to ceil the index to.
@@ -12374,7 +12382,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.ceil'"
         )
 
-    def dt_round(self, freq, ambiguous="raise", nonexistent="raise"):
+    def dt_round(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
         """
         Args:
             freq: The frequency level to round the index to.
@@ -12399,7 +12409,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.round'"
         )
 
-    def dt_floor(self, freq, ambiguous="raise", nonexistent="raise"):
+    def dt_floor(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
         """
         Args:
             freq: The frequency level to floor the index to.
@@ -12424,7 +12436,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.floor'"
         )
 
-    def dt_normalize(self):
+    def dt_normalize(self) -> None:
         """
         Set the time component of each date-time value to midnight.
 
@@ -12437,7 +12449,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
         )
 
-    def dt_month_name(self, locale=None):
+    def dt_month_name(self, locale: Optional[str] = None) -> None:
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -12449,7 +12461,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.month_name'"
         )
 
-    def dt_day_name(self, locale=None):
+    def dt_day_name(self, locale: Optional[str] = None) -> None:
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -12461,7 +12473,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.day_name'"
         )
 
-    def dt_total_seconds(self):
+    def dt_total_seconds(self) -> None:
         """
         Return total duration of each element expressed in seconds.
         Returns:
@@ -12471,7 +12483,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.total_seconds'"
         )
 
-    def dt_strftime(self, date_format):
+    def dt_strftime(self, date_format: str) -> None:
         """
         Format underlying date-time data using specified format.
 
