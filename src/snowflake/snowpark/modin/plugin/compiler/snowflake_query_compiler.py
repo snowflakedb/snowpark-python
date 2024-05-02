@@ -2876,7 +2876,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # NOTE we are keeping the cache_result for performance reasons. DO NOT
         # REMOVE the cache_result unless you can prove that doing so will not
         # materially slow down CI or individual groupby.apply() calls.
-        # TODO(SNOW-1345395): Investigate why and to what extend the cache_result
+        # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
         # is useful.
         ordered_dataframe = cache_result(
             ordered_dataframe.select(
