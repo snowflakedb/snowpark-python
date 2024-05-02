@@ -185,6 +185,10 @@ def test_create_dataframe_for_large_values_basic_types(session):
 
 
 # TODO: enable for local testing after emulating sf data types
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_create_dataframe_for_large_values_array_map_variant(session):
     schema = StructType(
         [

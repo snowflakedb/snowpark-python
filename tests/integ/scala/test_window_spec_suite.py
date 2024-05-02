@@ -176,6 +176,10 @@ def test_reuse_window_order_by(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="ntile is not yet supported in local testing mode.",
+)
 def test_rank_functions_in_unspecific_window(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
@@ -268,6 +272,10 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
     assert "requires ORDER BY in window specification" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="corr is not yet supported in local testing mode.",
+)
 def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
     df = session.create_dataframe(
         [
@@ -330,6 +338,10 @@ def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="covar_samp is not yet supported in local testing mode.",
+)
 def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
     df = session.create_dataframe(
         [
@@ -395,6 +407,10 @@ def test_aggregation_function_on_invalid_column(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="skew is not yet supported in local testing mode.",
+)
 def test_skewness_and_kurtosis_functions_in_window(session):
     df = session.create_dataframe(
         [
