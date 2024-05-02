@@ -12,7 +12,7 @@ make html
 If you get warnings, like "WARNING: [autosummary] failed to import 'snowpark.dataframe': no module named snowpark.dataframe", try reinstalling the Snowpark API:
 
 ```bash
-python -m pip install ".[development, pandas, modin]"
+python -m pip install ".[development, pandas]"
 ```
 
 You might need to install Sphinx:
