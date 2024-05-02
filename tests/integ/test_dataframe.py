@@ -2636,7 +2636,6 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
 def test_write_table_with_clustering_keys_and_comment(
     session, save_mode, include_comment
 ):
-    print(f"{save_mode=}, {include_comment=}")
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
