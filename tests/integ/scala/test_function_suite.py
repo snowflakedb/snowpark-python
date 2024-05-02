@@ -503,7 +503,7 @@ def test_nan_and_null(session):
 
 
 def test_negate_and_not(session):
-    df = session.sql("select * from values(1, true),(-2,false) as T(a,b)")
+    df = session.create_dataframe([(1, True), (-2, False)], schema=["a", "b"])
     Utils.check_answer(
         df.select(negate(col("A")), not_(col("B"))), [Row(-1, False), Row(2, True)]
     )
@@ -513,8 +513,12 @@ def test_negate_and_not(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="random is not yet supported in local testing mode.",
+)
 def test_random(session):
-    df = session.sql("select 1")
+    df = session.create_dataframe([(1,)])
     df.select(random(123)).collect()
     df.select(random()).collect()
 
@@ -664,6 +668,10 @@ def test_translate(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="datediff is not yet supported in local testing mode.",
+)
 def test_datediff(session):
     Utils.check_answer(
         [Row(1), Row(1)],
@@ -1737,6 +1745,10 @@ def test_array_intersection(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_array is not yet supported in local testing mode.",
+)
 def test_is_array(session):
     Utils.check_answer(
         TestData.array1(session).select(is_array(col("ARR1"))),
@@ -2238,6 +2250,10 @@ def test_check_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="check_xml is not yet supported in local testing mode.",
+)
 def test_check_xml(session):
     Utils.check_answer(
         TestData.null_xml1(session).select(check_xml(col("v"))),
@@ -2273,6 +2289,10 @@ def test_check_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="json_extract_path_text is not yet supported in local testing mode.",
+)
 def test_json_extract_path_text(session):
     Utils.check_answer(
         TestData.valid_json1(session).select(
@@ -2307,6 +2327,10 @@ def test_parse_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="parse_xml is not yet supported in local testing mode.",
+)
 def test_parse_xml(session):
     null_xml1 = TestData.null_xml1(session)
 
@@ -3468,10 +3492,17 @@ def test_as_object(session):
     )
 
 
-def test_timestamp_tz_from_parts(session):
-    try:
-        if not IS_IN_STORED_PROC:
-            session.sql('alter session set timezone="America/Los_Angeles"').collect()
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="timestamp_tz_from_parts is not yet supported in local testing mode.",
+)
+def test_timestamp_tz_from_parts(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
         df = session.create_dataframe(
             [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
             schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
@@ -3554,9 +3585,6 @@ def test_timestamp_tz_from_parts(session):
                 )
             ],
         )
-    finally:
-        if not IS_IN_STORED_PROC:
-            session.sql("alter session unset timezone").collect()
 
 
 @pytest.mark.localtest
@@ -3901,6 +3929,10 @@ def test_to_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_to_geography(session):
     geography_string = """{
   "coordinates": [
@@ -3921,6 +3953,10 @@ def test_to_geography(session):
     assert geography.select(to_geography("a")).collect()[0][0] == geography_string
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geometry is not yet supported in local testing mode.",
+)
 def test_to_geometry(session):
     geometry_string = """{
   "coordinates": [
@@ -3996,6 +4032,10 @@ def test_object_keys(session, column):
         (col("v"), col("t2"), col("t3"), col("instance"), lit(0)),
     ],
 )
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="get_ignore_case is not yet supported in local testing mode.",
+)
 def test_xmlget(session, v, t2, t3, instance, zero):
     Utils.check_answer(
         TestData.valid_xml1(session).select(get_ignore_case(xmlget(v, t2), lit("$"))),
@@ -4031,6 +4071,10 @@ def test_xmlget(session, v, t2, t3, instance, zero):
 
 
 @pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="get_path is not yet supported in local testing mode.",
+)
 def test_get_path(session, v, k):
     Utils.check_answer(
         TestData.valid_json1(session).select(get_path(v, k)),
@@ -4070,6 +4114,10 @@ def test_get(session):
 
 
 @pytest.mark.parametrize("col_a", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_count_distinct is not yet supported in local testing mode.",
+)
 def test_approx_count_distinct(session, col_a):
     Utils.check_answer(
         TestData.duplicated_numbers(session).select(approx_count_distinct(col_a)),
@@ -4546,6 +4594,10 @@ def test_factorial(session, col_A):
 
 
 @pytest.mark.parametrize("col_0, col_2, col_4", [(0, 2, 4), (lit(0), lit(2), lit(4))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="div0 is not yet supported in local testing mode.",
+)
 def test_div0(session, col_0, col_2, col_4):
     Utils.check_answer(
         TestData.zero1(session).select(div0(col_2, col_0), div0(col_4, col_2)),
@@ -4839,6 +4891,10 @@ def test_collate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="collation is not yet supported in local testing mode.",
+)
 def test_collation(session):
     Utils.check_answer(
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
