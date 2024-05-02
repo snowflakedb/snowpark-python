@@ -83,6 +83,10 @@ def test_regexp(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1346957: Collation not supported in Local Testing",
+)
 def test_collate(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].collate("en"))
@@ -162,6 +166,10 @@ def test_scalar_subquery(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
+)
 def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -196,6 +204,10 @@ def test_cast(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1355930: any_value is not supported in Local Testing",
+)
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert (
@@ -213,6 +225,10 @@ def test_unspecified_frame(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
+)
 def test_special_frame_boundry(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -289,6 +305,10 @@ def test_literal(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
 def test_interval(session):
     df1 = session.create_dataframe(
         [

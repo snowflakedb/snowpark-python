@@ -263,6 +263,10 @@ def test_avg(session):
 @pytest.mark.parametrize(
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
 )
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="corr is not yet supported in local testing mode.",
+)
 def test_corr(session, k, v1, v2):
     Utils.check_answer(
         TestData.number1(session).group_by(k).agg(corr(v1, v2)),
@@ -288,6 +292,10 @@ def test_count(session):
 @pytest.mark.parametrize(
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
 )
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="covar_samp is not yet supported in local testing mode.",
+)
 def test_covariance(session, k, v1, v2):
     Utils.check_answer(
         TestData.number1(session).group_by(k).agg(covar_pop(v1, v2)),
@@ -300,6 +308,10 @@ def test_covariance(session, k, v1, v2):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="kurtosis is not yet supported in local testing mode.",
+)
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
         to_double(kurtosis(col("X"))),
@@ -344,6 +356,10 @@ def test_max_min_mean(session):
     assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="mode is not yet supported in local testing mode.",
+)
 def test_mode(session):
     xyz = TestData.xyz(session)
     df_col = xyz.select(mode(col("X")), mode(col("Y")), mode(col("Z"))).collect()
@@ -361,6 +377,10 @@ def test_mode(session):
         Utils.check_answer(df_str, Row(2, 2, 3))
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="skew is not yet supported in local testing mode.",
+)
 def test_skew(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
@@ -376,6 +396,10 @@ def test_skew(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="stddev is not yet supported in local testing mode.",
+)
 def test_stddev(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
@@ -404,6 +428,10 @@ def test_sum(session):
     assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="variance is not yet supported in local testing mode.",
+)
 def test_variance(session):
     df = (
         TestData.xyz(session)
@@ -459,6 +487,10 @@ def test_coalesce(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
+)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
@@ -476,7 +508,7 @@ def test_nan_and_null(session):
 
 
 def test_negate_and_not(session):
-    df = session.sql("select * from values(1, true),(-2,false) as T(a,b)")
+    df = session.create_dataframe([(1, True), (-2, False)], schema=["a", "b"])
     Utils.check_answer(
         df.select(negate(col("A")), not_(col("B"))), [Row(-1, False), Row(2, True)]
     )
@@ -486,8 +518,12 @@ def test_negate_and_not(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="random is not yet supported in local testing mode.",
+)
 def test_random(session):
-    df = session.sql("select 1")
+    df = session.create_dataframe([(1,)])
     df.select(random(123)).collect()
     df.select(random()).collect()
 
@@ -518,6 +554,10 @@ def test_abs(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="ceil is not yet supported in local testing mode.",
+)
 def test_ceil_floor(session):
     double1 = TestData.double1(session)
     Utils.check_answer(double1.select(ceil(col("A"))), [Row(2), Row(3), Row(4)])
@@ -527,6 +567,10 @@ def test_ceil_floor(session):
     Utils.check_answer(double1.select(floor("A")), [Row(1), Row(2), Row(3)])
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="exp is not yet supported in local testing mode.",
+)
 def test_exp(session):
     Utils.check_answer(
         TestData.number2(session).select(exp(col("X")), exp(col("X"))),
@@ -549,6 +593,10 @@ def test_exp(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="log is not yet supported in local testing mode.",
+)
 def test_log(session):
     Utils.check_answer(
         TestData.integer1(session).select(log(lit(2), col("A")), log(lit(4), col("A"))),
@@ -578,6 +626,10 @@ def test_pow(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="repeat is not yet supported in local testing mode.",
+)
 def test_builtin_function(session):
     repeat = builtin("repeat")
     string1 = TestData.string1(session)
@@ -603,6 +655,10 @@ def test_sub_string(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="translate is not yet supported in local testing mode.",
+)
 def test_translate(session):
     Utils.check_answer(
         TestData.string3(session).select(translate(col("A"), lit("ab "), lit("XY"))),
@@ -617,6 +673,10 @@ def test_translate(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="datediff is not yet supported in local testing mode.",
+)
 def test_datediff(session):
     Utils.check_answer(
         [Row(1), Row(1)],
@@ -1852,6 +1912,10 @@ def test_to_date(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="arrays_overlap is not yet supported in local testing mode.",
+)
 def test_arrays_overlap(session):
     Utils.check_answer(
         TestData.array1(session).select(arrays_overlap(col("ARR1"), col("ARR2"))),
@@ -1867,6 +1931,10 @@ def test_arrays_overlap(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_intersection is not yet supported in local testing mode.",
+)
 def test_array_intersection(session):
     Utils.check_answer(
         TestData.array1(session).select(array_intersection(col("ARR1"), col("ARR2"))),
@@ -1882,6 +1950,10 @@ def test_array_intersection(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_array is not yet supported in local testing mode.",
+)
 def test_is_array(session):
     Utils.check_answer(
         TestData.array1(session).select(is_array(col("ARR1"))),
@@ -1911,6 +1983,10 @@ def test_is_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_boolean is not yet supported in local testing mode.",
+)
 def test_is_boolean(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1930,6 +2006,10 @@ def test_is_boolean(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_binary is not yet supported in local testing mode.",
+)
 def test_is_binary(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1949,6 +2029,10 @@ def test_is_binary(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_char is not yet supported in local testing mode.",
+)
 def test_is_char_is_varchar(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1982,6 +2066,10 @@ def test_is_char_is_varchar(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_date is not yet supported in local testing mode.",
+)
 def test_is_date_is_date_value(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2019,6 +2107,10 @@ def test_is_date_is_date_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_decimal is not yet supported in local testing mode.",
+)
 def test_is_decimal(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2042,6 +2134,10 @@ def test_is_decimal(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_double is not yet supported in local testing mode.",
+)
 def test_is_double_is_real(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2089,6 +2185,10 @@ def test_is_double_is_real(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_integer is not yet supported in local testing mode.",
+)
 def test_is_integer(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2114,6 +2214,10 @@ def test_is_integer(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_null_value is not yet supported in local testing mode.",
+)
 def test_is_null_value(session):
     Utils.check_answer(
         TestData.null_json1(session).select(is_null_value(sql_expr("v:a"))),
@@ -2131,6 +2235,10 @@ def test_is_null_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_object is not yet supported in local testing mode.",
+)
 def test_is_object(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2150,6 +2258,10 @@ def test_is_object(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_time is not yet supported in local testing mode.",
+)
 def test_is_time(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2169,6 +2281,10 @@ def test_is_time(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="is_timestamp_ntz is not yet supported in local testing mode.",
+)
 def test_is_timestamp_all(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2232,6 +2348,10 @@ def test_is_timestamp_all(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="split is not yet supported in local testing mode.",
+)
 def test_split(session):
     assert (
         TestData.string5(session)
@@ -2278,6 +2398,10 @@ def test_endswith(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="char is not yet supported in local testing mode.",
+)
 def test_char(session):
     df = session.create_dataframe([(84, 85), (96, 97)]).to_df("A", "B")
 
@@ -2292,6 +2416,10 @@ def test_char(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="check_json is not yet supported in local testing mode.",
+)
 def test_check_json(session):
     Utils.check_answer(
         TestData.null_json1(session).select(check_json(col("v"))),
@@ -2327,6 +2455,10 @@ def test_check_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="check_xml is not yet supported in local testing mode.",
+)
 def test_check_xml(session):
     Utils.check_answer(
         TestData.null_xml1(session).select(check_xml(col("v"))),
@@ -2362,6 +2494,10 @@ def test_check_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="json_extract_path_text is not yet supported in local testing mode.",
+)
 def test_json_extract_path_text(session):
     Utils.check_answer(
         TestData.valid_json1(session).select(
@@ -2396,6 +2532,10 @@ def test_parse_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="parse_xml is not yet supported in local testing mode.",
+)
 def test_parse_xml(session):
     null_xml1 = TestData.null_xml1(session)
 
@@ -2439,6 +2579,10 @@ def test_strip_null_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_agg is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
 def test_array_agg(session, col_amount):
     assert sorted(
@@ -2475,6 +2619,10 @@ def test_array_agg(session, col_amount):
     ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2500,6 +2648,10 @@ def test_array_agg_within_group(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group_order_by_desc(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2525,6 +2677,10 @@ def test_array_agg_within_group_order_by_desc(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_array_agg_within_group_order_by_multiple_columns(session):
     sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
     amount_values = (
@@ -2541,6 +2697,10 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_window_function_array_agg_within_group(session):
     value1 = "[\n  1,\n  3\n]"
     value2 = "[\n  1,\n  3,\n  10\n]"
@@ -2552,6 +2712,10 @@ def test_window_function_array_agg_within_group(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_append is not yet supported in local testing mode.",
+)
 def test_array_append(session):
     Utils.check_answer(
         [
@@ -2617,6 +2781,10 @@ def test_array_append(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_cat is not yet supported in local testing mode.",
+)
 def test_array_cat(session):
     Utils.check_answer(
         TestData.array1(session).select(array_cat(col("arr1"), col("arr2"))),
@@ -2638,6 +2806,10 @@ def test_array_cat(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_compact is not yet supported in local testing mode.",
+)
 def test_array_compact(session):
     Utils.check_answer(
         TestData.null_array1(session).select(array_compact(col("arr1"))),
@@ -2653,6 +2825,10 @@ def test_array_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_construct is not yet supported in local testing mode.",
+)
 def test_array_construct(session):
     assert (
         TestData.zero1(session)
@@ -2687,6 +2863,10 @@ def test_array_construct(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_construct_compact is not yet supported in local testing mode.",
+)
 def test_array_construct_compact(session):
     assert (
         TestData.zero1(session)
@@ -2728,6 +2908,10 @@ def test_array_construct_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_contains is not yet supported in local testing mode.",
+)
 def test_array_contains(session):
     assert (
         TestData.zero1(session)
@@ -2763,6 +2947,10 @@ def test_array_contains(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_insert is not yet supported in local testing mode.",
+)
 def test_array_insert(session):
     Utils.check_answer(
         TestData.array2(session).select(array_insert(col("arr1"), col("d"), col("e"))),
@@ -2778,6 +2966,10 @@ def test_array_insert(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_position is not yet supported in local testing mode.",
+)
 def test_array_position(session):
     Utils.check_answer(
         TestData.array2(session).select(array_position(col("d"), col("arr1"))),
@@ -2793,6 +2985,10 @@ def test_array_position(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_prepend is not yet supported in local testing mode.",
+)
 def test_array_prepend(session):
     Utils.check_answer(
         TestData.array1(session).select(
@@ -2838,6 +3034,10 @@ def test_array_prepend(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_size is not yet supported in local testing mode.",
+)
 def test_array_size(session):
     Utils.check_answer(
         TestData.array2(session).select(array_size(col("arr1"))),
@@ -2877,6 +3077,10 @@ def test_array_size(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_slice is not yet supported in local testing mode.",
+)
 def test_array_slice(session):
     Utils.check_answer(
         TestData.array3(session).select(array_slice(col("arr1"), col("d"), col("e"))),
@@ -2892,6 +3096,10 @@ def test_array_slice(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="array_to_string is not yet supported in local testing mode.",
+)
 def test_array_to_string(session):
     Utils.check_answer(
         TestData.array3(session).select(array_to_string(col("arr1"), col("f"))),
@@ -2907,6 +3115,10 @@ def test_array_to_string(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="object_agg is not yet supported in local testing mode.",
+)
 def test_objectagg(session):
     Utils.check_answer(
         TestData.object1(session).select(object_agg(col("key"), col("value"))),
@@ -2979,6 +3191,10 @@ def test_object_construct_keep_null(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="object_delete is not yet supported in local testing mode.",
+)
 def test_object_delete(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -2998,6 +3214,10 @@ def test_object_delete(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="object_insert is not yet supported in local testing mode.",
+)
 def test_object_insert(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -3093,6 +3313,10 @@ def test_object_insert(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="object_pick is not yet supported in local testing mode.",
+)
 def test_object_pick(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -3134,6 +3358,10 @@ def test_object_pick(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_array is not yet supported in local testing mode.",
+)
 def test_as_array(session):
     Utils.check_answer(
         TestData.array1(session).select(as_array(col("ARR1"))),
@@ -3167,6 +3395,10 @@ def test_as_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_binary is not yet supported in local testing mode.",
+)
 def test_as_binary(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3190,6 +3422,10 @@ def test_as_binary(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_char is not yet supported in local testing mode.",
+)
 def test_as_char_as_varchar(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3223,6 +3459,10 @@ def test_as_char_as_varchar(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_date is not yet supported in local testing mode.",
+)
 def test_as_date(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3242,6 +3482,10 @@ def test_as_date(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_decimal is not yet supported in local testing mode.",
+)
 def test_as_decimal_as_number(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3350,6 +3594,10 @@ def test_as_decimal_as_number(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_double is not yet supported in local testing mode.",
+)
 def test_as_double_as_real(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3397,6 +3645,10 @@ def test_as_double_as_real(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_integer is not yet supported in local testing mode.",
+)
 def test_as_integer(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3422,6 +3674,10 @@ def test_as_integer(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_object is not yet supported in local testing mode.",
+)
 def test_as_object(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3441,10 +3697,17 @@ def test_as_object(session):
     )
 
 
-def test_timestamp_tz_from_parts(session):
-    try:
-        if not IS_IN_STORED_PROC:
-            session.sql('alter session set timezone="America/Los_Angeles"').collect()
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="timestamp_tz_from_parts is not yet supported in local testing mode.",
+)
+def test_timestamp_tz_from_parts(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
         df = session.create_dataframe(
             [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
             schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
@@ -3527,9 +3790,6 @@ def test_timestamp_tz_from_parts(session):
                 )
             ],
         )
-    finally:
-        if not IS_IN_STORED_PROC:
-            session.sql("alter session unset timezone").collect()
 
 
 @pytest.mark.localtest
@@ -3561,6 +3821,10 @@ def test_convert_timezone(session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="time_from_parts is not yet supported in local testing mode.",
+)
 def test_time_from_parts(session):
     df = session.create_dataframe(
         [[11, 11, 0, 987654321]], schema=["hour", "minute", "second", "nanoseconds"]
@@ -3670,6 +3934,10 @@ def test_timestamp_from_parts_internal_negative():
         _timestamp_from_parts_internal(func_name, 1, 2, 3, 4, 5, 6, 7, 8)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_time is not yet supported in local testing mode.",
+)
 def test_as_time(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3743,6 +4011,10 @@ def test_as_time(session):
         ),
     ],
 )
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="as_timestamp_tz is not yet supported in local testing mode.",
+)
 def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
     with parameter_override(
         session,
@@ -3785,6 +4057,10 @@ def test_to_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_json is not yet supported in local testing mode.",
+)
 def test_to_json(session):
     Utils.check_answer(
         TestData.integer1(session).select(to_json(col("a"))),
@@ -3835,6 +4111,10 @@ def test_to_variant(session):
     assert integer1.select(to_variant("a")).collect()[0][0] == "1"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_xml is not yet supported in local testing mode.",
+)
 def test_to_xml(session):
     Utils.check_answer(
         TestData.integer1(session).select(to_xml(col("a"))),
@@ -3857,6 +4137,10 @@ def test_to_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_to_geography(session):
     geography_string = """{
   "coordinates": [
@@ -3877,6 +4161,10 @@ def test_to_geography(session):
     assert geography.select(to_geography("a")).collect()[0][0] == geography_string
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geometry is not yet supported in local testing mode.",
+)
 def test_to_geometry(session):
     geometry_string = """{
   "coordinates": [
@@ -3898,6 +4186,10 @@ def test_to_geometry(session):
 
 
 @pytest.mark.parametrize("a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="typeof is not yet supported in local testing mode.",
+)
 def test_typeof(session, a):
     Utils.check_answer(
         TestData.integer1(session).select(typeof(a)),
@@ -3907,6 +4199,10 @@ def test_typeof(session, a):
 
 
 @pytest.mark.parametrize("obj, k", [("obj", "k"), (col("obj"), col("k"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="get_ignore_case is not yet supported in local testing mode.",
+)
 def test_get_ignore_case(session, obj, k):
     Utils.check_answer(
         TestData.object2(session).select(get_ignore_case(obj, k)),
@@ -3922,6 +4218,10 @@ def test_get_ignore_case(session, obj, k):
 
 
 @pytest.mark.parametrize("column", ["obj", col("obj")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="object_keys is not yet supported in local testing mode.",
+)
 def test_object_keys(session, column):
     Utils.check_answer(
         TestData.object2(session).select(object_keys(column)),
@@ -3939,6 +4239,10 @@ def test_object_keys(session, column):
         ("v", "t2", "t3", "instance", 0),
         (col("v"), col("t2"), col("t3"), col("instance"), lit(0)),
     ],
+)
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="get_ignore_case is not yet supported in local testing mode.",
 )
 def test_xmlget(session, v, t2, t3, instance, zero):
     Utils.check_answer(
@@ -3975,6 +4279,10 @@ def test_xmlget(session, v, t2, t3, instance, zero):
 
 
 @pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="get_path is not yet supported in local testing mode.",
+)
 def test_get_path(session, v, k):
     Utils.check_answer(
         TestData.valid_json1(session).select(get_path(v, k)),
@@ -3983,7 +4291,6 @@ def test_get_path(session, v, k):
     )
 
 
-@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
         TestData.object2(session).select(get(col("obj"), col("k"))),
@@ -4011,6 +4318,10 @@ def test_get(session):
 
 
 @pytest.mark.parametrize("col_a", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_count_distinct is not yet supported in local testing mode.",
+)
 def test_approx_count_distinct(session, col_a):
     Utils.check_answer(
         TestData.duplicated_numbers(session).select(approx_count_distinct(col_a)),
@@ -4018,6 +4329,10 @@ def test_approx_count_distinct(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_percentile is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile(session, col_a):
     Utils.check_answer(
@@ -4026,6 +4341,10 @@ def test_approx_percentile(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_percentile_accumulate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile_accumulate(session, col_a):
     Utils.check_answer(
@@ -4045,6 +4364,10 @@ def test_approx_percentile_accumulate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_percentile_estimate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile_estimate(session, col_a):
     Utils.check_answer(
@@ -4055,6 +4378,10 @@ def test_approx_percentile_estimate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="approx_percentile_accumulate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a, col_b", [("A", "B"), (col("A"), col("B"))])
 def test_approx_percentile_combine(session, col_a, col_b):
     df1 = (
@@ -4115,6 +4442,10 @@ def test_iff(session, local_testing_mode):
         )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="cume_dist is not yet supported in local testing mode.",
+)
 def test_cume_dist(session):
     Utils.check_answer(
         TestData.xyz(session).select(
@@ -4125,6 +4456,10 @@ def test_cume_dist(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="dense_rank is not yet supported in local testing mode.",
+)
 def test_dense_rank(session):
     Utils.check_answer(
         TestData.xyz(session).select(dense_rank().over(Window.order_by(col("X")))),
@@ -4214,6 +4549,10 @@ def test_first_value(session, col_z):
 
 
 @pytest.mark.parametrize("col_n", ["n", col("n"), 4, 0])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="ntile is not yet supported in local testing mode.",
+)
 def test_ntile(session, col_n):
     df = TestData.xyz(session)
     if not isinstance(col_n, int):
@@ -4235,6 +4574,10 @@ def test_ntile(session, col_n):
         )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="percent_rank is not yet supported in local testing mode.",
+)
 def test_percent_rank(session):
     Utils.check_answer(
         TestData.xyz(session).select(
@@ -4245,6 +4588,10 @@ def test_percent_rank(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="rank is not yet supported in local testing mode.",
+)
 def test_rank(session):
     Utils.check_answer(
         TestData.xyz(session).select(
@@ -4255,6 +4602,10 @@ def test_rank(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO: row_number over window does not have consistent result.",
+)
 def test_row_number(session):
     Utils.check_answer(
         TestData.xyz(session).select(
@@ -4265,6 +4616,10 @@ def test_row_number(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_listagg(session):
     df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
     Utils.check_answer(
@@ -4287,12 +4642,20 @@ def test_listagg(session):
 @pytest.mark.parametrize(
     "col_expr, col_scale", [("expr", 1), (col("expr"), col("scale"))]
 )
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="trunc is not yet supported in local testing mode.",
+)
 def test_trunc(session, col_expr, col_scale):
     df = session.create_dataframe([(3.14, 1)], schema=["expr", "scale"])
     Utils.check_answer(df.select(trunc(col_expr, col_scale)), [Row(3.1)])
 
 
 @pytest.mark.parametrize("col_A, col_scale", [("A", 0), (col("A"), lit(0))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="round is not yet supported in local testing mode.",
+)
 def test_round(session, col_A, col_scale):
     Utils.check_answer(
         TestData.double1(session).select(round(col_A, col_scale)),
@@ -4301,6 +4664,10 @@ def test_round(session, col_A, col_scale):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="sin is not yet supported in local testing mode.",
+)
 def test_sin_sinh(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(sin(col_A), sinh(col_A)),
@@ -4314,6 +4681,10 @@ def test_sin_sinh(session, col_A):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="cos is not yet supported in local testing mode.",
+)
 def test_cos_cosh(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(cos(col_A), cosh(col_B)),
@@ -4327,6 +4698,10 @@ def test_cos_cosh(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="tan is not yet supported in local testing mode.",
+)
 def test_tan_tanh(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(tan(col_A), tanh(col_A)),
@@ -4340,6 +4715,10 @@ def test_tan_tanh(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="acos is not yet supported in local testing mode.",
+)
 def test_asin_acos(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(acos(col_A), asin(col_A)),
@@ -4353,6 +4732,10 @@ def test_asin_acos(session, col_A):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="atan is not yet supported in local testing mode.",
+)
 def test_atan_atan2(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(atan(col_B), atan(col_A)),
@@ -4372,6 +4755,10 @@ def test_atan_atan2(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="degrees is not yet supported in local testing mode.",
+)
 def test_degrees(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(degrees(col_A), degrees(col_B)),
@@ -4385,6 +4772,10 @@ def test_degrees(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="radians is not yet supported in local testing mode.",
+)
 def test_radians(session, col_A):
     Utils.check_answer(
         TestData.double1(session).select(radians(col_A)),
@@ -4398,6 +4789,10 @@ def test_radians(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="factorial is not yet supported in local testing mode.",
+)
 def test_factorial(session, col_A):
     Utils.check_answer(
         TestData.integer1(session).select(factorial(col_A)),
@@ -4407,6 +4802,10 @@ def test_factorial(session, col_A):
 
 
 @pytest.mark.parametrize("col_0, col_2, col_4", [(0, 2, 4), (lit(0), lit(2), lit(4))])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="div0 is not yet supported in local testing mode.",
+)
 def test_div0(session, col_0, col_2, col_4):
     Utils.check_answer(
         TestData.zero1(session).select(div0(col_2, col_0), div0(col_4, col_2)),
@@ -4415,6 +4814,10 @@ def test_div0(session, col_0, col_2, col_4):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="md5 is not yet supported in local testing mode.",
+)
 def test_md5_sha1_sha2(session, col_A):
     Utils.check_answer(
         TestData.string1(session).select(md5(col_A), sha1(col_A), sha2(col_A, 224)),
@@ -4440,6 +4843,10 @@ def test_md5_sha1_sha2(session, col_A):
 
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="ascii is not yet supported in local testing mode.",
+)
 def test_ascii(session, col_B):
     Utils.check_answer(
         TestData.string1(session).select(ascii(col_B)),
@@ -4518,6 +4925,10 @@ def test_initcap_length_lower_upper(func, expected, use_col, session):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="lpad is not yet supported in local testing mode.",
+)
 def test_lpad_rpad(session, col_A):
     Utils.check_answer(
         TestData.string2(session).select(
@@ -4533,6 +4944,10 @@ def test_lpad_rpad(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="ltrim is not yet supported in local testing mode.",
+)
 def test_ltrim_rtrim_trim(session, col_A):
     Utils.check_answer(
         TestData.string3(session).select(ltrim(col_A), rtrim(col_A), trim(col_A)),
@@ -4550,6 +4965,10 @@ def test_ltrim_rtrim_trim(session, col_A):
 
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="repeat is not yet supported in local testing mode.",
+)
 def test_repeat(session, col_B):
     Utils.check_answer(
         TestData.string1(session).select(repeat(col_B, 3)),
@@ -4559,6 +4978,10 @@ def test_repeat(session, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="soundex is not yet supported in local testing mode.",
+)
 def test_soundex(session, col_A):
     Utils.check_answer(
         TestData.string4(session).select(soundex(col_A)),
@@ -4568,6 +4991,10 @@ def test_soundex(session, col_A):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="insert is not yet supported in local testing mode.",
+)
 def test_insert(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(insert(col_a, 2, 3, lit("abc"))),
@@ -4577,6 +5004,10 @@ def test_insert(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="left is not yet supported in local testing mode.",
+)
 def test_left(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(left(col_a, 2)),
@@ -4586,6 +5017,10 @@ def test_left(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="right is not yet supported in local testing mode.",
+)
 def test_right(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(right(col_a, 2)),
@@ -4595,6 +5030,10 @@ def test_right(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="regexp_count is not yet supported in local testing mode.",
+)
 def test_regexp_count(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(regexp_count(col_a, "a")),
@@ -4610,6 +5049,10 @@ def test_regexp_count(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="replace is not yet supported in local testing mode.",
+)
 def test_replace(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(replace(col_a, "a")),
@@ -4625,6 +5068,10 @@ def test_replace(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="charindex is not yet supported in local testing mode.",
+)
 def test_charindex(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(charindex(lit("na"), col_a)),
@@ -4640,6 +5087,10 @@ def test_charindex(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="collate is not yet supported in local testing mode.",
+)
 def test_collate(session, col_a):
     Utils.check_answer(
         TestData.string3(session).where(collate(col_a, "en_US-trim") == "abcba"),
@@ -4648,6 +5099,10 @@ def test_collate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="collation is not yet supported in local testing mode.",
+)
 def test_collation(session):
     Utils.check_answer(
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
