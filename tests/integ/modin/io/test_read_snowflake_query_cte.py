@@ -3,6 +3,7 @@
 #
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -13,6 +14,7 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5, union_count=4)
 def test_read_snowflake_query_basic_cte(session):
     # create table
@@ -30,6 +32,7 @@ def test_read_snowflake_query_basic_cte(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=4, union_count=2)
 def test_read_snowflake_query_recursive_cte():
     SQL_QUERY = """WITH RECURSIVE current_f (current_val, previous_val) AS
@@ -54,6 +57,7 @@ def test_read_snowflake_query_recursive_cte():
     )
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5, join_count=2, union_count=2)
 def test_read_snowflake_query_complex_recursive_cte(session):
     # create table
@@ -126,6 +130,7 @@ def test_read_snowflake_query_complex_recursive_cte(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6, sproc_count=2)
 def test_read_snowflake_query_cte_with_cross_language_sproc(session):
     # create table name
@@ -164,6 +169,7 @@ def test_read_snowflake_query_cte_with_cross_language_sproc(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6, sproc_count=2)
 def test_read_snowflake_query_cte_with_python_anonymous_sproc(session):
     # create table name
