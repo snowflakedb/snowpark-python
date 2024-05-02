@@ -222,8 +222,11 @@ def create_udtf_for_apply_axis_1(
 
             result["value"] = (
                 result["value"]
-                .apply(handle_missing_value_in_variant)
-                .apply(convert_numpy_int_result_to_int)
+                .apply(
+                    lambda v: handle_missing_value_in_variant(
+                        convert_numpy_int_result_to_int(v)
+                    )
+                )
                 .astype(object)
             )
             return result
