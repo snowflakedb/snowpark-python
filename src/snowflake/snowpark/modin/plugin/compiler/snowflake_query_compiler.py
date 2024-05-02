@@ -677,7 +677,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if kwargs:
             args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
         ErrorMessage.not_implemented(
-            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str}"
+            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str})"
         )
 
     @classmethod
@@ -2873,6 +2873,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
+        # NOTE we are keeping the cache_result for performance reasons. DO NOT
+        # REMOVE the cache_result unless you can prove that doing so will not
+        # materially slow down CI or individual groupby.apply() calls.
+        # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
+        # is useful.
         ordered_dataframe = cache_result(
             ordered_dataframe.select(
                 *by_snowflake_quoted_identifiers_list,
@@ -5612,8 +5617,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).over(partition_by=[partition_identifier]),
         )
 
-        # TODO SNOW-1060191: after fixing the bug in PIVOT with udtf, remove cache_result
-        # cache_result is currently used to create a temp table and read from it
+        # NOTE we are keeping the cache_result for performance reasons. DO NOT
+        # REMOVE the cache_result unless you can prove that doing so will not
+        # materially slow down CI or individual groupby.apply() calls.
+        # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
+        # is useful.
         ordered_dataframe = cache_result(udtf_dataframe)
 
         # After applying the udtf, the underlying Snowpark DataFrame becomes
