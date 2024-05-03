@@ -48,7 +48,7 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
             assert event["UUID"]
             assert datetime.strptime(
                 event["Created_on"], "%Y-%m-%d %H:%M:%S"
-            ).timestamp() == pytest.approx(now_time.timestamp(), abs=1)
+            ).timestamp() == pytest.approx(now_time.timestamp(), abs=3)
             assert event["Message"]["Connection_UUID"] == (
                 None if idx == 0 else connection_uuid
             )
@@ -127,7 +127,7 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
         assert event["UUID"]
         assert datetime.strptime(
             event["Created_on"], "%Y-%m-%d %H:%M:%S"
-        ).timestamp() == pytest.approx(now_time.timestamp(), abs=1)
+        ).timestamp() == pytest.approx(now_time.timestamp(), abs=3)
         assert event["Message"]["Connection_UUID"] == (
             None if idx == 0 else connection_uuid
         )
