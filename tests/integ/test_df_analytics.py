@@ -31,6 +31,10 @@ def get_sample_dataframe(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="windows function UnresolvedAttribute is not supported in Local Testing",
+)
 def test_moving_agg(session):
     """Tests df.analytics.moving_agg() happy path."""
 
@@ -59,6 +63,10 @@ def test_moving_agg(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="windows function UnresolvedAttribute is not supported in Local Testing",
+)
 def test_moving_agg_custom_formatting(session):
     """Tests df.analytics.moving_agg() with custom formatting of output columns."""
 
@@ -114,6 +122,10 @@ def test_moving_agg_custom_formatting(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="windows function UnresolvedAttribute is not supported in Local Testing",
+)
 def test_moving_agg_invalid_inputs(session):
     """Tests df.analytics.moving_agg() with invalid window sizes."""
 
@@ -243,6 +255,10 @@ def test_moving_agg_invalid_inputs(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="windows function UnresolvedAttribute is not supported in Local Testing",
+)
 def test_cumulative_agg_forward_direction(session):
     """Tests df.analytics.cumulative_agg() with forward direction for cumulative calculations."""
 
@@ -279,6 +295,10 @@ def test_cumulative_agg_forward_direction(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="windows function UnresolvedAttribute is not supported in Local Testing",
+)
 def test_cumulative_agg_backward_direction(session):
     """Tests df.analytics.cumulative_agg() with backward direction for cumulative calculations."""
 
@@ -315,6 +335,10 @@ def test_cumulative_agg_backward_direction(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="cast to float type supported in Local Testing",
+)
 def test_compute_lead(session):
     """Tests df.analytics.compute_lead() happy path."""
 
@@ -349,6 +373,10 @@ def test_compute_lead(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: result data type snowpark LongType and LongType() do not match",
+)
 def test_compute_lag(session):
     """Tests df.analytics.compute_lag() happy path."""
 
@@ -462,6 +490,10 @@ def test_time_series_agg(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="add_month is not supported in Local Testing",
+)
 def test_time_series_agg_month_sliding_window(session):
     """Tests time_series_agg_fixed function with month window sizes."""
 
@@ -529,6 +561,10 @@ def test_time_series_agg_month_sliding_window(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="add_month function is not supported in Local Testing",
+)
 def test_time_series_agg_year_sliding_window(session):
     """Tests time_series_agg_fixed function with year window sizes."""
 
@@ -596,6 +632,10 @@ def test_time_series_agg_year_sliding_window(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: result data type snowpark LongType and LongType() do not match",
+)
 def test_time_series_agg_invalid_inputs(session):
     """Tests time_series_agg function with invalid inputs."""
 
