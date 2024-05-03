@@ -41,6 +41,9 @@
 ### Behavior Changes
 - As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 
+### New Features
+Added partial support for `SeriesGroupBy.apply`.
+
 ## 1.14.0a2 (2024-04-18)
 
 ### Behavior Changes
@@ -64,6 +67,7 @@
 - Added support for `axis` argument for `df.where` and `df.mask` when `other` is a Series.
 - Added back `_repr_html_` to DataFrame class for pretty printing (partially reverts commit 576ba26586caca3fa063da1fed465c61091b6d9c).
 - Added support for `DataFrameGroupBy.nunique`.
+- Added partial support for `SeriesGroupBy.apply`.
 
 ## 1.14.0a1 (2024-04-11)
 
