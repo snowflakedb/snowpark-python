@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
@@ -272,6 +273,11 @@ class Table(DataFrame):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
     ) -> None:
+        # TODO: what do we do if there's no session?
+        stmt = session._ast_batch.assign()
+        stmt.expr.sp_table.table = table_name
+        # TODO: Capture is_temp_table_for_cleanup
+
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
@@ -286,7 +292,7 @@ class Table(DataFrame):
             )
         else:
             plan = snowflake_table_plan
-        super().__init__(session, plan)
+        super().__init__(session, plan, ast_stmt=stmt)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
