@@ -59,6 +59,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
+from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -631,6 +632,8 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+
+        self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
