@@ -1,5 +1,13 @@
 # Release History
 
+## 1.17.0 (TBD)
+
+### Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
+
 ## 1.16.0 (TBD)
 
 ### New Features

@@ -2898,72 +2898,62 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     def isna():
         """
-        Detect missing values for an array-like object.
+        Detect missing values.
 
-        This function takes a scalar or array-like object and indicates whether values are missing (NaN in numeric
-        arrays, None or NaN in object arrays, NaT in datetimelike).
-
-        Parameters
-        ----------
-        obj : scalar or array-like
-                Object to check for null or missing values.
+        Return a boolean same-sized object indicating if the values are NA. NA values, such as None
+        or `numpy.NaN`, gets mapped to True values. Everything else gets mapped to False values.
+        Characters such as empty strings `''` or `numpy.inf` are not considered NA values.
 
         Returns
         -------
-        bool or array-like of bool
-            For scalar input, returns a scalar boolean. For array input, returns an array of boolean indicating whether
-            each corresponding element is missing.
+        Series
+            Mask of bool values for each element in Series that indicates whether an element is an NA value.
 
         Examples
         --------
-        >>> df = pd.DataFrame([['ant', 'bee', 'cat'], ['dog', None, 'fly']])
-        >>> df
-             0     1    2
-        0  ant   bee  cat
-        1  dog  None  fly
-        >>> df.isna()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        >>> df.isnull()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
+        >>> ser = pd.Series([5, 6, np.nan])
+        >>> ser
+        0    5.0
+        1    6.0
+        2    NaN
+        dtype: float64
+
+        >>> ser.isna()
+        0    False
+        1    False
+        2     True
+        dtype: bool
         """
 
     def isnull():
         """
-        Detect missing values for an array-like object.
+        `Series.isnull` is an alias for `Series.isna`.
 
-        This function takes a scalar or array-like object and indicates whether values are missing (NaN in numeric
-        arrays, None or NaN in object arrays, NaT in datetimelike).
+        Detect missing values.
 
-        Parameters
-        ----------
-        obj : scalar or array-like
-                Object to check for null or missing values.
+        Return a boolean same-sized object indicating if the values are NA. NA values, such as None
+        or `numpy.NaN`, gets mapped to True values. Everything else gets mapped to False values.
+        Characters such as empty strings `''` or `numpy.inf` are not considered NA values.
 
         Returns
         -------
-        bool or array-like of bool
-            For scalar input, returns a scalar boolean. For array input, returns an array of boolean indicating whether
-            each corresponding element is missing.
+        Series
+            Mask of bool values for each element in Series that indicates whether an element is an NA value.
 
         Examples
         --------
-        >>> df = pd.DataFrame([['ant', 'bee', 'cat'], ['dog', None, 'fly']])
-        >>> df
-             0     1    2
-        0  ant   bee  cat
-        1  dog  None  fly
-        >>> df.isna()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
-        >>> df.isnull()
-               0      1      2
-        0  False  False  False
-        1  False   True  False
+        >>> ser = pd.Series([5, 6, np.nan])
+        >>> ser
+        0    5.0
+        1    6.0
+        2    NaN
+        dtype: float64
+
+        >>> ser.isna()
+        0    False
+        1    False
+        2     True
+        dtype: bool
         """
 
     @property
