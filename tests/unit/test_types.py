@@ -587,7 +587,44 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
 
 
-def test_retrieve_func_defaults_from_source():
+@pytest.mark.parametrize("add_datatype", [True, False])
+@pytest.mark.parametrize(
+    "datatype,annotated_value,extracted_value",
+    [
+        ("int", "None", None),
+        ("int", "1", "1"),
+        ("bool", "True", "True"),
+        ("float", "1.0", "1.0"),
+        ("decimal.Decimal", "decimal.Decimal('3.14')", "decimal.Decimal('3.14')"),
+        ("decimal.Decimal", "decimal.Decimal(1.0)", "decimal.Decimal(1.0)"),
+        ("str", "one", "one"),
+        ("bytes", "b'one'", "b'one'"),
+        ("bytearray", "bytearray('one', 'utf-8')", "bytearray('one', 'utf-8')"),
+        ("datetime.date", "datetime.date(2024, 4, 1)", "datetime.date(2024, 4, 1)"),
+        (
+            "datetime.time",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+        ),
+        (
+            "datetime.datetime",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+        ),
+        ("List[int]", "[1, 2, 3]", "['1', '2', '3']"),
+        ("List[str]", "['a', 'b', 'c']", "['a', 'b', 'c']"),
+        (
+            "List[List[int]]",
+            "[[1, 2, 3], [4, 5, 6]]",
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+        ),
+        ("Map[int, str]", "{1: 'a'}", "{'1': 'a'}"),
+        ("Map[int, List[str]]", "{1: ['a', 'b']}", "{'1': \"['a', 'b']\"}"),
+    ],
+)
+def test_retrieve_func_defaults_from_source(
+    datatype, annotated_value, extracted_value, add_datatype
+):
     func_name = "foo"
 
     source = f"""
@@ -596,223 +633,79 @@ def {func_name}() -> None:
 """
     assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
 
-    # numeric types
-    #   int: LongType
-    #   bool: BooleanType
-    #   float: FloatType
-    #   decimal.Decimal: DecimalType
+    datatype_str = f": {datatype}" if add_datatype else ""
     source = f"""
-def {func_name}(x, y: int = None) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [None]
-
-    source = f"""
-def {func_name}(x, y: int = 1) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == ["1"]
-
-    source = f"""
-def {func_name}(x, y: bool = True) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == ["True"]
-
-    source = f"""
-def {func_name}(x, y: float = 1.0) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == ["1.0"]
-
-    source = f"""
-def {func_name}(x, y: decimal.Decimal = decimal.Decimal("3.14")) -> None:
+def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
     return None
 """
     assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "decimal.Decimal('3.14')"
-    ]
-
-    source = f"""
-def {func_name}(x, y: decimal.Decimal = decimal.Decimal(1.0)) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "decimal.Decimal(1.0)"
-    ]
-
-    # string types
-    #   str: StringType
-    #   bytes: BinaryType
-    #   bytearray: BinaryType
-    source = f"""
-def {func_name}(x, y: str = "one") -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == ["one"]
-
-    source = f"""
-def {func_name}(x, y: bytes = b"one") -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "b'one'"
-    ]
-
-    source = f"""
-def {func_name}(x, y: bytearray = bytearray("one", "utf-8")) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "bytearray('one', 'utf-8')"
-    ]
-
-    # date and time
-    #   datetime.date: DateType
-    #   datetime.datetime: TimestampType
-    #   datetime.time: TimeType
-    source = f"""
-def {func_name}(x, y: datetime.date = datetime.date(2024, 4, 1)) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "datetime.date(2024, 4, 1)"
-    ]
-
-    source = f"""
-def {func_name}(x, y: datetime.time = datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)"
-    ]
-
-    source = f"""
-def {func_name}(x, y: datetime.date = datetime.datetime(2024, 4, 1, 12, 0, 20)) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "datetime.datetime(2024, 4, 1, 12, 0, 20)"
-    ]
-
-    # arrays and dict
-    #   list: ArrayType
-    #   dict: MapType
-    source = f"""
-def {func_name}(x, y: List[int] = [1, 2, 3]) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "['1', '2', '3']"
-    ]
-
-    source = f"""
-def {func_name}(x, y: List[str] = ['a', 'b', 'c']) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "['a', 'b', 'c']"
-    ]
-
-    source = f"""
-def {func_name}(x, y: List[List[int]] = [[1, 2, 3], [4, 5, 6]]) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "[\"['1', '2', '3']\", \"['4', '5', '6']\"]"
-    ]
-
-    map_default_value = "{1: 'a'}"
-    source = f"""
-def {func_name}(x, y: Map[int, str] = {map_default_value}) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "{'1': 'a'}"
-    ]
-
-    map_default_value = "{1: ['a', 'b']}"
-    source = f"""
-def {func_name}(x, y: Map[int, List[str]] = {map_default_value}) -> None:
-    return None
-"""
-    assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
-        "{'1': \"['a', 'b']\"}"
+        extracted_value
     ]
 
 
-def test_python_value_str_to_object():
-    assert python_value_str_to_object("1", IntegerType()) == 1
-    assert python_value_str_to_object("True", BooleanType()) is True
-    assert python_value_str_to_object("1.0", FloatType()) == 1.0
-    assert python_value_str_to_object(
-        "decimal.Decimal('3.14')", DecimalType()
-    ) == decimal.Decimal("3.14")
-    assert python_value_str_to_object(
-        "decimal.Decimal(1.0)", DecimalType()
-    ) == decimal.Decimal(1.0)
-
-    assert python_value_str_to_object("one", StringType()) == "one"
-    assert python_value_str_to_object("b'one'", BinaryType()) == b"one"
-    assert python_value_str_to_object(
-        "bytearray('one', 'utf-8')", BinaryType()
-    ) == bytearray("one", "utf-8")
-
-    assert python_value_str_to_object("datetime.date(2024, 4, 1)", DateType()) == date(
-        2024, 4, 1
-    )
-    assert python_value_str_to_object(
-        "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)", TimeType()
-    ) == time(12, 0, second=20, tzinfo=timezone.utc)
-    assert python_value_str_to_object(
-        "datetime.datetime(2024, 4, 1, 12, 0, 20)", TimestampType()
-    ) == datetime(2024, 4, 1, 12, 0, 20)
-
-    assert python_value_str_to_object("['1', '2', '3']", ArrayType(IntegerType())) == [
-        1,
-        2,
-        3,
-    ]
-    assert python_value_str_to_object("['a', 'b', 'c']", ArrayType(StringType())) == [
-        "a",
-        "b",
-        "c",
-    ]
-    assert python_value_str_to_object("['a', 'b', 'c']", ArrayType()) == [
-        "a",
-        "b",
-        "c",
-    ]
-    assert python_value_str_to_object(
-        "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
-        ArrayType(ArrayType(IntegerType())),
-    ) == [[1, 2, 3], [4, 5, 6]]
-
-    assert python_value_str_to_object("{'1': 'a'}", MapType()) == {"1": "a"}
-    assert python_value_str_to_object(
-        "{'1': 'a'}", MapType(IntegerType(), StringType())
-    ) == {1: "a"}
-    assert python_value_str_to_object(
-        "{'1': \"['a', 'b']\"}", MapType(IntegerType(), ArrayType(StringType()))
-    ) == {1: ["a", "b"]}
+@pytest.mark.parametrize(
+    "value_str,datatype,expected_value",
+    [
+        ("1", IntegerType(), 1),
+        ("True", BooleanType(), True),
+        ("1.0", FloatType(), 1.0),
+        ("decimal.Decimal('3.14')", DecimalType(), decimal.Decimal("3.14")),
+        ("decimal.Decimal(1.0)", DecimalType(), decimal.Decimal(1.0)),
+        ("one", StringType(), "one"),
+        (None, StringType(), None),
+        ("None", StringType(), "None"),
+        ("b'one'", BinaryType(), b"one"),
+        ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
+        ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
+        (
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            TimeType(),
+            time(12, 0, second=20, tzinfo=timezone.utc),
+        ),
+        (
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            TimestampType(),
+            datetime(2024, 4, 1, 12, 0, 20),
+        ),
+        ("['1', '2', '3']", ArrayType(IntegerType()), [1, 2, 3]),
+        ("['a', 'b', 'c']", ArrayType(StringType()), ["a", "b", "c"]),
+        ("['a', 'b', 'c']", ArrayType(), ["a", "b", "c"]),
+        (
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+            ArrayType(ArrayType(IntegerType())),
+            [[1, 2, 3], [4, 5, 6]],
+        ),
+        ("{'1': 'a'}", MapType(), {"1": "a"}),
+        ("{'1': 'a'}", MapType(IntegerType(), StringType()), {1: "a"}),
+        (
+            "{'1': \"['a', 'b']\"}",
+            MapType(IntegerType(), ArrayType(StringType())),
+            {1: ["a", "b"]},
+        ),
+    ],
+)
+def test_python_value_str_to_object(value_str, datatype, expected_value):
+    assert python_value_str_to_object(value_str, datatype) == expected_value
 
 
-def test_python_value_str_to_object_for_none():
-    assert python_value_str_to_object("None", IntegerType()) is None
-    assert python_value_str_to_object("None", BooleanType()) is None
-    assert python_value_str_to_object("None", FloatType()) is None
-    assert python_value_str_to_object("None", DecimalType()) is None
-
-    assert python_value_str_to_object(None, StringType()) is None
-    assert python_value_str_to_object("None", StringType()) == "None"
-    assert python_value_str_to_object("None", BinaryType()) is None
-
-    assert python_value_str_to_object("None", DateType()) is None
-    assert python_value_str_to_object("None", TimeType()) is None
-    assert python_value_str_to_object("None", TimestampType()) is None
-
-    assert python_value_str_to_object("None", ArrayType()) is None
-    assert python_value_str_to_object("None", MapType()) is None
+@pytest.mark.parametrize(
+    "datatype",
+    [
+        IntegerType(),
+        BooleanType(),
+        FloatType(),
+        DecimalType(),
+        BinaryType(),
+        DateType(),
+        TimeType(),
+        TimestampType(),
+        ArrayType(),
+        MapType(),
+    ],
+)
+def test_python_value_str_to_object_for_none(datatype):
+    "StringType() is excluded here and tested in test_python_value_str_to_object"
+    assert python_value_str_to_object("None", datatype) is None
 
 
 def test_retrieve_func_type_hints_from_source():
