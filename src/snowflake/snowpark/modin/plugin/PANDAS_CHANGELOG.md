@@ -67,7 +67,6 @@ Added partial support for `SeriesGroupBy.apply`.
 - Added support for `axis` argument for `df.where` and `df.mask` when `other` is a Series.
 - Added back `_repr_html_` to DataFrame class for pretty printing (partially reverts commit 576ba26586caca3fa063da1fed465c61091b6d9c).
 - Added support for `DataFrameGroupBy.nunique`.
-- Added partial support for `SeriesGroupBy.apply`.
 
 ## 1.14.0a1 (2024-04-11)
 
