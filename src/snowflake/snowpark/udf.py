@@ -110,10 +110,13 @@ class UserDefinedFunction:
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
-        if len(exprs) != len(self._input_types):
+        # len(exprs) can be less than len(self._input_types) if udf has
+        # optional arguments but it cannot have more arguments
+        if len(exprs) > len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(self._input_types)}, Found: {len(exprs)}"
+                f" Expected: less than or equal to {len(self._input_types)},"
+                f" Found: {len(exprs)}"
             )
         return SnowflakeUDF(
             self.name,
@@ -821,6 +824,7 @@ class UDFRegistration:
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
@@ -876,6 +880,7 @@ class UDFRegistration:
                 func=func,
                 return_type=return_type,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udf_name,

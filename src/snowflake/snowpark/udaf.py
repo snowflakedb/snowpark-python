@@ -624,7 +624,14 @@ class UDAFRegistration:
         immutable: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
-        (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
+        (
+            udaf_name,
+            _,
+            _,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
             self._session,
             TempObjectType.AGGREGATE_FUNCTION,
             handler,
@@ -673,6 +680,7 @@ class UDAFRegistration:
                 func=handler,
                 return_type=return_type,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.AGGREGATE_FUNCTION,
                 object_name=udaf_name,

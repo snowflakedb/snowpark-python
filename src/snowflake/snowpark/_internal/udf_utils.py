@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
+import inspect
 import io
 import os
 import pickle
@@ -36,6 +37,8 @@ from snowflake.snowpark._internal.type_utils import (
     infer_type,
     python_type_str_to_object,
     python_type_to_snow_type,
+    python_value_str_to_object,
+    retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.utils import (
@@ -381,6 +384,67 @@ def get_types_from_type_hints(
     return return_type, input_types
 
 
+def get_opt_arg_defaults(
+    func: Union[Callable, Tuple[str, str]],
+    object_type: TempObjectType,
+    input_types: List[DataType],
+) -> List[Optional[str]]:
+    EMPTY_DEFAULT_VALUES = [None] * len(input_types)
+
+    def build_default_values_result(
+        default_values: Any, input_types: List[DataType]
+    ) -> List[Optional[str]]:
+        num_optional_args = len(default_values)
+        num_positional_args = len(input_types) - num_optional_args
+        default_values_to_sql_str = [
+            to_sql(value, datatype)
+            for value, datatype in zip(default_values, input_types[-num_optional_args:])
+        ]
+        return [None] * num_positional_args + default_values_to_sql_str
+
+    def get_opt_arg_defaults_from_callable():
+        target_func = None
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            # extract from process method
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        if object_type in (TempObjectType.PROCEDURE, TempObjectType.FUNCTION):
+            # sproc and udf
+            target_func = func
+
+        if target_func is None:
+            return EMPTY_DEFAULT_VALUES
+
+        arg_spec = inspect.getfullargspec(target_func)
+        return build_default_values_result(arg_spec.defaults, input_types)
+
+    def get_opt_arg_defaults_from_file():
+        filename, func_name = func[0], func[1]
+        if not is_local_python_file(filename):
+            return EMPTY_DEFAULT_VALUES
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            default_values_str = retrieve_func_defaults_from_source(
+                filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
+            )
+        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+            default_values_str = retrieve_func_defaults_from_source(filename, func_name)
+
+        if default_values_str is None:
+            return EMPTY_DEFAULT_VALUES
+        default_values = [
+            python_value_str_to_object(value) for value in default_values_str
+        ]
+        return build_default_values_result(default_values, input_types)
+
+    try:
+        if isinstance(func, Callable):
+            return get_opt_arg_defaults_from_callable()
+        else:
+            return get_opt_arg_defaults_from_file()
+    except TypeError:
+        return EMPTY_DEFAULT_VALUES
+
+
 def get_error_message_abbr(object_type: TempObjectType) -> str:
     if object_type == TempObjectType.FUNCTION:
         return "udf"
@@ -605,7 +669,7 @@ def process_registration_inputs(
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[str, bool, bool, DataType, List[DataType]]:
+) -> Tuple[str, bool, bool, DataType, List[DataType], List[Optional[str]]]:
     """
 
     Args:
@@ -628,8 +692,19 @@ def process_registration_inputs(
     ) = extract_return_input_types(
         func, return_type, input_types or [], object_type, output_schema
     )
+    if is_pandas_udf or is_dataframe_input:
+        opt_arg_defaults = [None] * len(input_types)
+    else:
+        opt_arg_defaults = get_opt_arg_defaults(func, object_type, input_types)
 
-    return object_name, is_pandas_udf, is_dataframe_input, return_type, input_types
+    return (
+        object_name,
+        is_pandas_udf,
+        is_dataframe_input,
+        return_type,
+        input_types,
+        opt_arg_defaults,
+    )
 
 
 def cleanup_failed_permanent_registration(
@@ -1135,6 +1210,7 @@ def create_python_udf_or_sp(
     func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
+    opt_arg_defaults: List[Optional[str]],
     handler: Optional[str],
     object_type: TempObjectType,
     object_name: str,
@@ -1171,7 +1247,10 @@ def create_python_udf_or_sp(
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
-        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
+        [
+            f"{a.name} {t}{f' DEFAULT {value}' if value else ''}"
+            for a, t, value in zip(input_args, input_sql_types, opt_arg_defaults)
+        ]
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""

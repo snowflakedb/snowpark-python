@@ -874,6 +874,7 @@ class UDTFRegistration:
             is_dataframe_input,
             output_schema,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
@@ -925,6 +926,7 @@ class UDTFRegistration:
                 func=handler,
                 return_type=output_schema,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udtf_name,
