@@ -78,7 +78,7 @@ def test_df_agg_tuples_basic_without_std(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="stddev function is not supported in Local Testing",
+    reason="FEAT: stddev function not supported",
 )
 def test_df_agg_tuples_basic(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
@@ -174,7 +174,7 @@ def test_df_agg_tuples_avg_basic(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="stddev function is not supported in Local Testing",
+    reason="FEAT: stddev function not supported",
 )
 def test_df_agg_tuples_std_basic(session):
     """Test for making sure all stddev variations work as expected"""

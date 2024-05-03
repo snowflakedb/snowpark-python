@@ -148,7 +148,7 @@ def test_to_pandas_precision_for_number_38_0(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="div0 and round functions are not supported in Local Testing",
+    reason="FEAT: div0 and round functions not supported",
 )
 def test_to_pandas_precision_for_non_zero_scale(session):
 
@@ -171,7 +171,7 @@ def test_to_pandas_precision_for_non_zero_scale(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="This is a SQL test suite",
+    reason="SQL query not supported",
     run=False,
 )
 def test_to_pandas_non_select(session):
