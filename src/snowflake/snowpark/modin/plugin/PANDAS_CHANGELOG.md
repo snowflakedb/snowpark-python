@@ -8,6 +8,7 @@
 - Fixed incorrect regex used in `DataFrame/Series.replace`.
 - Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
 - Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
+- Fixed binary operations with single-row DataFrame and Series.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in following APIs:

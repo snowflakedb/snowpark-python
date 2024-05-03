@@ -2045,7 +2045,7 @@ def test_binary_add_dataframe_and_series_axis0(df, s):
 
     # The other direction for axis=0 behaves like axis=1.
     with SqlCounter(
-        query_count=3,
+        query_count=2,
     ):
         snow_ans = snow_s.add(snow_df, axis=0)
         ans = s.add(df, axis=0)
@@ -2517,3 +2517,23 @@ def test_binary_bitwise_op_on_df(df1, df2, func, expected):
 
     snow_ans = func(snow_df1, snow_df2)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, expected)
+
+
+@sql_count_checker(query_count=2)
+@pytest.mark.parametrize(
+    "func",
+    [
+        lambda df: df + df[0],
+        lambda df: df - df[0],
+        lambda df: df[0] + df,
+        lambda df: df[0] - df,
+    ],
+)
+def test_binary_single_row_dataframe_and_series(func):
+    native_df = native_pd.DataFrame([1])
+    snow_df = pd.DataFrame([1])
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        func,
+    )
