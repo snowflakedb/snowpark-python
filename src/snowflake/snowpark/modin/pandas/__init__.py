@@ -88,6 +88,7 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from snowflake.snowpark.modin.pandas._index import Index
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     concat,
@@ -114,7 +115,6 @@ from snowflake.snowpark.modin.pandas.general import (
     value_counts,
     wide_to_long,
 )
-from snowflake.snowpark.modin.pandas.index import Index
 from snowflake.snowpark.modin.pandas.io import (
     ExcelFile,
     HDFStore,
