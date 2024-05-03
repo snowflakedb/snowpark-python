@@ -693,10 +693,13 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
-    
-    def ast_query(self, ast) -> Any:
-        # TODO: pass the 'client' kwarg.
-        return self._conn._rest.request("/api/v2/dataframe", { "ast": ast })
+
+    def ast_query(self, request_id__ast) -> Any:
+        (request_id, ast) = request_id__ast
+        req = {
+            "dataframeAst": ast,
+        }
+        return self._conn._rest.request(f"/queries/v1/query-request?requestId={request_id}", req)
 
 
 def _fix_pandas_df_fixed_type(

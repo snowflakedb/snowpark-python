@@ -6,6 +6,8 @@
 import base64
 import itertools
 import sys
+from typing import Tuple
+import uuid
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
@@ -35,12 +37,13 @@ class AstBatch:
         stmt.eval.uid = next(self._id_gen)
         stmt.eval.var_id.CopyFrom(target.var_id)
 
-    def flush(self) -> str:
+    def flush(self) -> Tuple[str, str]:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
-        return batch
+        return (str(self._request_id), batch)
 
     def _init_batch(self):
+        self._request_id = uuid.uuid4()  # Generate a new unique ID.
         self._request = proto.Request()
         self._request.client_version.major = 42
         self._request.client_version.minor = 0
