@@ -5,7 +5,7 @@ from collections.abc import Hashable
 from typing import Union
 
 import pandas as native_pd
-from modin.core.dataframe.algebra.default2pandas import DataFrameDefault
+from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
 
 from snowflake.snowpark.functions import any_value, get
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
