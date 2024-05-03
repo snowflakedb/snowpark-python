@@ -21,7 +21,7 @@ from functools import wraps
 # existing code originally distributed by the Modin project, under the Apache License,
 # Version 2.0.
 from logging import getLogger
-from typing import NoReturn, Optional
+from typing import Any, Callable, NoReturn, Optional, Union
 
 logger = getLogger(__name__)
 
@@ -30,7 +30,7 @@ _snowpark_pandas_does_not_yet_support = "Snowpark pandas does not yet support th
 
 def _make_not_implemented_decorator(
     decorating_functions: bool, attribute_prefix: Optional[str] = None
-):
+) -> Callable:
     """
     Make a decorator that wraps a function or property in an outer function that raises NotImplementedError.
 
@@ -51,8 +51,8 @@ def _make_not_implemented_decorator(
         A decorator that wraps a function or property in an outer function that raises NotImplementedError.
     """
 
-    def not_implemented_decorator():
-        def make_error_raiser(f):
+    def not_implemented_decorator() -> Callable:
+        def make_error_raiser(f: Any) -> Union[Callable, property]:
             if isinstance(f, classmethod):
                 raise ValueError(
                     "classmethod objects do not have a name. Instead of trying to "
@@ -70,7 +70,9 @@ def _make_not_implemented_decorator(
             if decorating_functions:
 
                 @wraps(f)
-                def raise_not_implemented_function_error(*args, **kwargs) -> NoReturn:
+                def raise_not_implemented_function_error(
+                    *args: tuple[Any, ...], **kwargs: dict[str, Any]
+                ) -> NoReturn:
                     assert attribute_prefix is not None
                     ErrorMessage.not_implemented(
                         message=f"{_snowpark_pandas_does_not_yet_support} property {attribute_prefix}.{name}"
@@ -81,7 +83,7 @@ def _make_not_implemented_decorator(
             if isinstance(f, property):
 
                 def raise_not_implemented_property_error(
-                    self, *args, **kwargs
+                    self: Any, *args: tuple[Any, ...], **kwargs: dict[str, Any]
                 ) -> NoReturn:
                     if attribute_prefix is None:
                         non_null_attribute_prefix = type(self).__name__
@@ -100,14 +102,14 @@ def _make_not_implemented_decorator(
 
             @wraps(f)
             def raise_not_implemented_method_error(
-                cls_or_self, *args, **kwargs
+                cls_or_self: Any, *args: tuple[Any, ...], **kwargs: dict[str, Any]
             ) -> NoReturn:
                 if attribute_prefix is None:
                     non_null_attribute_prefix = (
                         # cls_or_self is a class if this is a classmethod.
                         cls_or_self
                         if isinstance(cls_or_self, type)
-                        # Otherwise look at the type of self.
+                        # Otherwise, look at the type of self.
                         else type(cls_or_self)
                     ).__name__
                 else:
