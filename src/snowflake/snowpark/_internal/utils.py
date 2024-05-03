@@ -17,6 +17,7 @@ import platform
 import random
 import re
 import string
+import sys
 import threading
 import traceback
 import zipfile
@@ -44,11 +45,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import (
-    MissingOptionalDependency,
-    ModuleLikeObject,
-    pandas,
-)
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -59,6 +56,8 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -207,6 +206,24 @@ PIVOT_DEFAULT_ON_NULL_WARNING = (
     "Calling pivot() with a non-None value for `default_on_null` is in "
     + "private preview since v1.15.0. Do not use this feature in production."
 )
+
+# TODO: merge fixed pandas importer changes to connector.
+def _pandas_importer():  # noqa: E302
+    """Helper function to lazily import pandas and return MissingPandas if not installed."""
+    from snowflake.connector.options import MissingPandas
+
+    pandas = MissingPandas()
+    try:
+        pandas = importlib.import_module("pandas")
+        # since we enable relative imports without dots this import gives us an issues when ran from test directory
+        from pandas import DataFrame  # NOQA
+    except ImportError as e:
+        logger.error(f"pandas is not installed {e}")
+    return pandas
+
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -436,6 +453,14 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         )
     else:
         return [*inputs]
+
+
+def parse_positional_args_to_list_variadic(*inputs: Any) -> Tuple[List, bool]:
+    """Convert the positional arguments to a list, indicating whether to treat the argument list as a variadic list."""
+    if len(inputs) == 1 and isinstance(inputs[0], (list, tuple, set)):
+        return ([*inputs[0]], False)
+    else:
+        return ([*inputs], True)
 
 
 def _hash_file(
@@ -675,9 +700,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return super().default(value)
 
 
-logger = logging.getLogger("snowflake.snowpark")
-
-
 class WarningHelper:
     def __init__(self, warning_times: int) -> None:
         self.warning_times = warning_times
@@ -737,6 +759,153 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     if name not in warning_dict:
         warning_dict[name] = WarningHelper(warning_times)
     warning_dict[name].warning(text)
+
+
+def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
+    session = None
+    try:
+        # Multiple default session attempts:
+        session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+            None
+        )
+        assert session is not None
+    except (
+        snowflake.snowpark.exceptions.SnowparkSessionException,
+        AssertionError,
+    ):
+        # Use modin session retrieval first, as it supports multiple sessions.
+        # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
+        try:
+            import modin.pandas as pd
+
+            session = pd.session
+        except Exception as e:  # noqa: F841
+            try:
+                # Get from default session.
+                from snowflake.snowpark.context import get_active_session
+
+                session = get_active_session()
+            except Exception as e:  # noqa: F841
+                pass
+    finally:
+        if session is None:
+            logging.debug(
+                f"Could not retrieve default session "
+                f"for function {func.__qualname__}, capturing AST by default."
+            )
+            # session has not been created yet. To not lose information, always encode AST.
+            return True  # noqa: B012
+        else:
+            return session.ast_enabled  # noqa: B012
+
+
+def publicapi(func) -> Callable:
+    """decorator to safeguard public APIs with global feature flags."""
+
+    @functools.wraps(func)
+    def func_call_wrapper(*args, **kwargs):
+        # warning(func.__qualname__, warning_text)
+
+        # Handle AST encoding, by modifying default behavior.
+        # If a function supports AST encoding, it must have a parameter _emit_ast.
+        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
+        # then we use this value directly. If not, but the function supports _emit_ast,
+        # we override _emit_ast with the session parameter.
+        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
+            # No arguments, or single argument with function.
+            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
+                if func.__name__ in {
+                    "udf",
+                    "udtf",
+                    "udaf",
+                    "pandas_udf",
+                    "pandas_udtf",
+                    "sproc",
+                }:
+                    session = kwargs.get("session")
+                    # Lookup session directly as in implementation of these decorators.
+                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        session
+                    )
+                    # If session is None, do nothing (i.e., keep encoding AST).
+                    # This happens when the decorator is called before a session is started.
+                    if session is not None:
+                        kwargs["_emit_ast"] = session.ast_enabled
+                # Function passed fully with kwargs only (i.e., not a method - self will always be passed positionally)
+                elif len(kwargs) != 0:
+                    # Check if one of the kwargs holds a session object. If so, retrieve AST enabled from there.
+                    session_vars = [
+                        var
+                        for var in kwargs.values()
+                        if isinstance(var, snowflake.snowpark.session.Session)
+                    ]
+                    if session_vars:
+                        kwargs["_emit_ast"] = session_vars[0].ast_enabled
+                    else:
+                        kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(
+                            func
+                        )
+            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
+                # special case: __init__ called, self._session is then not initialized yet.
+                if func.__qualname__.endswith(".__init__"):
+                    # Try to find a session argument.
+                    session_args = [
+                        arg
+                        for arg in args
+                        if isinstance(arg, snowflake.snowpark.session.Session)
+                    ]
+                    assert (
+                        len(session_args) != 0
+                    ), f"{func.__qualname__} must have at least one session arg."
+                    kwargs["_emit_ast"] = session_args[0].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.session.Session
+                    ), f"{func.__qualname__} second arg must be session."
+                    kwargs["_emit_ast"] = args[1].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.DataFrame
+                    ), f"{func.__qualname__} second arg must be dataframe."
+                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif isinstance(
+                args[0],
+                (
+                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
+                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
+                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
+                ),
+            ):
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif hasattr(args[0], "_session") and args[0]._session is not None:
+                kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.session.Session):
+                kwargs["_emit_ast"] = args[0].ast_enabled
+            elif isinstance(
+                args[0],
+                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
+            ):
+                kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
+            else:
+                kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
+
+        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+
+        return func(*args, **kwargs)
+
+    return func_call_wrapper
 
 
 def func_decorator(
@@ -1067,6 +1236,11 @@ def prepare_pivot_arguments(
     return df, pc, pivot_values, default_on_null
 
 
+def check_flatten_mode(mode: str) -> None:
+    if not isinstance(mode, str) or mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
+        raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+
 class MissingModin(MissingOptionalDependency):
     """The class is specifically for modin optional dependency."""
 
@@ -1083,3 +1257,7 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
+
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8

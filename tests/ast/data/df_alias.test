@@ -1,0 +1,15 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df = df.alias("new_name")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df = df.alias("new_name")
+
+## EXPECTED ENCODED AST
+
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKQgpACjKKBi8KB4ICBAoCCAESCG5ld19uYW1lGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIECgJkZhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==

@@ -8,6 +8,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark import QueryListener
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
@@ -102,7 +103,7 @@ def test_repr_html(native_df, expected_query_count):
     assert native_html == snow_html
 
 
-class ReprQueryListener:
+class ReprQueryListener(QueryListener):
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database
     if they are used for `repr` or `_repr_html_`.
 
@@ -121,7 +122,7 @@ class ReprQueryListener:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _add_query(self, query_record: QueryRecord):
+    def _notify(self, query_record: QueryRecord, **kwargs):
         # Any query for `repr` or `_repr_html_` will include
         # `<= 31` in the SQL text.
         if "<= 31" in query_record.sql_text:
