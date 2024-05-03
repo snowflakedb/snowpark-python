@@ -509,10 +509,15 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        ast_stmt: Optional[Any] = None,
+        ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
+        """
+        :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+                             slot self._ast_id. This allows this value to be referred to symbolically when it's
+                             referenced in subsequent dataframe expressions.
+        """
         self._session = session
-        self._ast_stmt = ast_stmt
+        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -1321,7 +1326,7 @@ class DataFrame:
         """
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
-        ast.sp_dataframe_filter.df.sp_dataframe_ref.id.CopyFrom(self._ast_stmt.var_id)
+        ast.sp_dataframe_filter.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
         if isinstance(expr, Column):
             pass  # TODO
         elif isinstance(expr, str):
@@ -3304,7 +3309,7 @@ class DataFrame:
         if not "snowpark_coprocessor" in query:
             # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            repr.expr.sp_dataframe_show.id.CopyFrom(self._ast_stmt.var_id)
+            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
             
             print(f'Original: {self._plan.queries}')
@@ -4127,6 +4132,9 @@ Query List:
         return dtypes
 
     def _with_plan(self, plan, ast_stmt=None) -> "DataFrame":
+        """
+        :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
+        """
         df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
         df._statement_params = self._statement_params
         return df
