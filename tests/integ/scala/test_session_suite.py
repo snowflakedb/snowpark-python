@@ -139,6 +139,11 @@ def test_negative_test_for_missing_required_parameter_schema(
         assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="sql function call not supported by local testing.",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
@@ -168,7 +173,7 @@ def test_create_dataframe_from_seq_none(session, local_testing_mode):
 
 
 # should be enabled after emulating snowflake types
-def test_create_dataframe_from_array(session):
+def test_create_dataframe_from_array(session, local_testing_mode):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
         [StructField("num", IntegerType()), StructField("str", StringType())]
@@ -176,11 +181,13 @@ def test_create_dataframe_from_array(session):
     df = session.create_dataframe(data, schema)
     assert df.collect() == data
 
-    # negative
-    data1 = [Row("a", 1), Row(2, "b")]
-    with pytest.raises(TypeError) as ex_info:
-        session.create_dataframe(data1, schema)
-    assert "Unsupported datatype" in str(ex_info)
+    # local testing mode does not have strict type checking
+    if not local_testing_mode:
+        # negative
+        data1 = [Row("a", 1), Row(2, "b")]
+        with pytest.raises(TypeError) as ex_info:
+            session.create_dataframe(data1, schema)
+        assert "Unsupported datatype" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -245,6 +252,11 @@ def test_dataframe_close_session(session, db_parameters):
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="transactions not supported by local testing.",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_create_temp_table_no_commit(session):
     # test large local relation

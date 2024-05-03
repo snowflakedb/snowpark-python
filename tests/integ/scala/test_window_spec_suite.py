@@ -44,6 +44,10 @@ from tests.utils import TestData, Utils
 
 # [Local Testing PuPr] TODO: enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="precision for local testing is not yet aligned.",
+)
 def test_partition_by_order_by_rows_between(session, local_testing_mode):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -99,6 +103,10 @@ def test_range_between(session):
 
 
 # [Local Testing GA] TODO: enable for local testing
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362852: Window functions need better alignment with live.",
+)
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -113,6 +121,10 @@ def test_window_function_with_aggregates(session):
 
 
 # [Local Testing GA] TODO: Align error behavior with live connection
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362852: Window functions need better alignment with live.",
+)
 def test_window_function_inside_where_and_having_clauses(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).select("a").where(

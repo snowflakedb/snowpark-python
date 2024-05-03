@@ -12,7 +12,17 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
+from snowflake.snowpark.functions import (
+    call_udf,
+    col,
+    lit,
+    max,
+    min,
+    to_date,
+    to_time,
+    to_timestamp,
+    udf,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -104,6 +114,10 @@ def test_empty_expression(session):
     Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362805: Local testing requires a Utils refactor to remove direct sql usage.",
+)
 def test_udf_with_arrays(session):
     Utils.create_table(session, semi_structured_table, "a1 array")
     session._run_query(
@@ -125,6 +139,10 @@ def test_udf_with_arrays(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362805: Local testing requires a Utils refactor to remove direct sql usage.",
+)
 def test_udf_with_map_input(session):
     Utils.create_table(session, semi_structured_table, "o1 object")
     session._run_query(
@@ -151,6 +169,10 @@ def test_udf_with_map_input(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362805: Local testing requires a Utils refactor to remove direct sql usage.",
+)
 def test_udf_with_map_return(session):
     Utils.create_table(session, semi_structured_table, "a1 array")
     session._run_query(
@@ -175,6 +197,10 @@ def test_udf_with_map_return(session):
         assert f"convert_to_map{i}" in res[1][0]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362805: Local testing requires a Utils refactor to remove direct sql usage.",
+)
 def test_udf_with_multiple_args_of_map_array(session):
     Utils.create_table(
         session, semi_structured_table, "o1 object, o2 object, id varchar"
@@ -219,10 +245,17 @@ def test_filter_on_top_of_udf(session):
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(
-        df.select(double_udf("a")).filter(col("$1") > 4).collect(), [Row(6)]
+        df.select(double_udf("a").alias("doubled_a"))
+        .filter(col("doubled_a") > 4)
+        .collect(),
+        [Row(6)],
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="Read semistructured parquet file not yet supported in local testing mode.",
+)
 def test_compose_on_dataframe_reader(session, resources_path):
     df = (
         session.read.option("INFER_SCHEMA", False)
@@ -243,6 +276,10 @@ def test_compose_on_dataframe_reader(session, resources_path):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="views not yet supported in local testing mode.",
+)
 def test_view_with_udf(session):
     TestData.column_has_special_char(session).create_or_replace_view(view1)
     df1 = session.sql(f"select * from {view1}")
@@ -434,6 +471,10 @@ def test_binary_type(session):
     Utils.check_answer(df2.select(from_binary("a")).collect(), [Row(s) for s in data])
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO timestamp type can return NaT when None is expected.",
+)
 def test_date_and_timestamp_type(session):
     data = [
         [datetime.date(2019, 1, 1), datetime.datetime(2019, 1, 1)],
@@ -458,6 +499,10 @@ def test_date_and_timestamp_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362805: Local testing requires a Utils refactor to remove direct sql usage.",
+)
 def test_time_and_timestamp_type(session):
     Utils.create_table(session, tmp_table_name, "time time, timestamp timestamp")
     session._run_query(
@@ -486,7 +531,9 @@ def test_time_and_timestamp_type(session):
 
 
 def test_time_date_timestamp_type_with_snowflake_timezone(session):
-    df = session.sql("select '00:00:00' :: time as col1")
+    df = session.create_dataframe([("00:00:00",)], schema=["a"]).select(
+        to_time("a").alias("col1")
+    )
 
     add_udf = udf(
         lambda x: datetime.time(x.hour, x.minute, x.second + 5),
@@ -497,7 +544,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert len(res) == 1
     assert str(res[0][0]) == "00:00:05"
 
-    df = session.sql("select '2020-1-1' :: date as col1")
+    df = session.create_dataframe([("2020-1-1",)], schema=["a"]).select(
+        to_date("a").alias("col1")
+    )
     add_udf = udf(
         lambda x: datetime.date(x.year, x.month, x.day + 1),
         return_type=DateType(),
@@ -507,7 +556,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert len(res) == 1
     assert str(res[0][0]) == "2020-01-02"
 
-    df = session.sql("select '2020-1-1 00:00:00' :: date as col1")
+    df = session.create_dataframe([("2020-1-1 00:00:00",)], schema=["a"]).select(
+        to_timestamp("a").alias("col1")
+    )
     add_udf = udf(
         lambda x: datetime.datetime(
             x.year, x.month, x.day + 1, x.hour, x.minute, x.second + 5
@@ -520,6 +571,10 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert str(res[0][0]) == "2020-01-02 00:00:05"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_geography_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "g geography", is_temporary=True)
@@ -552,6 +607,10 @@ def test_geography_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geometry is not yet supported in local testing mode.",
+)
 def test_geometry_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "g geometry", is_temporary=True)
@@ -753,6 +812,10 @@ def test_variant_date_input(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO Local testing variant null not aligned with live.",
+)
 def test_variant_null(session):
     @udf(return_type=StringType(), input_types=[VariantType()])
     def variant_null_output_udf(_):

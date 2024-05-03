@@ -486,6 +486,10 @@ def test_coalesce(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
+)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
@@ -4398,6 +4402,10 @@ def test_rank(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="Window functions not yet supported by local testing mode.",
+)
 def test_row_number(session):
     Utils.check_answer(
         TestData.xyz(session).select(
