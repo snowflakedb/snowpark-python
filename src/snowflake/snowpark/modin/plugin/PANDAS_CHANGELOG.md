@@ -4,6 +4,42 @@
 - Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
 - Fixed `@udf` decorator when `packages=None` are specified preventing error in `Series.apply`.
 - Fixed incorrect regex used in `Series.str.contains`.
+- Fixed DataFrame's `__getitem__` with boolean DataFrame key.
+- Fixed incorrect regex used in `DataFrame/Series.replace`.
+- Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
+- Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
+- Fixed binary operations with single-row DataFrame and Series.
+
+### Behavior Changes
+- Raise not implemented error instead of fallback to pandas in following APIs:
+  - `pd.merge`, `DataFrame.merge` and `DataFrame.join` if given the `validate` parameter.
+  - `pd.to_numeric` if `error == 'ignore'`.
+  - `pd.to_datetime` if `format` is None or not supported in Snowflake or if `exact`, `infer_datetime_format` parameters are given or `origin == 'julian'` or `error == 'ignore'`.
+  - `DataFrame/Series.all` if called on non-integer/boolean columns.
+  - `DataFrame/Series.any` if called on non-integer/boolean columns.
+  - `DataFrame/Series.astype` if casting from string to datetime or `errors == 'ignore'`.
+  - `DataFrame/Series.dropna` if `axis == 1`
+  - `DataFrame/Series.mask` if given `axis` or `level` parameters.
+  - `DataFrame/Series.rename` if `mapper` is callable or the DataFrame/Series has MultiIndex.
+  - `DataFrame/Series.sort_values` if given the `key` parameter.
+  - `DataFrame/Series.sort_index` if given the `key` parameter.
+  - `DataFrame.nunique` if `axis == 1`
+  - `DataFrame.apply` if `axis == 0` or `func` is not callable or `result_type` is given or `args` and `kwargs` contain DataFrame or Series.
+  - `Series.apply` if `axis == 0` or `func` is not callable or `result_type` is given.
+  - `Series.applymap` if `na_action == 'igonre'`.
+  - `DataFrame/Series.ffill` if given the `limit` or `downcast` parameter.
+  - `DataFrame/Series.fillna` if given the `limit` or `downcast` parameter.
+  - `dot` binary operation between `DataFrame/Series`.
+  - `xor` binary operation between `DataFrame/Series`.
+  - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
+  - Series datetime accessor properties and methods `Series.dt.*`
+  - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
+  - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
+  - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
+- Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
+
+### Behavior Changes
+- As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 
 ## 1.14.0a2 (2024-04-18)
 

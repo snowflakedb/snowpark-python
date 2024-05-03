@@ -23,7 +23,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_in_stored_procedure,
     random_name_for_temp_object,
-    warning_dict,
 )
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from tests.utils import Utils
@@ -304,8 +303,6 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
-        # clear the warning dict otherwise it will affect the future tests
-        warning_dict.clear()
 
 
 @pytest.mark.localtest

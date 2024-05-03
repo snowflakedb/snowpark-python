@@ -8,19 +8,13 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
 # TODO (SNOW-863790): This test file comes from pandas/tests/series/accessors/test_dt_accessor.py.
 #              Pull all tests from this file to enhance the coverage for series.dt methods
 class TestSeriesDatetimeValues:
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize("freq", ["D", "s", "ms"])
-    @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_dt_namespace_accessor_datetime64(self, freq):
         # GH#7207, GH#11128
         # test .dt namespace accessor
@@ -29,14 +23,10 @@ class TestSeriesDatetimeValues:
         dti = native_pd.date_range("20130101", periods=5, freq=freq)
         ser = pd.Series(dti, name="xxx")
 
-        freq_result = ser.dt.freq
-        assert freq_result == native_pd.DatetimeIndex(ser.values, freq="infer").freq
+        msg = "Snowpark pandas doesn't yet support the property 'Series.dt.freq'"
+        with pytest.raises(NotImplementedError, match=msg):
+            ser.dt.freq
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize(
         "method, dates",
         [
@@ -45,7 +35,7 @@ class TestSeriesDatetimeValues:
             ["ceil", ["2012-01-02", "2012-01-02", "2012-01-02"]],
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_dt_round(self, method, dates):
         # round
         ser = pd.Series(
@@ -54,15 +44,10 @@ class TestSeriesDatetimeValues:
             ),
             name="xxx",
         )
-        result = getattr(ser.dt, method)("D")
-        expected = native_pd.Series(native_pd.to_datetime(dates), name="xxx")
-        assert_snowpark_pandas_equal_to_pandas(result, expected)
+        msg = f"Snowpark pandas doesn't yet support the method 'Series.dt.{method}'"
+        with pytest.raises(NotImplementedError, match=msg):
+            getattr(ser.dt, method)("D")
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize(
         "date, format_string, expected",
         [
@@ -94,9 +79,10 @@ class TestSeriesDatetimeValues:
             ),
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_strftime(self, date, format_string, expected):
         # GH 10086
         ser = pd.Series(date)
-        result = ser.dt.strftime(format_string)
-        assert_snowpark_pandas_equal_to_pandas(result, expected)
+        msg = "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
+        with pytest.raises(NotImplementedError, match=msg):
+            ser.dt.strftime(format_string)

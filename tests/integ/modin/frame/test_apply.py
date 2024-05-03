@@ -21,7 +21,6 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     DEFAULT_UDTF_PARTITION_SIZE,
 )
 from snowflake.snowpark.types import DoubleType, PandasSeriesType
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -157,6 +156,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "data, func, expected_result",
     [
@@ -307,6 +307,7 @@ def test_axis_1_raw():
     )
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])
@@ -365,58 +366,34 @@ def test_axis_1_apply_args_kwargs():
         )
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-class TestDefault2Pandas:
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
+class TestNotImplemented:
     @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_axis_0(self, data, func, return_type):
-        native_df = native_pd.DataFrame(data)
         snow_df = pd.DataFrame(data)
-        eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+        msg = "Snowpark pandas apply API doesn't yet support axis == 0"
+        with pytest.raises(NotImplementedError, match=msg):
+            snow_df.apply(func)
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize("result_type", ["reduce", "expand", "broadcast"])
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_result_type(self, result_type):
         snow_df = pd.DataFrame([[1, 2], [3, 4]])
-        native_df = native_pd.DataFrame([[1, 2], [3, 4]])
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda x: x.apply(lambda x: [1, 2], result_type=result_type),
-        )
+        msg = "Snowpark pandas apply API doesn't yet support 'result_type' parameter"
+        with pytest.raises(NotImplementedError, match=msg):
+            snow_df.apply(lambda x: [1, 2], axis=1, result_type=result_type)
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @sql_count_checker(
-        query_count=20, fallback_count=2, sproc_count=2, expect_high_count=True
-    )
+    @sql_count_checker(query_count=0)
     def test_axis_1_apply_args_kwargs_with_snowpandas_object(self):
         def f(x, y=None) -> native_pd.Series:
             return x + (y if y is not None else 0)
 
-        native_df = native_pd.DataFrame([[1, 2], [3, 4]])
         snow_df = pd.DataFrame([[1, 2], [3, 4]])
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_df.apply(f, axis=1, args=(pd.Series([1, 2]),)),
-            native_df.apply(f, axis=1, args=(native_pd.Series([1, 2]),)),
-        )
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_df.apply(f, axis=1, y=pd.Series([1, 2])),
-            native_df.apply(f, axis=1, y=native_pd.Series([1, 2])),
-        )
+        msg = "Snowpark pandas apply API doesn't yet support DataFrame or Series in 'args' or 'kwargs' of 'func'"
+        with pytest.raises(NotImplementedError, match=msg):
+            snow_df.apply(f, axis=1, args=(pd.Series([1, 2]),))
+        with pytest.raises(NotImplementedError, match=msg):
+            snow_df.apply(f, axis=1, y=pd.Series([1, 2]))
 
 
 TEST_INDEX_1 = native_pd.MultiIndex.from_tuples(
@@ -624,19 +601,13 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_basic_dataframe_transform(data, apply_func):
-    snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
-    eval_snowpark_pandas_result(
-        snow_df, native_df, lambda x: x.transform(apply_func), atol=0.1
-    )
+    msg = "Snowpark pandas apply API doesn't yet support axis == 0"
+    with pytest.raises(NotImplementedError, match=msg):
+        snow_df = pd.DataFrame(data)
+        snow_df.transform(apply_func)
 
 
 AGGREGATION_FUNCTIONS = [
@@ -661,17 +632,12 @@ def test_dataframe_transform_aggregation_negative(func):
         snow_df.transform(func)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=0)
 def test_dataframe_transform_invalid_function_name_negative(session):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
-        SnowparkSQLException,
-        match="Python Interpreter Error",
+        NotImplementedError,
+        match="Snowpark pandas apply API doesn't yet support axis == 0",
     ):
         snow_df.transform("mxyzptlk")
 
@@ -875,83 +841,6 @@ def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
 
 
 import scipy.stats  # noqa: E402
-
-# used for testing
-import statsmodels  # noqa: E402
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=SnowparkSQLException,
-)
-@pytest.mark.parametrize(
-    "packages,expected_query_count",
-    [
-        (["statsmodels", "numpy"], 11),
-        (["statsmodels==0.14.0", "numpy>=1.0"], 11),
-        pytest.param(
-            [statsmodels, np],
-            15,
-            marks=pytest.mark.xfail(
-                reason="Snowpark package resolver mismatch, resolved to 2.2.1 from statsmodels but clashes with Snowpark pandas version 2.1.4.",
-            ),
-        ),
-    ],
-)
-def test_apply_axis0_with_3rd_party_libraries_and_decorator(
-    packages, expected_query_count
-):
-    x = np.linspace(0, 5, 100)
-    y = x + np.random.normal(size=len(x))
-    data = {"XY": list(zip(list(x), list(y)))}
-
-    with SqlCounter(
-        query_count=expected_query_count,
-        fallback_count=1,
-        sproc_count=1,
-        high_count_expected=True,
-        high_count_reason="package upload",
-    ):
-
-        df = pd.DataFrame(data)
-        # Capture setting.
-        custom_package_usage_config = pd.session.custom_package_usage_config.get(
-            "enabled", False
-        )
-
-        try:
-            pd.session.custom_package_usage_config["enabled"] = True
-
-            @udf(packages=packages, return_type=PandasSeriesType(DoubleType()))
-            def func(column):
-                import pandas as pd  # noqa: F401
-                import statsmodels.api as sm
-                from statsmodels.stats.outliers_influence import OLSInfluence
-
-                X = column.apply(lambda t: t[0])
-                y = column.apply(lambda t: t[1])
-
-                X = sm.add_constant(X)
-                fit = sm.OLS(y, X).fit()
-
-                influence = OLSInfluence(fit)
-                return influence.resid
-
-            ans = df.apply(func, axis=0)
-        finally:
-            pd.session.clear_packages()
-            pd.session.clear_imports()
-
-            # Restore setting.
-            pd.session.custom_package_usage_config[
-                "enabled"
-            ] = custom_package_usage_config
-
-        # apply same function via native pandas and compare results
-        native_ans = native_pd.DataFrame(data).apply(func.func, axis=0)
-
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.parametrize(

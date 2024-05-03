@@ -182,6 +182,16 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = (
+    "Calling pivot() with the `value` parameter set to None or to a Snowpark "
+    + "DataFrame is in private preview since v1.15.0. Do not use this feature "
+    + "in production."
+)
+PIVOT_DEFAULT_ON_NULL_WARNING = (
+    "Calling pivot() with a non-None value for `default_on_null` is in "
+    + "private preview since v1.15.0. Do not use this feature in production."
+)
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
@@ -876,6 +886,9 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+should_warn_dynamic_pivot_is_in_private_preview = True
+
+
 def prepare_pivot_arguments(
     df: "snowflake.snowpark.DataFrame",
     df_name: str,
@@ -896,17 +909,17 @@ def prepare_pivot_arguments(
     """
     from snowflake.snowpark.dataframe import DataFrame
 
-    if values is None or isinstance(values, DataFrame):
-        warning(
-            df_name,
-            "Parameter values is Optional or DataFrame is in private preview since v1.15.0.  Do not use it in production.",
-        )
-
-    if default_on_null is not None:
-        warning(
-            df_name,
-            "Parameter default_on_null is not None is in private preview since v1.15.0.  Do not use it in production.",
-        )
+    if should_warn_dynamic_pivot_is_in_private_preview:
+        if values is None or isinstance(values, DataFrame):
+            warning(
+                df_name,
+                PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+            )
+        if default_on_null is not None:
+            warning(
+                df_name,
+                PIVOT_DEFAULT_ON_NULL_WARNING,
+            )
 
     if values is not None and not values:
         raise ValueError("values cannot be empty")
