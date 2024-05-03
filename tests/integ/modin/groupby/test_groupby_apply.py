@@ -20,6 +20,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
     create_test_dfs,
+    create_test_series,
     eval_snowpark_pandas_result,
 )
 
@@ -69,6 +70,45 @@ def transform_that_changes_columns(df: native_pd.DataFrame) -> native_pd.DataFra
             + df["string_col_2"].str.cat(sep="-"),
         }
     )
+
+
+def get_scalar_from_numeric_series(group: native_pd.Series) -> str:
+    """Get a scalar that aggregates series sum and mean and includes the group name."""
+    # if name is null or has nulls in it, the string representation of name is
+    # wrong due to SNOW-1248872. Work around that by replacing nulls with 'None'.
+    # TODO(SNOW-1248872): Remove work around.
+    if native_pd.isna(group.name):
+        fixed_name = "None"
+    elif isinstance(group.name, tuple):
+        fixed_name = tuple("None" if native_pd.isna(v) else v for v in group.name)
+    else:
+        fixed_name = group.name
+
+    return f"{group.sum()}_{group.mean()}_{fixed_name}"
+
+
+def get_dataframe_from_numeric_series(group: native_pd.Series):
+    """Get a dataframe that aggregates series sum and mean and includes the group name."""
+    return native_pd.DataFrame(
+        {"sum": [group.sum()], "mean": [group.mean()], "name": [group.name]},
+        index=native_pd.Index(["row0"], name="row_index"),
+    )
+
+
+def get_series_from_numeric_series(group: native_pd.Series):
+    return native_pd.Series(
+        {"sum": group.sum(), "mean": group.mean(), "name": group.name},
+        name="custom_metrics",
+    )
+
+
+def series_transform_returns_frame(group: native_pd.Series):
+    # use a common name so that we don't hit SNOW-1232201
+    return group.rename(None).to_frame()
+
+
+def series_transform_returns_series(group: native_pd.Series):
+    return group + 1
 
 
 @pytest.fixture
@@ -633,26 +673,52 @@ class TestFuncReturnsDataFrame:
             ),
         )
 
-    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1176072")
-    def test_series_group_by(self):
-        eval_snowpark_pandas_result(
-            *create_test_dfs(
-                [
-                    ["k0", 13, "e"],
-                    ["k1", 14, "d"],
-                    ["k0", 15, "c"],
-                    ["k0", 16, "b"],
-                    [None, 17, "a"],
-                ],
-                index=pd.Index(["i1", None, "i0", "i2", None], name="index"),
-                columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
-            ),
-            lambda df: df.groupby("string_col_1")["int_col"].apply(
-                lambda series: native_pd.DataFrame(
-                    {"sum": [series.sum()], "mean": [series.mean()]}
-                )
-            ),
+    def test_duplicate_index_groupby_mismatch_with_pandas(self):
+        # use a frame that has duplicates in its index to reproduce https://github.com/pandas-dev/pandas/issues/57906
+        # this bug is fixed in snowpark pandas but not in pandas.
+        snow_df, pandas_df = create_test_dfs(
+            [
+                ["k0", 13, "e"],
+                ["k1", 14, "d"],
+                ["k0", 15, "c"],
+                ["k0", 16, "b"],
+                [None, 17, "a"],
+            ],
+            index=pd.Index(["i1", None, "i0", "i2", None], name="index"),
+            columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
         )
+
+        # Assertion fails because index order is different.
+        with pytest.raises(AssertionError) as ex:
+            with SqlCounter(
+                query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+                udtf_count=UDTF_COUNT,
+                join_count=JOIN_COUNT,
+            ):
+                eval_snowpark_pandas_result(
+                    snow_df,
+                    pandas_df,
+                    lambda df: df.groupby(
+                        "index", sort=False, dropna=False, group_keys=False
+                    )["int_col"].apply(lambda v: v),
+                )
+        assert "Series.index are different" in str(ex.value)
+
+        # Assertion succeeds when sort_index is called after apply.
+        with SqlCounter(
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+            udtf_count=UDTF_COUNT,
+            join_count=JOIN_COUNT,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df,
+                pandas_df,
+                lambda df: df.groupby(
+                    "index", sort=False, dropna=False, group_keys=False
+                )["int_col"]
+                .apply(lambda v: v)
+                .sort_index(),
+            )
 
 
 class TestFuncReturnsScalar:
@@ -945,6 +1011,86 @@ class TestFuncReturnsSeries:
                     },
                 )
             ),
+        )
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        param(get_dataframe_from_numeric_series, id="non_transform_returns_dataframe"),
+        param(series_transform_returns_frame, id="transform_returns_dataframe"),
+        param(get_series_from_numeric_series, id="non_transform_returns_series"),
+        param(series_transform_returns_series, id="transform_returns_series"),
+        param(get_scalar_from_numeric_series, id="return_scalar"),
+    ],
+)
+@pytest.mark.parametrize("group_keys", [True, False], ids=lambda v: f"group_keys_{v}")
+@pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
+@pytest.mark.parametrize("dropna", [True, False], ids=lambda v: f"dropna_{v}")
+class TestSeriesGroupBy:
+    @pytest.mark.parametrize("by", ["string_col_1", ["index", "string_col_1"], "index"])
+    def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
+        """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
+        if (
+            func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
+            and not dropna
+            and by == ["index", "string_col_1"]
+        ):
+            # The resulting dataframe has elements that are tuples of nans like
+            # (pd.NA, k1) that we cannot serialize.
+            pytest.xfail(reason="SNOW-1229760")
+        with SqlCounter(
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK
+            if not group_keys
+            and func
+            in (
+                get_dataframe_from_numeric_series,
+                get_series_from_numeric_series,
+                series_transform_returns_frame,
+                series_transform_returns_series,
+            )
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+            udtf_count=UDTF_COUNT,
+            join_count=JOIN_COUNT,
+        ):
+            eval_snowpark_pandas_result(
+                *create_test_dfs(
+                    [
+                        ["k0", 13, "e"],
+                        ["k1", 14, "d"],
+                        ["k0", 15, "c"],
+                        ["k0", 16, "b"],
+                        [None, 17, "a"],
+                    ],
+                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
+                    columns=pd.Index(
+                        ["string_col_1", "int_col", "string_col_2"], name="x"
+                    ),
+                ),
+                lambda df: df.groupby(
+                    by, dropna=dropna, group_keys=group_keys, sort=sort
+                )["int_col"].apply(func),
+            )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1238546")
+    def test_grouping_series_by_self(self, func, dropna, group_keys, sort):
+        """Test apply() on a SeriesGroupBy that we get by grouping a series by itself."""
+        eval_snowpark_pandas_result(
+            *create_test_series([0, 1, 2]),
+            lambda s: s.groupby(
+                s, dropna=dropna, group_keys=group_keys, sort=sort
+            ).apply(func),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1238546")
+    def test_grouping_series_by_external_by(self, func, dropna, group_keys, sort):
+        """Test apply() on a SeriesGroupBy that we get by grouping a series by its index."""
+        # This example is from pandas SeriesGroupBy apply docstring.
+        eval_snowpark_pandas_result(
+            *create_test_series([0, 1, 2], index=["a", "a", "b"]),
+            lambda s: s.groupby(
+                s.index, dropna=dropna, group_keys=group_keys, sort=sort
+            ).apply(func),
         )
 
 
