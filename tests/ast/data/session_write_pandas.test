@@ -1,0 +1,19 @@
+## TEST CASE
+
+import pandas as pd
+
+df = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
+
+ans = session.write_pandas(df, tables.table1)
+
+ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temp", random=90)
+
+## EXPECTED UNPARSER OUTPUT
+
+ans = session.write_pandas(pandas.DataFrame(<not shown>)), "table1")
+
+ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
+
+## EXPECTED ENCODED AST
+
+CmsKaQpa2gxXGgRnemlwKhISEAoOCgwKCgoIInRhYmxlMSI6D2Fib3J0X3N0YXRlbWVudEgEUAFaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdYgoKCAoGdGFibGUxEgUKA2FucxgBIgIIAQqsAQqpAQqYAdoMlAEIARICCAcaBmJyb3RsaSABKhISEAoOCgwKCgoIYi5hLnRlc3QyKwoGcmFuZG9tEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEFo6Bmlnbm9yZUABSApaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfYg4SDAoBYgoBYQoEdGVzdGoJdGVtcG9yYXJ5EgYKBGFuczIYAiICCAIQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=

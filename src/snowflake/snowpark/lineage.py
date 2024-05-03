@@ -271,6 +271,10 @@ class Lineage:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
+        self._user_to_system_domain_map = {
+            _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
+            _UserDomain.MODEL: _SnowflakeDomain.MODULE,
+        }
         self._versioned_object_domains = {
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,

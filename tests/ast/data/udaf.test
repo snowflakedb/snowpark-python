@@ -1,0 +1,107 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, udaf
+
+from snowflake.snowpark.types import IntegerType
+class PythonSumUDAF:
+    def __init__(self) -> None:
+        self._sum = 0
+
+    @property
+    def aggregate_state(self):
+        return self._sum
+
+    def accumulate(self, input_value):
+        self._sum += input_value
+
+    def merge(self, other_sum):
+        self._sum += other_sum
+
+    def finish(self):
+        return self._sum
+
+sum_udaf = udaf(
+    PythonSumUDAF,
+    name="sum_int",
+    replace=True,
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+)
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+
+import heapq
+from dataclasses import dataclass
+import itertools
+from typing import List
+
+@dataclass
+class AggState:
+    minheap: List[int]
+    k: int
+
+class PythonTopK:
+    def __init__(self):
+        self._agg_state = AggState([], 0)
+
+    @property
+    def aggregate_state(self):
+        return self._agg_state
+
+    @staticmethod
+    def get_top_k_items(minheap, k):
+      # Return k smallest elements if there are more than k elements on the min heap.
+      if (len(minheap) > k):
+        return [heapq.heappop(minheap) for i in range(k)]
+      return minheap
+
+    def accumulate(self, input, k):
+        self._agg_state.k = k
+
+        # Store the input as negative value, as heapq is a min heap.
+        heapq.heappush(self._agg_state.minheap, -input)
+
+        # Store only top k items on the min heap.
+        self._agg_state.minheap = self.get_top_k_items(self._agg_state.minheap, k)
+
+    def merge(self, other_agg_state):
+        k = self._agg_state.k if self._agg_state.k > 0 else other_agg_state.k
+
+        # Merge two min heaps by popping off elements from one and pushing them onto another.
+        while(len(other_agg_state.minheap) > 0):
+            heapq.heappush(self._agg_state.minheap, heapq.heappop(other_agg_state.minheap))
+
+        # Store only k elements on the min heap.
+        self._agg_state.minheap = self.get_top_k_items(self._agg_state.minheap, k)
+
+    def finish(self):
+        return [-x for x in self._agg_state.minheap]
+
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True,
+          stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, if_not_exists=False, parallel=8,
+          statement_params={'a':'b', 'd':'e'}, immutable=True, external_access_integrations=['s3'],
+          secrets={'a':'c', 'e':'f'}, comment='test udaf', force_inline_code=True)
+
+df.agg(u2("a"))
+
+## EXPECTED UNPARSER OUTPUT
+
+sum_udaf = udaf(PythonSumUDAF, return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, source_code_display=True)
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
+
+df = df.to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", source_code_display=True)
+
+res3 = df.agg(u2("a"))
+
+## EXPECTED ENCODED AST
+
+Cp8BCpwBCocBog2DARoPEg1QeXRob25TdW1VREFGOgQKAmABSjgKE3NvdXJjZV9jb2RlX2Rpc3BsYXkSIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKC0QAVILCgkKB3N1bV9pbnRgBGgBcgJgAYIBGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgtEgoKCHN1bV91ZGFmGAEiAggBCtQDCtEDCsID+gW+AwqfAwqcAwpl0gJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRABEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAMKZdICYgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUSIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUQARIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRAECmXSAmIKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAISIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUQBQpl0gJiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNRACEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EAYaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg1EgQKAmRmGAIiAggCCkAKPgowygktCgFhCgFiEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoNSABEgQKAmRmGAMiAggDCoYBCoMBCnmCBnYKB4ICBAoCCAMSTwpLkgFICgY6BAoCCAEaIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDcSAWEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg3EAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSg3EgAYBCICCAQKMwoxCifSBiQIARABGgIIBDIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDcSABgFIgIIBQoIEgYIBhICCAUQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
+CuUBCuIBCtMBog3PAQoLCgl0ZXN0IHVkYWYSAnMzGg4IARIKUHl0aG9uVG9wSygBMgkKBwoFbnVtcHk6BAoCYAFAAUo4ChNzb3VyY2VfY29kZV9kaXNwbGF5EiHKAR4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShpEAFSCQoHCgV0b3Bfa1oFbnVtcHlgCGgBcgJgAXoGCgFhEgFjegYKAWUSAWaCARoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaYoBAwoBQJIBBgoBYRIBYpIBBgoBZBIBZRIECgJ1MhgHIgIIBwqGAQqDAQp5ggZ2CgeCAgQKAggDEk8KS5IBSAoGOgQKAggHGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgFhIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhABGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIAGAgiAggIEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX

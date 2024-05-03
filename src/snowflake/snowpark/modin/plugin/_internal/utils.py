@@ -1689,7 +1689,9 @@ def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     return value
 
 
-def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
+def pandas_lit(
+    value: Any, datatype: Optional[DataType] = None, _emit_ast: bool = True
+) -> Column:
     """
     Returns a Snowpark column for a literal value. Being differnet from Snowpark's lit()
     function, it also handles numpy scalar values and pandas Timestamp and pandas NA values.
@@ -1708,7 +1710,7 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
         # snowflake.snowpark.Session.create_dataframe:
         # https://github.com/snowflakedb/snowpark-python/blob/19a9139be1cb41eb1e6179f3cd3c427618c0e6b1/src/snowflake/snowpark/session.py#L2775
         return (to_timestamp_ntz if value.tz is None else to_timestamp_tz)(
-            Column(Literal(str(value)))
+            Column(Literal(str(value)), _emit_ast=_emit_ast)
         )
 
     snowpark_pandas_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
@@ -1731,10 +1733,10 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
             convert_dateoffset_to_interval,
         )
 
-        return Column(convert_dateoffset_to_interval(value))
+        return Column(convert_dateoffset_to_interval(value), _emit_ast=_emit_ast)
     else:
         # Construct a Literal directly in order to pass in `datatype`. `lit()` function does not support datatype.
-        return Column(Literal(value, datatype))
+        return Column(Literal(value, datatype), _emit_ast=_emit_ast)
 
 
 def is_repr_truncated(

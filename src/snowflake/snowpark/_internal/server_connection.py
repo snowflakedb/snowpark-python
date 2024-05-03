@@ -62,7 +62,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryHistory, QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -181,7 +181,7 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
+        self._query_listeners: Set[QueryListener] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -419,9 +419,14 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+
         results_cursor = self._cursor.execute(query, **kwargs)
+        notify_kwargs = {"requestId": str(results_cursor._request_id)}
+        if "_dataframe_ast" in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
         return results_cursor
 

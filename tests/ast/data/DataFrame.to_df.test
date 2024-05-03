@@ -1,0 +1,20 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+variadic = df.to_df("one", "two")
+
+non_variadic = df.to_df(["one", "two"])
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+variadic = df.to_df("one", "two")
+
+non_variadic = df.to_df(["one", "two"])
+
+## EXPECTED ENCODED AST
+
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKSgpICjTKCTEKA29uZQoDdHdvEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGyABEgoKCHZhcmlhZGljGAIiAggCCkwKSgoyygkvCgNvbmUKA3R3bxIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SDgoMbm9uX3ZhcmlhZGljGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX

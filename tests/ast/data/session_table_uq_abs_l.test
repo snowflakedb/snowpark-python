@@ -1,0 +1,14 @@
+## TEST CASE
+
+df = session.table(["mock_database", "mock_schema", tables.table1])
+df = df.select("num")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table(["mock_database", "mock_schema", "table1"])
+
+df = df.select(col("num"))
+
+## EXPECTED ENCODED AST
+
+ClsKWQpLggxIEiYSJAoNbW9ja19kYXRhYmFzZQoLbW9ja19zY2hlbWEKBnRhYmxlMRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkiAggBEgQKAmRmGAEiAggBCo8BCowBCn6CCXsKUpIBTwoLGgkKBwoFCgNjb2waJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBoSA251bSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBoSB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgaIAESBAoCZGYYAiICCAIQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=

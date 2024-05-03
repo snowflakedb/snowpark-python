@@ -300,7 +300,7 @@ def setup(app):
     # WARNING: [autosummary] failed to import modin.pandas.Series.str.slice.
     # Possible hints:
     # * AttributeError: 'property' object has no attribute 'slice'
-    # * ImportError: 
+    # * ImportError:
     # * ModuleNotFoundError: No module named 'modin.pandas.Series'
     #
     # Because we're replacing the `property` object, we also need to set the __doc__ of the new
