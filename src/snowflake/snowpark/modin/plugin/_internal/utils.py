@@ -184,7 +184,9 @@ def _check_if_sql_query_contains_order_by_and_warn_user(
     # 12  12                             TableScan ...
     # (ellipsis denotes additional columns that have been removed since they are unnecessary for this example.)
     # Have to use `strip` since the names of the operators contain indentation.
-    contains_order_by = (logical_plan["operation"].str.strip() == "Sort").any()
+    contains_order_by = (
+        logical_plan["operation"].str.lower().str.contains("sort")
+    ).any()
     if contains_order_by:
         # If the query contains an ORDER BY, we need to warn the user that
         # the ordering induced by the ORDER BY is not guaranteed to be preserved
