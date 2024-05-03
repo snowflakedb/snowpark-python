@@ -14,12 +14,14 @@ class Index:
         name=None,
         tupleize_cols=True,
         query_compiler=None,
-    ) -> native_pd.Index:
+    ) -> None:
 
-        return native_pd.Index(
+        ind = native_pd.Index(
             data=data,
             dtype=dtype,
             copy=copy,
             name=name,
             tupleize_cols=tupleize_cols,
         )
+        self._query_compiler = query_compiler
+        self = ind
