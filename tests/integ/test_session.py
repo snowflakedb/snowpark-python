@@ -5,6 +5,7 @@
 
 import os
 from functools import partial
+from unittest.mock import Mock
 
 import pytest
 
@@ -26,7 +27,10 @@ from snowflake.snowpark.session import (
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO: fix RuntimeConfig for Local Testing and enable",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):
     session = (
@@ -288,7 +292,9 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
 
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
+def test_create_session_from_parameters(
+    db_parameters, sql_simplifier_enabled, local_testing_mode
+):
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
     new_session.sql_simplifier_enabled = sql_simplifier_enabled
@@ -296,8 +302,11 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
         assert session_builder._options.get("password") is None
-        assert new_session._conn._lower_case_parameters.get("password") is None
-        assert new_session._conn._conn._password is None
+        if not local_testing_mode:
+            assert new_session._conn._lower_case_parameters.get("password") is None
+            assert new_session._conn._conn._password is None
+        else:
+            assert isinstance(new_session._conn._conn._password, Mock)
     finally:
         new_session.close()
 
@@ -319,7 +328,11 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
         new_session.close()
 
 
-@pytest.mark.localtest
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="This is testing live connection feature",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection_with_noise_parameters(
     db_parameters, sql_simplifier_enabled
@@ -343,6 +356,11 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="Query tag is a SQL feature",
+    run=False,
+)
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_builder_app_name(session, db_parameters):

@@ -302,7 +302,9 @@ class Session:
         def get(self, key: str, default=None) -> Any:
             if hasattr(Session, key):
                 return getattr(self._session, key)
-            if hasattr(self._session._conn._conn, key):
+            if not isinstance(self._session._conn, MockServerConnection) and hasattr(
+                self._session._conn._conn, key
+            ):
                 return getattr(self._session._conn._conn, key)
             return self._conf.get(key, default)
 
@@ -374,6 +376,8 @@ class Session:
             """Creates a new Session."""
             if self._options.get("local_testing", False):
                 session = Session(MockServerConnection(self._options), self._options)
+                if "password" in self._options:
+                    self._options["password"] = None
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
