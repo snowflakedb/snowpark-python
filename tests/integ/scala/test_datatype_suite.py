@@ -47,7 +47,7 @@ from tests.utils import IS_ICEBERG_SUPPORTED, IS_STRUCTURED_TYPES_SUPPORTED, Uti
 # Map of structured type enabled state to test params
 
 
-# make sure dataframe creation is the same with _create_test_dataframe
+# make sure dataframe creation is the same as _create_test_dataframe
 _STRUCTURE_DATAFRAME_QUERY = """
 select
   object_construct('k1', 1) :: map(varchar, int) as map,
@@ -56,7 +56,7 @@ select
 """
 
 
-# make sure dataframe creation is the same with _STRUCTURE_DATAFRAME_QUERY
+# make sure dataframe creation is the same as _STRUCTURE_DATAFRAME_QUERY
 def _create_test_dataframe(s):
     df = s.create_dataframe([1], schema=["a"]).select(
         object_construct(lit("k1"), lit(1))

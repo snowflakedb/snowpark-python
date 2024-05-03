@@ -49,7 +49,7 @@ from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="pivot is not supported in Local Testing",
+    reason="FEAT: pivot not supported",
 )
 def test_pivot(session):
     Utils.check_answer(
@@ -74,7 +74,7 @@ def test_pivot(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="pivot is not supported in Local Testing",
+    reason="FEAT: pivot not supported",
 )
 def test_group_by_pivot(session):
     Utils.check_answer(
@@ -180,7 +180,7 @@ def test_group_by_pivot_dynamic_subquery(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="pivot is not supported in Local Testing",
+    reason="FEAT: pivot not supported",
 )
 def test_join_on_pivot(session):
     df1 = (
@@ -204,7 +204,7 @@ def test_join_on_pivot(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="pivot is not supported in Local Testing",
+    reason="FEAT: pivot not supported",
 )
 def test_pivot_on_join(session):
     df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
@@ -340,7 +340,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="pivot is not supported in Local Testing",
+    reason="FEAT: pivot not supported",
 )
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
@@ -441,7 +441,7 @@ def test_group_by(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="grouping by grouping sets is not supported in Local Testing",
+    reason="FEAT: grouping by grouping sets not supported",
 )
 def test_group_by_grouping_sets(session):
     result = (
@@ -855,7 +855,7 @@ def test_count(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="stddev is not supported in Local Testing",
+    reason="FEAT: stddev not supported",
 )
 def test_stddev(session):
     test_data_dev = sqrt(4 / 5)
@@ -878,7 +878,7 @@ def test_stddev(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="variance is not supported in Local Testing",
+    reason="FEAT: variance not supported",
 )
 def test_sn_moments(session):
     test_data2 = TestData.test_data2(session)
@@ -914,7 +914,7 @@ def test_sn_moments(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="stddev is not supported in Local Testing",
+    reason="FEAT: stddev not supportedg",
 )
 def test_sn_zero_moments(session):
     input = session.create_dataframe([[1, 2]]).to_df("a", "b")
@@ -953,7 +953,7 @@ def test_sn_zero_moments(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="variance is not supported in Local Testing",
+    reason="FEAT: variance not supported",
 )
 def test_sn_null_moments(session):
     empty_table_data = session.create_dataframe([[]]).to_df("a")
@@ -1011,7 +1011,7 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="test sql query by design ",
+    reason="SQL query not supported",
     run=False,
 )
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
@@ -1084,7 +1084,7 @@ def test_distinct_and_unionall(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="count_if and sql are not supported in snowpark python",
+    reason="FEAT: count_if not suppored in snowpark python",
 )
 def test_count_if(session):
     temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
@@ -1239,7 +1239,7 @@ def test_zero_count(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="stddev is not supported in Local Testing",
+    reason="FEAT: stddev not supported",
 )
 def test_zero_stddev(session):
     df = session.create_dataframe([[]]).to_df(["a"])
@@ -1293,7 +1293,7 @@ def test_listagg(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="aggregate expression within group is not supported in Local Testing",
+    reason="FEAT: aggregate expression within group not supported",
 )
 def test_listagg_within_group(session):
     df = session.create_dataframe(

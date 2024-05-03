@@ -1414,7 +1414,7 @@ def test_pattern(session, mode):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="sql transaction not supported",
+    reason="SQL query not supported",
     run=False,
 )
 def test_read_staged_file_no_commit(session):
@@ -1480,11 +1480,10 @@ def test_read_parquet_with_sql_simplifier(session):
     "config.getvalue('local_testing_mode')",
     reason="BUG: empty file path",
 )
-def test_filepath_not_exist_or_empty(session, local_testing_mode):
+def test_filepath_not_exist_or_empty(session):
     empty_stage = Utils.random_stage_name()
     not_exist_file = f"not_exist_file_{Utils.random_alphanumeric_str(5)}"
-    if not local_testing_mode:
-        Utils.create_stage(session, empty_stage, is_temporary=True)
+    Utils.create_stage(session, empty_stage, is_temporary=True)
     empty_file_path = f"@{empty_stage}/"
     not_exist_file_path = f"@{tmp_stage_name1}/{not_exist_file}"
 

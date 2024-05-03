@@ -246,7 +246,7 @@ def test_current_date_and_time(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="regexp_replace function is not supported in Local Testing",
+    reason="FEAT: regexp_replace function not supported",
 )
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
@@ -271,7 +271,7 @@ def test_regexp_replace(session, col_a):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="regexp_extract function is not supported in Local Testing",
+    reason="FEAT: regexp_extract function not supported",
 )
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
@@ -341,7 +341,7 @@ def test_date_to_char(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="round function is not supported in Local Testing",
+    reason="FEAT: round function not supported",
 )
 def test_format_number(session):
     # Create a dataframe with a column of numbers
@@ -361,7 +361,7 @@ def test_format_number(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="months_between function is not supported in Local Testing",
+    reason="FEAT: months_between function not supported",
 )
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
@@ -450,7 +450,7 @@ def test_struct(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="strtok_to_array function is not supported in Local Testing",
+    reason="FEAT: strtok_to_array function not supported",
 )
 def test_strtok_to_array(session):
     # Create a dataframe
@@ -504,7 +504,7 @@ def test_least(session, use_col, values, expected):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="hash function is not supported in Local Testing",
+    reason="FEAT: hash function not supported",
 )
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_hash(session, col_a, col_b):
@@ -662,7 +662,7 @@ def test_basic_string_operations(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_to_string function is not supported in Local Testing",
+    reason="FEAT: array_to_string function not supported",
 )
 def test_substring_index(session):
     """test calling substring_index with delimiter as string"""
@@ -686,7 +686,7 @@ def test_substring_index(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_to_string function is not supported in Local Testing",
+    reason="FEAT: array_to_string function not supported",
 )
 def test_substring_index_col(session):
     """test calling substring_index with delimiter as column"""
@@ -701,7 +701,7 @@ def test_substring_index_col(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="bitshitright function is not supported in Local Testing",
+    reason="FEAT: bitshitright function not supported",
 )
 def test_bitshiftright(session):
     # Create a dataframe
@@ -713,7 +713,7 @@ def test_bitshiftright(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="round function is not supported in Local Testing",
+    reason="FEAT: round function not supported",
 )
 def test_bround(session):
     # Create a dataframe
@@ -837,7 +837,7 @@ def test_call_builtin_avg_from_range(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="is_array function is not supported in Local Testing",
+    reason="FEAT: is_array function not supported",
 )
 def test_is_negative(session):
     td = TestData.string1(session)
@@ -989,7 +989,7 @@ def test_parse_json(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="as_array function is not supported in Local Testing",
+    reason="FEAT: as_array function not supported",
 )
 def test_as_negative(session):
     td = TestData.string1(session)
@@ -1226,7 +1226,7 @@ def test_to_binary(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_construct function is not supported in Local Testing",
+    reason="FEAT: array_construct function not supported",
 )
 def test_array_min_max_functions(session):
     # array_min
@@ -1274,7 +1274,7 @@ def test_array_min_max_functions(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_flatten function is not supported in Local Testing",
+    reason="FEAT: array_flatten function not supported",
 )
 def test_array_flatten(session):
     df = session.create_dataframe(
@@ -1311,7 +1311,7 @@ def test_array_flatten(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_construct function is not supported in Local Testing",
+    reason="FEAT: array_construct function not supported",
 )
 def test_array_sort(session):
     # Behavior with SQL nulls:
@@ -1401,7 +1401,7 @@ def test_coalesce(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="uniform function is not supported in Local Testing",
+    reason="FEAT: uniform function not supported",
 )
 def test_uniform(session):
     df = session.create_dataframe([1], schema=["a"])
@@ -1439,7 +1439,7 @@ def test_uniform(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="uniform function is not supported in Local Testing",
+    reason="FEAT: uniform function not supported",
 )
 def test_uniform_negative(session):
     df = session.create_dataframe([1], schema=["a"])
@@ -1461,7 +1461,7 @@ def test_negate_and_not_negative(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="random function is not supported in Local Testing",
+    reason="FEAT: random function not supported",
 )
 def test_random_negative(session):
     df = session.create_dataframe([1], schema=["a"])
@@ -1532,7 +1532,7 @@ def test_to_filetype_negative(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_construct function is not supported in Local Testing",
+    reason="FEAT: array_construct function not supported",
 )
 def test_array_distinct(session):
     df = session.create_dataframe([1], schema=["a"])
@@ -1704,7 +1704,7 @@ def test_date_add_date_sub(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="datediff function is not supported in Local Testing",
+    reason="FEAT: datediff function not supported",
 )
 def test_daydiff(session):
     df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
@@ -1722,7 +1722,7 @@ def test_get_negative(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_generate_range function is not supported in Local Testing",
+    reason="FEAT: array_generate_range function not supported",
 )
 def test_array_generate_range(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
@@ -1764,7 +1764,7 @@ def test_sequence_negative(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_generate_range function is not supported in Local Testing",
+    reason="FEAT: array_generate_range function not supported",
 )
 def test_sequence(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
@@ -1819,7 +1819,7 @@ def test_sequence(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="array_unqite_agg function is not supported in Local Testing",
+    reason="FEAT: array_unqite_agg function not supported",
 )
 def test_array_unique_agg(session):
     def _result_str2lst(result):

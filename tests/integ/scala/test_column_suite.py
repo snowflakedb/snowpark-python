@@ -670,7 +670,7 @@ def test_regexp(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: collate feature is not supported",
+    reason="FEAT: collate feature not supported",
 )
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
 def test_collate(session, spec):
