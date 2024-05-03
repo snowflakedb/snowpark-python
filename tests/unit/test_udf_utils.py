@@ -276,6 +276,7 @@ def test_create_python_udf_or_sp_with_none_session():
             func=lambda: None,
             return_type=StringType(),
             input_args=[],
+            opt_arg_defaults=[],
             handler="",
             object_type=TempObjectType.FUNCTION,
             object_name="",
