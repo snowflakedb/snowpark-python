@@ -30,7 +30,7 @@ if pandas.__version__ != supported_pandas_version:
     )  # pragma: no cover
 
 try:
-    import modin
+    import modin  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     raise ModuleNotFoundError(
         "Modin is not installed. " + install_msg
