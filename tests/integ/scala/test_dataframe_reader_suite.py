@@ -103,7 +103,6 @@ def get_df_from_reader_and_file_format(reader, file_format):
     test_file = get_file_path_for_format(file_format)
     file_path = f"@{tmp_stage_name1}/{test_file}"
 
-    print(f"file format is {file_format} and returning reader with .format")
     if file_format == "csv":
         return reader.schema(user_schema).csv(file_path)
     if file_format == "json":

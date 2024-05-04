@@ -95,9 +95,10 @@ class StoredProcedure:
         else:
             session = session or snowflake.snowpark.session._get_active_session()
 
-        if len(self._input_types) != len(args):
+        if len(self._input_types) < len(args):
             raise ValueError(
-                f"Incorrect number of arguments passed to the stored procedure. Expected: {len(self._input_types)}, Found: {len(args)}"
+                f"Incorrect number of arguments passed to the stored procedure. "
+                f"Expected: <={len(self._input_types)}, Found: {len(args)}"
             )
 
         return args, session
