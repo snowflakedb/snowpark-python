@@ -254,6 +254,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.PROCEDURE,

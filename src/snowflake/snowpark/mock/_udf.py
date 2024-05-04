@@ -94,6 +94,7 @@ class MockUDFRegistration(UDFRegistration):
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
