@@ -66,7 +66,7 @@ and follow the [installation instructions](https://www.jetbrains.com/help/pychar
 
 ##### Download and install VS Code
 
-Downlaod and install the latest version of [VS Code](https://code.visualstudio.com/download)
+Download and install the latest version of [VS Code](https://code.visualstudio.com/download)
 
 ##### Setup project
 
