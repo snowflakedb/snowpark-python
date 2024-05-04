@@ -115,8 +115,7 @@ class UserDefinedFunction:
         if len(exprs) > len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: less than or equal to {len(self._input_types)},"
-                f" Found: {len(exprs)}"
+                f" Expected: <={len(self._input_types)}, Found: {len(exprs)}"
             )
         return SnowflakeUDF(
             self.name,

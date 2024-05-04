@@ -420,6 +420,7 @@ def get_opt_arg_defaults(
 
     def get_opt_arg_defaults_from_file():
         filename, func_name = func[0], func[1]
+        default_values_str = None
         if not is_local_python_file(filename):
             return EMPTY_DEFAULT_VALUES
         if object_type == TempObjectType.TABLE_FUNCTION:
