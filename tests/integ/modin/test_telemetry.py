@@ -23,7 +23,6 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     error_to_telemetry_type,
     snowpark_pandas_telemetry_method_decorator,
 )
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import BASIC_TYPE_DATA1, BASIC_TYPE_DATA2
 from tests.unit.modin.test_telemetry import snowpark_pandas_error_test_helper
@@ -100,54 +99,31 @@ def test_standalone_api_telemetry():
     ]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     """
     Test one of two telemetry decorators: snowpark_pandas_telemetry_method_decorator
     """
-    cond = pd.DataFrame([[True, False], [False, True]], columns=[1, 0])
-    other = pd.DataFrame([[5, 6], [7, 8]], columns=[1, 0])
-    df1 = pd.DataFrame([[1, 2], [3, 4]], index=[1, 0])
+    df1 = pd.DataFrame([[1, np.nan], [3, 4]], index=[1, 0])
     # Test in place lazy API: df1 api_call_list should contain lazy.
     df1._query_compiler.snowpark_pandas_api_calls.clear()
     df1._query_compiler.snowpark_pandas_api_calls = [{"name": "TestClass.test_func"}]
-    with SqlCounter(query_count=11, fallback_count=1, sproc_count=1):
-        # This is a fallback and inplace case
-        df1.where(cond, other, axis=1, inplace=True)
+    with SqlCounter(query_count=0):
+        df1.dropna(inplace=True)
 
     df1_expected_api_calls = [
         {"name": "TestClass.test_func"},
-        {"is_fallback": True, "name": "DataFrame.where"},
-        {
-            "name": "DataFrame.BasePandasDataset.where",
-            "argument": ["other", "inplace", "axis"],
-        },
-        {
-            "name": "DataFrame.DataFrame.where",
-            "argument": ["other", "inplace", "axis"],
-        },
+        {"name": "DataFrame.DataFrame.dropna", "argument": ["inplace"]},
     ]
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
 
     # Test lazy APIs that are not in place: df1 api_call_list should not contain lazy but df2 should.
     # And both should contain previous APIs
-    with SqlCounter(query_count=11, fallback_count=1, sproc_count=1):
-        df2 = df1.where(cond, other, axis=1)
+    with SqlCounter(query_count=0):
+        df2 = df1.dropna(inplace=False)
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
     df2_expected_api_calls = df1_expected_api_calls + [
-        {"is_fallback": True, "name": "DataFrame.where"},
         {
-            "name": "DataFrame.BasePandasDataset.where",
-            "argument": ["other", "axis"],
-        },
-        {
-            "name": "DataFrame.DataFrame.where",
-            "argument": ["other", "axis"],
+            "name": "DataFrame.DataFrame.dropna",
         },
     ]
     assert df2._query_compiler.snowpark_pandas_api_calls == df2_expected_api_calls
@@ -186,45 +162,6 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         telemetry_client._enabled
     ), "Telemetry client should be enabled, likely because the previous REST request failed to send telemetry."
     _ = json.dumps(body)
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-def test_snowpark_pandas_telemetry_fallback(test_table_name):
-    df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
-    fn = pandas.DataFrame.mod
-    method_name = fn.__name__
-    # This is coming from Modin's encoding scheme in default.py:build_default_to_pandas
-    # encoded as f"<function {cls.OBJECT_TYPE}.{fn_name}>".
-    # Not following this format will cause exception.
-    fn.__name__ = f"<function DataFrame.{method_name}>"
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        new_query_compiler = df._query_compiler.default_to_pandas(fn, 2)
-    assert new_query_compiler.snowpark_pandas_api_calls == [
-        {"is_fallback": True, "name": "DataFrame.mod"}
-    ]
-
-    # Test NotImplementedError
-    fn.__name__ = f"<function Series.{method_name}>"
-    df._query_compiler.snowpark_pandas_api_calls.clear()
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        new_query_compiler = df._query_compiler.default_to_pandas(fn, 2)
-    assert df._query_compiler.snowpark_pandas_api_calls == []
-    assert new_query_compiler.snowpark_pandas_api_calls == [
-        {"is_fallback": True, "name": "Series.mod"}
-    ]
-
-    # another fallback example
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        df2 = df.dropna(axis=1)
-    assert df2._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.dropna", "is_fallback": True},
-        {"name": "DataFrame.DataFrame.dropna", "argument": ["axis"]},
-    ]
 
 
 @patch.object(TelemetryClient, "send")

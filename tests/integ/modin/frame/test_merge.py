@@ -13,7 +13,6 @@ from pandas.errors import MergeError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -1173,12 +1172,6 @@ def test_merge_with_indicator_explicit_name_negative(left_df, right_df):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "lvalues, rvalues, validate",
     # 'one' should also validate as 'many'. If actual join is one-to-one
@@ -1197,48 +1190,15 @@ def test_merge_with_indicator_explicit_name_negative(left_df, right_df):
         ([1, 2, 1], [2, 3, 2], "m:m"),  # m:m join
     ],
 )
-@sql_count_checker(query_count=12, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_merge_validate(lvalues, rvalues, validate):
     left = pd.DataFrame({"A": lvalues})
     right = pd.DataFrame({"B": rvalues})
-    eval_snowpark_pandas_result(
-        left,
-        left.to_pandas(),
-        lambda df: df.merge(
-            right if isinstance(df, pd.DataFrame) else right.to_pandas(),
-            left_on="A",
-            right_on="B",
-            validate=validate,
-        ),
-    )
+    msg = "Snowpark pandas merge API doesn't yet support 'validate' parameter"
+    with pytest.raises(NotImplementedError, match=msg):
+        left.merge(right, left_on="A", right_on="B", validate=validate)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-# Single test to pass code coverage in CI
-@sql_count_checker(query_count=12, fallback_count=1, sproc_count=1)
-def test_merge_validate_for_ci(left_df, right_df):
-    eval_snowpark_pandas_result(
-        left_df,
-        left_df.to_pandas(),
-        lambda df: df.merge(
-            right_df if isinstance(df, pd.DataFrame) else right_df.to_pandas(),
-            left_on="A",
-            right_on="B",
-            validate="m:m",
-        ),
-    )
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "lvalues, rvalues, validate",
     [
@@ -1251,10 +1211,10 @@ def test_merge_validate_for_ci(left_df, right_df):
         ([1, 2, 1], [2, 3, 2], "m:1"),  # m:m join
     ],
 )
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=0)
 def test_merge_validate_negative(lvalues, rvalues, validate):
     left = pd.DataFrame({"A": lvalues})
     right = pd.DataFrame({"B": rvalues})
-    # TODO: SNOW-863059 expect MergeError instead of SnowparkSqlException
-    with pytest.raises(SnowparkSQLException, match="Merge keys are not unique"):
+    msg = "Snowpark pandas merge API doesn't yet support 'validate' parameter"
+    with pytest.raises(NotImplementedError, match=msg):
         left.merge(right, left_on="A", right_on="B", validate=validate)
