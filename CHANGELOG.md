@@ -2,6 +2,10 @@
 
 ## 1.17.0 (TBD)
 
+### New Features
+
+- Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
+
 ### Local Testing Updates
 
 #### Bug Fixes
