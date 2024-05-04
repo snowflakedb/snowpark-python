@@ -17,6 +17,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
     create_test_dfs,
@@ -688,7 +689,13 @@ class TestFuncReturnsDataFrame:
             columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
         )
 
-        # Assertion fails because index order is different.
+        def groupby_apply_without_sort(df):
+            return df.groupby("index", sort=False, dropna=False, group_keys=False)[
+                "int_col"
+            ].apply(lambda v: v)
+
+        # Assertion fails because index order is different due to pandas issue
+        # 57906.
         with pytest.raises(AssertionError) as ex:
             with SqlCounter(
                 query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
@@ -696,28 +703,23 @@ class TestFuncReturnsDataFrame:
                 join_count=JOIN_COUNT,
             ):
                 eval_snowpark_pandas_result(
-                    snow_df,
-                    pandas_df,
-                    lambda df: df.groupby(
-                        "index", sort=False, dropna=False, group_keys=False
-                    )["int_col"].apply(lambda v: v),
+                    snow_df, pandas_df, groupby_apply_without_sort
                 )
         assert "Series.index are different" in str(ex.value)
-
-        # Assertion succeeds when sort_index is called after apply.
+        # Assertion succeeds when we coerce order to be the same in pandas and
+        # Snowpark pandas.
+        pandas_result = groupby_apply_without_sort(pandas_df)
+        # check that result values are unique so that sorting by values gives
+        # a deterministic order.
+        assert pandas_result.is_unique
         with SqlCounter(
             query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
-            eval_snowpark_pandas_result(
-                snow_df,
-                pandas_df,
-                lambda df: df.groupby(
-                    "index", sort=False, dropna=False, group_keys=False
-                )["int_col"]
-                .apply(lambda v: v)
-                .sort_index(),
+            assert_snowpark_pandas_equal_to_pandas(
+                groupby_apply_without_sort(snow_df).sort_values(),
+                pandas_result.sort_values(),
             )
 
 
