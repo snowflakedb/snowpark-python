@@ -26,15 +26,15 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
+    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
     oob_service = LocalTestOOBTelemetryService.get_instance()
     # clean up queue first
     oob_service.export_queue_to_string()
-    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
+    connection_uuid = str(uuid.uuid4())
     with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
         with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
-            # mock datetime due to flakiness to time comparison
+            # mock datetime due to flakiness in time comparison
             mock_datetime.now.return_value = mock_date_value
-            connection_uuid = str(uuid.uuid4())
             oob_service.log_session_creation()
             assert oob_service.size() == 1
             oob_service.log_session_creation(connection_uuid=connection_uuid)
@@ -94,7 +94,7 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
     logger = logging.getLogger("LocalTestLogger")
 
     with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
-        # mock datetime due to flakiness to time comparison
+        # mock datetime due to flakiness in time comparison
         mock_datetime.now.return_value = mock_date_value
         unraise_feature_name = "Test Feature No Raise Error"
         with caplog.at_level(logging.WARNING, logger="LocalTestLogger"):
