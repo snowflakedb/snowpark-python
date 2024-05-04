@@ -2,9 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import decimal
 import sys
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import pytest
 
@@ -203,6 +204,149 @@ def test_register_udtf_from_file_with_typehints(session, resources_path):
         ],
     )
     Utils.assert_executed_with_query_tag(session, query_tag)
+
+
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_udtf_register_with_optional_args(
+    session: Session, resources_path, register_from_file
+):
+    test_files = TestFiles(resources_path)
+    schema = [
+        "int_req",
+        "str_req",
+        "int_opt",
+        "str_opt",
+        "bool_",
+        "decimal_",
+        "bytes_",
+        "time_",
+        "dict_",
+    ]
+    if register_from_file:
+        my_udtf = session.udtf.register_from_file(
+            test_files.test_udtf_py_file,
+            "MyUDTFWithOptionalArgs",
+            output_schema=schema,
+        )
+    else:
+
+        class MyUDTFWithOptionalArgs:
+            def process(
+                self,
+                int_req: int,
+                str_req: str,
+                int_opt: int = 1,
+                str_opt: str = "",
+                bool_: bool = False,
+                decimal_: decimal.Decimal = decimal.Decimal("3.14"),  # noqa: B008
+                bytes_: bytes = b"one",
+                time_: datetime.time = datetime.time(16, 10, second=2),  # noqa: B008
+                dict_: Dict[int, str] = {1: "a"},  # noqa: B006
+            ) -> List[
+                Tuple[
+                    int,
+                    str,
+                    int,
+                    str,
+                    bool,
+                    decimal.Decimal,
+                    bytes,
+                    datetime.time,
+                    Dict[int, str],
+                ]
+            ]:
+                return [
+                    (
+                        int_req,
+                        str_req,
+                        int_opt,
+                        str_opt,
+                        bool_,
+                        decimal_,
+                        bytes_,
+                        time_,
+                        dict_,
+                    )
+                ]
+
+        my_udtf = session.udtf.register(MyUDTFWithOptionalArgs, output_schema=schema)
+
+    # add all optional args
+    Utils.check_answer(
+        session.table_function(
+            my_udtf(
+                lit(11),
+                lit("eleven"),
+                lit(2),
+                lit("abc"),
+                lit(True),
+                lit(decimal.Decimal("1.33")),
+                lit(b"bytes"),
+                lit(datetime.time(20, 8, 8)),
+                lit({10: "ten"}),
+            )
+        ),
+        [
+            Row(
+                11,
+                "eleven",
+                2,
+                "abc",
+                True,
+                decimal.Decimal("1.33"),
+                b"bytes",
+                datetime.time(20, 8, 8),
+                '{\n  "10": "ten"\n}',
+            )
+        ],
+    )
+    # add some optional args
+    Utils.check_answer(
+        session.table_function(
+            my_udtf(
+                lit(11),
+                lit("eleven"),
+                lit(2),
+                lit("abc"),
+                lit(True),
+            )
+        ),
+        [
+            Row(
+                11,
+                "eleven",
+                2,
+                "abc",
+                True,
+                decimal.Decimal("3.14"),
+                b"one",
+                datetime.time(16, 10, second=2),
+                '{\n  "1": "a"\n}',
+            )
+        ],
+    )
+    # add no optional args
+    Utils.check_answer(
+        session.table_function(
+            my_udtf(
+                lit(11),
+                lit("eleven"),
+            )
+        ),
+        [
+            Row(
+                11,
+                "eleven",
+                1,
+                "",
+                False,
+                decimal.Decimal("3.14"),
+                b"one",
+                datetime.time(16, 10, second=2),
+                '{\n  "1": "a"\n}',
+            )
+        ],
+    )
 
 
 def test_strict_udtf(session):

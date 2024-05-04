@@ -423,6 +423,7 @@ def get_opt_arg_defaults(
         default_values_str = None
         if not is_local_python_file(filename):
             return EMPTY_DEFAULT_VALUES
+
         if object_type == TempObjectType.TABLE_FUNCTION:
             default_values_str = retrieve_func_defaults_from_source(
                 filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
@@ -433,7 +434,10 @@ def get_opt_arg_defaults(
         if default_values_str is None:
             return EMPTY_DEFAULT_VALUES
         default_values = [
-            python_value_str_to_object(value) for value in default_values_str
+            python_value_str_to_object(value, tp)
+            for value, tp in zip(
+                default_values_str, input_types[-len(default_values_str) :]
+            )
         ]
         return build_default_values_result(default_values, input_types)
 
@@ -442,7 +446,11 @@ def get_opt_arg_defaults(
             return get_opt_arg_defaults_from_callable()
         else:
             return get_opt_arg_defaults_from_file()
-    except TypeError:
+    except TypeError as e:
+        logger.warn(
+            f"Got error {e} when trying to read default values from function: {func}. "
+            "Proceeding without creating optional arguments"
+        )
         return EMPTY_DEFAULT_VALUES
 
 

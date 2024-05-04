@@ -848,6 +848,111 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    source = """
+import datetime
+import snowflake
+from snowflake.snowpark import Session
+from typing import Dict, List, Optional
+from snowflake.snowpark.functions import (
+    col,
+    iff,
+    lit
+)
+
+def add(session_: Session, x: int = 0, y: int = 0) -> int:
+    return (
+        session_.create_dataframe([[x, y]], schema=["x", "y"])
+        .select(col("x") + col("y"))
+        .collect()[0][0]
+    )
+
+def snow(session_: Session, x: int = 1) -> Optional[str]:
+    return (
+        session_.create_dataframe([[x]], schema=["x"])
+        .select(iff(col("x") % 2 == 0, lit("snow"), lit(None)))
+        .collect()[0][0]
+    )
+
+def double_str_list(session_: Session, x: str = "a") -> List[str]:
+    val = session_.create_dataframe([[str(x)]]).collect()[0][0]
+    return [val, val]
+
+def return_date(
+    _: Session, dt: datetime.date = datetime.date(2017, 1, 1)
+) -> datetime.date:
+    return dt
+
+def return_arr(
+    _: Session, base_arr: List[int], extra_arr: List[int] = [4]
+) -> List[int]:
+    base_arr.extend(extra_arr)
+    return base_arr
+"""
+    if register_from_file:
+        file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+        with open(file_path, "w") as f:
+            f.write(source)
+
+        add_sp = session.sproc.register_from_file(file_path, "add")
+        snow_sp = session.sproc.register_from_file(file_path, "snow")
+        double_str_list_sp = session.sproc.register_from_file(
+            file_path, "double_str_list"
+        )
+        return_date_sp = session.sproc.register_from_file(file_path, "return_date")
+        return_arr_sp = session.sproc.register_from_file(file_path, "return_arr")
+    else:
+
+        def add(session_: Session, x: int = 0, y: int = 0) -> int:
+            return (
+                session_.create_dataframe([[x, y]], schema=["x", "y"])
+                .select(col("x") + col("y"))
+                .collect()[0][0]
+            )
+
+        def snow(session_: Session, x: int = 1) -> Optional[str]:
+            return (
+                session_.create_dataframe([[x]], schema=["x"])
+                .select(iff(col("x") % 2 == 0, lit("snow"), lit(None)))
+                .collect()[0][0]
+            )
+
+        def double_str_list(session_: Session, x: str = "a") -> List[str]:
+            val = session_.create_dataframe([[str(x)]]).collect()[0][0]
+            return [val, val]
+
+        def return_date(
+            _: Session, dt: datetime.date = datetime.date(2017, 1, 1)  # noqa: B008
+        ) -> datetime.date:
+            return dt
+
+        def return_arr(
+            _: Session, base_arr: List[int], extra_arr: List[int] = [4]  # noqa: B006
+        ) -> List[int]:
+            base_arr.extend(extra_arr)
+            return base_arr
+
+        add_sp = session.sproc.register(add)
+        snow_sp = session.sproc.register(snow)
+        double_str_list_sp = session.sproc.register(double_str_list)
+        return_date_sp = session.sproc.register(return_date)
+        return_arr_sp = session.sproc.register(return_arr)
+
+    assert add_sp(1, 2) == 3
+    assert add_sp(1) == 1
+    assert add_sp() == 0
+    assert snow_sp(0) == "snow"
+    assert snow_sp(1) is None
+    assert snow_sp() is None
+    assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
+    assert double_str_list_sp() == '[\n  "a",\n  "a"\n]'
+    assert return_date_sp(datetime.date(2024, 1, 2)) == datetime.date(2024, 1, 2)
+    assert return_date_sp() == datetime.date(2017, 1, 1)
+    assert return_arr_sp([1, 2, 3], [4, 5]) == "[\n  1,\n  2,\n  3,\n  4,\n  5\n]"
+    assert return_arr_sp([1, 2, 3]) == "[\n  1,\n  2,\n  3,\n  4\n]"
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()

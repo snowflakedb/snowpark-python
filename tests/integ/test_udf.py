@@ -50,7 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
+from snowflake.snowpark.functions import call_udf, col, lit, pandas_udf, udf
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -991,6 +991,125 @@ def return_dict(v: dict) -> Dict[str, str]:
     Utils.check_answer(
         TestData.variant1(session).select(return_variant_dict_udf("obj1")).collect(),
         [Row('{\n  "Tree": "Tree Pine"\n}')],
+    )
+
+
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
+    source = """
+import datetime
+from typing import List, Optional
+
+def add(x: int = 0, y: int = 0) -> int:
+    return x + y
+
+def snow(x: int = 1) -> Optional[str]:
+    return "snow" if x % 2 == 0 else None
+
+def double_str_list(x: str = "a") -> List[str]:
+    return [x, x]
+
+def return_date(
+    dt: datetime.date = datetime.date(2017, 1, 1)
+) -> datetime.date:
+    return dt
+
+def return_arr(
+    base_arr: List[int], extra_arr: List[int] = [4]
+) -> List[int]:
+    base_arr.extend(extra_arr)
+    return base_arr
+"""
+    if register_from_file:
+        file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+        with open(file_path, "w") as f:
+            f.write(source)
+        add_udf = session.udf.register_from_file(file_path, "add")
+        snow_udf = session.udf.register_from_file(file_path, "snow")
+        double_str_list_udf = session.udf.register_from_file(
+            file_path, "double_str_list"
+        )
+        return_date_udf = session.udf.register_from_file(file_path, "return_date")
+        return_arr_udf = session.udf.register_from_file(file_path, "return_arr")
+    else:
+
+        def add(x: int = 0, y: int = 0) -> int:
+            return x + y
+
+        def snow(x: int = 1) -> Optional[str]:
+            return "snow" if x % 2 == 0 else None
+
+        def double_str_list(x: str = "a") -> List[str]:
+            return [x, x]
+
+        def return_date(
+            dt: datetime.date = datetime.date(2017, 1, 1)  # noqa: B008
+        ) -> datetime.date:
+            return dt
+
+        def return_arr(
+            base_arr: List[int], extra_arr: List[int] = [4]  # noqa: B006
+        ) -> List[int]:
+            base_arr.extend(extra_arr)
+            return base_arr
+
+        add_udf = session.udf.register(add)
+        snow_udf = session.udf.register(snow)
+        double_str_list_udf = session.udf.register(double_str_list)
+        return_date_udf = session.udf.register(return_date)
+        return_arr_udf = session.udf.register(return_arr)
+
+    df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
+    Utils.check_answer(
+        df.select(
+            add_udf("a", "b"),
+            add_udf("a"),
+            add_udf(),
+        ),
+        [
+            Row(5, 1, 0),
+            Row(5, 2, 0),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            snow_udf("a"),
+            snow_udf(),
+        ),
+        [
+            Row(None, None),
+            Row("snow", None),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            double_str_list_udf("a"),
+            double_str_list_udf(),
+        ),
+        [
+            Row('[\n  "1",\n  "1"\n]', '[\n  "a",\n  "a"\n]'),
+            Row('[\n  "2",\n  "2"\n]', '[\n  "a",\n  "a"\n]'),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            return_date_udf(lit(datetime.date(2024, 4, 4))),
+            return_date_udf(),
+        ),
+        [
+            Row(datetime.date(2024, 4, 4), datetime.date(2017, 1, 1)),
+            Row(datetime.date(2024, 4, 4), datetime.date(2017, 1, 1)),
+        ],
+    )
+    Utils.check_answer(
+        df.select(
+            return_arr_udf(lit([1, 2, 3]), lit(list([4, 5]))),
+            return_arr_udf(lit([1, 2, 3])),
+        ),
+        [
+            Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
+            Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
+        ],
     )
 
 
