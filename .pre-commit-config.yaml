@@ -32,6 +32,12 @@ repos:
     rev: v4.1.0
     hooks:
     -   id: trailing-whitespace
+        # Indentend, multiline markdown comments require leading whitespace to
+        # preserve indentation for subsequent lines.
+        exclude: >
+            (?x)^(
+                .*\.md
+            )$
     -   id: end-of-file-fixer
         exclude: >
             (?x)^(
