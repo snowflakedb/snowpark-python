@@ -1079,7 +1079,7 @@ def test_udf_negative(session):
     with pytest.raises(ValueError) as ex_info:
         udf1("a", "")
     assert (
-        "Incorrect number of arguments passed to the UDF: Expected: 1, Found: 2"
+        "Incorrect number of arguments passed to the UDF: Expected: <=1, Found: 2"
         in str(ex_info)
     )
 
