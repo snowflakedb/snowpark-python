@@ -649,7 +649,6 @@ def _to_timestamp(
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
     import dateutil.parser
-    import pandas
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
@@ -718,7 +717,7 @@ def _to_timestamp(
                     # However, if the INTEGER value is stored inside a VARIANT value,
                     # for example as shown below, then the conversion is indirect,
                     # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
-                    if caller and caller == "timestamp_ntz":
+                    if caller == "timestamp_ntz":
                         # local timestamp
                         local_now = datetime.datetime.now(LocalTimezone.LOCAL_TZ)
                         parsed = datetime.datetime.utcfromtimestamp(
@@ -738,7 +737,7 @@ def _to_timestamp(
                         parsed = datetime.datetime.utcfromtimestamp(
                             convert_numeric_string_value_to_float_seconds(data)
                         )
-                        # # utc timestamps should be in utc timezone
+                        # utc timestamps should be in utc timezone
                         if add_timezone:
                             parsed = parsed.replace(tzinfo=pytz.utc)
                     # A string from which to extract a timestamp.
