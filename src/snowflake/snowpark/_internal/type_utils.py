@@ -742,7 +742,11 @@ def retrieve_func_defaults_from_source(
         if isinstance(value, (ast.Tuple, ast.List)):
             return f"{[parse_default_value(e) for e in value.elts]}"
         if isinstance(value, ast.Dict):
-            return f"{dict([(parse_default_value(k), parse_default_value(v)) for k, v in zip(value.keys, value.values)])}"
+            key_val_tuples = [
+                (parse_default_value(k), parse_default_value(v))
+                for k, v in zip(value.keys, value.values)
+            ]
+            return f"{dict(key_val_tuples)}"
         if isinstance(value, ast.Attribute):
             return f"{parse_default_value(value.value)}.{value.attr}"
         if isinstance(value, ast.keyword):
