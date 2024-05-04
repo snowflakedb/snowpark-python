@@ -21,6 +21,4 @@
 
 """The module represents the base query compiler that defines the common query compiler API."""
 
-from snowflake.snowpark.modin.plugin.compiler.query_compiler import BaseQueryCompiler
-
-__all__ = ["BaseQueryCompiler"]
+__all__ = []  # type: ignore

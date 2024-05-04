@@ -26,7 +26,7 @@ requirements:
     - python
     - cloudpickle >=1.6.0,<=2.0.0  # [py<=310]
     - cloudpickle==2.2.1  # [py==311]
-    - snowflake-connector-python
+    - snowflake-connector-python >=3.10.0,<4.0.0
     - typing-extensions >=4.1.0
     # need to pin libffi because of problems in cryptography.
     # This might no longer hold true but keep it just to avoid it from biting us again

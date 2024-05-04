@@ -7,6 +7,8 @@ import warnings
 
 from packaging import version
 
+import snowflake.snowpark._internal.utils
+
 if sys.version_info.major == 3 and sys.version_info.minor == 8:
     raise RuntimeError(
         "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later."
@@ -28,7 +30,7 @@ if pandas.__version__ != supported_pandas_version:
     )  # pragma: no cover
 
 try:
-    import modin
+    import modin  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     raise ModuleNotFoundError(
         "Modin is not installed. " + install_msg
@@ -60,3 +62,14 @@ from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E4
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
 
 DocModule.put(docstrings.__name__)
+
+
+# Don't warn the user about our internal usage of private preview pivot
+# features. The user should have already been warned that Snowpark pandas
+# is in public or private preview. They likely don't know or care that we are
+# using Snowpark DataFrame pivot() internally, let alone that we are using
+# private preview features of Snowpark Python.
+
+snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
+    False
+)

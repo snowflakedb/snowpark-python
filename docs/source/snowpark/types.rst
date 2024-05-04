@@ -46,3 +46,4 @@ This package contains all Snowpark logical types.
     TZ
     Variant
     VariantType
+    VectorType

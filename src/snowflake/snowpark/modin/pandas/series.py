@@ -55,7 +55,10 @@ from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDat
 from snowflake.snowpark.modin.pandas.iterator import PartitionIterator
 from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    series_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
@@ -781,56 +784,57 @@ class Series(BasePandasDataset):
 
         return self.__constructor__(query_compiler=new_query_compiler)
 
+    @series_not_implemented()
     def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the largest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         result = self.idxmax(axis=axis, skipna=skipna, *args, **kwargs)
         if np.isnan(result) or result is pandas.NA:
             result = -1
         return result
 
+    @series_not_implemented()
     def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
         """
         Return int position of the smallest value in the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         result = self.idxmin(axis=axis, skipna=skipna, *args, **kwargs)
         if np.isnan(result) or result is pandas.NA:
             result = -1
         return result
 
+    @series_not_implemented()
     def argsort(self, axis=0, kind="quicksort", order=None):  # noqa: PR01, RT01, D200
         """
         Return the integer indices that would sort the Series values.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.argsort, axis=axis, kind=kind, order=order
         )
 
+    @series_not_implemented()
     def autocorr(self, lag=1):  # noqa: PR01, RT01, D200
         """
         Compute the lag-N autocorrelation.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self.corr(self.shift(lag))
 
+    @series_not_implemented()
     def between(self, left, right, inclusive: str = "both"):  # noqa: PR01, RT01, D200
         """
         Return boolean Series equivalent to left <= series <= right.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.between, left, right, inclusive=inclusive
         )
 
+    @series_not_implemented()
     def compare(
         self,
         other: Series,
@@ -843,7 +847,6 @@ class Series(BasePandasDataset):
         Compare to another Series and show the differences.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         if not isinstance(other, Series):
             raise TypeError(f"Cannot compare Series to {type(other)}")
         result = self.to_frame().compare(
@@ -861,12 +864,12 @@ class Series(BasePandasDataset):
             result = result.squeeze().rename(None)
         return result
 
+    @series_not_implemented()
     def corr(self, other, method="pearson", min_periods=None):  # noqa: PR01, RT01, D200
         """
         Compute correlation with `other` Series, excluding missing values.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         if method == "pearson":
             this, other = self.align(other, join="inner", copy=False)
             this = self.__constructor__(this)
@@ -921,14 +924,14 @@ class Series(BasePandasDataset):
     def count(self):
         return super().count()
 
+    @series_not_implemented()
     def cov(
         self, other, min_periods=None, ddof: int | None = 1
     ):  # noqa: PR01, RT01, D200
-        """
+        """b
         Compute covariance with Series, excluding missing values.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         this, other = self.align(other, join="inner", copy=False)
         this = self.__constructor__(this)
         other = self.__constructor__(other)
@@ -983,6 +986,7 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().diff(periods=periods, axis=0)
 
+    @series_not_implemented()
     def divmod(
         self, other, level=None, fill_value=None, axis=0
     ):  # noqa: PR01, RT01, D200
@@ -991,15 +995,13 @@ class Series(BasePandasDataset):
         Not implemented
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
 
+    @series_not_implemented()
     def dot(self, other):  # noqa: PR01, RT01, D200
         """
         Compute the dot product between the Series and the columns of `other`.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         if isinstance(other, BasePandasDataset):
             common = self.index.union(other.index)
             if len(common) > len(self) or len(common) > len(other):  # pragma: no cover
@@ -1071,31 +1073,30 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().eq(other, level=level, axis=axis)
 
+    @series_not_implemented()
     def equals(self, other):  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         return (
             self.name == other.name
             and self.index.equals(other.index)
             and self.eq(other).all()
         )
 
+    @series_not_implemented()
     def explode(self, ignore_index: bool = False):  # noqa: PR01, RT01, D200
         """
         Transform each element of a list-like to a row.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
-
         return super().explode(
             MODIN_UNNAMED_SERIES_LABEL if self.name is None else self.name,
             ignore_index=ignore_index,
         )
 
+    @series_not_implemented()
     def factorize(
         self, sort=False, na_sentinel=no_default, use_na_sentinel=no_default
     ):  # noqa: PR01, RT01, D200
@@ -1103,7 +1104,6 @@ class Series(BasePandasDataset):
         Encode the object as an enumerated type or categorical variable.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.factorize,
             sort=sort,
@@ -1199,6 +1199,7 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().gt(other, level=level, axis=axis)
 
+    @series_not_implemented()
     def hist(
         self,
         by=None,
@@ -1216,7 +1217,6 @@ class Series(BasePandasDataset):
         Draw histogram of the input series using matplotlib.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.hist,
             by=by,
@@ -1307,6 +1307,7 @@ class Series(BasePandasDataset):
             show_counts=show_counts,
         )
 
+    @series_not_implemented()
     def interpolate(
         self,
         method="linear",
@@ -1322,7 +1323,6 @@ class Series(BasePandasDataset):
         Fill NaN values using an interpolation method.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.interpolate,
             method=method,
@@ -1335,21 +1335,20 @@ class Series(BasePandasDataset):
             **kwargs,
         )
 
+    @series_not_implemented()
     def item(self):  # noqa: RT01, D200
         """
         Return the first element of the underlying data as a Python scalar.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self[0]
 
+    @series_not_implemented()
     def items(self):  # noqa: D200
         """
         Lazily iterate over (index, value) tuples.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
-
         def item_builder(s):
             return s.name, s.squeeze()
 
@@ -1423,13 +1422,12 @@ class Series(BasePandasDataset):
             level=level,
         )
 
+    @series_not_implemented()
     def memory_usage(self, index=True, deep=False):  # noqa: PR01, RT01, D200
         """
         Return the memory usage of the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         if index:
             result = self._reduce_dimension(
                 self._query_compiler.memory_usage(index=False, deep=deep)
@@ -1445,12 +1443,12 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().mod(other, level=level, fill_value=fill_value, axis=axis)
 
+    @series_not_implemented()
     def mode(self, dropna=True):  # noqa: PR01, RT01, D200
         """
         Return the mode(s) of the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return super().mode(numeric_only=False, dropna=dropna)
 
     def mul(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
@@ -1478,20 +1476,20 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().ne(other, level=level, axis=axis)
 
+    @series_not_implemented()
     def nlargest(self, n=5, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the largest `n` elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(pandas.Series.nlargest, n=n, keep=keep)
 
+    @series_not_implemented()
     def nsmallest(self, n=5, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the smallest `n` elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.nsmallest(n=n, keep=keep)
         )
@@ -1514,12 +1512,12 @@ class Series(BasePandasDataset):
             copy=copy,
         )
 
+    @series_not_implemented()
     def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
         result = DataFrame(
@@ -1528,6 +1526,7 @@ class Series(BasePandasDataset):
 
         return result.droplevel(0, axis=1) if result.columns.nlevels > 1 else result
 
+    @series_not_implemented()
     @property
     def plot(
         self,
@@ -1560,7 +1559,6 @@ class Series(BasePandasDataset):
         Make plot of Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._to_pandas().plot
 
     def pow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
@@ -1570,6 +1568,7 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().pow(other, level=level, fill_value=fill_value, axis=axis)
 
+    @series_not_implemented()
     def prod(
         self,
         axis=None,
@@ -1579,7 +1578,6 @@ class Series(BasePandasDataset):
         min_count=0,
         **kwargs,
     ):
-        ErrorMessage.not_implemented()
         validate_bool_kwarg(skipna, "skipna", none_allowed=False)
         axis = self._get_axis_number(axis)
         if level is not None:
@@ -1622,12 +1620,12 @@ class Series(BasePandasDataset):
 
     product = prod
 
+    @series_not_implemented()
     def ravel(self, order="C"):  # noqa: PR01, RT01, D200
         """
         Return the flattened underlying data as an ndarray.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         data = self._query_compiler.to_numpy().flatten(order=order)
         if isinstance(self.dtype, pandas.CategoricalDtype):
             data = pandas.Categorical(data, dtype=self.dtype)
@@ -1713,12 +1711,12 @@ class Series(BasePandasDataset):
                 self_cp.name = index
                 return self_cp
 
+    @series_not_implemented()
     def repeat(self, repeats, axis=None):  # noqa: PR01, RT01, D200
         """
         Repeat elements of a Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         if (isinstance(repeats, int) and repeats == 0) or (
             is_list_like(repeats) and len(repeats) == 1 and repeats[0] == 0
         ):
@@ -1760,6 +1758,7 @@ class Series(BasePandasDataset):
             )
             return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
+    @series_not_implemented()
     def rdivmod(
         self, other, level=None, fill_value=None, axis=0
     ):  # noqa: PR01, RT01, D200
@@ -1767,7 +1766,6 @@ class Series(BasePandasDataset):
         Return integer division and modulo of series and `other`, element-wise (binary operator `rdivmod`).
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
 
     def rfloordiv(
         self, other, level=None, fill_value=None, axis=0
@@ -1867,12 +1865,12 @@ class Series(BasePandasDataset):
             method="single",
         )
 
+    @series_not_implemented()
     def reorder_levels(self, order):  # noqa: PR01, RT01, D200
         """
         Rearrange index levels using input order.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return super().reorder_levels(order)
 
     def replace(
@@ -1905,12 +1903,12 @@ class Series(BasePandasDataset):
         )
         return self._create_or_update_from_compiler(new_query_compiler, inplace)
 
+    @series_not_implemented()
     def searchsorted(self, value, side="left", sorter=None):  # noqa: PR01, RT01, D200
         """
         Find indices where elements should be inserted to maintain order.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         searchsorted_qc = self._query_compiler
         if sorter is not None:
             # `iloc` method works slowly (https://github.com/modin-project/modin/issues/1903),
@@ -2010,12 +2008,12 @@ class Series(BasePandasDataset):
 
     subtract = sub
 
+    @series_not_implemented()
     def swaplevel(self, i=-2, j=-1, copy=True):  # noqa: PR01, RT01, D200
         """
         Swap levels `i` and `j` in a `MultiIndex`.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas("swaplevel", i=i, j=j, copy=copy)
 
     def take(
@@ -2088,14 +2086,15 @@ class Series(BasePandasDataset):
 
     # TODO(williamma12): When we implement to_timestamp, have this call the version
     # in base.py
+    @series_not_implemented()
     def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
         """
         Cast to PeriodArray/Index at a particular frequency.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas("to_period", freq=freq, copy=copy)
 
+    @series_not_implemented()
     def to_string(
         self,
         buf=None,
@@ -2113,7 +2112,6 @@ class Series(BasePandasDataset):
         Render a string representation of the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.to_string,
             buf=buf,
@@ -2129,12 +2127,12 @@ class Series(BasePandasDataset):
 
     # TODO(williamma12): When we implement to_timestamp, have this call the version
     # in base.py
+    @series_not_implemented()
     def to_timestamp(self, freq=None, how="start", copy=True):  # noqa: PR01, RT01, D200
         """
         Cast to DatetimeIndex of Timestamps, at beginning of period.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas("to_timestamp", freq=freq, how=how, copy=copy)
 
     def transpose(self, *args, **kwargs):  # noqa: PR01, RT01, D200
@@ -2157,6 +2155,7 @@ class Series(BasePandasDataset):
 
     div = divide = truediv
 
+    @series_not_implemented()
     def truncate(
         self, before=None, after=None, axis=None, copy=True
     ):  # noqa: PR01, RT01, D200
@@ -2164,7 +2163,6 @@ class Series(BasePandasDataset):
         Truncate a Series before and after some index value.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.Series.truncate, before=before, after=after, axis=axis, copy=copy
         )
@@ -2212,12 +2210,12 @@ class Series(BasePandasDataset):
             name="proportion" if normalize else "count",
         )
 
+    @series_not_implemented()
     def view(self, dtype=None):  # noqa: PR01, RT01, D200
         """
         Create a new view of the Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.series_view(dtype=dtype)
         )
@@ -2242,6 +2240,7 @@ class Series(BasePandasDataset):
             level=level,
         )
 
+    @series_not_implemented()
     def xs(
         self, key, axis=0, level=None, drop_level=True
     ):  # pragma: no cover # noqa: PR01, D200
@@ -2249,7 +2248,6 @@ class Series(BasePandasDataset):
         Return cross-section from the Series/DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented("")
 
     @property
     def attrs(self):  # noqa: RT01, D200
@@ -2263,13 +2261,13 @@ class Series(BasePandasDataset):
 
         return self._default_to_pandas(attrs)
 
+    @series_not_implemented()
     @property
     def array(self):  # noqa: RT01, D200
         """
         Return the ExtensionArray of the data backing this Series or Index.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
 
         def array(df):
             return df.array
@@ -2382,13 +2380,13 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return self.nunique(dropna=False) == len(self)
 
+    @series_not_implemented()
     @property
     def nbytes(self):  # noqa: RT01, D200
         """
         Return the number of bytes in the underlying data.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()
         return self.memory_usage(index=False)
 
     @property
@@ -2711,9 +2709,9 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return cls(data=pandas_series)
 
+    @series_not_implemented()
     def __reduce__(self):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        ErrorMessage.not_implemented()  # pragma: no cover
 
         self._query_compiler.finalize()
         # if PersistentPickle.get():
