@@ -544,7 +544,6 @@ def test_axis_1_multi_index_column_labels_different_levels_negative():
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 def test_apply_variant_json_null():
     # series -> scalar
     def f(v):
