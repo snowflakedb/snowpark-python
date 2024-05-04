@@ -2119,7 +2119,7 @@ def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
     #   - One query to retrieve the result as a native pandas object.
     # Series <op> DataFrame
     with SqlCounter(
-        query_count=3,
+        query_count=2,
     ):
         snow_ans = getattr(snow_s, opname)(snow_df, axis=0)
         ans = getattr(s, opname)(df, axis=0)
