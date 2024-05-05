@@ -557,8 +557,7 @@ class Lineage:
         Traces the lineage of an object within Snowflake and returns it as a DataFrame.
 
         Args:
-            object_name (str): The fully qualified name of the Snowflake object to start trace,
-                formatted as below:
+            object_name (str): The fully qualified name of the Snowflake object to start trace, formatted as below:
                     Non-Case-sensitive: "database.schema.object"
                     Case-sensitive: "\"database\".\"schema\".\"object\""
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
