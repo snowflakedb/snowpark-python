@@ -137,6 +137,10 @@ class _SnowflakeDomain:
 
 
 class _DGQLQueryBuilder:
+    """
+    Provides methods for building DGQL query.
+    """
+
     EDGE_TEMPLETE = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}}}"
     QUERY_TEMPLETE = '{{{nodeKey}({domainKey}: {domain}, {object_key}:"{query_object}"{parent_param}) {{{edges}}}}}'
     USER_TO_SYSTEM_DOMAIN_MAP = {
@@ -153,6 +157,9 @@ class _DGQLQueryBuilder:
         object_version: Optional[str] = None,
         parent_id: Optional[str] = None,
     ) -> str:
+        """
+        Builds fully executable DGQL query either by id or by name.
+        """
         if (object_id and object_name) or (not object_id and not object_name):
             raise ValueError("Either object_name or object_id must be provided")
 
@@ -229,21 +236,23 @@ class _DGQLQueryBuilder:
 
     @staticmethod
     def _get_feature_view_name(name: str, version: str) -> str:
+        """
+        Constructs feature view name.
+        """
         parts = _DGQLQueryBuilder.split_fully_qualified_name(name)
         if len(parts) < 3:
             raise ValueError("Invalid object name: less than three parts")
 
         # Unquote the 3rd part if it exists
-        third_part = parts[2].strip('"')
+        name_part = parts[2].strip('"')
 
         # Feature view name is case insensitive
-        new_third_part = f"{third_part.upper()}${version}"
+        feature_view_name = f"{name_part.upper()}${version}"
 
         # Feature view version is case sensitive.
-        new_third_part = f'"{new_third_part}"'
+        feature_view_name = f'"{feature_view_name}"'
 
-        new_name = ".".join(parts[:2] + [new_third_part])
-        return new_name
+        return ".".join(parts[:2] + [feature_view_name])
 
 
 class Lineage:
