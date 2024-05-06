@@ -5,7 +5,8 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
+from unittest import mock
 
 import pytest
 
@@ -25,18 +26,21 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
+    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
     oob_service = LocalTestOOBTelemetryService.get_instance()
     # clean up queue first
     oob_service.export_queue_to_string()
+    connection_uuid = str(uuid.uuid4())
     with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        connection_uuid = str(uuid.uuid4())
-        oob_service.log_session_creation()
-        assert oob_service.size() == 1
-        oob_service.log_session_creation(connection_uuid=connection_uuid)
+        with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
+            # mock datetime due to flakiness in time comparison
+            mock_datetime.now.return_value = mock_date_value
+            oob_service.log_session_creation()
+            assert oob_service.size() == 1
+            oob_service.log_session_creation(connection_uuid=connection_uuid)
         assert oob_service.size() == 2
         payload = oob_service.export_queue_to_string()
         unpacked_payload = json.loads(payload)
-        now_time = datetime.now().replace(microsecond=0)
 
         # test generated payload
         for idx, event in enumerate(unpacked_payload):
@@ -46,9 +50,10 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
             assert len(event["Tags"]) == 4
             assert event["Type"] == event["properties"]["type"] == "Snowpark Python"
             assert event["UUID"]
-            assert datetime.strptime(
-                event["Created_on"], "%Y-%m-%d %H:%M:%S"
-            ) == pytest.approx(now_time, abs=timedelta(seconds=1))
+            assert (
+                datetime.strptime(event["Created_on"], "%Y-%m-%d %H:%M:%S")
+                == mock_date_value
+            )
             assert event["Message"]["Connection_UUID"] == (
                 None if idx == 0 else connection_uuid
             )
@@ -81,41 +86,45 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
 
 
 def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setup):
+    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
     oob_service = LocalTestOOBTelemetryService.get_instance()
     # clean up queue first
     oob_service.export_queue_to_string()
     connection_uuid = str(uuid.uuid4())
     logger = logging.getLogger("LocalTestLogger")
 
-    unraise_feature_name = "Test Feature No Raise Error"
-    with caplog.at_level(logging.WARNING, logger="LocalTestLogger"):
-        # test basic case + warning
-        oob_service.log_not_supported_error(
-            external_feature_name=unraise_feature_name,
-            warning_logger=logger,
-        )
-        assert (
-            f"[Local Testing] {unraise_feature_name} is not supported." in caplog.text
-        )
-    assert oob_service.size() == 1
+    with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
+        # mock datetime due to flakiness in time comparison
+        mock_datetime.now.return_value = mock_date_value
+        unraise_feature_name = "Test Feature No Raise Error"
+        with caplog.at_level(logging.WARNING, logger="LocalTestLogger"):
+            # test basic case + warning
+            oob_service.log_not_supported_error(
+                external_feature_name=unraise_feature_name,
+                warning_logger=logger,
+            )
+            assert (
+                f"[Local Testing] {unraise_feature_name} is not supported."
+                in caplog.text
+            )
+        assert oob_service.size() == 1
 
-    # test raising error
-    raise_feature_name = "Test Feature With Raise Error"
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(f"[Local Testing] {raise_feature_name} is not supported."),
-    ):
-        oob_service.log_not_supported_error(
-            external_feature_name=raise_feature_name,
-            internal_feature_name="module_a.function_b",
-            parameters_info={"param_c": "value_d"},
-            connection_uuid=connection_uuid,
-            raise_error=NotImplementedError,
-        )
+        # test raising error
+        raise_feature_name = "Test Feature With Raise Error"
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(f"[Local Testing] {raise_feature_name} is not supported."),
+        ):
+            oob_service.log_not_supported_error(
+                external_feature_name=raise_feature_name,
+                internal_feature_name="module_a.function_b",
+                parameters_info={"param_c": "value_d"},
+                connection_uuid=connection_uuid,
+                raise_error=NotImplementedError,
+            )
     assert oob_service.size() == 2
     payload = oob_service.export_queue_to_string()
     unpacked_payload = json.loads(payload)
-    now_time = datetime.now().replace(microsecond=0)
 
     # test generated payload
     for idx, event in enumerate(unpacked_payload):
@@ -125,9 +134,10 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
         assert len(event["Tags"]) == 4
         assert event["Type"] == event["properties"]["type"] == "Snowpark Python"
         assert event["UUID"]
-        assert datetime.strptime(
-            event["Created_on"], "%Y-%m-%d %H:%M:%S"
-        ) == pytest.approx(now_time, abs=timedelta(seconds=1))
+        assert (
+            datetime.strptime(event["Created_on"], "%Y-%m-%d %H:%M:%S")
+            == mock_date_value
+        )
         assert event["Message"]["Connection_UUID"] == (
             None if idx == 0 else connection_uuid
         )
