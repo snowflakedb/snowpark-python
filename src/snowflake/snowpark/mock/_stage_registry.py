@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import csv
 import glob
 import json
 import os
@@ -364,12 +365,17 @@ class StageEntity:
                     )
 
         if file_format == "csv":
+            # check SNOW-1355487 for improvements
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
+                raise SnowparkSQLException(
+                    f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
+                )
             if (
                 field_delimiter[0]
                 and field_delimiter[-1] == "'"
@@ -445,7 +451,13 @@ class StageEntity:
                     delimiter=field_delimiter,
                     dtype=object,
                     converters=converters_dict,
-                    quoting=3,  # QUOTE_NONE
+                    # check definition here: https://docs.python.org/3/library/csv.html#csv.QUOTE_MINIMAL
+                    # csv.QUOTE_MINIMAL, the engine will parse the value for us using the quote value/field_optionally_enclosed_by
+                    # csv.QUOTE_NONE, by default snowflake FIELD_OPTIONALLY_ENCLOSED_BY is None
+                    quoting=csv.QUOTE_MINIMAL
+                    if field_optionally_enclosed_by
+                    else csv.QUOTE_NONE,
+                    quotechar=field_optionally_enclosed_by,
                 )
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns
