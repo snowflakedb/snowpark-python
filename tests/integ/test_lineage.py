@@ -185,26 +185,59 @@ def test_lineage_trace(session):
     df = session.lineage.trace(
         f"{db}.{schema}.V2", "view", direction=LineageDirection.DOWNSTREAM
     )
+
     # Removing 'creadtedOn' field since the value can not be predicted.
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
         "SOURCE_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"}
+            {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"},
         ],
         "TARGET_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"}
+            {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V4", "status": "ACTIVE"},
         ],
         "DIRECTION": [
             "Downstream",
+            "Downstream",
         ],
-        "DISTANCE": [1],
+        "DISTANCE": [1, 2],
     }
 
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
 
-    session.sql(f"drop schema {db}.{schema}").collect()
+    # CASE 6 : Case senstive query
+    session.sql(
+        f'CREATE OR REPLACE VIEW {db}.{schema}."v7" AS SELECT * FROM {db}.{schema}.V2'
+    ).collect()
+
+    df = session.lineage.trace(
+        f'{db}.{schema}."v7"', "view", direction=LineageDirection.UPSTREAM
+    )
+
+    # Removing 'creadtedOn' field since the value can not be predicted.
+    df = remove_created_on_field(df.to_pandas())
+
+    expected_data = {
+        "SOURCE_OBJECT": [
+            {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V1", "status": "ACTIVE"},
+        ],
+        "TARGET_OBJECT": [
+            {"domain": "VIEW", "name": f"{db}.{schema}.v7", "status": "ACTIVE"},
+            {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"},
+        ],
+        "DIRECTION": [
+            "Upstream",
+            "Upstream",
+        ],
+        "DISTANCE": [1, 2],
+    }
+
+    expected_df = pd.DataFrame(expected_data)
+    assert_frame_equal(df, expected_df, check_dtype=False)
 
     with pytest.raises(TypeError) as exc:
         session.lineage.trace(
@@ -246,3 +279,9 @@ def test_lineage_trace(session):
             distance=-11,
         )
     assert "Distance must be between 1 and 5." in str(exc)
+
+    session.sql(f"drop schema {db}.{schema}").collect()
+
+    df = session.lineage.trace(
+        f'{db}.{schema}."v7"', "view", direction=LineageDirection.UPSTREAM
+    )
