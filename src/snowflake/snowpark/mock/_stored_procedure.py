@@ -125,10 +125,13 @@ class MockStoredProcedure(StoredProcedure):
 
         # Save a copy of module cache
         frozen_sys_module_keys = set(sys.modules.keys())
+        # Save a copy of sys path
+        frozen_sys_path = list(sys.path)
 
         def cleanup_imports():
+            added_path = set(sys.path) - set(frozen_sys_path)
             for module_path in self.imports:
-                if module_path in sys.path:
+                if module_path in added_path:
                     sys.path.remove(module_path)
 
             # Clear added entries in sys.modules cache
@@ -214,12 +217,10 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             file_path, self._session._conn.stage_registry, import_path
         )
 
-        if absolute_module_path not in sys.path:
-            # if absolute_module_path is already in sys.path, it is not an import
-            if sproc_name:
-                self._sproc_level_imports[sproc_name].add(absolute_module_path)
-            else:
-                self._session_level_imports.add(absolute_module_path)
+        if sproc_name:
+            self._sproc_level_imports[sproc_name].add(absolute_module_path)
+        else:
+            self._session_level_imports.add(absolute_module_path)
 
         return module_name
 
