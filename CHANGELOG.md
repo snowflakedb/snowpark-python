@@ -2,6 +2,10 @@
 
 ## 1.17.0 (TBD)
 
+### Improvements
+
+- Improved error message to remind users set `{"infer_schema":True}` when read csv file without specifying its schema.ß
+
 ### Local Testing Updates
 
 #### Bug Fixes
