@@ -228,12 +228,13 @@ def test_get_feature_view_name():
         (
             'my_database.public."sales_table"',
             "v1",
-            'my_database.public."SALES_TABLE$v1"',
+            'my_database.public."sales_table$v1"',
         ),
-        ('database."schema"."object"', "v1", 'database."schema"."OBJECT$v1"'),
-        ('"database".schema."object"', "v1", '"database".schema."OBJECT$v1"'),
+        ('database."schema"."object"', "v1", 'database."schema"."object$v1"'),
+        ('"database".schema."object"', "v1", '"database".schema."object$v1"'),
         ('"database"."schema".object', "v1", '"database"."schema"."OBJECT$v1"'),
         ('"database".schema.object', "v1", '"database".schema."OBJECT$v1"'),
+        ('"data.base".schema."obj.ect"', "v1", '"data.base".schema."obj.ect$v1"'),
     ]
 
     for name, version, expected_output in test_cases:

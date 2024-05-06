@@ -240,17 +240,19 @@ class _DGQLQueryBuilder:
         Constructs feature view name.
         """
         parts = _DGQLQueryBuilder.split_fully_qualified_name(name)
-        if len(parts) < 3:
+        if len(parts) != 3:
             raise ValueError("Invalid object name: less than three parts")
 
-        # Unquote the 3rd part if it exists
-        name_part = parts[2].strip('"')
+        name_part = parts[2]
 
-        # Feature view name is case insensitive
-        feature_view_name = f"{name_part.upper()}${version}"
+        # Feature view name is case SQL Identifier
+        if name_part.startswith('"') and name_part.endswith('"'):
+            name_part = name_part.strip('"')
+        else:
+            name_part = name_part.upper()
 
         # Feature view version is case sensitive.
-        feature_view_name = f'"{feature_view_name}"'
+        feature_view_name = f'"{name_part}${version}"'
 
         return ".".join(parts[:2] + [feature_view_name])
 
