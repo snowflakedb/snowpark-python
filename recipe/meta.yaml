@@ -11,6 +11,7 @@ source:
 
 build:
   number: {{ os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) }}
+  noarch: python # Snowpark Pandas change: use `noarch` to reuse current private package build pipeline
   skip: True  # [py<38 or win32 or s390x]
   script: {{ PYTHON }} -m pip install . --no-deps -vvv
   script_env:

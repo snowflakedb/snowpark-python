@@ -215,7 +215,12 @@ def validate_object_name(name: str):
 
 @lru_cache
 def get_version() -> str:
-    return ".".join([str(d) for d in snowpark_version if d is not None])
+    # This is a short-term workaround for the backend to enable client side features for preview version, e.g. 1.15.0a1
+    return (
+        ".".join([str(v) for v in snowpark_version[:3]])
+        if str(snowpark_version[2]).isdigit()
+        else f"{str(snowpark_version[0])}.{str(snowpark_version[1])}.{re.split('[ab]', str(snowpark_version[2]))[0]}"
+    )
 
 
 @lru_cache
