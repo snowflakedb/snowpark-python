@@ -415,7 +415,9 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
-            ret = pd.Index(
+            from snowflake.snowpark.modin.pandas._index import Index
+
+            ret = Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
