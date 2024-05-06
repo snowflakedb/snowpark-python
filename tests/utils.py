@@ -34,6 +34,7 @@ from snowflake.snowpark.functions import (
     lit,
     object_construct,
     parse_json,
+    parse_xml,
     to_array,
     to_binary,
     to_date,
@@ -1047,6 +1048,11 @@ class TestData:
                 ("<t1><t2>foo</t2><t2>bar</t2></t1>", "t2", "t3", 1),
             ],
             schema=["a", "b", "c", "d"],
+        ).select(
+            parse_xml("a").alias("v"),
+            col("b").alias("t2"),
+            col("c").alias("t3"),
+            col("d").alias("instance"),
         )
 
     @classmethod
