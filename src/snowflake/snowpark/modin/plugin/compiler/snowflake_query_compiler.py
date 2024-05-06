@@ -1029,6 +1029,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
                 " or set the series name if it is a series like series.name='A'."
             )
+        import IPython
+
+        IPython.embed()
         if any(is_all_label_components_none(label) for label in index_column_labels):
             raise ValueError(
                 f"Label None is found in the index columns {index_column_labels}, which is invalid in Snowflake. "
