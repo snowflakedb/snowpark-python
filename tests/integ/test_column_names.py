@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.expression import Interval
 from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.functions import (
     any_value,
+    avg,
     call_udf,
     col,
     count_distinct,
@@ -668,3 +669,75 @@ def test_grouping_sets(session):
 @pytest.mark.skip("table function doesn't use local inferred column names")
 def test_table_function():
     ...
+
+
+@pytest.mark.localtest
+def test_str_column_name_no_quotes(session, local_testing_mode):
+    # TODO: SNOW-1348452 precision
+    decimal_string = "1.5" if local_testing_mode else "1.500000"
+    df = session.create_dataframe([1, 2], schema=["a"])
+    assert str(df.select(col("a")).collect()) == "[Row(A=1), Row(A=2)]"
+    assert (
+        str(df.select(avg(col("a"))).collect())
+        == f"""[Row(AVG("A")=Decimal('{decimal_string}'))]"""
+    )
+
+    # column name with quotes
+    df = session.create_dataframe([1, 2], schema=['"a"'])
+    assert str(df.select(col('"a"')).collect()) == "[Row(a=1), Row(a=2)]"
+    assert (
+        str(df.select(avg(col('"a"'))).collect())
+        == f"""[Row(AVG("A")=Decimal('{decimal_string}'))]"""
+    )
+
+
+@pytest.mark.localtest
+def test_show_column_name_with_quotes(session, local_testing_mode):
+    # TODO: SNOW-1348452 precision
+    decimal_string = "|1.5           |" if local_testing_mode else "|1.500000      |"
+    df = session.create_dataframe([1, 2], schema=["a"])
+    assert (
+        df.select(col("a"))._show_string()
+        == """\
+-------
+|"A"  |
+-------
+|1    |
+|2    |
+-------
+"""
+    )
+    assert (
+        df.select(avg(col("a")))._show_string()
+        == f"""\
+----------------
+|"AVG(""A"")"  |
+----------------
+{decimal_string}
+----------------
+"""
+    )
+
+    # column name with quotes
+    df = session.create_dataframe([1, 2], schema=['"a"'])
+    assert (
+        df.select(col('"a"'))._show_string()
+        == """\
+-------
+|"a"  |
+-------
+|1    |
+|2    |
+-------
+"""
+    )
+    assert (
+        df.select(avg(col('"a"')))._show_string()
+        == f"""\
+----------------
+|"AVG(""A"")"  |
+----------------
+{decimal_string}
+----------------
+"""
+    )
