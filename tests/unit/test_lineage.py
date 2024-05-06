@@ -179,6 +179,19 @@ def test_get_user_entity():
     assert _ObjectField.CREATED_ON in user_entity
 
 
+def test_split_fully_qualified_name():
+    test_cases_valid = [
+        "my_database.public.sales_table",
+        '"my_database".public."sales_table"',
+        'database."schema"."object"',
+        '"database".schema."object"',
+        '"database"."schema".object',
+        '"data.base".schema.object',
+    ]
+    for each in test_cases_valid:
+        assert 3 == len(_DGQLQueryBuilder.split_fully_qualified_name(each))
+
+
 def test_is_valid_object_name():
     fake_session = mock.create_autospec(Session, _session_id=123456)
     fake_session._analyzer = mock.Mock()
