@@ -39,7 +39,11 @@
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
 
 ### Behavior Changes
-- As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
+- In pandas 2.2.x, `df.loc` and `__setitem__` have buggy behavior in the following scenarios:
+  - A column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)).
+  - The column key has duplicates in a specific manner (https://github.com/pandas-dev/pandas/issues/58317), or
+  - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
+  Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
 
 ## 1.14.0a2 (2024-04-18)
@@ -49,10 +53,7 @@
 - The following API changes are made to align Snowpark pandas with the pandas 2.2.1 API:
   - Updated DateOffset strings to pandas 2.2.1 versions.
   - As part of this transition, we have a set of transitional API and test bugs:
-    - SNOW-1320623, SNOW-1321196 - pandas `df.loc` and `__setitem__` have buggy behavior when:
-      - the column key has duplicates in a specific manner (https://github.com/pandas-dev/pandas/issues/58317), or
-      - a new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
-      Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 2.1.x.
+    - SNOW-1320623 - `df.loc` with column keys duplicated or extra fails.
     - SNOW-1320660 - `qcut` / `cut` with bin preparation is temporarily NotImplemented due to upstream changes.
     - SNOW-1321662 - `merge` fails when join is outer and sort is False.
     - SNOW-1321682 - `df.melt` w/ duplicated cols.
