@@ -5775,14 +5775,15 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """Returns the cosine distance between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_cosine_distance
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
+        >>> from snowflake.snowpark.functions import vector_cosine_distance
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
         ----------------------
         |"DIST"              |
         ----------------------
         |0.9925833339709303  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_cosine_distance")
     v2 = _to_col_if_str(v2, "vector_cosine_distance")
@@ -5790,17 +5791,18 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the cosine distance between two vectors of equal dimension and element type.
+    """Returns the l2 distance between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_l2_distance
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
-        ---------------------
+        >>> from snowflake.snowpark.functions import vector_l2_distance
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
+        ----------------------
         |"DIST"              |
         ----------------------
         |1.7320508075688772  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_l2_distance")
     v2 = _to_col_if_str(v2, "vector_l2_distance")
@@ -5811,14 +5813,15 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """Returns the inner product between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_inner_product
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
+        >>> from snowflake.snowpark.functions import vector_inner_product
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
         ----------
         |"DIST"  |
         ----------
         |20.0    |
         ----------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")

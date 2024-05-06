@@ -928,7 +928,7 @@ class Series(BasePandasDataset):
     def cov(
         self, other, min_periods=None, ddof: int | None = 1
     ):  # noqa: PR01, RT01, D200
-        """
+        """b
         Compute covariance with Series, excluding missing values.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions

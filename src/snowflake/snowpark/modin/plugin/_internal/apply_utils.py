@@ -221,7 +221,13 @@ def create_udtf_for_apply_axis_1(
                 raise TypeError(f"Unsupported data type {df} from df.apply")
 
             result["value"] = (
-                result["value"].apply(handle_missing_value_in_variant).astype(object)
+                result["value"]
+                .apply(
+                    lambda v: handle_missing_value_in_variant(
+                        convert_numpy_int_result_to_int(v)
+                    )
+                )
+                .astype(object)
             )
             return result
 
