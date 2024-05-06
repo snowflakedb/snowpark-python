@@ -458,7 +458,6 @@ def handle_udf_expression(
 
     def cleanup_imports():
         added_path = set(sys.path) - set(frozen_sys_path)
-
         if udf_name in analyzer.session.udf._udf_level_imports:
             # Remove UDF level imports
             for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
