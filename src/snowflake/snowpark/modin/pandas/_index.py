@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import numpy as np
 import pandas as native_pd
 
 
@@ -16,12 +17,16 @@ class Index:
         query_compiler=None,
     ) -> None:
 
-        ind = native_pd.Index(
+        self._index = native_pd.Index(
             data=data,
             dtype=dtype,
             copy=copy,
             name=name,
             tupleize_cols=tupleize_cols,
         )
-        self._query_compiler = query_compiler
-        self = ind
+
+    def __array__(self, dtype=None) -> np.ndarray:
+        """
+        The array interface, return my values.
+        """
+        return self._index.__array__(dtype)
