@@ -7,7 +7,6 @@ import functools
 import json
 import logging
 import os
-import re
 import sys
 import time
 import uuid
@@ -491,20 +490,11 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
-        if match := re.match(use_ddl_pattern, query):
-            # if the query is "use xxx", then the object name is already verified by the upper stream
-            # we do not validate here
-            object_type = match.group(1)
-            object_name = match.group(2)
-            setattr(self, f"_active_{object_type}", object_name)
-            return {"data": [("Statement executed successfully.",)], "sfqid": None}
-        else:
-            self.log_not_supported_error(
-                external_feature_name="Running SQL queries",
-                internal_feature_name="MockServerConnection.run_query",
-                raise_error=NotImplementedError,
-            )
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.run_query",
+            raise_error=NotImplementedError,
+        )
 
     def _to_data_or_iter(
         self,

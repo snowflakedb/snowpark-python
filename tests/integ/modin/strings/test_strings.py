@@ -366,11 +366,11 @@ def test_index_not_found_raises():
 
 @pytest.mark.parametrize("method", ["index", "rindex"])
 @sql_count_checker(query_count=0)
-def test_index_wrong_type_raises(method):
+def test_index_raises_not_implemented_error(method):
     obj = pd.Series([], dtype=object)
-    msg = "expected a string object, not int"
+    msg = f"{method} is not yet implemented for Series.str"
 
-    with pytest.raises(TypeError, match=msg):
+    with pytest.raises(NotImplementedError, match=msg):
         getattr(obj.str, method)(0)
 
 
