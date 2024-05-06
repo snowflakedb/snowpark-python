@@ -151,8 +151,10 @@ class MockServerConnection:
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
-                    if table.columns != target_table.columns:
-                        raise SnowparkSQLException("Column mismatch detected")
+                    if table.columns.to_list() != target_table.columns.to_list():
+                        raise SnowparkSQLException(
+                            f"Cannot truncate table with input data due to column mismatch: {table.columns.to_list()} != {target_table.columns.to_list()}"
+                        )
 
                 self.table_registry[name] = table
             else:
