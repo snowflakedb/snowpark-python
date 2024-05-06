@@ -40,6 +40,7 @@
 
 ### Behavior Changes
 - As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
+- Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
 
 ## 1.14.0a2 (2024-04-18)
 
@@ -58,7 +59,6 @@
     - SNOW-1318223 - `series.py::_flex_method` list-like other (`pd.Index`) may not be supported in pandas now.
     - SNOW-1321719 - `test_bitwise_operators.py` xfails.
 - Changed the dtype of the index of empty `DataFrame` and `Series` to be `int64` rather than `object` to match the behavior of pandas.
-- Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
 
 ### New Features
 - Added support for `axis` argument for `df.where` and `df.mask` when `other` is a Series.
