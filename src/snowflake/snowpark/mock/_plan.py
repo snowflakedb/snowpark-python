@@ -453,17 +453,21 @@ def handle_udf_expression(
 
     # Save a copy of module cache
     frozen_sys_module_keys = set(sys.modules.keys())
+    # Save a copy of sys path
+    frozen_sys_path = list(sys.path)
 
     def cleanup_imports():
+        added_path = set(sys.path) - set(frozen_sys_path)
+
         if udf_name in analyzer.session.udf._udf_level_imports:
             # Remove UDF level imports
             for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-                if module_path in sys.path:
+                if module_path in added_path:
                     sys.path.remove(module_path)
         else:
             # Remove session level imports
             for module_path in analyzer.session.udf._session_level_imports:
-                if module_path in sys.path:
+                if module_path in added_path:
                     sys.path.remove(module_path)
 
         # Clear added entries in sys.modules cache
