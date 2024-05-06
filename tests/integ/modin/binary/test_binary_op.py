@@ -2098,7 +2098,6 @@ def test_binary_add_dataframe_and_series_axis0(df, s):
         ),
     ],
 )
-@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive and slow operation test")
 def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
     snow_df = pd.DataFrame(df)
     snow_s = pd.Series(s)

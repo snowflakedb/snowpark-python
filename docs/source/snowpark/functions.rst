@@ -302,6 +302,7 @@ Functions
     trunc
     try_cast
     typeof
+    udaf
     udf
     udtf
     uniform
