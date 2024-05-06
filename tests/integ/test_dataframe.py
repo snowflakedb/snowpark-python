@@ -2437,7 +2437,7 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-def test_truncate_preserves_schema(session):
+def test_truncate_preserves_schema(session, local_testing_mode):
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
     df2 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=["a", "b", "c"])
@@ -2445,7 +2445,12 @@ def test_truncate_preserves_schema(session):
     df1.write.save_as_table(tmp_table_name, table_type="temp")
 
     # truncate preserves old schema
-    with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+    exception_regex = (
+        "invalid identifier 'C'"
+        if not local_testing_mode
+        else "Cannot truncate table with input data due to column mismatch.*"
+    )
+    with pytest.raises(SnowparkSQLException, match=exception_regex):
         df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
 
     # overwrite drops old schema
