@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import csv
-import errno
 import glob
 import json
 import os
@@ -119,13 +118,10 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
 
 
 def copy_files_and_dirs(src, dst):
-    try:
+    if os.path.isdir(src):
         shutil.copytree(src, dst)
-    except OSError as exc:
-        if exc.errno in (errno.ENOTDIR, errno.EINVAL):
-            shutil.copy(src, dst)
-        else:
-            raise
+    else:
+        shutil.copy(src, dst)
 
 
 class StageEntity:
