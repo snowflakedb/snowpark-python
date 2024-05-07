@@ -21,4 +21,4 @@
 
 """The module represents the base query compiler that defines the common query compiler API."""
 
-__all__ = []
+__all__ = []  # type: ignore

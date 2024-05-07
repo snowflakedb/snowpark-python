@@ -7,13 +7,13 @@ import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import tzinfo
-from typing import Any, Callable, Literal, NoReturn, Optional, Union, get_args
+from typing import Any, Callable, Literal, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
-from modin.core.storage_formats import BaseQueryCompiler
+from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from numpy import dtype
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -27,6 +27,7 @@ from pandas._typing import (
     DateTimeErrorChoices,
     DtypeBackend,
     FillnaOptions,
+    Frequency,
     IgnoreRaise,
     IndexKeyFunc,
     IndexLabel,
@@ -658,9 +659,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
         return self
 
-    def default_to_pandas(
-        self, pandas_op: Callable, *args: Any, **kwargs: Any
-    ) -> NoReturn:
+    def default_to_pandas(self, pandas_op: Callable, *args: Any, **kwargs: Any) -> None:
         func_name = pandas_op.__name__
 
         # this is coming from Modin's encoding scheme in default.py:build_default_to_pandas
@@ -677,7 +676,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if kwargs:
             args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
         ErrorMessage.not_implemented(
-            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str}"
+            f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str})"
         )
 
     @classmethod
@@ -2329,7 +2328,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             key=key,
         )
 
-    def sort_columns_by_row_values(self, rows, ascending=True, **kwargs):
+    def sort_columns_by_row_values(
+        self, rows: IndexLabel, ascending: bool = True, **kwargs: Any
+    ) -> None:
         """
         Reorder the columns based on the lexicographic order of the given rows.
 
@@ -2496,7 +2497,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         how: str = "axis_wise",
         numeric_only: bool = False,
         is_series_groupby: bool = False,
-        drop=False,
+        drop: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with aggregation functions.
@@ -2751,6 +2752,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         groupby_kwargs: dict[str, Any],
         agg_args: Any,
         agg_kwargs: dict[str, Any],
+        series_groupby: bool,
     ) -> "SnowflakeQueryCompiler":
         """
         Group according to `by` and `level`, apply a function to each group, and combine the results.
@@ -2769,6 +2771,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Positional arguments to pass to agg_func when applying it to each group.
             agg_kwargs:
                 Keyword arguments to pass to agg_func when applying it to each group.
+            series_groupby:
+                Whether we are performing a SeriesGroupBy.apply() instead of a DataFrameGroupBy.apply()
 
         Returns
         -------
@@ -2798,6 +2802,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         snowflake_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
 
+        # For DataFrameGroupBy, `func` operates on this frame in its entirety.
+        # For SeriesGroupBy, this frame may also include some grouping columns
+        # that `func` should not take as input. In that case, the only column
+        # that `func` takes as input is the last data column, so grab just that
+        # column with a slice starting at index -1 and ending at None.
+        input_data_column_identifiers = (
+            self._modin_frame.data_column_snowflake_quoted_identifiers[
+                slice(-1, None) if series_groupby else slice(None)
+            ]
+        )
+
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
         # pivot.
@@ -2809,13 +2824,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
-                for quoted_identifier in self._modin_frame.data_column_snowflake_quoted_identifiers
+                for quoted_identifier in input_data_column_identifiers
             ],
             input_index_column_types=[
                 snowflake_type_map[quoted_identifier]
                 for quoted_identifier in self._modin_frame.index_column_snowflake_quoted_identifiers
             ],
             session=self._modin_frame.ordered_dataframe.session,
+            series_groupby=series_groupby,
+            by_types=[
+                snowflake_type_map[quoted_identifier]
+                for quoted_identifier in by_snowflake_quoted_identifiers_list
+            ],
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
@@ -2873,13 +2893,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
+        # NOTE we are keeping the cache_result for performance reasons. DO NOT
+        # REMOVE the cache_result unless you can prove that doing so will not
+        # materially slow down CI or individual groupby.apply() calls.
+        # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
+        # is useful.
         ordered_dataframe = cache_result(
             ordered_dataframe.select(
                 *by_snowflake_quoted_identifiers_list,
                 udtf(
                     row_position_snowflake_quoted_identifier,
+                    *by_snowflake_quoted_identifiers_list,
                     *new_internal_df.index_column_snowflake_quoted_identifiers,
-                    *new_internal_df.data_column_snowflake_quoted_identifiers,
+                    *input_data_column_identifiers,
                 ).over(
                     partition_by=[
                         *by_snowflake_quoted_identifiers_list,
@@ -3733,8 +3759,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_nunique(
-        self, by, axis, groupby_kwargs, agg_args, agg_kwargs, drop=False, **kwargs
-    ):
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -5612,8 +5645,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).over(partition_by=[partition_identifier]),
         )
 
-        # TODO SNOW-1060191: after fixing the bug in PIVOT with udtf, remove cache_result
-        # cache_result is currently used to create a temp table and read from it
+        # NOTE we are keeping the cache_result for performance reasons. DO NOT
+        # REMOVE the cache_result unless you can prove that doing so will not
+        # materially slow down CI or individual groupby.apply() calls.
+        # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
+        # is useful.
         ordered_dataframe = cache_result(udtf_dataframe)
 
         # After applying the udtf, the underlying Snowpark DataFrame becomes
@@ -6542,11 +6578,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas nunique API doesn't yet support axis == 1"
             )
-        else:
-            # Result is basically a series with the column labels as index and the distinct count as values
-            # for each data column
-            # frame holds rows with nunique values, but result must be a series so transpose single row
-            return self._nunique_columns(dropna).transpose_single_row()
+        # Result is basically a series with the column labels as index and the distinct count as values
+        # for each data column
+        # frame holds rows with nunique values, but result must be a series so transpose single row
+        return self._nunique_columns(dropna).transpose_single_row()
 
     def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
@@ -8357,7 +8392,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
             raise ErrorMessage.not_implemented(
-                f"dt.{property_name} is currently not supported!"
+                f"Snowpark pandas doesn't yet support the property 'Series.dt.{property_name}'"
             )  # pragma: no cover
 
         internal_frame = self._modin_frame
@@ -11005,7 +11040,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Inherit the index names from the dataframe.
         if squeeze_self:
             # self is a Series, other a DataFrame.
-            series = self.to_pandas().squeeze()
+            series_self = self.to_pandas()
+            # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
+            series = (
+                series_self.squeeze()
+                if series_self.size > 1
+                else series_self.squeeze(axis=0)
+            )
+
             self_column_labels = list(series.index.values)
             other_column_labels = other._modin_frame.data_column_pandas_labels
             frame = other._modin_frame
@@ -11017,7 +11059,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             # self is a DataFrame, other a Series.
-            series = other.to_pandas().squeeze()
+            series_other = other.to_pandas()
+            # Series.squeeze on one row returns a scalar, so instead use squeeze with axis=0
+            series = (
+                series_other.squeeze()
+                if series_other.size > 1
+                else series_other.squeeze(axis=0)
+            )
+
             self_column_labels = self._modin_frame.data_column_pandas_labels
             other_column_labels = list(series.index.values)
             frame = self._modin_frame
@@ -12244,11 +12293,246 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return bins, SnowflakeQueryCompiler(ret_frame)
 
-    def str_casefold(self) -> "SnowflakeQueryCompiler":
+    def str_casefold(self) -> None:
         """
         Returns:
             New query compiler with updated values.
         """
         ErrorMessage.not_implemented(
             "Snowpark pandas doesn't yet support casefold method"
+        )
+
+    def dt_to_period(self, freq: Optional[str] = None) -> None:
+        """
+        Convert underlying data to the period at a particular frequency.
+
+        Parameters
+        ----------
+        freq : str, optional
+
+        Returns
+        -------
+        BaseQueryCompiler
+            New QueryCompiler containing period data.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.to_period'"
+        )
+
+    def dt_to_pydatetime(self) -> None:
+        """
+        Convert underlying data to array of python native ``datetime``.
+
+        Returns
+        -------
+        BaseQueryCompiler
+            New QueryCompiler containing 1D array of ``datetime`` objects.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.to_pydatetime'"
+        )
+
+    # FIXME: there are no references to this method, we should either remove it
+    # or add a call reference at the DataFrame level (Modin issue #3103).
+    def dt_to_pytimedelta(self) -> None:
+        """
+        Convert underlying data to array of python native ``datetime.timedelta``.
+
+        Returns
+        -------
+        BaseQueryCompiler
+            New QueryCompiler containing 1D array of ``datetime.timedelta``.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.to_pytimedelta'"
+        )
+
+    def dt_to_timestamp(self) -> None:
+        """
+        Convert underlying data to the timestamp
+
+        Returns
+        -------
+        BaseQueryCompiler
+            New QueryCompiler containing timestamp data.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.to_timestamp'"
+        )
+
+    def dt_tz_localize(
+        self,
+        tz: Union[str, tzinfo],
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+    ) -> None:
+        """
+        Localize tz-naive to tz-aware.
+        Args:
+            tz : str, pytz.timezone, optional
+            ambiguous : {"raise", "inner", "NaT"} or bool mask, default: "raise"
+            nonexistent : {"raise", "shift_forward", "shift_backward, "NaT"} or pandas.timedelta, default: "raise"
+
+        Returns:
+            BaseQueryCompiler
+                New QueryCompiler containing values with localized time zone.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_localize'"
+        )
+
+    def dt_tz_convert(self, tz: Union[str, tzinfo]) -> None:
+        """
+        Convert time-series data to the specified time zone.
+
+        Args:
+            tz : str, pytz.timezone
+
+        Returns:
+            A new QueryCompiler containing values with converted time zone.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.tz_convert'"
+        )
+
+    def dt_ceil(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
+        """
+        Args:
+            freq: The frequency level to ceil the index to.
+            ambiguous: 'infer', bool-ndarray, 'NaT', default 'raise'
+                Only relevant for DatetimeIndex:
+                - 'infer' will attempt to infer fall dst-transition hours based on order
+                - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+                - 'NaT' will return NaT where there are ambiguous times
+                - 'raise' will raise an AmbiguousTimeError if there are ambiguous times.
+            nonexistent: 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+                A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+                - 'shift_forward' will shift the nonexistent time forward to the closest existing time
+                - 'shift_backward' will shift the nonexistent time backward to the closest existing time
+                - 'NaT' will return NaT where there are nonexistent times
+                - timedelta objects will shift nonexistent times by the timedelta
+                - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+        Returns:
+            A new QueryCompiler with ceil values.
+
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.ceil'"
+        )
+
+    def dt_round(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
+        """
+        Args:
+            freq: The frequency level to round the index to.
+            ambiguous: 'infer', bool-ndarray, 'NaT', default 'raise'
+                Only relevant for DatetimeIndex:
+                - 'infer' will attempt to infer fall dst-transition hours based on order
+                - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+                - 'NaT' will return NaT where there are ambiguous times
+                - 'raise' will raise an AmbiguousTimeError if there are ambiguous times.
+            nonexistent: 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+                A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+                - 'shift_forward' will shift the nonexistent time forward to the closest existing time
+                - 'shift_backward' will shift the nonexistent time backward to the closest existing time
+                - 'NaT' will return NaT where there are nonexistent times
+                - timedelta objects will shift nonexistent times by the timedelta
+                - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+        Returns:
+            A new QueryCompiler with round values.
+
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.round'"
+        )
+
+    def dt_floor(
+        self, freq: Frequency, ambiguous: str = "raise", nonexistent: str = "raise"
+    ) -> None:
+        """
+        Args:
+            freq: The frequency level to floor the index to.
+            ambiguous: 'infer', bool-ndarray, 'NaT', default 'raise'
+                Only relevant for DatetimeIndex:
+                - 'infer' will attempt to infer fall dst-transition hours based on order
+                - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+                - 'NaT' will return NaT where there are ambiguous times
+                - 'raise' will raise an AmbiguousTimeError if there are ambiguous times.
+            nonexistent: 'shift_forward', 'shift_backward', 'NaT', timedelta, default 'raise'
+                A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST.
+                - 'shift_forward' will shift the nonexistent time forward to the closest existing time
+                - 'shift_backward' will shift the nonexistent time backward to the closest existing time
+                - 'NaT' will return NaT where there are nonexistent times
+                - timedelta objects will shift nonexistent times by the timedelta
+                - 'raise' will raise an NonExistentTimeError if there are nonexistent times.
+        Returns:
+            A new QueryCompiler with floor values.
+
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.floor'"
+        )
+
+    def dt_normalize(self) -> None:
+        """
+        Set the time component of each date-time value to midnight.
+
+        Returns
+        -------
+        BaseQueryCompiler
+            New QueryCompiler containing date-time values with midnight time.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
+        )
+
+    def dt_month_name(self, locale: Optional[str] = None) -> None:
+        """
+        Args:
+            locale: Locale determining the language in which to return the month name.
+
+        Returns:
+            New QueryCompiler containing month name.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.month_name'"
+        )
+
+    def dt_day_name(self, locale: Optional[str] = None) -> None:
+        """
+        Args:
+            locale: Locale determining the language in which to return the month name.
+
+        Returns:
+            New QueryCompiler containing day name.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.day_name'"
+        )
+
+    def dt_total_seconds(self) -> None:
+        """
+        Return total duration of each element expressed in seconds.
+        Returns:
+            New QueryCompiler containing total seconds.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.total_seconds'"
+        )
+
+    def dt_strftime(self, date_format: str) -> None:
+        """
+        Format underlying date-time data using specified format.
+
+        Args:
+            date_format: str
+
+        Returns:
+            New QueryCompiler containing formatted date-time values.
+        """
+        ErrorMessage.not_implemented(
+            "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
         )

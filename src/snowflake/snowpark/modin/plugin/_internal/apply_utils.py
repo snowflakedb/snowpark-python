@@ -221,7 +221,13 @@ def create_udtf_for_apply_axis_1(
                 raise TypeError(f"Unsupported data type {df} from df.apply")
 
             result["value"] = (
-                result["value"].apply(handle_missing_value_in_variant).astype(object)
+                result["value"]
+                .apply(
+                    lambda v: handle_missing_value_in_variant(
+                        convert_numpy_int_result_to_int(v)
+                    )
+                )
+                .astype(object)
             )
             return result
 
@@ -379,14 +385,19 @@ def create_udtf_for_groupby_apply(
     input_data_column_types: list[DataType],
     input_index_column_types: list[DataType],
     session: Session,
+    series_groupby: bool,
+    by_types: list[DataType],
 ) -> UserDefinedTableFunction:
     """
     Create a UDTF from the Python function for groupby.apply.
 
     The UDTF takes as input the following columns in the listed order:
     1. The original row position within the dataframe (not just within the group)
-    2. All the index columns
-    3. All the data columns
+    2. All the by columns (these are constant across the group, but in the case
+    #  of SeriesGroupBy, we need these so we can name each input series by the
+    #  group label)
+    3. All the index columns
+    4. All the data columns
 
     The UDF returns as output the following columns in the listed order. There is
     one row per result row and per result column.
@@ -462,12 +473,18 @@ def create_udtf_for_groupby_apply(
     index_column_names: Names of the input dataframe's index
     input_data_column_types: Types of the input dataframe's data columns
     input_index_column_types: Types of the input dataframe's index columns
+    series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
+    by_types: The snowflake types of the by columns.
 
     Returns
     -------
     A UDTF that will apply the provided function to a group and return a
     dataframe representing all of the data and metadata of the result.
     """
+
+    # Get the length of this list outside of the vUDTF function because the vUDTF
+    # doesn't have access to the Snowpark module, which defines these types.
+    num_by = len(by_types)
 
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
@@ -483,57 +500,92 @@ def create_udtf_for_groupby_apply(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            # First column is row position, save it for later.
-            row_positions = df.iloc[:, 0]
-            df = df.iloc[:, 1:]
+            current_column_position = 0
 
+            # First column is row position. Save it for later.
+            row_position_column_number = 0
+            row_positions = df.iloc[:, row_position_column_number]
+            current_column_position = row_position_column_number + 1
+
+            # The next columns are the by columns. Since we are only looking at
+            # one group, every row in the by columns is the same, so get the
+            # group label from the first row.
+            group_label = tuple(
+                df.iloc[0, current_column_position : current_column_position + num_by]
+            )
+            current_column_position = current_column_position + num_by
+            if len(group_label) == 1:
+                group_label = group_label[0]
+
+            df = df.iloc[:, current_column_position:]
+            # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
+            # the columns after the by columns are the index columns.
             df.set_index(
-                [f"ARG{i}" for i in range(2, len(index_column_names) + 2)], inplace=True
+                [
+                    f"ARG{i}"
+                    for i in range(
+                        1 + current_column_position,
+                        1 + current_column_position + len(index_column_names),
+                    )
+                ],
+                inplace=True,
             )
             df.index.names = index_column_names
-            df.columns = data_column_index
+            if series_groupby:
+                # For SeriesGroupBy, there should be only one data column.
+                num_columns = len(df.columns)
+                assert (
+                    num_columns == 1
+                ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
+                input_object = df.iloc[:, 0].rename(group_label)
+            else:
+                input_object = df.set_axis(data_column_index, axis="columns")
             # Use infer_objects() because integer columns come as floats
             # TODO: file snowpark bug about that. Asked about this here:
             # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
-            input_df = df.infer_objects()
-            func_result = func(input_df, *args, **kwargs)
+            input_object = input_object.infer_objects()
+            func_result = func(input_object, *args, **kwargs)
             if isinstance(func_result, native_pd.Series):
-                # If function returns series, we have to transpose the series
-                # and change its metadata a little bit, but after that we can
-                # continue largely as if the function has returned a dataframe.
-                #
-                # If the series has a 1-dimensional index, the series name
-                # becomes the name of the column index. For example, if
-                # `func` returned the series native_pd.Series([1], name='a'):
-                #
-                # 0    1
-                # Name: a, dtype: int64
-                #
-                # The result needs to use the dataframe
-                # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                #
-                # a  0
-                # 0  1
-                #
-                name = func_result.name
-                func_result.name = None
-                func_result_as_frame = func_result.to_frame().T
-                if func_result_as_frame.columns.nlevels == 1:
-                    func_result_as_frame.columns.name = name
+                if series_groupby:
+                    func_result_as_frame = func_result.to_frame()
+                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
+                else:
+                    # If function returns series, we have to transpose the series
+                    # and change its metadata a little bit, but after that we can
+                    # continue largely as if the function has returned a dataframe.
+                    #
+                    # If the series has a 1-dimensional index, the series name
+                    # becomes the name of the column index. For example, if
+                    # `func` returned the series native_pd.Series([1], name='a'):
+                    #
+                    # 0    1
+                    # Name: a, dtype: int64
+                    #
+                    # The result needs to use the dataframe
+                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
+                    #
+                    # a  0
+                    # 0  1
+                    #
+                    name = func_result.name
+                    func_result.name = None
+                    func_result_as_frame = func_result.to_frame().T
+                    if func_result_as_frame.columns.nlevels == 1:
+                        func_result_as_frame.columns.name = name
                 return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_df,
+                    input_object,
                     func_result_as_frame,
                     row_positions,
-                    # We don't need to include any information
-                    # about the index of `func_result_as_frame`.
-                    # The series only has one index, and that
-                    # index becomes the columns of
-                    # `func_result_as_frame`.
-                    include_index_columns=False,
+                    # For DataFrameGroupBy, we don't need to include any
+                    # information about the index of `func_result_as_frame`.
+                    # The series only has one index, and that index becomes the
+                    # columns of `func_result_as_frame`. For SeriesGroupBy, we
+                    # do include the result's index in the result.
+                    include_index_columns=series_groupby,
                 )
             if isinstance(func_result, native_pd.DataFrame):
                 return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_df, func_result, row_positions, include_index_columns=True
+                    input_object, func_result, row_positions, include_index_columns=True
                 )
             # At this point, we know the function result was not a DataFrame
             # or Series
@@ -555,9 +607,11 @@ def create_udtf_for_groupby_apply(
         # first input column is the integer row number. the row number integer
         # becomes a float inside the UDTF due to SNOW-1184587
         LongType(),
-        # the next columns are the index columns...
+        # the next columns are the by columns...
+        *by_types,
+        # then the index columns for the input dataframe or series...
         *input_index_column_types,
-        # ...then come the data columns.
+        # ...then the data columns for the input dataframe or series.
         *input_data_column_types,
     ]
     return udtf(

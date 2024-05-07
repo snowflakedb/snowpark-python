@@ -21,7 +21,6 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_select_star_with_order_by(session, caplog):
     # This test ensures that the presence of an ORDER BY causes us not to take the fastpath
@@ -66,7 +65,6 @@ def test_no_order_by_but_column_name_shadows(session, caplog):
     assert df.columns.tolist() == ["A", "B", "ORDER BY"]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("order_by_col", [1, '"ORDER BY"', '"ORDER BY 1"', "A"])
 @sql_count_checker(query_count=5)
 def test_order_by_and_column_name_shadows(session, caplog, order_by_col):
@@ -94,7 +92,6 @@ def test_order_by_and_column_name_shadows(session, caplog, order_by_col):
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
     session, caplog
@@ -121,7 +118,6 @@ def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
     assert df.columns.tolist() == ["A", "B", "ORDER BY"]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_order_by_with_no_limit_but_colname_shadows(session, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -142,7 +138,6 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog):
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=5)
 def test_order_by_with_limit_and_name_shadows(session, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -159,7 +154,6 @@ def test_order_by_with_limit_and_name_shadows(session, caplog):
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6, join_count=2)
 def test_read_snowflake_query_complex_query_with_join_and_order_by(session, caplog):
     # create table
@@ -193,7 +187,6 @@ def test_read_snowflake_query_complex_query_with_join_and_order_by(session, capl
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("ordinal", [1, 2, 28])
 @sql_count_checker(query_count=5)
 def test_order_by_with_position_key(session, ordinal, caplog):

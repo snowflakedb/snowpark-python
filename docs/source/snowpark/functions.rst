@@ -302,6 +302,7 @@ Functions
     trunc
     try_cast
     typeof
+    udaf
     udf
     udtf
     uniform
@@ -310,6 +311,8 @@ Functions
     var_pop
     var_samp
     variance
+    vector_inner_product
+    vector_l2_distance
     weekofyear
     when
     when_matched
