@@ -1387,6 +1387,7 @@ def execute_mock_plan(
                 len(agg.children) == 1
             ), "Aggregate functions should take one parameter."
             agg_column = plan.session._analyzer.analyze(agg.children[0])
+            """ AVG, COUNT, MAX, MIN, and SUM."""
             if agg.name in {"sum"}:
                 aggregate_map[agg_column] |= {agg.name}
 
@@ -1399,8 +1400,15 @@ def execute_mock_plan(
             columns=pivot_column, values=agg_keys, aggfunc=aggregate_map, index=indices
         )
         result.columns = result.columns.get_level_values(-1)
-        __import__("pdb").set_trace()
-        result = result.reset_index()[list(indices) + pivot_values]
+
+        if pivot_values:
+            result = result.reset_index()[list(indices) + pivot_values]
+
+        for res_col in set(result.columns) - indices:
+            result[res_col] = ColumnEmulator(
+                result[res_col].values, sf_type=child_rf[agg_column].sf_type
+            )
+
         return result
 
     analyzer.session._conn.log_not_supported_error(
