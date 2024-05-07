@@ -4,6 +4,10 @@
 
 ### Local Testing Updates
 
+#### New Features
+
+- Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
+
 #### Bug Fixes
 
 - Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
