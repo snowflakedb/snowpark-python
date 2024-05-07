@@ -137,16 +137,13 @@ def test_quantile_datetime_negative():
         snow_ser.quantile()
 
 
-@pytest.mark.xfail(
-    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442"
-)
+@sql_count_checker(query_count=1)
 def test_quantile_large():
     snow_series = pd.Series(range(1000))
     q = np.linspace(0, 1, 16)
 
     # actual query count for this 81. This seems like a bug.
-    with SqlCounter(query_count=1):
-        ans = snow_series.quantile(q, "linear").to_pandas()
+    ans = snow_series.quantile(q, "linear").to_pandas()
 
     assert len(ans) == len(q)
 

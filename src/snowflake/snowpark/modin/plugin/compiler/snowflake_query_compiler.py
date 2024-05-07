@@ -9145,46 +9145,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return row_count, col_count, pandas_frame
 
-    def quantiles_single_col_no_index(
-        self,
-        q: list[float],
-    ) -> "SnowflakeQueryCompiler":
-        assert len(self.columns) == 1
-        if is_datetime64_any_dtype(self.dtypes[0]):
-            # TODO SNOW-1003587
-            ErrorMessage.not_implemented(
-                "quantile is not supported for datetime columns"
-            )
-        original_frame = self._modin_frame
-        # If the input frame is one column, we can create 1 column for every quantile and
-        # then use transpose_single_row to give the result the correct shape
-        col_label = original_frame.data_column_pandas_labels[0]
-        new_labels = [f"{col_label}_{quantile}" for quantile in q]
-        new_idents = (
-            original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=new_labels
-            )
-        )
-        ordered_dataframe = original_frame.ordered_dataframe.agg(
-            *[
-                column_quantile(col(col_label), "linear", quantile).as_(new_ident)
-                for new_ident, quantile in zip(new_idents, q)
-            ]
-        ).ensure_row_position_column()
-        result = SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=ordered_dataframe,
-                data_column_pandas_labels=new_labels,
-                data_column_pandas_index_names=[None],
-                data_column_snowflake_quoted_identifiers=new_idents,
-                index_column_pandas_labels=[None],
-                index_column_snowflake_quoted_identifiers=[
-                    ordered_dataframe.row_position_snowflake_quoted_identifier
-                ],
-            )
-        )
-        return result.transpose_single_row()
-
     def quantiles_along_axis0(
         self,
         q: list[float],
@@ -9241,6 +9201,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "quantile is not supported for datetime columns"
             )
+        assert index is None or len(index) == len(
+            q
+        ), f"length of index {index} did not match quantiles {q}"
+        if len(query_compiler.columns) == 1:
+            # Use method without UNION ALL operations if the query compiler has only a single column
+            index_values = q if index is None else index
+            return self._quantiles_single_col(q, interpolation, index=index_values)
         original_frame = query_compiler._modin_frame
         data_column_pandas_labels = original_frame.data_column_pandas_labels
         if len(q) == 0:
@@ -9263,9 +9230,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels=[concat_utils.CONCAT_POSITION_COLUMN_LABEL],
             )[0]
         )
-        assert index is None or len(index) == len(
-            q
-        ), f"length of index {index} did not match quantiles {q}"
         index_values = q if index is None else index
         # For each quantile and an N-column dataframe, create a 1x(N+2) frame with a column
         # for that quantile of the original column, one column with the quantile to use as the
@@ -9316,6 +9280,81 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
             )
         )
+
+    def _quantiles_single_col(
+        self,
+        q: list[float],
+        interpolation: Literal["linear", "lower", "higher", "midpoint", "nearest"],
+        index: Optional[Union[list[str], list[float]]] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper method for qcut() + quantile() to compute quantiles over frames with a single column.
+
+        Normally, we compute single row for every given quantile, with each column corresponding to
+        a column to the input frame.
+        These rows are all UNION ALL'd together at the end in order to avoid costly JOIN or
+        transpose (PIVOT/UNPIVOT) operations, as in the below diagram.
+
+        >>> pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75])
+        +-------+------+------+
+        | index |    a |    b |
+        +-------+------+------+                    +-------+------+------+
+        |  0.25 | 0.25 | 1.25 |                    | index |    a |    b |
+        +-------+------+------+                    +-------+------+------+
+                                 -- UNION ALL -->  |  0.25 | 0.25 | 1.25 |
+        +-------+------+------+                    +-------+------+------+
+        | index |    a |    b |                    |  0.75 | 0.75 | 1.75 |
+        +-------+------+------+                    +-------+------+------+
+        |  0.75 | 0.75 | 1.75 |       
+        +-------+------+------+       
+
+        When there is a large number of q (as is the case for most uses of qcut), the number of
+        UNION operations increases dramatically, and may cause Snowpark to create temporary tables.
+        This greatly increases latency.
+
+        When the input frame has a single column, we can eliminate UNION ALL operations
+        by producing a single row where the columns are the different quantiles. Since there is
+        only a single row, we can do a relatively cheap UNPIVOT to make the result a single column.
+
+        >>> pd.Series([0, 1], name="b").quantile([0.25, 0.75])
+        +------+------+                                              +-------+------+
+        |   q1 |   q2 |                                              | index |    b |
+        +------+------+  -- UNPIVOT(b FOR quantile IN (q1, q2)) -->  +-------+------+
+        | 1.25 | 1.75 |                                              |    q1 | 1.25 |
+        +------+------+                                              +-------+------+
+                                                                     |    q2 | 1.75 |
+                                                                     +-------+------+
+
+        qcut() should drop the index column afterwards, but quantile() keeps the index.
+        """
+        assert len(self.columns) == 1
+        original_frame = self._modin_frame
+        col_label = original_frame.data_column_pandas_labels[0]
+        new_labels = [f"{col_label}_{quantile}" for quantile in q]
+        new_idents = (
+            original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=new_labels
+            )
+        )
+        ordered_dataframe = original_frame.ordered_dataframe.agg(
+            *[
+                column_quantile(col(col_label), interpolation, quantile).as_(new_ident)
+                for new_ident, quantile in zip(new_idents, q)
+            ]
+        ).ensure_row_position_column()
+        result = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=ordered_dataframe,
+                data_column_pandas_labels=new_labels,
+                data_column_pandas_index_names=[None],
+                data_column_snowflake_quoted_identifiers=new_idents,
+                index_column_pandas_labels=[None],
+                index_column_snowflake_quoted_identifiers=[
+                    ordered_dataframe.row_position_snowflake_quoted_identifier
+                ],
+            )
+        )
+        return result.transpose_single_row()
 
     def skew(
         self,
@@ -11916,7 +11955,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Construct bins from quantiles.
         # First step is to transform the quantiles given as a list of float values in q to values according to the data.
-        qc_quantiles = self.quantiles_single_col_no_index(q)
+        qc_quantiles = self._quantiles_single_col(q, "linear")
         # There are two behaviors here:
         # - If duplicates = 'raise', check if there are duplicates and raise an error.
         # - If drop, ignore and continue with distinct quantile values.
