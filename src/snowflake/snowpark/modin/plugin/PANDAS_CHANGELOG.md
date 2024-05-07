@@ -11,7 +11,7 @@
 - Fixed binary operations with single-row DataFrame and Series.
 
 ### Behavior Changes
-- Raise not implemented error instead of fallback to pandas in following APIs:
+- Raise not implemented error instead of fallback to pandas in the following APIs:
   - `pd.merge`, `DataFrame.merge` and `DataFrame.join` if given the `validate` parameter.
   - `pd.to_numeric` if `error == 'ignore'`.
   - `pd.to_datetime` if `format` is None or not supported in Snowflake or if `exact`, `infer_datetime_format` parameters are given or `origin == 'julian'` or `error == 'ignore'`.
@@ -37,8 +37,6 @@
   - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
   - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
-
-### Behavior Changes
 - In pandas 2.2.x, `df.loc` and `__setitem__` have buggy behavior in the following scenarios:
   - A column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)).
   - The column key has duplicates in a specific manner (https://github.com/pandas-dev/pandas/issues/58317), or
