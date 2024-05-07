@@ -1193,7 +1193,13 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if all(obj.name is None for obj in objs):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1221,7 +1227,7 @@ def concat(
         [o._query_compiler for o in objs[1:]],
         join=join,
         ignore_index=ignore_index,
-        keys=keys,
+        keys=keys if not all(isinstance(obj, Series) for obj in objs) else None,
         levels=levels,
         names=names,
         verify_integrity=verify_integrity,
