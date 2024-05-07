@@ -2157,11 +2157,9 @@ def qcut(
 ):  # noqa: PR01, RT01, D200
     """
     Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas.
+    retbins=True is not supported in Snowpark pandas API.
 
-    labels=False will run binning computation in Snowflake, whereas if labels is an array
-    the data will be fetched to the client and the binning run client-side, as Snowpark pandas API does
-    not yet support pd.Categorical in its ORM mapper.
+    labels=False will run binning computation in Snowflake, other values are not supported in Snowpark pandas API.
     """
 
     kwargs = {
