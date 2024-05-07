@@ -213,6 +213,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampTimeZone,
     TimestampType,
+    VariantType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
@@ -1374,6 +1375,7 @@ def test_to_time(session, local_testing_mode):
                 datetime(2024, 2, 1, 8, 0),
                 datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 8, 0),
                 datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -1388,6 +1390,7 @@ def test_to_time(session, local_testing_mode):
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 1, 31, 22, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -1408,6 +1411,7 @@ def test_to_time(session, local_testing_mode):
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+6")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -1491,20 +1495,6 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
                 ),
             ],
         ),
-        (
-            to_timestamp_tz,
-            [
-                Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-            ],
-        ),
     ],
 )
 def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode):
@@ -1570,20 +1560,6 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
                 ),
             ],
         ),
-        (
-            to_timestamp_tz,
-            [
-                Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-            ],
-        ),
     ],
 )
 def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode):
@@ -1603,6 +1579,231 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
 
         Utils.check_answer(
             df.select(to_type(col("str"), col("fmt"))),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(
+                        1970, 1, 2, 2, 17, 36, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        1,
+                        14,
+                        22,
+                        56,
+                        7,
+                        890000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        5,
+                        23,
+                        14,
+                        21,
+                        18,
+                        900000,
+                        tzinfo=pytz.timezone("Etc/GMT+7"),
+                    ),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(1970, 1, 2, 10, 17, 36, 789000)),
+                Row(datetime(1970, 1, 15, 6, 56, 7, 890000)),
+                Row(datetime(1970, 5, 23, 21, 21, 18, 900000)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(
+                        1970, 1, 2, 2, 17, 36, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        1,
+                        14,
+                        22,
+                        56,
+                        7,
+                        890000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        5,
+                        23,
+                        14,
+                        21,
+                        18,
+                        900000,
+                        tzinfo=pytz.timezone("Etc/GMT+7"),
+                    ),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_numeric_scale_column(
+    to_type, expected, session, local_testing_mode
+):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        data = [
+            123456789,
+            1234567890,
+            12345678900,
+        ]
+        df = session.create_dataframe(data).to_df(["int"])
+
+        Utils.check_answer(
+            df.select(to_type(col("int"), 3)),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(
+                        2024,
+                        2,
+                        1,
+                        12,
+                        34,
+                        56,
+                        789000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        2017,
+                        12,
+                        24,
+                        12,
+                        55,
+                        59,
+                        123456,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(2361, 3, 21, 11, 15)),
+                Row(datetime(2361, 3, 21, 19, 15)),
+                Row(datetime(2024, 2, 1, 12, 34, 56, 789000)),
+                Row(datetime(2017, 12, 24, 12, 55, 59, 123456)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(
+                        2024,
+                        2,
+                        1,
+                        12,
+                        34,
+                        56,
+                        789000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        2017,
+                        12,
+                        24,
+                        12,
+                        55,
+                        59,
+                        123456,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_variant_column(to_type, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "Etc/GMT+8",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        # as we are testing Variant + Integer case
+        # this timezone has to be the same as the one in session
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        data = [
+            12345678900,  # integer
+            "12345678900",  # string containing integer
+            "2024-02-01 12:34:56.789000",  # timestamp str
+            datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
+        ]
+        df = session.create_dataframe(
+            data,
+            StructType(
+                [
+                    StructField("v", VariantType()),
+                ]
+            ),
+        ).to_df(["var"])
+
+        Utils.check_answer(
+            df.select(to_type(col("var"))),
             expected,
             sort=False,
         )
@@ -3499,6 +3700,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 None,
@@ -3515,6 +3717,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(
                     2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
                 ),
@@ -3524,6 +3727,7 @@ def test_as_time(session):
         (
             as_timestamp_tz,
             Row(
+                None,
                 None,
                 None,
                 None,
