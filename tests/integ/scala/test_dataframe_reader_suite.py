@@ -1395,7 +1395,7 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
+    reason="FEAT: option on_error not supported",
 )
 def test_read_file_on_error_continue_on_avro(session):
     broken_file = f"@{tmp_stage_name1}/{test_file_avro}"
@@ -1439,7 +1439,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
+    reason="BUG: should return number instead of UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
@@ -1477,9 +1477,10 @@ def test_read_staged_file_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: DataFrame object has no attribute queries",
+    reason="This is testing SQL generation",
+    run=False,
 )
 def test_read_csv_with_sql_simplifier(session):
     if session.sql_simplifier_enabled is False:
@@ -1498,9 +1499,10 @@ def test_read_csv_with_sql_simplifier(session):
     assert df2.queries["queries"][-1].count("SELECT") == 4
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: parquet not supported",
+    reason="This is testing SQL generation",
+    run=False,
 )
 def test_read_parquet_with_sql_simplifier(session):
     if session.sql_simplifier_enabled is False:

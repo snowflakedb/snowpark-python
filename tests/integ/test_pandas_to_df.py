@@ -49,9 +49,6 @@ def tmp_table_basic(session):
         ),
     )
     df.write.save_as_table(table_name)
-    # Utils.create_table(
-    #     session, table_name, "id integer, foot_size float, shoe_model varchar"
-    # )
     try:
         yield table_name
     finally:
