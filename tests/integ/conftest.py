@@ -2,17 +2,18 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 import os
 import uuid
 from typing import Dict
 
 import pytest
-
 import snowflake.connector
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
@@ -151,24 +152,32 @@ def resources_path() -> str:
     return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))
 
 
+def _load_private_key(db_parameters: dict) -> bytes:
+    with open(db_parameters["private_key_path"], "rb") as key:
+        p_key = serialization.load_pem_private_key(
+            key.read(),
+            password=db_parameters["private_key_password"].encode()
+            if "private_key_password" in db_parameters
+            else None,
+            backend=default_backend(),
+        )
+        if "private_key_password" in db_parameters:
+            del db_parameters["private_key_password"]
+    return p_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+
 @pytest.fixture(scope="session")
 def connection(db_parameters, local_testing_mode):
     if local_testing_mode:
         yield MockServerConnection(options={"disable_local_testing_telemetry": True})
     else:
-        _keys = [
-            "user",
-            "password",
-            "host",
-            "port",
-            "database",
-            "account",
-            "protocol",
-            "role",
-        ]
-        with snowflake.connector.connect(
-            **{k: db_parameters[k] for k in _keys if k in db_parameters}
-        ) as con:
+        if db_parameters.get("private_key_path"):
+            db_parameters["private_key"] = _load_private_key(db_parameters)
+        with snowflake.connector.connect(**db_parameters) as con:
             yield con
 
 
