@@ -10,7 +10,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -269,10 +268,6 @@ def test_qcut_invalid_quantiles_negative(q):
     union_count=90,
     high_count_expected=True,
     high_count_reason="data pipeline, to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
-)
-@pytest.mark.skipif(
-    running_on_public_ci(),
-    reason="SNOWFLAKE_SAMPLE_DATA not present on all deployments.",
 )
 def test_qcut_two_columns():
     # reported by Mats Stewall, applying qcut twice leads to exploding SQL query.
