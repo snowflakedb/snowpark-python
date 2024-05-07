@@ -2825,20 +2825,23 @@ def test_write_invalid_table_type(session):
         df.write.save_as_table(table_name, table_type="invalid")
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="TODO: refactor and enable"
-)
-def test_append_existing_table(session):
+def test_append_existing_table(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(session, table_name, "a int, b int", is_temporary=True)
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
     try:
         with session.query_history() as history:
             df.write.save_as_table(table_name, mode="append")
         Utils.check_answer(session.table(table_name), df, True)
-        assert len(history.queries) == 2  # SHOW + INSERT
-        assert history.queries[0].sql_text.startswith("show")
-        assert history.queries[1].sql_text.startswith("INSERT")
+        if not local_testing_mode:
+            assert len(history.queries) == 2  # SHOW + INSERT
+            assert history.queries[0].sql_text.startswith("show")
+            assert history.queries[1].sql_text.startswith("INSERT")
     finally:
         Utils.drop_table(session, table_name)
 
