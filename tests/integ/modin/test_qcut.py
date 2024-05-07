@@ -144,10 +144,9 @@ def test_qcut_series_single_element_negative(q, s):
 def test_qcut_series_single_element(q, s):
     native_ans = native_pd.qcut(s, q, duplicates="drop", labels=False)
 
-    with SqlCounter(query_count=1, join_count=1, union_count=q):
+    with SqlCounter(query_count=1 if q == 1 else 2, join_count=1, union_count=q):
         ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
-
-    npt.assert_almost_equal(native_ans, ans)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.xfail(reason="TODO: SNOW-1225562 support retbins")
@@ -212,8 +211,7 @@ def test_qcut_list_of_values(data, q, union_count):
 
     with SqlCounter(query_count=1, join_count=1, union_count=union_count):
         ans = pd.qcut(snow_s, q, duplicates="drop", labels=False)
-
-    npt.assert_almost_equal(ans, native_ans)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 def test_qcut_list_of_values_raise_negative():

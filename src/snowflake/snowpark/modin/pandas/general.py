@@ -2209,7 +2209,7 @@ def qcut(
             )
         else:
             # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            return pd.Series([np.nan])
 
     return ans
 
