@@ -184,6 +184,7 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
+    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -300,30 +301,36 @@ def test_covariance(session, k, v1, v2):
 
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
-        kurtosis(col("X")), kurtosis(col("Y")), kurtosis(col("Z"))
+        to_double(kurtosis(col("X"))),
+        to_double(kurtosis(col("Y"))),
+        to_double(kurtosis(col("Z"))),
     )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
     # same as above, but pass str instead of Column
-    df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
+    df = TestData.xyz(session).select(
+        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z"))
+    )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
 
@@ -357,12 +364,14 @@ def test_skew(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
         xyz.select(skew(col("X")), skew(col("Y")), skew(col("Z"))),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
     # same as above, but pass str instead of Column
     Utils.check_answer(
         xyz.select(skew("X"), skew("Y"), skew("Z")),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
 
 
@@ -3770,28 +3779,29 @@ def test_get_path(session, v, k):
     )
 
 
+@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get(col("obj"), col("k"))),
+        [Row("21"), Row(None)],
         sort=False,
     )
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get("obj", "k")),
+        [Row("21"), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 

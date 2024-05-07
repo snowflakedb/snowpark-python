@@ -149,7 +149,9 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
         if data is not None:
             try:
                 if math.isnan(data):
-                    continue
+                    res = math.nan
+                    all_item_is_none = False
+                    break
             except TypeError:
                 pass
             all_item_is_none = False
@@ -250,6 +252,13 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
     for x, y in zip(column1, column2):
+        if (x is not None and math.isnan(x)) or (y is not None and math.isnan(y)):
+            return ColumnEmulator(
+                data=math.nan,
+                sf_type=ColumnType(
+                    DoubleType(), column1.sf_type.nullable or column2.sf_type.nullable
+                ),
+            )
         if x is not None and y is not None and not math.isnan(x) and not math.isnan(y):
             non_nan_cnt += 1
             x_times_y_sum += x * y
@@ -1571,6 +1580,33 @@ def mock_current_database():
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
         data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
+    )
+
+
+@patch("get")
+def mock_get(
+    column_expression: ColumnEmulator, value_expression: ColumnEmulator
+) -> ColumnEmulator:
+    def get(obj, key):
+        try:
+            if isinstance(obj, list):
+                return obj[key]
+            elif isinstance(obj, dict):
+                return obj.get(key, None)
+            else:
+                return None
+        except KeyError:
+            return None
+
+    # pandas.Series.combine does not work here because it will not allow Nones in int columns
+    result = []
+    for exp, k in zip(column_expression, value_expression):
+        result.append(get(exp, k))
+
+    return ColumnEmulator(
+        result,
+        sf_type=ColumnType(column_expression.sf_type.datatype, True),
+        dtype=object,
     )
 
 

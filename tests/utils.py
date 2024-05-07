@@ -76,6 +76,14 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
+IS_STRUCTURED_TYPES_SUPPORTED = (
+    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+)
+ICEBERG_ENVIRONMENTS = {"dev", "aws"}
+IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 
 class Utils:
@@ -1208,6 +1216,10 @@ class TestFiles:
     @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @property
+    def test_file_csv_quotes_special(self):
+        return os.path.join(self.resources_path, "testCSVquotesSpecial.csv")
 
     @functools.cached_property
     def test_file_csv_special_format(self):

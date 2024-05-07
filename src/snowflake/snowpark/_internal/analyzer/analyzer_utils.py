@@ -871,9 +871,7 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + LEFT_PARENTHESIS
         + LOCATION
         + RIGHT_ARROW
-        + SINGLE_QUOTE
-        + path
-        + SINGLE_QUOTE
+        + (path if is_single_quoted(path) else SINGLE_QUOTE + path + SINGLE_QUOTE)
         + COMMA
         + FILE_FORMAT
         + RIGHT_ARROW

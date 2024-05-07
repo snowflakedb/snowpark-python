@@ -1,10 +1,24 @@
 # Release History
 
+## 1.17.0 (TBD)
+
+### Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
+- Fixed a bug that when there is `None` value in arithmetic calculation, the output should remain `None` instead of `math.nan`.
+- Fixed a bug in function `sum` and `covar_pop` that when there is `math.nan` in the data, the output should also be `math.nan`.
+- Fixed a bug that stage operation can not handle directories.
+- Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
+
 ## 1.16.0 (TBD)
 
 ### New Features
 
 - Support stored procedure register with packages given as Python modules.
+- Added snowflake.snowpark.Session.lineage.trace to explore data lineage of snowfake objects.
+- Added support for structured type schema parsing.
 
 ### Local Testing Updates
 
@@ -13,9 +27,14 @@
 - Added support for StringType, TimestampType and VariantType data conversion in the mocked function `to_date`.
 - Added support for the following APIs:
   - snowflake.snowpark.functions
+    - get
     - concat
     - concat_ws
 
+#### Bug Fixes
+
+- Fixed a bug that caused NaT and NaN values to not be recognized.
+- Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
 
 ## 1.15.0 (2024-04-24)
 

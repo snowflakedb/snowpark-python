@@ -1791,7 +1791,7 @@ def _set_2d_labels_helper_for_frame_item(
 
     Args:
         internal_frame: the internal frame for the main dataframe/series
-        index: the internal frame for the index. Note that index can be None and we can save one join for this case.
+        index: the internal frame for the index. Note that index can be None, and we can save one join for this case.
         item: the internal frame for the item
         matching_item_columns_by_label: whether matching item columns by labels or positions
         matching_item_rows_by_label: whether matching item rows by labels or positions
@@ -1799,7 +1799,7 @@ def _set_2d_labels_helper_for_frame_item(
         index_is_bool_indexer: if True, the index is a boolean indexer
 
     Returns:
-        the frame joined with internal frame, index, and, item
+        the frame joined with internal frame, index, and item
     """
     if not matching_item_columns_by_label:
         expected_num_cols_item = len(col_info.column_pandas_labels)
