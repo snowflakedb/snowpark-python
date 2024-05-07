@@ -17,6 +17,8 @@
     - get
     - concat
     - concat_ws
+  - snowflake.snowpark.DataFrame:
+    - pivot
 
 #### Bug Fixes
 
