@@ -2341,7 +2341,7 @@ def test_numpy_udf(session, func):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: refactor vectorized UDF into a separate test and enable ",
+    reason="TODO: fix bug SNOW-1370447",
 )
 @pytest.mark.skipif(
     not is_pandas_available, reason="pandas required for vectorized UDF"
@@ -2402,6 +2402,40 @@ def test_udf_timestamp_type_hint(session):
         expected_res,
     )
 
+
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO: refactor vectorized UDF into a separate test and enable ",
+)
+def test_vectorized_udf_timestamp_type_hint(session):
+    data = [
+        [
+            datetime.datetime(2023, 1, 1, 1, 1, 1),
+            datetime.datetime(2023, 1, 1),
+            datetime.datetime.now(datetime.timezone.utc),
+            datetime.datetime.now().astimezone(),
+        ],
+        [
+            datetime.datetime(2022, 12, 30, 12, 12, 12),
+            datetime.datetime(2022, 12, 30),
+            datetime.datetime(2023, 1, 1, 1, 1, 1).astimezone(datetime.timezone.utc),
+            datetime.datetime(2023, 1, 1, 1, 1, 1, tzinfo=datetime.timezone.utc),
+        ],
+        [None, None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"tz_default"', TimestampType()),
+            StructField('"ntz"', TimestampType(TimestampTimeZone.NTZ)),
+            StructField('"ltz"', TimestampType(TimestampTimeZone.LTZ)),
+            StructField('"tz"', TimestampType(TimestampTimeZone.TZ)),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x + datetime.timedelta(days=1, hours=2) if x is not None else None
+
     @udf
     def func_tz_default_vectorized_udf(
         x: PandasSeries[Timestamp],
@@ -2425,6 +2459,8 @@ def test_udf_timestamp_type_hint(session):
         x: PandasSeries[Timestamp[TZ]],
     ) -> PandasSeries[Timestamp[TZ]]:
         return f(x)
+
+    expected_res = [Row(*[f(e) for e in row]) for row in data]
 
     Utils.check_answer(
         df.select(
