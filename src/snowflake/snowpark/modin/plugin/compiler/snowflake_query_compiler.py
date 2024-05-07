@@ -6346,10 +6346,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 values, self._modin_frame
             )
         )
-
-        include_pivot_columns_in_label = len(
-            groupby_snowflake_quoted_identifiers
-        ) != 0 or (isinstance(aggfunc, list) and len(aggfunc) > 1)
+        multiple_agg_funcs_single_values = (
+            isinstance(aggfunc, list) and len(aggfunc) > 1
+        ) and not (isinstance(values, list) and len(values) > 1)
+        include_pivot_columns_in_label = (
+            len(groupby_snowflake_quoted_identifiers) != 0
+            or multiple_agg_funcs_single_values
+        )
         pivot_aggr_groupings = list(
             generate_single_pivot_labels(
                 values_label_to_identifier_pairs_list,
@@ -6369,6 +6372,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             columns,
             groupby_snowflake_quoted_identifiers,
             pivot_snowflake_quoted_identifiers,
+            (isinstance(aggfunc, list) and len(aggfunc) > 1),
+            (isinstance(values, list) and len(values) > 1),
             index,
         )
 

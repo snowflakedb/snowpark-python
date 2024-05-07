@@ -5,7 +5,7 @@ from collections import namedtuple
 from collections.abc import Generator, Hashable
 from functools import reduce
 from itertools import product
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, NamedTuple, Optional, Union
 
 from pandas._typing import AggFuncType, AggFuncTypeBase, Scalar
 
@@ -61,6 +61,84 @@ PivotAggrGrouping = namedtuple(
 )
 
 
+class PivottedOrderedDataFrameResult(NamedTuple):
+    # The OrderedDataFrame representation for the join or align result
+    ordered_dataframe: OrderedDataFrame
+    # The data column pandas labels of the new frame.
+    data_column_pandas_labels: list[Hashable]
+    # The data column snowflake quoted identifiers of the new frame.
+    data_column_snowflake_quoted_identifiers: list[str]
+
+
+def perform_pivot_and_concatenate(
+    ordered_dataframe: OrderedDataFrame,
+    pivot_aggr_groupings: list[PivotAggrGrouping],
+    groupby_snowflake_quoted_identifiers: list[str],
+    pivot_snowflake_quoted_identifiers: list[str],
+    should_join_along_columns: bool,
+) -> tuple[OrderedDataFrame, list[Hashable], list[str]]:
+    last_ordered_dataframe = None
+    data_column_pandas_labels: list[Hashable] = []
+    data_column_snowflake_quoted_identifiers: list[str] = []
+    for pivot_aggr_grouping in pivot_aggr_groupings:
+        existing_snowflake_quoted_identifiers = groupby_snowflake_quoted_identifiers
+        if last_ordered_dataframe is not None and should_join_along_columns:
+            # If there are no index columns, then we append the OrderedDataFrame's vertically, rather
+            # than horizontally, so we do not need to dedupe the columns (and in fact we want the columns
+            # to have the same name since we want them to match up during the union.
+            existing_snowflake_quoted_identifiers = (
+                last_ordered_dataframe.projected_column_snowflake_quoted_identifiers
+            )
+
+        (
+            new_pivot_ordered_dataframe,
+            new_data_column_snowflake_quoted_identifiers,
+            new_data_column_pandas_labels,
+        ) = single_pivot_helper(
+            ordered_dataframe,
+            existing_snowflake_quoted_identifiers,
+            groupby_snowflake_quoted_identifiers,
+            pivot_snowflake_quoted_identifiers,
+            pivot_aggr_grouping.aggr_label_identifier_pair,
+            pivot_aggr_grouping.aggfunc,
+            pivot_aggr_grouping.prefix_label,
+        )
+
+        if last_ordered_dataframe:
+            # If there are index columns, then we join the two OrderedDataFrames
+            # (horizontally), while if there are no index columns, we concatenate
+            # them vertically, and have the index be the value column each row
+            # corresponds to.
+            # We also join vertically if there are multiple columns and multiple
+            # pivot values.
+            if should_join_along_columns:  # or (not multiple_values_and_columns):
+                last_ordered_dataframe = last_ordered_dataframe.join(
+                    right=new_pivot_ordered_dataframe,
+                    left_on_cols=groupby_snowflake_quoted_identifiers,
+                    right_on_cols=groupby_snowflake_quoted_identifiers,
+                    how="left",
+                )
+                data_column_snowflake_quoted_identifiers.extend(
+                    new_data_column_snowflake_quoted_identifiers
+                )
+                data_column_pandas_labels.extend(new_data_column_pandas_labels)
+            else:
+                last_ordered_dataframe = last_ordered_dataframe.union_all(
+                    new_pivot_ordered_dataframe
+                )
+        else:
+            last_ordered_dataframe = new_pivot_ordered_dataframe
+            data_column_snowflake_quoted_identifiers.extend(
+                new_data_column_snowflake_quoted_identifiers
+            )
+            data_column_pandas_labels.extend(new_data_column_pandas_labels)
+    return PivottedOrderedDataFrameResult(
+        last_ordered_dataframe,
+        data_column_pandas_labels,
+        data_column_snowflake_quoted_identifiers,
+    )
+
+
 def pivot_helper(
     pivot_frame: InternalFrame,
     pivot_aggr_groupings: list[PivotAggrGrouping],
@@ -69,6 +147,8 @@ def pivot_helper(
     columns: Any,
     groupby_snowflake_quoted_identifiers: list[str],
     pivot_snowflake_quoted_identifiers: list[str],
+    multiple_aggr_funcs: bool,
+    multiple_values: bool,
     index: Optional[list],
 ) -> InternalFrame:
     """
@@ -82,6 +162,8 @@ def pivot_helper(
         columns: The columns argument passed to `pivot_table`. Will become the pandas labels for the data column index.
         groupby_snowflake_quoted_identifiers: Group by identifiers
         pivot_snowflake_quoted_identifiers: Pivot identifiers
+        multiple_aggr_funcs: Whether or not multiple aggregation functions have been passed in.
+        multiple_values: Whether or not multiple values columns have been passed in.
         index: The index argument passed to `pivot_table` if specified. Will become the pandas labels for the index column.
     Returns:
         InternalFrame
@@ -100,7 +182,6 @@ def pivot_helper(
     if ordered_dataframe.queries.get("post_actions"):
         ordered_dataframe = cache_result(ordered_dataframe)
 
-    last_ordered_dataframe = None
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
 
@@ -157,65 +238,66 @@ def pivot_helper(
     #
     # The multi-level pandas prefix label that includes the aggregation value and function labels is also
     # constructed and passed into the single pivot operation to prepend the remaining of the pandas labels.
-    for pivot_aggr_grouping in pivot_aggr_groupings:
-        existing_snowflake_quoted_identifiers = groupby_snowflake_quoted_identifiers
-        if (
-            last_ordered_dataframe is not None
-            and len(groupby_snowflake_quoted_identifiers) > 0
-        ):
-            # If there are no index columns, then we append the OrderedDataFrame's vertically, rather
-            # than horizontally, so we do not need to dedupe the columns (and in fact we want the columns
-            # to have the same name since we want them to match up during the union.
-            existing_snowflake_quoted_identifiers = (
-                last_ordered_dataframe.projected_column_snowflake_quoted_identifiers
-            )
-
-        (
-            new_pivot_ordered_dataframe,
-            new_data_column_snowflake_quoted_identifiers,
-            new_data_column_pandas_labels,
-        ) = single_pivot_helper(
-            ordered_dataframe,
-            existing_snowflake_quoted_identifiers,
-            groupby_snowflake_quoted_identifiers,
-            pivot_snowflake_quoted_identifiers,
-            pivot_aggr_grouping.aggr_label_identifier_pair,
-            pivot_aggr_grouping.aggfunc,
-            pivot_aggr_grouping.prefix_label,
-        )
-
-        if last_ordered_dataframe:
-            # If there are index columns, then we join the two OrderedDataFrames
-            # (horizontally), while if there are no index columns, we concatenate
-            # them vertically, and have the index be the value column each row
-            # corresponds to.
-            # We also join vertically if there are multiple columns and multiple
-            # pivot values.
-            if (
-                len(groupby_snowflake_quoted_identifiers) > 0
-            ):  # or (not multiple_values_and_columns):
-                last_ordered_dataframe = last_ordered_dataframe.join(
-                    right=new_pivot_ordered_dataframe,
-                    left_on_cols=groupby_snowflake_quoted_identifiers,
-                    right_on_cols=groupby_snowflake_quoted_identifiers,
-                    how="left",
+    if (
+        len(groupby_snowflake_quoted_identifiers) == 0
+        and multiple_aggr_funcs
+        and multiple_values
+    ):
+        values_pandas_labels = {
+            pair.aggr_label_identifier_pair.pandas_label
+            for pair in pivot_aggr_groupings
+        }
+        grouped_pivot_aggr_groupings = {
+            v: list(
+                filter(
+                    lambda pair: pair.aggr_label_identifier_pair.pandas_label == v,
+                    pivot_aggr_groupings,
                 )
-                data_column_snowflake_quoted_identifiers.extend(
+            )
+            for v in values_pandas_labels
+        }
+        last_ordered_dataframe = None
+        for value_column in values_pandas_labels:
+            (
+                pivot_ordered_dataframe,
+                new_data_column_pandas_labels,
+                new_data_column_snowflake_quoted_identifiers,
+            ) = perform_pivot_and_concatenate(
+                ordered_dataframe,
+                grouped_pivot_aggr_groupings[value_column],
+                groupby_snowflake_quoted_identifiers,
+                pivot_snowflake_quoted_identifiers,
+                True,
+            )
+            if last_ordered_dataframe is None:
+                last_ordered_dataframe = pivot_ordered_dataframe
+                data_column_pandas_labels = new_data_column_pandas_labels
+                data_column_snowflake_quoted_identifiers = (
                     new_data_column_snowflake_quoted_identifiers
                 )
-                data_column_pandas_labels.extend(new_data_column_pandas_labels)
             else:
                 last_ordered_dataframe = last_ordered_dataframe.union_all(
-                    new_pivot_ordered_dataframe
+                    pivot_ordered_dataframe
                 )
-        else:
-            last_ordered_dataframe = new_pivot_ordered_dataframe
-            data_column_snowflake_quoted_identifiers.extend(
-                new_data_column_snowflake_quoted_identifiers
-            )
-            data_column_pandas_labels.extend(new_data_column_pandas_labels)
-
-    ordered_dataframe = last_ordered_dataframe
+                assert (
+                    new_data_column_pandas_labels == data_column_pandas_labels
+                ), "Labels should match when doing multiple values and multiple aggregation functions and no index."
+        ordered_dataframe = last_ordered_dataframe
+    else:
+        should_join_along_columns = len(groupby_snowflake_quoted_identifiers) > 0 or (
+            multiple_aggr_funcs and not multiple_values
+        )
+        (
+            ordered_dataframe,
+            data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers,
+        ) = perform_pivot_and_concatenate(
+            ordered_dataframe,
+            pivot_aggr_groupings,
+            groupby_snowflake_quoted_identifiers,
+            pivot_snowflake_quoted_identifiers,
+            should_join_along_columns,
+        )
 
     # When there are no groupby columns, the index is the first column in the OrderedDataFrame.
     # Otherwise, the index is the groupby columns.
