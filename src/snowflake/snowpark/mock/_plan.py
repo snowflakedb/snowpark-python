@@ -8,11 +8,12 @@ import math
 import os
 import re
 import shutil
+import statistics
 import sys
 import tempfile
 import typing
 import uuid
-from collections import defaultdict
+from collections import Iterable
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -217,6 +218,13 @@ class MockExecutionPlan(LogicalPlan):
     def num_duplicate_nodes(self) -> int:
         # dummy return
         return -1
+
+    def replace_repeated_subquery_with_cte(self):
+        return self
+
+    @property
+    def post_actions(self):
+        return []
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -1381,34 +1389,90 @@ def execute_mock_plan(
     elif isinstance(source_plan, Pivot):
         child_rf = execute_mock_plan(source_plan.child)
 
-        aggregate_map = defaultdict(lambda: set())
-        for agg in source_plan.aggregates:
-            assert (
-                len(agg.children) == 1
-            ), "Aggregate functions should take one parameter."
-            agg_column = plan.session._analyzer.analyze(agg.children[0])
-            """ AVG, COUNT, MAX, MIN, and SUM."""
-            if agg.name in {"sum"}:
-                aggregate_map[agg_column] |= {agg.name}
+        assert (
+            len(source_plan.aggregates) == 1
+        ), "Dataframe plan should fail before this if one aggregate isn't supplied."
+        agg = source_plan.aggregates[0]
+        assert (
+            len(agg.children) == 1
+        ), "Aggregate functions should take exactly one parameter."
+        agg_column = plan.session._analyzer.analyze(agg.children[0])
 
-        pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
-        pivot_values = [exp.value for exp in source_plan.pivot_values]
-        agg_keys = set(aggregate_map.keys())
-        indices = set(child_rf.keys()) - (agg_keys | {pivot_column})
-
-        result = child_rf.pivot_table(
-            columns=pivot_column, values=agg_keys, aggfunc=aggregate_map, index=indices
-        )
-        result.columns = result.columns.get_level_values(-1)
-
-        if pivot_values:
-            result = result.reset_index()[list(indices) + pivot_values]
-
-        for res_col in set(result.columns) - indices:
-            result[res_col] = ColumnEmulator(
-                result[res_col].values, sf_type=child_rf[agg_column].sf_type
+        agg_function_name = agg.name.lower()
+        agg_functions = {
+            "avg": statistics.mean,
+            "count": len,
+            "max": max,
+            "min": min,
+            "sum": sum,
+        }
+        if agg_function_name not in agg_functions:
+            raise ValueError(
+                f"Unsupported pivot aggregation function {agg_function_name}."
             )
 
+        pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
+
+        if isinstance(source_plan.pivot_values, Iterable):
+            pivot_values = [exp.value for exp in source_plan.pivot_values]
+        elif source_plan.pivot_values is None:
+            pivot_values = []
+        else:
+            analyzer.session._conn.log_not_supported_error(
+                external_feature_name=f"Pivot values from {source_plan.pivot_values}",
+                internal_feature_name=type(source_plan).__name__,
+                raise_error=NotImplementedError,
+            )
+
+        grouping_columns = [
+            plan.session._analyzer.analyze(c) for c in source_plan.grouping_columns
+        ]
+        indices = grouping_columns or [
+            col for col in child_rf.keys() if col not in {agg_column, pivot_column}
+        ]
+
+        # Missing values are filled with a sentinel object that can later be replaced with Nones
+        sentinel = object()
+
+        # Snowflake treats an empty aggregation as None, whereas pandas treats it as 0.
+        # This requires us to wrap the aggregation function with extract logic to handle this special case.
+        def agg_function(column):
+            return (
+                agg_functions[agg_function_name](column.dropna())
+                if column.any()
+                else sentinel
+            )
+
+        default = (
+            source_plan.default_on_null.value if source_plan.default_on_null else None
+        )
+        result = child_rf.pivot_table(
+            columns=pivot_column,
+            values=agg_column,
+            aggfunc=agg_function,
+            index=indices,
+            fill_value=sentinel,
+        )
+        result.reset_index(inplace=True)
+
+        # Pandas pivot can include many levels of indicies. we're only interested in the last one
+        result.columns = result.columns.get_level_values(-1)
+
+        # Select down to indices and provided values if specific values were requested
+        if pivot_values:
+            result = result[list(indices) + pivot_values]
+
+        # Non-indice columns lack an sf_type, add them back in.
+        for res_col in set(result.columns) - set(indices):
+            # Sentinel values are replaced with None, then all Nones are replaced with the default if provided
+            data = (
+                result[res_col]
+                .replace({sentinel: None})
+                .replace({None: default})
+                .values
+            )
+            # Column Emulator has to be reconctructed with sf_type in this case
+            result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
         return result
 
     analyzer.session._conn.log_not_supported_error(

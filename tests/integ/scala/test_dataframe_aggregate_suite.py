@@ -69,6 +69,47 @@ def test_pivot(session):
     )
 
 
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            avg,
+            [
+                Row(
+                    1,
+                    Decimal("9000.000000"),
+                    Decimal("4000.000000"),
+                    Decimal("5200.000000"),
+                    Decimal("5500.000000"),
+                ),
+                Row(
+                    2,
+                    Decimal("2650.000000"),
+                    Decimal("45350.000000"),
+                    Decimal("19750.000000"),
+                    Decimal("6000.000000"),
+                ),
+            ],
+        ),
+        (count, [Row(1, 2, 2, 2, 2), Row(2, 2, 2, 2, 2)]),
+        (max, [Row(1, 10000, 5000, 10000, 6000), Row(2, 4500, 90500, 35000, 9500)]),
+        (min, [Row(1, 8000, 3000, 400, 5000), Row(2, 800, 200, 4500, 2500)]),
+        (sum, [Row(1, 18000, 8000, 10400, 11000), Row(2, 5300, 90700, 39500, 12000)]),
+    ],
+)
+def test_pivot_agg_functions(session, func, expected):
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month")
+        .agg(func(col("amount")))
+        .sort(col("empid")),
+        expected,
+        sort=False,
+    )
+
+
+@pytest.mark.localtest
 def test_group_by_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -103,6 +144,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+@pytest.mark.localtest
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -163,6 +205,12 @@ def test_group_by_pivot_dynamic_subquery(session):
     )
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="TODO: Join fails with error 'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): The DataFrame does not contain the column named JAN.'",
+    run=False,
+)
+@pytest.mark.localtest
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
@@ -183,6 +231,7 @@ def test_join_on_pivot(session):
     )
 
 
+@pytest.mark.localtest
 def test_pivot_on_join(session):
     df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
 
@@ -223,6 +272,7 @@ def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     assert pivot_op_df.count() == 1
 
 
+@pytest.mark.localtest
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -303,6 +353,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
+@pytest.mark.localtest
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
@@ -326,6 +377,7 @@ def test_pivot_default_on_none(session, caplog):
             if isinstance(default_on_null, Column)
             else default_on_null
         )
+        # import pdb; pdb.set_trace()
         Utils.check_answer(
             src.pivot("month", ["JAN", "FEB", "MAR"], default_on_null=default_on_null)
             .agg(sum(col("amount")))
