@@ -43,9 +43,9 @@ def test_qcut_non_series(x, q):
         (5, 1, 1),
         (100, 1, 1),
         (1000, 1, 16),
-        (5, 10, 1),
-        (100, 10, 1),
-        (1000, 10, 61),
+        (5, 10, 2),
+        (100, 10, 2),
+        (1000, 10, 122),
         # TODO: With SNOW-1229442, uncomment the following two lines.
         # These configs do not work, as the current quantile implementation
         # is buggy and fails within Snowpark for larger len(q).
@@ -67,8 +67,7 @@ def test_qcut_series(n, q, expected_query_count):
         high_count_reason="Bug in quantile, TODO SNOW-1229442.",
     ):
         ans = pd.qcut(snow_series, q, labels=False, duplicates="drop")
-
-    npt.assert_almost_equal(native_ans, ans)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.parametrize("data,q", [([0, 100, 200, 400, 600, 700, 2000], 5)])
@@ -76,10 +75,10 @@ def test_qcut_series_non_range_data(data, q):
     native_ans = native_pd.qcut(native_pd.Series(data), q, labels=False)
 
     # Large n can not inline everything into a single query and will instead create a temp table.
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=3):
         ans = pd.qcut(pd.Series(data), q, labels=False)
 
-    npt.assert_almost_equal(native_ans, ans)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.parametrize("n,expected_query_count", [(5, 1), (100, 1), (1000, 6)])
