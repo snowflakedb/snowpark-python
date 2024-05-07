@@ -2752,6 +2752,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         groupby_kwargs: dict[str, Any],
         agg_args: Any,
         agg_kwargs: dict[str, Any],
+        series_groupby: bool,
     ) -> "SnowflakeQueryCompiler":
         """
         Group according to `by` and `level`, apply a function to each group, and combine the results.
@@ -2770,6 +2771,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Positional arguments to pass to agg_func when applying it to each group.
             agg_kwargs:
                 Keyword arguments to pass to agg_func when applying it to each group.
+            series_groupby:
+                Whether we are performing a SeriesGroupBy.apply() instead of a DataFrameGroupBy.apply()
 
         Returns
         -------
@@ -2799,6 +2802,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         snowflake_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
 
+        # For DataFrameGroupBy, `func` operates on this frame in its entirety.
+        # For SeriesGroupBy, this frame may also include some grouping columns
+        # that `func` should not take as input. In that case, the only column
+        # that `func` takes as input is the last data column, so grab just that
+        # column with a slice starting at index -1 and ending at None.
+        input_data_column_identifiers = (
+            self._modin_frame.data_column_snowflake_quoted_identifiers[
+                slice(-1, None) if series_groupby else slice(None)
+            ]
+        )
+
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
         # pivot.
@@ -2810,13 +2824,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
-                for quoted_identifier in self._modin_frame.data_column_snowflake_quoted_identifiers
+                for quoted_identifier in input_data_column_identifiers
             ],
             input_index_column_types=[
                 snowflake_type_map[quoted_identifier]
                 for quoted_identifier in self._modin_frame.index_column_snowflake_quoted_identifiers
             ],
             session=self._modin_frame.ordered_dataframe.session,
+            series_groupby=series_groupby,
+            by_types=[
+                snowflake_type_map[quoted_identifier]
+                for quoted_identifier in by_snowflake_quoted_identifiers_list
+            ],
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
@@ -2884,8 +2903,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 *by_snowflake_quoted_identifiers_list,
                 udtf(
                     row_position_snowflake_quoted_identifier,
+                    *by_snowflake_quoted_identifiers_list,
                     *new_internal_df.index_column_snowflake_quoted_identifiers,
-                    *new_internal_df.data_column_snowflake_quoted_identifiers,
+                    *input_data_column_identifiers,
                 ).over(
                     partition_by=[
                         *by_snowflake_quoted_identifiers_list,
