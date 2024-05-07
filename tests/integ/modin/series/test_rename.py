@@ -24,23 +24,20 @@ class TestRename:
     def snow_datetime_series(self, datetime_series):
         return pd.Series(datetime_series)
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     def test_rename(self, snow_datetime_series):
         ts = snow_datetime_series
 
         def renamer(x):
             return x.strftime("%Y%m%d")
 
-        with SqlCounter(query_count=9, fallback_count=1, sproc_count=1):
-            renamed = ts.rename(renamer)
-            assert renamed.index[0] == renamer(ts.index[0])
+        with SqlCounter(query_count=0):
+            msg = "Snowpark pandas rename API doesn't yet support callable mapper"
+            with pytest.raises(NotImplementedError, match=msg):
+                ts.rename(renamer)
 
         # dict
-        with SqlCounter(query_count=4, join_count=1):
+        with SqlCounter(query_count=3, join_count=1):
+            renamed = ts.to_pandas().rename(renamer)
             rename_dict = dict(zip(ts.index, renamed.index))
             renamed2 = ts.rename(rename_dict)
             # Note: renaming index with dict on Snowflake will use variant as the new data type if rename includes type
@@ -101,20 +98,14 @@ class TestRename:
         with pytest.raises(ValueError, match="No axis named 5"):
             ser.rename({}, axis=5)
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_rename_inplace(self, snow_datetime_series):
         def renamer(x):
             return x.strftime("%Y%m%d")
 
-        expected = renamer(snow_datetime_series.index[0])
-
-        snow_datetime_series.rename(renamer, inplace=True)
-        assert snow_datetime_series.index[0] == expected
+        msg = "Snowpark pandas rename API doesn't yet support callable mapper"
+        with pytest.raises(NotImplementedError, match=msg):
+            snow_datetime_series.rename(renamer, inplace=True)
 
     @sql_count_checker(query_count=0)
     def test_rename_with_custom_indexer(self):
@@ -137,21 +128,13 @@ class TestRename:
         ser.rename(ix, inplace=True)
         assert ser.name is ix
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-    @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
+    @sql_count_checker(query_count=0)
     def test_rename_callable(self):
         # GH 17407
         ser = Series(range(1, 6), index=Index(range(2, 7), name="IntIndex"))
-        result = ser.rename(str)
-        expected = ser.rename(lambda i: str(i))
-        assert_series_equal(result, expected)
-
-        assert result.name == expected.name
+        msg = "Snowpark pandas rename API doesn't yet support callable mapper"
+        with pytest.raises(NotImplementedError, match=msg):
+            ser.rename(str)
 
     @sql_count_checker(query_count=2)
     def test_rename_none(self):
