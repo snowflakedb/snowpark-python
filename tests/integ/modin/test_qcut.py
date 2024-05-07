@@ -260,3 +260,55 @@ def test_qcut_invalid_quantiles_negative(q):
 
     with pytest.raises(expected_exception, match=expected_message):
         snow_s.quantile(q)
+
+
+# before with duplicates=False
+# @sql_count_checker(query_count=55, join_count=22, union_count=10, high_count_expected=True, high_count_reason="data pipeline")
+# after with conditions reshuffled
+@sql_count_checker(
+    query_count=5,
+    join_count=34,
+    union_count=90,
+    high_count_expected=True,
+    high_count_reason="data pipeline",
+)
+def test_qcut_two_columns():
+    # reported by Mats Stewells, applying qcut twice leads to exploding SQL query.
+    # attempt finding a remedy
+
+    DATA_PATH = "SNOWFLAKE_SAMPLE_DATA.TPCH_SF1"
+    spd_order = pd.read_snowflake(f"{DATA_PATH}.ORDERS").drop(
+        ["O_ORDERPRIORITY", "O_CLERK", "O_SHIPPRIORITY", "O_COMMENT"], axis=1
+    )
+    spd_order = spd_order.astype(
+        {"O_ORDERDATE": "datetime64"}
+    )  # Set the data type so date manipulations works
+
+    # Aggregations we want to do
+    column_agg = {
+        "O_ORDERKEY": "count",
+        "O_ORDERDATE": ["max", "min"],
+        "O_TOTALPRICE": ["sum", "mean"],
+    }
+
+    # Apply the aggregation
+    spd_order_rfm = spd_order.groupby(by="O_CUSTKEY", as_index=False).agg(column_agg)
+    # Rename the columns
+    spd_order_rfm.columns = [
+        "O_CUSTKEY",
+        "FREQUENCY",
+        "MAX_ORDER_DATE",
+        "MIN_ORDER_DATE",
+        "MONETARY",
+        "AVG_ORDER_SIZE",
+    ]
+
+    spd_order_rfm["F_SCORE"] = pd.qcut(
+        spd_order_rfm["FREQUENCY"], q=5, labels=False, duplicates="drop"
+    )
+    spd_order_rfm["M_SCORE"] = pd.qcut(
+        spd_order_rfm["MONETARY"], q=5, labels=False, duplicates="drop"
+    )
+    ans = spd_order_rfm.head().to_pandas()
+
+    assert len(ans) > 0
