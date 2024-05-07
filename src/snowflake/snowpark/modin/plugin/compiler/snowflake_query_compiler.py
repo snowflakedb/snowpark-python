@@ -9145,6 +9145,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return row_count, col_count, pandas_frame
 
+    def quantiles_single_col_no_index(
+        self,
+        q: list[float],
+    ) -> "SnowflakeQueryCompiler":
+        assert len(self.columns) == 1
+        if is_datetime64_any_dtype(self.dtypes[0]):
+            # TODO SNOW-1003587
+            ErrorMessage.not_implemented(
+                "quantile is not supported for datetime columns"
+            )
+        original_frame = self._modin_frame
+        # If the input frame is one column, we can create 1 column for every quantile and
+        # then use transpose_single_row to give the result the correct shape
+        col_label = original_frame.data_column_pandas_labels[0]
+        new_labels = [f"{col_label}_{quantile}" for quantile in q]
+        new_idents = (
+            original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=new_labels
+            )
+        )
+        ordered_dataframe = original_frame.ordered_dataframe.agg(
+            *[
+                column_quantile(col(col_label), "linear", quantile).as_(new_ident)
+                for new_ident, quantile in zip(new_idents, q)
+            ]
+        ).ensure_row_position_column()
+        result = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=ordered_dataframe,
+                data_column_pandas_labels=new_labels,
+                data_column_pandas_index_names=[None],
+                data_column_snowflake_quoted_identifiers=new_idents,
+                index_column_pandas_labels=[None],
+                index_column_snowflake_quoted_identifiers=[
+                    ordered_dataframe.row_position_snowflake_quoted_identifier
+                ],
+            )
+        )
+        return result.transpose_single_row()
+
     def quantiles_along_axis0(
         self,
         q: list[float],
@@ -11876,7 +11916,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Construct bins from quantiles.
         # First step is to transform the quantiles given as a list of float values in q to values according to the data.
-        qc_quantiles = self.quantiles_along_axis0(q, True, "linear", "single", None)
+        qc_quantiles = self.quantiles_single_col_no_index(q)
         # There are two behaviors here:
         # - If duplicates = 'raise', check if there are duplicates and raise an error.
         # - If drop, ignore and continue with distinct quantile values.
