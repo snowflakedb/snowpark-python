@@ -46,6 +46,7 @@
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
+- Added support for `DataFrame.pivot_table` with no `index` parameter.
 
 ## 1.14.0a2 (2024-04-18)
 
