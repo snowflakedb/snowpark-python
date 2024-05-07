@@ -2201,7 +2201,7 @@ def qcut(
             # We issue a count query since if qcut if q !=1 and x is a Series/list-like containing
             # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
             #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-            # With q qcut being an API that requires conversion, we can mimick this behavior here.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
 
             # Produce raising error.
             raise ValueError(
