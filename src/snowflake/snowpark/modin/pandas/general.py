@@ -2192,7 +2192,10 @@ def qcut(
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
-        return pandas.qcut(x.to_pandas(), q, **kwargs)
+        ErrorMessage.not_implemented(
+            "Snowpark pandas API supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        )
 
     ans = x._qcut(q, retbins, duplicates)
 
