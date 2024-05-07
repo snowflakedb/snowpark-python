@@ -258,6 +258,14 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkDataframeReaderException):
         session.read.options({"infer_schema": False}).csv(test_file_on_stage)
 
+    # check infer_schema default as true
+    Utils.check_answer(
+        session.read.csv(test_file_on_stage),
+        [
+            Row(c1=1, c2="one", c3=Decimal("1.2")),
+            Row(c1=2, c2="two", c3=Decimal("2.2")),
+        ],
+    )
     # if users give an incorrect schema with type error
     # the system will throw SnowflakeSQLException during execution
     incorrect_schema = StructType(
