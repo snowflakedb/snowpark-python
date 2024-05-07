@@ -1190,11 +1190,9 @@ def test_table_sproc_with_type_none_argument(session):
         Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="TODO: fix and enable",
-)
-def test_temp_sp_with_import_and_upload_stage(session, resources_path):
+def test_temp_sp_with_import_and_upload_stage(
+    session, resources_path, local_testing_mode
+):
     """We want temporary stored procs to be able to do the following:
     - Do not upload packages to permanent stage locations
     - Can import packages from permanent stage locations
@@ -1203,17 +1201,26 @@ def test_temp_sp_with_import_and_upload_stage(session, resources_path):
     work
     """
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name, is_temporary=False)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name, is_temporary=False)
     test_files = TestFiles(resources_path)
     # upload test_sp_dir.test_sp_file (mod5) to permanent stage and use mod3
     # file for temporary stage import correctness
-    session._conn.upload_file(
-        path=test_files.test_sp_py_file,
-        stage_location=unwrap_stage_location_single_quote(stage_name),
-        compress_data=False,
-        overwrite=True,
-        skip_upload_on_content_match=True,
-    )
+    if local_testing_mode:
+        session.file.put(
+            test_files.test_sp_py_file,
+            unwrap_stage_location_single_quote(stage_name),
+            auto_compress=False,
+            overwrite=True,
+        )
+    else:
+        session._conn.upload_file(
+            path=test_files.test_sp_py_file,
+            stage_location=unwrap_stage_location_single_quote(stage_name),
+            compress_data=False,
+            overwrite=True,
+            skip_upload_on_content_match=True,
+        )
     try:
         # Can import packages from permanent stage locations
         def mod5_(session_, x):
@@ -1262,8 +1269,8 @@ def test_temp_sp_with_import_and_upload_stage(session, resources_path):
 
         assert mod3_of_mod5_sproc(4) == 1
     finally:
-        Utils.drop_stage(session, stage_name)
-    pass
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.skipif(
