@@ -36,7 +36,7 @@ def test_pivot_table_no_index_single_column_multiple_values(df_data):
     )
 
 
-@sql_count_checker(query_count=1, union_count=1)
+@sql_count_checker(query_count=1, union_count=1, join_count=2)
 def test_pivot_table_no_index_single_column_multiple_values_multiple_aggr_func(df_data):
     pivot_table_test_helper(
         df_data,
@@ -75,7 +75,7 @@ def test_pivot_table_no_index_multiple_column_single_value(df_data, aggfunc):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_pivot_table_no_index_multiple_column_single_value_multiple_aggr_func(df_data):
     pivot_table_test_helper(
         df_data,
@@ -157,7 +157,7 @@ def test_pivot_table_no_index_multiple_columns_multiple_values(df_data):
     )
 
 
-@sql_count_checker(query_count=1, union_count=1)
+@sql_count_checker(query_count=1, union_count=1, join_count=2)
 def test_pivot_table_no_index_multiple_columns_multiple_values_multiple_aggr_funcs(
     df_data,
 ):
