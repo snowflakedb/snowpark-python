@@ -377,7 +377,6 @@ def test_pivot_default_on_none(session, caplog):
             if isinstance(default_on_null, Column)
             else default_on_null
         )
-        # import pdb; pdb.set_trace()
         Utils.check_answer(
             src.pivot("month", ["JAN", "FEB", "MAR"], default_on_null=default_on_null)
             .agg(sum(col("amount")))
