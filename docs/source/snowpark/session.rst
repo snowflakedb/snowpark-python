@@ -85,6 +85,7 @@ Snowpark Session
     Session.sproc
     Session.sql_simplifier_enabled
     Session.telemetry_enabled
+    Session.udaf
     Session.udf
     Session.udtf
     Session.session_id

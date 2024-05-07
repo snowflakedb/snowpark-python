@@ -116,11 +116,11 @@ def test_get_schema_database_works_after_use_role(session):
     try:
         db = session.get_current_database()
         schema = session.get_current_schema()
-        session._run_query("use role public")
+        session.use_role("public")
         assert session.get_current_database() == db
         assert session.get_current_schema() == schema
     finally:
-        session._run_query(f"use role {current_role}")
+        session.use_role(current_role)
 
 
 @pytest.mark.skipif(
