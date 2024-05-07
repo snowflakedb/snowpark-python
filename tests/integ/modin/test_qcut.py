@@ -262,15 +262,12 @@ def test_qcut_invalid_quantiles_negative(q):
         snow_s.quantile(q)
 
 
-# before with duplicates=False
-# @sql_count_checker(query_count=55, join_count=22, union_count=10, high_count_expected=True, high_count_reason="data pipeline")
-# after with conditions reshuffled
 @sql_count_checker(
     query_count=5,
     join_count=34,
     union_count=90,
     high_count_expected=True,
-    high_count_reason="data pipeline",
+    high_count_reason="data pipeline, to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
 )
 def test_qcut_two_columns():
     # reported by Mats Stewells, applying qcut twice leads to exploding SQL query.
