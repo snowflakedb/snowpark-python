@@ -4,7 +4,7 @@
 
 ### New Features
 
-- Added snowflake.snowpark.Session.lineage.trace to explore data lineage of snowfake objects.
+- Added snowflake.snowpark.Session.lineage.trace to explore data lineage of Snowflake objects.
 - Support stored procedure registration with packages given as Python modules.
 - Added support for structured type schema parsing.
 
@@ -27,8 +27,8 @@
 
 - Fixed a bug that caused NaT and NaN values to not be recognized.
 - Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
-- Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
-- Fixed a bug that when there is `None` value in arithmetic calculation, the output should remain `None` instead of `math.nan`.
+- Fixed a bug where DataFrameReader.csv was unable to handle quoted values containing a delimiter.
+- Fixed a bug that when there is `None` value in an arithmetic calculation, the output should remain `None` instead of `math.nan`.
 - Fixed a bug in function `sum` and `covar_pop` that when there is `math.nan` in the data, the output should also be `math.nan`.
 - Fixed a bug that stage operation can not handle directories.
 - Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
