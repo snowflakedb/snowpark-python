@@ -11,7 +11,10 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 bool_arg = {"True": True, "False": False, "None": None}
 bool_arg_keys = list(bool_arg.keys())
@@ -123,10 +126,10 @@ def test_qcut_series_single_element_negative(q, s):
     else:
         native_ans = native_pd.qcut(s, q, labels=False)
 
-        with SqlCounter(query_count=3):
+        with SqlCounter(query_count=2):
             ans = pd.qcut(pd.Series(s), q, labels=False)
 
-        npt.assert_almost_equal(native_ans, ans)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.parametrize(
