@@ -9,6 +9,7 @@
 - Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
 - Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
 - Fixed binary operations with single-row DataFrame and Series.
+- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in following APIs:
@@ -37,6 +38,7 @@
   - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
   - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
+- `pd.qcut` return for an input of type `Series` now always a `Series`.
 
 ### Behavior Changes
 - As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
