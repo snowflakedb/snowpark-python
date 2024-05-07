@@ -270,7 +270,7 @@ def test_qcut_invalid_quantiles_negative(q):
     high_count_reason="data pipeline, to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
 )
 def test_qcut_two_columns():
-    # reported by Mats Stewells, applying qcut twice leads to exploding SQL query.
+    # reported by Mats Stewall, applying qcut twice leads to exploding SQL query.
     # attempt finding a remedy
 
     DATA_PATH = "SNOWFLAKE_SAMPLE_DATA.TPCH_SF1"

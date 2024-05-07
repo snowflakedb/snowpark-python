@@ -2208,7 +2208,7 @@ def qcut(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
+            # The result will always be NaN because no unique bin could be found.
             return pd.Series([np.nan])
 
     return ans

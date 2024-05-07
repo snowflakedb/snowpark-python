@@ -44,7 +44,7 @@
   - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
   Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
-- `pd.qcut` return for an input of type `Series` now always a `Series`.
+- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
