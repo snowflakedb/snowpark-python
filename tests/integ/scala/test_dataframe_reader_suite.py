@@ -256,7 +256,7 @@ def test_read_csv(session, mode):
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
     with pytest.raises(SnowparkDataframeReaderException):
-        session.read.csv(test_file_on_stage)
+        session.read.options({"infer_schema": False}).csv(test_file_on_stage)
 
     # if users give an incorrect schema with type error
     # the system will throw SnowflakeSQLException during execution
