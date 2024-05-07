@@ -391,7 +391,7 @@ def test_write_table_names(session, db_parameters):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_writer_csv(session, tmpdir_factory):
 
@@ -454,7 +454,7 @@ def test_writer_csv(session, tmpdir_factory):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_json(session, tmpdir_factory):
 
@@ -510,7 +510,7 @@ def test_writer_json(session, tmpdir_factory):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
     """Tests for df.write.parquet()."""

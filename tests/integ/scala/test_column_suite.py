@@ -1003,7 +1003,7 @@ def test_in_expression_with_multiple_queries(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_with_multiple_queries(session):

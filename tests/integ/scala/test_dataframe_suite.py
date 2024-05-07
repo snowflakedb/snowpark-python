@@ -3096,7 +3096,7 @@ def test_replace(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_explain(session):
     df = TestData.column_has_special_char(session)

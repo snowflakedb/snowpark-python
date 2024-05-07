@@ -356,7 +356,7 @@ def test_read_csv(session, mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
+    reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
 @pytest.mark.parametrize("parse_header", [True, False])
@@ -767,7 +767,7 @@ def test_read_csv_with_quotes_containing_delimiter(session, mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: read metadata from stage; FEAT: parquet/avro/xml/orc support",
+    reason="BUG: SNOW-1370153 read metadata from stage; FEAT: parquet/avro/xml/orc support",
 )
 @pytest.mark.parametrize(
     "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
@@ -1283,7 +1283,7 @@ def test_read_xml_with_no_schema(session, mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AssertionError; FEAT: on_error support",
+    reason="BUG: SNOW-1370138 AssertionError; FEAT: on_error support",
 )
 def test_copy(session, local_testing_mode):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -1329,7 +1329,7 @@ def test_copy(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: unsupported force option should raise error",
+    reason="BUG: SNOW-1370138 unsupported force option should raise error",
 )
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -1376,7 +1376,7 @@ def test_copy_option_force(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: on_error option should raise error",
+    reason="BUG: SNOW-1370138 on_error option should raise error",
 )
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
     broken_file = f"@{tmp_stage_name1}/{test_broken_csv}"
@@ -1439,7 +1439,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: should return number instead of UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
+    reason="BUG: SNOW-1370153 should return number instead of UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
@@ -1522,7 +1522,7 @@ def test_read_parquet_with_sql_simplifier(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: empty file path",
+    reason="BUG: SNOW-1370153 empty file path",
 )
 def test_filepath_not_exist_or_empty(session):
     empty_stage = Utils.random_stage_name()
@@ -1551,7 +1551,7 @@ def test_filepath_not_exist_or_empty(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
+    reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
 )
 def test_filepath_with_single_quote(session):
     test_file_on_stage_with_quote = f"'@{tmp_stage_name1}/{test_file_csv}'"
