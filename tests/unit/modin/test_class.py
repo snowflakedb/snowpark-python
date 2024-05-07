@@ -30,7 +30,6 @@ def test_class_equivalence():
     assert pd.Float32Dtype is native_pd.Float32Dtype
     assert pd.Float64Dtype is native_pd.Float64Dtype
     assert pd.Grouper is native_pd.Grouper
-    assert pd.Index is native_pd.Index
     assert pd.IndexSlice is native_pd.IndexSlice
     assert pd.Int8Dtype is native_pd.Int8Dtype
     assert pd.Int16Dtype is native_pd.Int16Dtype

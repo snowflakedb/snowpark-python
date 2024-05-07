@@ -591,6 +591,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             ]
         elif isinstance(index, pd.Index):
             return [pd.Series(index)]
+        elif isinstance(index, pandas.Index):
+            return [pd.Series(index)]
+        else:
+            raise TypeError("Index must be pd.Index or pd.MultiIndex object")
 
     def _set_index(self, new_index: Axes) -> None:
         """

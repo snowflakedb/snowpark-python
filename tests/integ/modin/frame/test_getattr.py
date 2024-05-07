@@ -35,6 +35,8 @@ def test_getattr(name, expected_query_count):
             )
         elif isinstance(snow_res, pd.Index):
             assert_index_equal(snow_res, native_res, exact=False)
+        elif isinstance(snow_res, native_pd.Index):
+            assert_index_equal(snow_res, native_res, exact=False)
         else:
             # e.g., mean will return bound method similar to pandas
             assert inspect.ismethod(snow_res)
