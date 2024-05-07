@@ -48,6 +48,18 @@ def test_pivot_table_no_index_single_column_multiple_values_multiple_aggr_func(d
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
+def test_pivot_table_no_index_single_column_single_values_multiple_aggr_func(df_data):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": "B",
+            "values": "D",
+            "aggfunc": ["mean", "max"],
+        },
+    )
+
+
 @pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
 @sql_count_checker(query_count=1)
 def test_pivot_table_single_index_multiple_column_single_value(df_data, aggfunc):
