@@ -616,7 +616,7 @@ def _to_timestamp(
     fmt: Optional[ColumnEmulator],
     try_cast: bool = False,
     add_timezone: bool = False,
-    caller=None,
+    enforce_ltz=False,
 ):
     """
      https://docs.snowflake.com/en/sql-reference/functions/to_timestamp
@@ -721,12 +721,11 @@ def _to_timestamp(
                 # An integer number of seconds or milliseconds.
                 if isinstance(data, numbers.Number):
                     # check https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
-                    # why we call fromtimestamp not utcfromtimestamp here for timestamp_ntz
                     # "When an INTEGER value is cast directly to TIMESTAMP_NTZ ...
                     # However, if the INTEGER value is stored inside a VARIANT value,
                     # for example as shown below, then the conversion is indirect,
                     # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
-                    if caller == "timestamp_ntz":
+                    if enforce_ltz:
                         # local timestamp
                         local_now = datetime.datetime.now(LocalTimezone.LOCAL_TZ)
                         parsed = datetime.datetime.utcfromtimestamp(
@@ -774,12 +773,7 @@ def _to_timestamp(
             else:
                 raise
 
-    res = (
-        column.astype(object)
-        .to_frame()
-        .apply(convert_timestamp, axis=1)
-        .replace({pandas.NaT: None})
-    )
+    res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
     return [
         x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
         for x in res
@@ -805,7 +799,7 @@ def mock_timestamp_ntz(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = _to_timestamp(column, fmt, try_cast, caller="timestamp_ntz")
+    result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
         data=[x.replace(tzinfo=None) for x in result],
@@ -848,7 +842,8 @@ def mock_to_timestamp_tz(
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
-        dtype=object,  # dtype being object to support VariantType
+        dtype=object.column.dtype,
+        # dtype=object,  # dtype being object to support VariantType
     )
 
 
