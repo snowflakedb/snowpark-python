@@ -27,6 +27,7 @@ information, see the `Snowpark Developer Guide for Python <https://docs.snowflak
    udtf
    observability
    files
+   lineage
    context
    exceptions
 
