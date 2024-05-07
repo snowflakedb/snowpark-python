@@ -842,8 +842,7 @@ def mock_to_timestamp_tz(
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
-        dtype=column.dtype,
-        # dtype=object,  # dtype being object to support VariantType
+        dtype=object,
     )
 
 
