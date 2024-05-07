@@ -20,14 +20,13 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query truncate table not supported",
-    run=False,
+    reason="FEAT: support truncate and column_order in save as table",
 )
-def test_write_with_target_column_name_order(session):
+def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
-    session.create_dataframe(
+    empty_df = session.create_dataframe(
         [],
         schema=StructType(
             [
@@ -35,7 +34,8 @@ def test_write_with_target_column_name_order(session):
                 StructField("b", IntegerType()),
             ]
         ),
-    ).write.save_as_table(table_name, table_type="temporary")
+    )
+    empty_df.write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
@@ -44,14 +44,18 @@ def test_write_with_target_column_name_order(session):
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # Explicitly use "index"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # use order by "name"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
@@ -245,10 +249,9 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_stage(session, target_stage_name)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipfi(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
-    run=False,
+    reason="FEAT: session._table_exists not supported",
 )
 def test_write_table_names(session, db_parameters):
     database = session.get_current_database().replace('"', "")

@@ -339,7 +339,7 @@ def test_cache_result(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_cache_result_with_show(session):
@@ -414,7 +414,7 @@ def test_drop_cache_result_context_manager(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_non_select_query_composition(session):
@@ -439,7 +439,7 @@ def test_non_select_query_composition(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_non_select_query_composition_union(session):
@@ -461,7 +461,7 @@ def test_non_select_query_composition_union(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_non_select_query_composition_unionall(session):
@@ -483,7 +483,7 @@ def test_non_select_query_composition_unionall(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_non_select_query_composition_self_union(session):
@@ -504,7 +504,7 @@ def test_non_select_query_composition_self_union(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_non_select_query_composition_self_unionall(session):
@@ -525,7 +525,7 @@ def test_non_select_query_composition_self_unionall(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_only_use_result_scan_when_composing_queries(session):
@@ -540,7 +540,7 @@ def test_only_use_result_scan_when_composing_queries(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show tables not supported",
+    reason="This is testing query generation",
     run=False,
 )
 def test_joins_on_result_scan(session):
@@ -1349,7 +1349,7 @@ def test_dataframe_agg(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: DataFrame.group_by_grouping_sets not supported",
+    reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup(session):
     df = session.create_dataframe(
@@ -1474,7 +1474,7 @@ def test_groupby(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: DataFrame.group_by_grouping_sets not supported",
+    reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_cube(session):
     df = session.create_dataframe(
@@ -1553,12 +1553,12 @@ def test_cube(session):
     )
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query show schema not supported",
+    reason="FEAT: table_function.Lateral is not supported.",
     run=False,
 )
-def test_flatten(session):
+def test_flatten(session, local_testing_mode):
     df = session.create_dataframe(["[1,2]"], schema=["a"])
     table = df.select(parse_json(col("a")).alias("a"))
     Utils.check_answer(table.flatten("a").select("value"), [Row("1"), Row("2")])
@@ -1593,15 +1593,16 @@ def test_flatten(session):
     assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
 
     # contains multiple query
-    df = session.sql("show schemas").limit(1)
-    # scala uses `show tables`. But there is no table in python test. `show schemas` guarantees result is not empty.
-    df1 = df.with_column("value", lit("[1,2]")).select(
-        parse_json(col("value")).as_("value")
-    )
-    flatten2 = df1.flatten(df1["value"])
-    Utils.check_answer(
-        flatten2.select(flatten2["value"]), [Row("1"), Row("2")], sort=False
-    )
+    if not local_testing_mode:
+        df = session.sql("show schemas").limit(1)
+        # scala uses `show tables`. But there is no table in python test. `show schemas` guarantees result is not empty.
+        df1 = df.with_column("value", lit("[1,2]")).select(
+            parse_json(col("value")).as_("value")
+        )
+        flatten2 = df1.flatten(df1["value"])
+        Utils.check_answer(
+            flatten2.select(flatten2["value"]), [Row("1"), Row("2")], sort=False
+        )
 
     # flatten with object traversing
     df = session.create_dataframe(['{"a":[1,2]}'], schema=["a"])
@@ -2152,18 +2153,34 @@ def test_primitive_array(session, local_testing_mode):
     Utils.check_answer(df, Row("[\n  1\n]"))
 
 
-@pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
-    reason="SQL query not supported",
-    run=False,
-)
 def test_time_date_and_timestamp_test(session):
-    assert str(session.sql("select '00:00:00' :: Time").collect()[0][0]) == "00:00:00"
     assert (
-        str(session.sql("select '1970-1-1 00:00:00' :: Timestamp").collect()[0][0])
+        str(
+            session.create_dataframe(
+                data=["00:00:00"], schema=StructType([StructField("c", TimeType())])
+            ).collect()[0][0]
+        )
+        == "00:00:00"
+    )
+    assert (
+        str(
+            session.create_dataframe(
+                data=["1970-1-1 00:00:00"],
+                schema=StructType(
+                    [StructField("c", TimestampType(TimestampTimeZone.NTZ))]
+                ),
+            ).collect()[0][0]
+        )
         == "1970-01-01 00:00:00"
     )
-    assert str(session.sql("select '1970-1-1' :: Date").collect()[0][0]) == "1970-01-01"
+    assert (
+        str(
+            session.create_dataframe(
+                data=["1970-1-1"], schema=StructType([StructField("c", DateType())])
+            ).collect()[0][0]
+        )
+        == "1970-01-01"
+    )
 
 
 @pytest.mark.localtest
@@ -2507,7 +2524,7 @@ def test_agg_with_array_args(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: DataFrame.group_by_grouping_sets not supported",
+    reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup_with_array_args(session):
     df = session.create_dataframe(
@@ -2544,7 +2561,7 @@ def test_rollup_with_array_args(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: DataFrame.group_by_grouping_sets not supported",
+    reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup_string_with_array_args(session):
     df = session.create_dataframe(
@@ -3079,7 +3096,7 @@ def test_replace(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
+    reason="BUG: should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_explain(session):
     df = TestData.column_has_special_char(session)

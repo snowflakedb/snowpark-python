@@ -112,7 +112,7 @@ def test_group_by_pivot(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
@@ -151,7 +151,7 @@ def test_group_by_pivot_dynamic_any(session, caplog):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_group_by_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
@@ -228,7 +228,7 @@ def test_pivot_on_join(session):
 # data when doing a later schema call.
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
@@ -252,7 +252,7 @@ def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
@@ -270,7 +270,7 @@ def test_pivot_dynamic_any(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: AttributeError: DataFrame object has no attribute queries",
+    reason="BUG: pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
@@ -441,7 +441,7 @@ def test_group_by(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: grouping by grouping sets not supported",
+    reason="FEAT: SNOW-977749 grouping by grouping sets not supported",
 )
 def test_group_by_grouping_sets(session):
     result = (

@@ -33,7 +33,7 @@ def get_sample_dataframe(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: windows function UnresolvedAttribute not supported",
+    reason="BUG/FEAT: moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
 )
 def test_moving_agg(session):
     """Tests df.analytics.moving_agg() happy path."""
@@ -65,7 +65,7 @@ def test_moving_agg(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: windows function UnresolvedAttribute not supported",
+    reason="BUG/FEAT: moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
 )
 def test_moving_agg_custom_formatting(session):
     """Tests df.analytics.moving_agg() with custom formatting of output columns."""
@@ -337,7 +337,7 @@ def test_cumulative_agg_backward_direction(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: cast to float type not supported",
+    reason="BUG: cast to float type not supported, should route reference to to_float to to_double",
 )
 def test_compute_lead(session):
     """Tests df.analytics.compute_lead() happy path."""
