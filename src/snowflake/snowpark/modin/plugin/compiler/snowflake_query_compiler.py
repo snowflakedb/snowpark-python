@@ -9154,6 +9154,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ] = "linear",
         method: Literal["single", "table"] = "single",
         index: Optional[Union[list[str], list[float]]] = None,
+        index_dtype: Optional[npt.DTypeLike] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Returns values at the given quantiles for each column.
@@ -9176,6 +9177,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             When specified, sets the index column of the result to be this list. This is not part of
             the pandas API for quantile, and only used to implement df.describe().
             When unspecified, the index is the float values of the quantiles.
+        index_dtype: Optional[npt.DTypeLike], default None
+            When specified along with index, determines the type of the index column. This is only used
+            for the single-column case, where index values must be coerced to strings to support an UNPIVOT,
+            and otherwise is inferred.
 
         Returns
         -------
@@ -9207,7 +9212,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if len(query_compiler.columns) == 1:
             # Use method without UNION ALL operations if the query compiler has only a single column
             index_values = q if index is None else index
-            return self._quantiles_single_col(q, interpolation, index=index_values)
+            return self._quantiles_single_col(
+                q, interpolation, index=index_values, index_dtype=index_dtype or float
+            )
         original_frame = query_compiler._modin_frame
         data_column_pandas_labels = original_frame.data_column_pandas_labels
         if len(q) == 0:
@@ -9268,7 +9275,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             OrderingColumn(global_ordering_identifier),
             *ordered_dataframe.ordering_columns,
         )
-        return SnowflakeQueryCompiler(
+        result = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=ordered_dataframe,
                 data_column_pandas_labels=original_frame.data_column_pandas_labels,
@@ -9280,12 +9287,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
             )
         )
+        return result
 
     def _quantiles_single_col(
         self,
         q: list[float],
         interpolation: Literal["linear", "lower", "higher", "midpoint", "nearest"],
         index: Optional[Union[list[str], list[float]]] = None,
+        index_dtype: Optional[npt.DTypeLike] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Helper method for qcut() + quantile() to compute quantiles over frames with a single column.
@@ -9305,8 +9314,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         +-------+------+------+                    +-------+------+------+
         | index |    a |    b |                    |  0.75 | 0.75 | 1.75 |
         +-------+------+------+                    +-------+------+------+
-        |  0.75 | 0.75 | 1.75 |       
-        +-------+------+------+       
+        |  0.75 | 0.75 | 1.75 |
+        +-------+------+------+
 
         When there is a large number of q (as is the case for most uses of qcut), the number of
         UNION operations increases dramatically, and may cause Snowpark to create temporary tables.
@@ -9325,12 +9334,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                                                                      |    q2 | 1.75 |
                                                                      +-------+------+
 
-        qcut() should drop the index column afterwards, but quantile() keeps the index.
+        qcut() can drop the index column afterwards, but quantile() keeps it.
         """
-        assert len(self.columns) == 1
+        if index is not None:
+            # Snowpark UNPIVOT requires these to be strings
+            index = list(map(str, index))
         original_frame = self._modin_frame
         col_label = original_frame.data_column_pandas_labels[0]
-        new_labels = [f"{col_label}_{quantile}" for quantile in q]
+        col_ident = original_frame.data_column_snowflake_quoted_identifiers[0]
+        new_labels = [str(quantile) for quantile in q]
         new_idents = (
             original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=new_labels
@@ -9338,23 +9350,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
-                column_quantile(col(col_label), interpolation, quantile).as_(new_ident)
+                column_quantile(col(col_ident), interpolation, quantile).as_(new_ident)
                 for new_ident, quantile in zip(new_idents, q)
             ]
-        ).ensure_row_position_column()
-        result = SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=ordered_dataframe,
-                data_column_pandas_labels=new_labels,
-                data_column_pandas_index_names=[None],
-                data_column_snowflake_quoted_identifiers=new_idents,
-                index_column_pandas_labels=[None],
-                index_column_snowflake_quoted_identifiers=[
-                    ordered_dataframe.row_position_snowflake_quoted_identifier
-                ],
-            )
         )
-        return result.transpose_single_row()
+        index_ident = ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=[None]
+        )[0]
+        # In order to preserve index labels, we call unpivot directly instead of using transpose_single_row
+        ordered_dataframe = ordered_dataframe.unpivot(
+            original_frame.data_column_snowflake_quoted_identifiers[0],
+            index_ident,
+            new_idents,
+            col_mapper=dict(zip(new_idents, index))
+            if index is not None
+            else dict(zip(new_idents, new_labels)),
+        ).ensure_row_position_column()
+        internal_frame = InternalFrame.create(
+            ordered_dataframe=ordered_dataframe,
+            data_column_pandas_labels=[col_label],
+            data_column_pandas_index_names=[None],
+            data_column_snowflake_quoted_identifiers=[col_ident],
+            index_column_pandas_labels=[None],
+            index_column_snowflake_quoted_identifiers=[index_ident],
+        )
+        if index_dtype:
+            # We cannot call astype() directly to convert an index column, so we replicate
+            # the logic here so we don't have to mess with set_index
+            internal_frame = (
+                internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        index_ident: column_astype(
+                            index_ident,
+                            TypeMapper.to_pandas(
+                                internal_frame.quoted_identifier_to_snowflake_type()[
+                                    index_ident
+                                ]
+                            ),
+                            index_dtype,
+                            TypeMapper.to_snowflake(index_dtype),
+                        )
+                    }
+                )[0]
+            )
+
+        return SnowflakeQueryCompiler(internal_frame)
 
     def skew(
         self,
@@ -9697,6 +9737,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             sorted_percentiles,
                             numeric_only=True,
                             index=format_percentiles(sorted_percentiles),
+                            index_dtype=str,
                         ),
                         datetime_as_epoch_qc.agg(
                             ["max"],
@@ -9740,6 +9781,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         sorted_percentiles,
                         numeric_only=True,
                         index=format_percentiles(sorted_percentiles),
+                        index_dtype=str,
                     ),
                     numeric_qc.agg(
                         ["max"],
@@ -11955,7 +11997,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Construct bins from quantiles.
         # First step is to transform the quantiles given as a list of float values in q to values according to the data.
-        qc_quantiles = self._quantiles_single_col(q, "linear")
+        qc_quantiles = self._quantiles_single_col(q, "linear", index_dtype=float)
         # There are two behaviors here:
         # - If duplicates = 'raise', check if there are duplicates and raise an error.
         # - If drop, ignore and continue with distinct quantile values.

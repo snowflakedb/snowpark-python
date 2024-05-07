@@ -24,13 +24,16 @@ from tests.integ.modin.utils import (
         {"a": [1, 2, np.nan], "b": [4, 5, 6]},
         {"a": [], "b": []},  # Empty columns are numeric by default
         [[None, -2.4, -3], [4.0, 5.1, -6.7], [7, None, None], [None, None, None]],
+        {"a": [1, 2, np.nan]},
     ],
 )
-# 7 UNIONs occur because we concat 8 query compilers together:
+# In general, 7 UNIONs occur because we concat 8 query compilers together:
 # count, mean, std, min, 0.25, 0.5, 0.75, max
-@sql_count_checker(query_count=1, union_count=7)
+# However, for 1-column frames, we compute all the quantiles in a single query compiler, lowering the
+# union count to 5 UNIONs for 7 query compilers
 def test_describe_numeric_only(data):
-    eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: df.describe())
+    with SqlCounter(query_count=1, union_count=5 if len(data) == 1 else 7):
+        eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: df.describe())
 
 
 @pytest.mark.parametrize(

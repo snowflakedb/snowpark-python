@@ -11,7 +11,7 @@ from pandas._testing import assert_almost_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 NUMERIC_DATA = [-5, -2, -1, 0, 1, 3, 4, 5]
 DATETIME_DATA = [
@@ -137,15 +137,13 @@ def test_quantile_datetime_negative():
         snow_ser.quantile()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=6)
 def test_quantile_large():
-    snow_series = pd.Series(range(1000))
     q = np.linspace(0, 1, 16)
-
-    # actual query count for this 81. This seems like a bug.
-    ans = snow_series.quantile(q, "linear").to_pandas()
-
-    assert len(ans) == len(q)
+    eval_snowpark_pandas_result(
+        *create_test_series(range(1000)),
+        lambda df: df.quantile(q, "linear"),
+    )
 
 
 @pytest.mark.parametrize("q", [-10.0, 8.3])
