@@ -152,41 +152,29 @@ def _is_table_name(table_name_or_query: str) -> bool:
 
 
 def _check_if_sql_query_contains_order_by_and_warn_user(
-    logical_plan: native_pd.DataFrame,
+    sql_query_text: str,
 ) -> bool:
     """
-    Checks whether the sql query corresponding to the logical plan passed in contains an order by clause
+    Checks whether the sql query passed in contains an order by clause
     and warns the user that ORDER BY will be ignored currently.
 
     Args:
-        logical_plan: The logical plan to check.
+        sql_query_text: The SQL Query to check.
 
     Returns:
         Whether or not the query contains an order by.
     """
-    # We need to determine if the query contains an ORDER BY, which we can determine by looking at the
-    # logical plan. If a query contains an ORDER BY that affects the ordering of the final result,
-    # the logical plan will contain an operation row whose operator name is Sort.
-    # Example of a logical plan with an ORDER BY:
-    #     id                             operation ...
-    # 0    0                        ResultFinalize ...
-    # 1    1                     Exchange (SINGLE) ...
-    # 2    2                          ResultWorker ...
-    # 3    3                            Projection ...
-    # 4    4                                  Sort ...
-    # 5    5                      Exchange (RANGE) ...
-    # 6    6                        RangePartition ...
-    # 7    7                  Exchange (BROADCAST) ...
-    # 8    8                                Sample ...
-    # 9    9                     Exchange (SINGLE) ...
-    # 10  10                                Sample ...
-    # 11  11                             TableScan ...
-    # 12  12                             TableScan ...
-    # (ellipsis denotes additional columns that have been removed since they are unnecessary for this example.)
-    # Have to use `strip` since the names of the operators contain indentation.
-    contains_order_by = (
-        logical_plan["operation"].str.lower().str.contains("sort")
-    ).any()
+    # We need to determine if the query contains an ORDER BY. We previously looked
+    # at the logical plan in order to determine if there was an ORDER BY; however,
+    # the output schema of the `EXPLAIN` SQL statement (which was used to generate
+    # the logical plan) seems to not be stable across releases, so instead, we
+    # check to see if the text of the SQL query contains "ORDER BY".
+    # Note: This method may sometimes raise false positives, e.g.:
+    # SELECT "ORDER BY COLUMN", * FROM TABLE;
+    # The above query shouldn't raise a warning, but since we are using
+    # string matching, we will get a false positive and raise a warning.
+    order_by_pattern = r"\s+order\s+by\s+"
+    contains_order_by = re.search(order_by_pattern, sql_query_text.lower()) is not None
     if contains_order_by:
         # If the query contains an ORDER BY, we need to warn the user that
         # the ordering induced by the ORDER BY is not guaranteed to be preserved
@@ -405,18 +393,10 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
         # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
         # the OrderedDataFrame and row_position_snowflake_quoted_identifier from there.
-        try:
-            logical_plan = native_pd.DataFrame(
-                session.sql(f"explain ({table_name_or_query})").collect()
-            )
-            contains_order_by = _check_if_sql_query_contains_order_by_and_warn_user(
-                logical_plan
-            )
-        except SnowparkSQLException:
-            # We only error out if the query is a type of query that explain cannot be called on, e.g.
-            # a CALL query, or a query that cannot be compiled correctly, e.g. SELET * FROM table;
-            # which contains a typo. In that case, we assume that there is no ORDER BY clause.
-            contains_order_by = False
+        # If there is an ORDER BY in the query, we should log it.
+        contains_order_by = _check_if_sql_query_contains_order_by_and_warn_user(
+            table_name_or_query
+        )
         statement_params = get_default_snowpark_pandas_statement_params()
         statement_params[STATEMENT_PARAMS.CONTAINS_ORDER_BY] = str(
             contains_order_by
