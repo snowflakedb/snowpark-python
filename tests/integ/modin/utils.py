@@ -222,7 +222,7 @@ def assert_snowpark_pandas_equal_to_pandas(
 ) -> None:
     """
     Check a snowpark pandas dataframe/series is equal to a pandas dataframe/series by converting snowpark pandas dataframe/series
-    to pandas datafram/series first using to_pandas(), and then assert them are the same.
+    to pandas dataframe/series first using to_pandas(), and then assert them are the same.
     Args:
         snow: snowpark pandas dataframe or series
         expected_pandas: native pandas dataframe or series

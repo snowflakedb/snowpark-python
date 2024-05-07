@@ -2196,23 +2196,22 @@ def qcut(
 
     ans = x._qcut(q, retbins, duplicates)
 
-    # Within Snowpark Pandas, we avoid issuing a count query. However, for qcut if q !=1 and x is a Series/list-like containing
-    # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
-    #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-    # With q qcut being an API that requires conversion, we can mimick this behavior here.
-    ret = ans.to_pandas().to_numpy()
-
-    if len(ret) == 1 and isinstance(q, int) and q != 1:
+    if isinstance(q, int) and q != 1 and len(ans) == 1:
         if duplicates == "raise":
+            # We issue a count query since if q !=1 and x is a Series/list-like containing
+            # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
+            #                You can drop duplicate edges by setting the 'duplicates' kwarg.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
+
             # Produce raising error.
             raise ValueError(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            # The result will always be NaN because no unique bin could be found.
+            return pd.Series([np.nan])
 
-    return ret
+    return ans
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
