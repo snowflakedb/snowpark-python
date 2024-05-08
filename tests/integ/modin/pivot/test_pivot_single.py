@@ -148,9 +148,9 @@ def test_pivot_table_no_index_no_column_single_value(df_data):
             "columns": None,
             "values": "D",
         },
-        expect_exception_match="pivot_table with no index configuration is currently not supported",
-        expect_exception_type=NotImplementedError,
-        assert_exception_equal=False,
+        expect_exception_match=r"No group keys passed\!",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
     )
 
 
