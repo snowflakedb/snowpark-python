@@ -249,6 +249,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
     is_compatible_snowpark_types,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
+    UNPIVOT_NULL_REPLACE_VALUE,
     unpivot,
     unpivot_empty_df,
 )
@@ -307,6 +308,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    FloatType,
     IntegerType,
     MapType,
     PandasDataFrameType,
@@ -9392,9 +9394,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
-                column_quantile(col(col_identifier), interpolation, quantile).as_(
-                    new_ident
-                )
+                # Replace NULL values so they are preserved through the UNPIVOT
+                coalesce(
+                    to_variant(
+                        column_quantile(col(col_identifier), interpolation, quantile)
+                    ),
+                    to_variant(pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)),
+                ).as_(new_ident)
                 for new_ident, quantile in zip(new_identifiers, q)
             ]
         )
@@ -9404,18 +9410,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # In order to set index labels without a JOIN, we call unpivot directly instead of using
         # transpose_single_row. This also lets us avoid JSON serialization/deserialization.
         ordered_dataframe = ordered_dataframe.unpivot(
-            original_frame.data_column_snowflake_quoted_identifiers[0],
+            col_identifier,
             index_identifier,
             new_identifiers,
             col_mapper=dict(zip(new_identifiers, index))
             if index is not None
             else dict(zip(new_identifiers, new_labels)),
+        )
+        col_after_null_replace_identifier = (
+            ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=[col_label]
+            )[0]
+        )
+        # Restore NULL values in the data column and cast back to float
+        ordered_dataframe = ordered_dataframe.select(
+            index_identifier,
+            when(
+                col(col_identifier) == pandas_lit(UNPIVOT_NULL_REPLACE_VALUE),
+                pandas_lit(None),
+            )
+            .otherwise(col(col_identifier))
+            .cast(FloatType())
+            .as_(col_after_null_replace_identifier),
         ).ensure_row_position_column()
         internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=[col_label],
             data_column_pandas_index_names=[None],
-            data_column_snowflake_quoted_identifiers=[col_identifier],
+            data_column_snowflake_quoted_identifiers=[
+                col_after_null_replace_identifier
+            ],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
         )
