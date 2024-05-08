@@ -264,8 +264,7 @@ def test_qcut_invalid_quantiles_negative(q):
 
 @sql_count_checker(
     query_count=5,
-    join_count=34,
-    union_count=90,
+    join_count=14,
     high_count_expected=True,
     high_count_reason="data pipeline, to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
 )
