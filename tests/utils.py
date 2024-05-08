@@ -76,6 +76,14 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
+IS_STRUCTURED_TYPES_SUPPORTED = (
+    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+)
+ICEBERG_ENVIRONMENTS = {"dev", "aws"}
+IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 
 class Utils:
@@ -783,6 +791,7 @@ class TestData:
                 1706774400,
                 "2024-02-01 00:00:00.000000",
                 "Thu, 01 Feb 2024 00:00:00 -0600",
+                "1706774400",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -800,6 +809,7 @@ class TestData:
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
                 StructField("str_w_tz", StringType()),
+                StructField("str_ts", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
@@ -1208,6 +1218,10 @@ class TestFiles:
     @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @property
+    def test_file_csv_quotes_special(self):
+        return os.path.join(self.resources_path, "testCSVquotesSpecial.csv")
 
     @functools.cached_property
     def test_file_csv_special_format(self):
