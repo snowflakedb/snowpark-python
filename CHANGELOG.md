@@ -6,7 +6,6 @@
 
 - Support stored procedure register with packages given as Python modules.
 - Added support for structured type schema parsing.
-- Removed import of modin.pandas.Index referring to native pandas index, instead having it import our own class that is currently a wrapper to native pandas index
 
 ### Local Testing Updates
 

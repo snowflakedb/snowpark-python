@@ -7,6 +7,7 @@
 - Fixed DataFrame's `__getitem__` with boolean DataFrame key.
 - Fixed incorrect regex used in `DataFrame/Series.replace`.
 - Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
+- Removed import of modin.pandas.Index, instead having it import our own class that is currently a wrapper
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in following APIs:
