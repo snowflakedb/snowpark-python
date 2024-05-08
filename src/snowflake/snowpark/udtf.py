@@ -22,7 +22,7 @@ Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and samp
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -526,7 +526,7 @@ class UDTFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.Session"]) -> None:
         self._session = session
 
     def register(
@@ -552,6 +552,7 @@ class UDTFRegistration:
         comment: Optional[str] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        **kwargs,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
@@ -645,6 +646,8 @@ class UDTFRegistration:
             TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
         )
 
+        native_app_params = kwargs.get("native_app_params", None)
+
         # register udtf
         return self._do_register_udtf(
             handler,
@@ -668,6 +671,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             api_call_source="UDTFRegistration.register",
             is_permanent=is_permanent,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -837,6 +841,7 @@ class UDTFRegistration:
         max_batch_size: Optional[int] = None,
         comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -908,7 +913,7 @@ class UDTFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -917,6 +922,7 @@ class UDTFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=handler,
                 return_type=output_schema,
                 input_args=input_args,
                 handler=handler_name,
@@ -924,6 +930,7 @@ class UDTFRegistration:
                 object_name=udtf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -936,6 +943,7 @@ class UDTFRegistration:
                 immutable=immutable,
                 statement_params=statement_params,
                 comment=comment,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

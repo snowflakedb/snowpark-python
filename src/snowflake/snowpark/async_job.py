@@ -163,7 +163,6 @@ class AsyncJob:
           be dropped automatically after all queries finish when calling a synchronous API. When you
           evaluate dataframes asynchronously, temporary objects will only be dropped after calling
           :meth:`result`.
-        - This feature is currently not supported in Snowflake Python stored procedures.
     """
 
     def __init__(

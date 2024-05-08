@@ -30,7 +30,7 @@ from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
-from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -1475,7 +1475,7 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
-@pytest.mark.localtets
+@pytest.mark.localtest
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
@@ -2437,10 +2437,35 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
+def test_truncate_preserves_schema(session):
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
+    df2 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=["a", "b", "c"])
+
+    df1.write.save_as_table(tmp_table_name, table_type="temp")
+
+    # truncate preserves old schema
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+        df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
+
+    # overwrite drops old schema
+    df2.write.save_as_table(tmp_table_name, mode="overwrite", table_type="temp")
+    Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
+
+
+def test_truncate_existing_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    df = session.create_dataframe([(1, 1), (2, 2), (3, 3)]).toDF("a", "b")
+    df.write.save_as_table(table_name, mode="truncate", table_type="temp")
+    assert session.table(table_name).count() == 3
+
+
 @pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_table_types_in_save_as_table(
     session, save_mode, table_type, local_testing_mode
@@ -2454,7 +2479,7 @@ def test_table_types_in_save_as_table(
 
 
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_respects_schema(session, save_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2466,9 +2491,17 @@ def test_save_as_table_respects_schema(session, save_mode):
         ]
     )
     schema2 = StructType([StructField("A", LongType(), False)])
+    schema3 = StructType(
+        [
+            StructField("A", LongType(), False),
+            StructField("B", LongType(), True),
+            StructField("C", LongType(), False),
+        ]
+    )
 
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=schema1)
     df2 = session.create_dataframe([(1), (2)], schema=schema2)
+    df3 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=schema3)
 
     try:
         df1.write.save_as_table(table_name, mode=save_mode)
@@ -2483,6 +2516,12 @@ def test_save_as_table_respects_schema(session, save_mode):
             df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
+        elif save_mode == "truncate":
+            df2.write.save_as_table(table_name, mode=save_mode)
+            saved_df = session.table(table_name)
+            Utils.is_schema_same(saved_df.schema, schema1)
+            with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+                df3.write.save_as_table(table_name, mode=save_mode)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(table_name, mode=save_mode)
@@ -2509,7 +2548,7 @@ def test_save_as_table_respects_schema(session, save_mode):
     ],
 )
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2534,7 +2573,7 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
 
 
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_nullable_without_create_temp_table_access(session, save_mode):
     original_run_query = session._run_query
@@ -2568,7 +2607,7 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
 @pytest.mark.udf
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
@@ -2592,7 +2631,7 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
         Utils.drop_procedure(session, f"{temp_sp_name}()")
 
 
-@pytest.mark.parametrize("save_mode", ["append", "overwrite"])
+@pytest.mark.parametrize("save_mode", ["append", "overwrite", "truncate"])
 def test_write_table_with_clustering_keys(session, save_mode):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2659,7 +2698,7 @@ def test_write_table_with_clustering_keys(session, save_mode):
 @pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists"]
+    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
 def test_write_temp_table_no_breaking_change(
     session, save_mode, table_type, caplog, local_testing_mode
@@ -2680,8 +2719,6 @@ def test_write_temp_table_no_breaking_change(
             Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
-        # clear the warning dict otherwise it will affect the future tests
-        warning_dict.clear()
 
 
 @pytest.mark.localtest

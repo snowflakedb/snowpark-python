@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    add_snowpark_package_to_sproc_packages,
     check_execute_as_arg,
     check_python_runtime_version,
     check_register_args,
@@ -30,7 +31,6 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import DataType, StructType
-from snowflake.snowpark.version import VERSION
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -429,7 +429,7 @@ class StoredProcedureRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -555,6 +555,7 @@ class StoredProcedureRegistration:
         check_register_args(
             TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
         )
+        native_app_params = kwargs.get("native_app_params", None)
 
         # register stored procedure
         return self._do_register_sp(
@@ -582,6 +583,7 @@ class StoredProcedureRegistration:
             # when we know the code is not too large. This is useful
             # in pandas API to create stored procedures not registered by users.
             force_inline_code=kwargs.get("force_inline_code", False),
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -753,6 +755,7 @@ class StoredProcedureRegistration:
         secrets: Optional[Dict[str, str]] = None,
         force_inline_code: bool = False,
         comment: Optional[str] = None,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
         (
             udf_name,
@@ -779,21 +782,10 @@ class StoredProcedureRegistration:
         ]
 
         # Add in snowflake-snowpark-python if it is not already in the package list.
-        major, minor, patch = VERSION
-        package_name = "snowflake-snowpark-python"
-        # Use == to ensure that the remote version matches the local version
-        this_package = f"{package_name}=={major}.{minor}.{patch}"
-
-        # When resolve_imports_and_packages is called below it will use the provided packages or
-        # default to the packages in the current session. If snowflake-snowpark-python is not
-        # included by either of those two mechanisms then create package list does include it and
-        # any other relevant packages.
-        if packages is None:
-            if package_name not in self._session._packages:
-                packages = list(self._session._packages.values()) + [this_package]
-        else:
-            if not any(package_name in p for p in packages):
-                packages.append(this_package)
+        packages = add_snowpark_package_to_sproc_packages(
+            session=self._session,
+            packages=packages,
+        )
 
         (
             handler,
@@ -819,7 +811,7 @@ class StoredProcedureRegistration:
             force_inline_code=force_inline_code,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -827,23 +819,27 @@ class StoredProcedureRegistration:
         anonymous_sp_sql = None
         if anonymous:
             anonymous_sp_sql = generate_anonymous_python_sp_sql(
+                func=func,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 inline_python_code=code,
                 strict=strict,
                 runtime_version=self._session._runtime_version_from_requirement,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                native_app_params=native_app_params,
             )
         else:
             raised = False
             try:
                 create_python_udf_or_sp(
                     session=self._session,
+                    func=func,
                     return_type=return_type,
                     input_args=input_args,
                     handler=handler,
@@ -851,6 +847,7 @@ class StoredProcedureRegistration:
                     object_name=udf_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
+                    raw_imports=imports,
                     is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
@@ -862,6 +859,7 @@ class StoredProcedureRegistration:
                     secrets=secrets,
                     statement_params=statement_params,
                     comment=comment,
+                    native_app_params=native_app_params,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
