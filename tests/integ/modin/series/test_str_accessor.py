@@ -223,15 +223,27 @@ def test_str_replace_neg(pat, n, repl, error):
 
 @pytest.mark.parametrize("pat", [None, "a", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.NaN, 3, 2, 1, 0, -1, -2])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_str_split(pat, n):
+    snow_ser = pd.Series(TEST_DATA)
+    with pytest.raises(
+        NotImplementedError, match="split is not yet implemented for Series.str"
+    ):
+        snow_ser.str.split(pat=pat, n=n)
+
+
+@sql_count_checker(query_count=0)
+def test_str_split_negative():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    eval_snowpark_pandas_result(
-        snow_ser,
-        native_ser,
-        lambda ser: ser.str.split(pat=pat, n=n, expand=False, regex=None),
-    )
+    with pytest.raises(
+        NotImplementedError, match="split is not yet implemented for Series.str"
+    ):
+        eval_snowpark_pandas_result(
+            snow_ser,
+            native_ser,
+            lambda ser: ser.str.split(pat=None, n=None, expand=False, regex=None),
+        )
 
 
 @pytest.mark.parametrize("regex", [None, True])
@@ -249,20 +261,22 @@ def test_str_split_regex(regex):
 
 
 @pytest.mark.parametrize(
-    "pat, n, expand, error",
+    "pat, n, expand",
     [
-        ("", 1, False, ValueError),
-        (re.compile("a"), 1, False, NotImplementedError),
-        (-2.0, 1, False, NotImplementedError),
-        ("a", "a", False, NotImplementedError),
-        ("a", 1, True, NotImplementedError),
+        ("", 1, False),
+        (re.compile("a"), 1, False),
+        (-2.0, 1, False),
+        ("a", "a", False),
+        ("a", 1, True),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_split_neg(pat, n, expand, error):
+def test_str_split_neg(pat, n, expand):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(error):
+    with pytest.raises(
+        NotImplementedError, match="split is not yet implemented for Series.str"
+    ):
         snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
 
 

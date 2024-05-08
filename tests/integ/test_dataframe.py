@@ -30,7 +30,7 @@ from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
-from snowflake.snowpark._internal.utils import TempObjectType, warning_dict
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -2719,8 +2719,6 @@ def test_write_temp_table_no_breaking_change(
             Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
-        # clear the warning dict otherwise it will affect the future tests
-        warning_dict.clear()
 
 
 @pytest.mark.localtest

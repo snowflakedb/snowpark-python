@@ -15,13 +15,129 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+from functools import wraps
+
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the Modin project, under the Apache License,
 # Version 2.0.
 from logging import getLogger
-from typing import NoReturn
+from typing import Any, Callable, NoReturn, Optional, Union
 
 logger = getLogger(__name__)
+
+_snowpark_pandas_does_not_yet_support = "Snowpark pandas does not yet support the"
+
+
+def _make_not_implemented_decorator(
+    decorating_functions: bool, attribute_prefix: Optional[str] = None
+) -> Callable:
+    """
+    Make a decorator that wraps a function or property in an outer function that raises NotImplementedError.
+
+    Args:
+        decorating_functions:
+            Whether the decorator will decorate functions and not methods, e.g.
+            pd.cut as opposed to pd.DataFrame.max
+        attribute_prefix:
+            The prefix for describing the attribute, e.g. for DataFrame methods
+            this would be "DataFrame." If None, infer the prefix from the object
+            that the method is called on. Set to None for superclasses like
+            BasePandasDataset where the subtype of the object isn't known till
+            runtime. Note that it doesn't make sense to set atribute_prefix to
+            None when decorating functions, because functions aren't called on
+            an object.
+
+    Returns:
+        A decorator that wraps a function or property in an outer function that raises NotImplementedError.
+    """
+
+    def not_implemented_decorator() -> Callable:
+        def make_error_raiser(f: Any) -> Union[Callable, property]:
+            if isinstance(f, classmethod):
+                raise ValueError(
+                    "classmethod objects do not have a name. Instead of trying to "
+                    + "decorate a classmethod, decorate a regular function, then "
+                    + "apply the decorator @classmethod to the result."
+                )
+            name = (
+                # properties seem to not have __name__, but their fget tends
+                # to have __name__.
+                getattr(f, "__name__", getattr(f.fget, "__name__", repr(f)))
+                if isinstance(f, property)
+                else getattr(f, "__name__", repr(f))
+            )
+
+            if decorating_functions:
+
+                @wraps(f)
+                def raise_not_implemented_function_error(
+                    *args: tuple[Any, ...], **kwargs: dict[str, Any]
+                ) -> NoReturn:
+                    assert attribute_prefix is not None
+                    ErrorMessage.not_implemented(
+                        message=f"{_snowpark_pandas_does_not_yet_support} property {attribute_prefix}.{name}"
+                    )
+
+                return raise_not_implemented_function_error
+
+            if isinstance(f, property):
+
+                def raise_not_implemented_property_error(
+                    self: Any, *args: tuple[Any, ...], **kwargs: dict[str, Any]
+                ) -> NoReturn:
+                    if attribute_prefix is None:
+                        non_null_attribute_prefix = type(self).__name__
+                    else:
+                        non_null_attribute_prefix = attribute_prefix
+                    ErrorMessage.not_implemented(
+                        message=f"{_snowpark_pandas_does_not_yet_support} property {non_null_attribute_prefix}.{name}"
+                    )
+
+                return property(
+                    fget=raise_not_implemented_property_error,
+                    fset=raise_not_implemented_property_error,
+                    fdel=raise_not_implemented_property_error,
+                    doc=f.__doc__,
+                )
+
+            @wraps(f)
+            def raise_not_implemented_method_error(
+                cls_or_self: Any, *args: tuple[Any, ...], **kwargs: dict[str, Any]
+            ) -> NoReturn:
+                if attribute_prefix is None:
+                    non_null_attribute_prefix = (
+                        # cls_or_self is a class if this is a classmethod.
+                        cls_or_self
+                        if isinstance(cls_or_self, type)
+                        # Otherwise, look at the type of self.
+                        else type(cls_or_self)
+                    ).__name__
+                else:
+                    non_null_attribute_prefix = attribute_prefix
+                ErrorMessage.not_implemented(
+                    message=f"{_snowpark_pandas_does_not_yet_support} method {non_null_attribute_prefix}.{name}"
+                )
+
+            return raise_not_implemented_method_error
+
+        return make_error_raiser
+
+    return not_implemented_decorator
+
+
+base_not_implemented = _make_not_implemented_decorator(decorating_functions=False)
+
+dataframe_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="DataFrame"
+)
+
+series_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="Series"
+)
+
+pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=True, attribute_prefix="pd"
+)
 
 
 class ErrorMessage:
@@ -30,9 +146,7 @@ class ErrorMessage:
     printed_warnings: set[int] = set()  # Set of hashes of printed warnings
 
     @classmethod
-    def not_implemented(cls, message: str = "") -> NoReturn:  # pragma: no cover
-        if message == "":
-            message = "This functionality is not yet available in Snowpark pandas API"
+    def not_implemented(cls, message: str) -> NoReturn:  # pragma: no cover
         logger.debug(f"NotImplementedError: {message}")
         raise NotImplementedError(message)
 
@@ -50,7 +164,7 @@ class ErrorMessage:
         class_: str
             The class of Snowpark pandas function associated with the method.
         """
-        message = f"{name} is not implemented for {class_}"
+        message = f"{name} is not yet implemented for {class_}"
         ErrorMessage.not_implemented(message)
 
     # TODO SNOW-840704: using Snowpark pandas exception class for the internal error

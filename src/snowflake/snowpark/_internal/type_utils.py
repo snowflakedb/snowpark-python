@@ -125,6 +125,37 @@ def convert_metadata_to_sp_type(
             raise ValueError(
                 f"Invalid result metadata for vector type: invalid element type: {element_type_name}"
             )
+    elif column_type_name in {"ARRAY", "MAP", "OBJECT"} and getattr(
+        metadata, "fields", None
+    ):
+        # If fields is not defined or empty then the legacy type can be returned instead
+        if column_type_name == "ARRAY":
+            assert (
+                len(metadata.fields) == 1
+            ), "ArrayType columns should have one metadata field."
+            return ArrayType(
+                convert_metadata_to_sp_type(metadata.fields[0]), structured=True
+            )
+        elif column_type_name == "MAP":
+            assert (
+                len(metadata.fields) == 2
+            ), "MapType columns should have two metadata fields."
+            return MapType(
+                convert_metadata_to_sp_type(metadata.fields[0]),
+                convert_metadata_to_sp_type(metadata.fields[1]),
+                structured=True,
+            )
+        else:
+            assert all(
+                getattr(field, "name", None) for field in metadata.fields
+            ), "All fields of a StructType should be named."
+            return StructType(
+                [
+                    StructField(field.name, convert_metadata_to_sp_type(field))
+                    for field in metadata.fields
+                ],
+                structured=True,
+            )
     else:
         return convert_sf_to_sp_type(
             column_type_name,
@@ -142,7 +173,7 @@ def convert_sf_to_sp_type(
         return ArrayType(StringType())
     if column_type_name == "VARIANT":
         return VariantType()
-    if column_type_name == "OBJECT":
+    if column_type_name in {"OBJECT", "MAP"}:
         return MapType(StringType(), StringType())
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
@@ -235,9 +266,24 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, BinaryType):
         return "BINARY"
     if isinstance(datatype, ArrayType):
-        return "ARRAY"
+        if datatype.structured:
+            return f"ARRAY({convert_sp_to_sf_type(datatype.element_type)})"
+        else:
+            return "ARRAY"
     if isinstance(datatype, MapType):
-        return "OBJECT"
+        if datatype.structured:
+            return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)})"
+        else:
+            return "OBJECT"
+    if isinstance(datatype, StructType):
+        if datatype.structured:
+            fields = ", ".join(
+                f"{field.name.upper()} {convert_sp_to_sf_type(field.datatype)}"
+                for field in datatype.fields
+            )
+            return f"OBJECT({fields})"
+        else:
+            return "OBJECT"
     if isinstance(datatype, VariantType):
         return "VARIANT"
     if isinstance(datatype, GeographyType):
@@ -264,6 +310,15 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
+if installed_pandas:
+    import numpy
+
+    PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
+        {
+            type(pandas.NaT): TimestampType,
+            numpy.float64: DecimalType,
+        }
+    )
 
 
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (

@@ -138,11 +138,6 @@ def test_sort_values_by_ascending_length_mismatch_negative(native_df_simple):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "sort_op",
     [
@@ -153,20 +148,16 @@ def test_sort_values_by_ascending_length_mismatch_negative(native_df_simple):
         lambda df: df.sort_values(by=[1, 3], axis=1, ascending=False),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_sort_values_axis_1(sort_op):
-    native_df = native_pd.DataFrame(
+    df = pd.DataFrame(
         [[1, 1, 2], [3, 1, 0], [4, 5, 6]], index=[1, 2, 3], columns=list("ABC")
     )
-    snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, sort_op)
+    msg = "Snowpark pandas sort_values API doesn't yet support axis == 1"
+    with pytest.raises(NotImplementedError, match=msg):
+        sort_op(df)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "sort_op",
     [
@@ -179,13 +170,14 @@ def test_sort_values_axis_1(sort_op):
         lambda df: df.sort_values(by=[1, 3], axis=1, ascending=False, inplace=True),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_sort_values_axis_1_inplace(sort_op):
-    native_df = native_pd.DataFrame(
+    df = pd.DataFrame(
         [[1, 1, 2], [3, 1, 0], [4, 5, 6]], index=[1, 2, 3], columns=list("ABC")
     )
-    snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, sort_op, inplace=True)
+    msg = "Snowpark pandas sort_values API doesn't yet support axis == 1"
+    with pytest.raises(NotImplementedError, match=msg):
+        sort_op(df)
 
 
 @sql_count_checker(query_count=0)
@@ -409,11 +401,6 @@ def test_sort_values_ignore_index(native_df_simple, ascending, ignore_index):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "op",
     [
@@ -421,16 +408,12 @@ def test_sort_values_ignore_index(native_df_simple, ascending, ignore_index):
         lambda df: df.sort_values(by="A", key=lambda x: -x),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_sort_values_key(native_df_simple, op):
-    # The high query count here is a result of a stored procedure fallback
-    # due to the key being a lambda function after snow_df gets materialized.
     snow_df = pd.DataFrame(native_df_simple)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df_simple,
-        op,
-    )
+    msg = "Snowpark pandas sort_values API doesn't yet support 'key' parameter"
+    with pytest.raises(NotImplementedError, match=msg):
+        op(snow_df)
 
 
 @pytest.mark.parametrize("label", VALID_PANDAS_LABELS)
