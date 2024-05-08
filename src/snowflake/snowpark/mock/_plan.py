@@ -1431,6 +1431,9 @@ def execute_mock_plan(
             col for col in child_rf.keys() if col not in {agg_column, pivot_column}
         ]
 
+        # Missing values are filled with a sentinel object that can later be replaced with Nones
+        sentinel = object()
+
         # Snowflake treats an empty aggregation as None, whereas pandas treats it as 0.
         # This requires us to wrap the aggregation function with extract logic to handle this special case.
         def agg_function(column):
@@ -1457,9 +1460,6 @@ def execute_mock_plan(
         # Select down to indices and provided values if specific values were requested
         if pivot_values:
             result = result[list(indices) + pivot_values]
-
-        # Missing values are filled with a sentinel object that can later be replaced with Nones
-        sentinel = object()
 
         # Non-indice columns lack an sf_type, add them back in.
         for res_col in set(result.columns) - set(indices):
