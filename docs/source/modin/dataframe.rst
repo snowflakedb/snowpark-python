@@ -207,3 +207,10 @@ DataFrame
     DataFrame.to_pandas
     DataFrame.to_snowflake
     DataFrame.to_snowpark
+
+.. rubric:: Caching
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.cache

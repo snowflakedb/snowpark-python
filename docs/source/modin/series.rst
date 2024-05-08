@@ -219,5 +219,12 @@ Series
     Series.str
     Series.dt
 
+.. rubric:: Caching
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.cache
+
 .. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
 .. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`
