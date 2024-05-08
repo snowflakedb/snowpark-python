@@ -554,19 +554,21 @@ def test_list_agg_within_group_sort_order(session):
 
 def test_binary_expression(session):
     """=, !=, >, <, >=, <=, EQUAL_NULL, AND, OR, +, -, *, /, %, POWER, BITAND, BITOR, BITXOR"""
-    df1 = session.sql("select 1 as \" a\", 'x' as \" b\", 1 as a, 'x' as b")
+    df1 = session.create_dataframe(
+        [[1, "x", 1, "x"]], schema=['" a"', '" b"', "a", "b"]
+    )
     df2 = df1.select(
-        df1[" a"] == "x",
-        df1[" a"] != "x",
-        df1[" a"] > "x",
-        df1[" a"] <= "x",
+        df1[" b"] == "x",
+        df1[" b"] != "x",
+        df1[" b"] > "x",
+        df1[" b"] <= "x",
         df1[" a"].equal_null(df1[" b"]),
         (df1[" b"] == "x") & (df1[" a"] == 1),
         (df1[" b"] == "x") | (df1[" a"] == 1),
-        df1[" b"].bitand(lit(1)),
-        df1[" b"].bitor(lit(1)),
-        df1[" b"].bitxor(lit(1)),
-        pow(df1[" b"], 2),
+        df1[" a"].bitand(lit(1)),
+        df1[" a"].bitor(lit(1)),
+        df1[" a"].bitxor(lit(1)),
+        pow(df1[" a"], 2),
         df1[" a"] + df1[" a"],
         df1[" a"] - df1[" a"],
         df1[" a"] * df1[" a"],
@@ -578,17 +580,17 @@ def test_binary_expression(session):
         == df2.columns
         == get_metadata_names(session, df2)
         == [
-            '"("" A"" = \'X\')"',
-            '"("" A"" != \'X\')"',
-            '"("" A"" > \'X\')"',
-            '"("" A"" <= \'X\')"',
+            '"("" B"" = \'X\')"',
+            '"("" B"" != \'X\')"',
+            '"("" B"" > \'X\')"',
+            '"("" B"" <= \'X\')"',
             '"EQUAL_NULL("" A"", "" B"")"',
             '"(("" B"" = \'X\') AND ("" A"" = 1 :: INT))"',
             '"(("" B"" = \'X\') OR ("" A"" = 1 :: INT))"',
-            '"BITAND(1 :: INT, "" B"")"',
-            '"BITOR(1 :: INT, "" B"")"',
-            '"BITXOR(1 :: INT, "" B"")"',
-            '"POWER("" B"", 2 :: INT)"',
+            '"BITAND(1 :: INT, "" A"")"',
+            '"BITOR(1 :: INT, "" A"")"',
+            '"BITXOR(1 :: INT, "" A"")"',
+            '"POWER("" A"", 2 :: INT)"',
             '"("" A"" + "" A"")"',
             '"("" A"" - "" A"")"',
             '"("" A"" * "" A"")"',
@@ -597,17 +599,17 @@ def test_binary_expression(session):
         ]
     )
     df3 = df1.select(
-        df1["a"] == "x",
-        df1["a"] != "x",
-        df1["a"] > "x",
-        df1["a"] <= "x",
+        df1["b"] == "x",
+        df1["b"] != "x",
+        df1["b"] > "x",
+        df1["b"] <= "x",
         df1["a"].equal_null(df1["b"]),
         (df1["b"] == "x") & (df1["a"] == 1),
         (df1["b"] == "x") | (df1["a"] == 1),
-        df1["b"].bitand(lit(1)),
-        df1["b"].bitor(lit(1)),
-        df1["b"].bitxor(lit(1)),
-        pow(df1["b"], 2),
+        df1["a"].bitand(lit(1)),
+        df1["a"].bitor(lit(1)),
+        df1["a"].bitxor(lit(1)),
+        pow(df1["a"], 2),
         df1["a"] + df1["a"],
         df1["a"] - df1["a"],
         df1["a"] * df1["a"],
@@ -618,17 +620,17 @@ def test_binary_expression(session):
         [x.name for x in df3._output]
         == df3.columns
         == [
-            '"(""A"" = \'X\')"',
-            '"(""A"" != \'X\')"',
-            '"(""A"" > \'X\')"',
-            '"(""A"" <= \'X\')"',
+            '"(""B"" = \'X\')"',
+            '"(""B"" != \'X\')"',
+            '"(""B"" > \'X\')"',
+            '"(""B"" <= \'X\')"',
             '"EQUAL_NULL(""A"", ""B"")"',
             '"((""B"" = \'X\') AND (""A"" = 1 :: INT))"',
             '"((""B"" = \'X\') OR (""A"" = 1 :: INT))"',
-            '"BITAND(1 :: INT, ""B"")"',
-            '"BITOR(1 :: INT, ""B"")"',
-            '"BITXOR(1 :: INT, ""B"")"',
-            '"POWER(""B"", 2 :: INT)"',
+            '"BITAND(1 :: INT, ""A"")"',
+            '"BITOR(1 :: INT, ""A"")"',
+            '"BITXOR(1 :: INT, ""A"")"',
+            '"POWER(""A"", 2 :: INT)"',
             '"(""A"" + ""A"")"',
             '"(""A"" - ""A"")"',
             '"(""A"" * ""A"")"',
