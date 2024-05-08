@@ -133,6 +133,7 @@ from snowflake.snowpark.functions import (
     to_timestamp_tz,
     to_variant,
 )
+from snowflake.snowpark.lineage import Lineage
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._pandas_util import (
@@ -477,6 +478,7 @@ class Session:
             )
         )
         self._file = FileOperation(self)
+        self._lineage = Lineage(self)
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
@@ -2764,7 +2766,22 @@ class Session:
     def _use_object(self, object_name: str, object_type: str) -> None:
         if object_name:
             validate_object_name(object_name)
-            self._run_query(f"use {object_type} {object_name}")
+            query = f"use {object_type} {object_name}"
+            if isinstance(self._conn, MockServerConnection):
+                use_ddl_pattern = (
+                    r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+                )
+
+                if match := re.match(use_ddl_pattern, query):
+                    # if the query is "use xxx", then the object name is already verified by the upper stream
+                    # we do not validate here
+                    object_type = match.group(1)
+                    object_name = match.group(2)
+                    setattr(self._conn, f"_active_{object_type}", object_name)
+                else:
+                    self._run_query(query)
+            else:
+                self._run_query(query)
         else:
             raise ValueError(f"'{object_type}' must not be empty or None.")
 
@@ -2806,6 +2823,14 @@ class Session:
         See details of how to use this object in :class:`FileOperation`.
         """
         return self._file
+
+    @property
+    def lineage(self) -> Lineage:
+        """
+        Returns a :class:`Lineage` object that you can use to explore lineage of snowflake entities.
+        See details of how to use this object in :class:`Lineage`.
+        """
+        return self._lineage
 
     @property
     def udf(self) -> UDFRegistration:

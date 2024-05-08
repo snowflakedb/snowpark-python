@@ -56,13 +56,7 @@ def test_dataframe_with_values_shift(df, periods, fill_value, axis):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: (
-            # pandas df.shift(axis=1) is broken for empty DFs
-            # https://github.com/pandas-dev/pandas/issues/57301
-            native_df
-            if isinstance(df, native_pd.DataFrame) and native_df.empty and axis == 1
-            else df.shift(periods=periods, fill_value=fill_value, axis=axis)
-        ),
+        lambda df: df.shift(periods=periods, fill_value=fill_value, axis=axis),
         check_column_type=False,
     )
 

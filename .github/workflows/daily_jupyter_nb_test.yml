@@ -1,0 +1,108 @@
+name: Snowpark pandas Notebook Tests
+
+on:
+    schedule:
+      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
+    workflow_dispatch:
+        inputs:
+            logLevel:
+                default: warning
+                description: "Log level"
+                required: true
+
+jobs:
+    lint:
+        name: Check linting
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - name: Set up Python
+            uses: actions/setup-python@v4
+            with:
+              python-version: '3.9'
+          - name: Display Python version
+            run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
+          - name: Upgrade setuptools and pip
+            run: python -m pip install -U setuptools pip
+          - name: Install tox
+            run: python -m pip install tox
+          - name: Run fix_lint
+            run: python -m tox -e fix_lint
+
+    build:
+        needs: lint
+        name: Build Wheel File
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: 3.9
+            - name: Upgrade setuptools and pip
+              run: python -m pip install -U setuptools pip wheel
+            - name: Generate wheel
+              run: python -m pip wheel -v -w dist --no-deps .
+            - name: Show wheels generated
+              run: ls -lh dist
+            - uses: actions/upload-artifact@v1
+              with:
+                name: wheel
+                path: dist/
+    test:
+        name: Test modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+        needs: build
+        runs-on: ${{ matrix.os.image_name }}
+        strategy:
+            fail-fast: false
+            matrix:
+                os:
+                  - image_name: ubuntu-latest
+                    download_name: linux
+                  - image_name: macos-latest
+                    download_name: macos
+                  - image_name: windows-latest
+                    download_name: windows
+                python-version: ["3.9", "3.10", "3.11"]
+                cloud-provider: [aws, azure, gcp]
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                    python-version: ${{ matrix.python-version }}
+            - name: Display Python version
+              run: python -c "import sys; print(sys.version)"
+            - name: Decrypt parameters.py
+              shell: bash
+              run: .github/scripts/decrypt_parameters.sh
+              env:
+                  PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+                  CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+            - name: Download wheel(s)
+              uses: actions/download-artifact@v3
+              with:
+                name: wheel
+                path: dist
+            - name: Show wheels downloaded
+              run: ls -lh dist
+              shell: bash
+            - name: Upgrade setuptools, pip and wheel
+              run: python -m pip install -U setuptools pip wheel
+            - name: Install project
+              run: python -m pip install -e ".[modin-development]"
+            - name: Install test requirements
+              run: python -m pip install -r tests/notebooks/test_requirements.txt
+            - name: Run notebook tests
+              run: |
+                python -c "import sys; sys.path.append('../')"
+                python -m pytest -ra --nbmake tests/notebooks/modin
+              env:
+                PYTHON_VERSION: ${{ matrix.python-version }}
+                cloud_provider: ${{ matrix.cloud-provider }}
+                PYTEST_ADDOPTS: --color=yes --tb=short
+                # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+                # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+              shell: bash

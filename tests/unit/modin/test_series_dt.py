@@ -2,16 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
-from typing import Callable
 from unittest import mock
 
 import modin.pandas as pd
-import numpy as np
 import pandas as native_pd
 import pytest
-from modin.pandas import DataFrame, Series
-from pandas import DatetimeTZDtype
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -34,9 +29,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     return fake_query_compiler
 
 
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
 @pytest.mark.parametrize(
     "func, func_name",
     [
@@ -44,8 +36,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
         (lambda s: s.dt.timetz, "timetz"),
         (lambda s: s.dt.microsecond, "microsecond"),
         (lambda s: s.dt.nanosecond, "nanosecond"),
-        (lambda s: s.dt.week, "week"),
-        (lambda s: s.dt.weekofyear, "weekofyear"),
         (lambda s: s.dt.dayofweek, "dayofweek"),
         (lambda s: s.dt.weekday, "weekday"),
         (lambda s: s.dt.dayofyear, "dayofyear"),
@@ -77,103 +67,13 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
         (lambda s: s.dt.start_time, "start_time"),
         (lambda s: s.dt.end_time, "end_time"),
         (lambda s: s.dt.to_timestamp(), "to_timestamp"),
+        (lambda s: s.dt.components(), "components"),
+        (lambda s: s.dt.to_pytimedelta(), "to_pytimedelta"),
+        (lambda s: s.dt.to_pydatetime(), "to_pydatetime"),
     ],
 )
-def test_dt_methods(
-    mock_datetime_register, func, func_name, mock_query_compiler_for_dt_series
-):
+def test_dt_methods(func, func_name, mock_query_compiler_for_dt_series):
     mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = mock_query_compiler_for_dt_series
-    mock_datetime_register.return_value = return_callable
-    res = func(mock_series)
-    mock_datetime_register.assert_called_once()
-    assert isinstance(res, Series), func_name
-    assert res._query_compiler == mock_query_compiler_for_dt_series, func_name
-
-
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
-def test_dt_components(mock_datetime_register, mock_query_compiler_for_dt_series):
-    mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = mock_query_compiler_for_dt_series
-    mock_datetime_register.return_value = return_callable
-    res = mock_series.dt.components
-    mock_datetime_register.assert_called_once()
-    assert isinstance(res, DataFrame)
-    assert res._query_compiler == mock_query_compiler_for_dt_series
-
-
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
-def test_dt_to_pytimedelta(mock_datetime_register, mock_query_compiler_for_dt_series):
-    mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
-    result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    result_array = np.array(
-        [
-            [
-                datetime.timedelta(0),
-                datetime.timedelta(days=1),
-                datetime.timedelta(days=2),
-                datetime.timedelta(days=3),
-            ],
-            [0, 1, 2, 3],
-        ],
-        dtype=object,
-    )
-    result_query_compiler.to_numpy.return_value = result_array
-
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = result_query_compiler
-    mock_datetime_register.return_value = return_callable
-    res = mock_series.dt.to_pytimedelta()
-    assert res.tolist() == np.array([datetime.timedelta(0), 0]).tolist()
-
-
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
-def test_dt_to_pydatetime(mock_datetime_register, mock_query_compiler_for_dt_series):
-    mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
-    result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    result_query_compiler.columnarize.return_value = result_query_compiler
-    result_array = np.array(
-        [datetime.datetime(2018, 3, 10, 0, 0), datetime.datetime(2018, 3, 11, 0, 0)],
-        dtype=object,
-    )
-    result_query_compiler.to_numpy.return_value = result_array
-
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = result_query_compiler
-    mock_datetime_register.return_value = return_callable
-    res = mock_series.dt.to_pydatetime()
-    assert res.tolist() == result_array.tolist()
-
-
-def test_dt_tz():
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    time_type = DatetimeTZDtype(tz="UTC")
-    mock_query_compiler.dtypes = native_pd.Series([time_type])
-    mock_series = Series(query_compiler=mock_query_compiler)
-
-    res = mock_series.dt.tz
-    assert res == time_type.tz
-
-
-@mock.patch(
-    "snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.DateTimeDefault.register"
-)
-def test_dt_freq(mock_datetime_register, mock_query_compiler_for_dt_series):
-    mock_series = pd.Series(query_compiler=mock_query_compiler_for_dt_series)
-    result_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    result_query_compiler.to_pandas.return_value = native_pd.DataFrame(["D"])
-
-    return_callable = mock.create_autospec(Callable)
-    return_callable.return_value = result_query_compiler
-    mock_datetime_register.return_value = return_callable
-    res = mock_series.dt.freq
-    assert res == "D"
+    msg = f"Snowpark pandas doesn't yet support the (method|property) 'Series.dt.{func_name}'"
+    with pytest.raises(NotImplementedError, match=msg):
+        func(mock_series)

@@ -508,7 +508,7 @@ jobs:
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install Snowpark
-        run: python -m pip install ".[development, pandas]"
+        run: python -m pip install ".[modin-development]"
       - name: Install Sphinx
         run: python -m pip install sphinx
       - name: Build document
