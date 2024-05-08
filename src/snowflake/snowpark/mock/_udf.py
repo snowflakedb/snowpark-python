@@ -1,9 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import os
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -11,7 +10,8 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
+from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
+from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
@@ -26,7 +26,6 @@ class MockUDFRegistration(UDFRegistration):
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
         self._udf_level_imports = dict()  # maps udf name to a set of file paths
         self._session_level_imports = set()
-        self._udf_import_directories = dict()  # maps udf name to a temporary directory
 
     def _clear_session_imports(self):
         self._session_level_imports.clear()
@@ -41,49 +40,11 @@ class MockUDFRegistration(UDFRegistration):
         Imports a python file or a directory of python module structure or a zip of the former.
         Returns the name of the Python module to be imported.
         When udf_name is not None, the import is added to the UDF associated with the name;
-        Otherwise, it is a session level import and will be added to every future UDF call.
+        Otherwise, it is a session level import and will be used if no UDF-level imports are specified.
         """
-        file_name, file_extension = os.path.splitext(os.path.basename(file_path))
-
-        is_on_stage = file_path.startswith("@")
-
-        if is_on_stage:
-            stage_registry = self._session._conn.stage_registry
-            stage_name, stage_prefix = extract_stage_name_and_prefix(file_path)
-            local_path = (
-                stage_registry[stage_name]._working_directory + "/" + stage_prefix
-            )
-        else:
-            local_path = file_path
-
-        is_python_import = file_extension in (
-            ".py",
-            ".zip",
-            "",
-        )  # directory is always considered as python module
-
-        if not is_python_import:
-            absolute_module_path = local_path
-            module_name = ""
-        else:
-            if (
-                import_path and not is_on_stage
-            ):  # import_path is only considered for local python files
-                module_root_dir = local_path[
-                    0 : local_path.rfind(import_path.replace(".", "/"))
-                ]
-            elif file_extension == ".py":
-                module_root_dir = os.path.join(local_path, "..")
-            elif file_extension == ".zip":
-                module_root_dir = local_path
-            else:  # directory
-                module_root_dir = os.path.join(local_path, "..")
-
-            absolute_module_path = os.path.abspath(module_root_dir)
-            module_name = file_name.split(".")[
-                0
-            ]  # the split is for the edge case when the filename contains ., e.g. test.py.zip
-
+        absolute_module_path, module_name = extract_import_dir_and_module_name(
+            file_path, self._session._conn.stage_registry, import_path
+        )
         if udf_name:
             self._udf_level_imports[udf_name].add(absolute_module_path)
         else:
@@ -117,6 +78,7 @@ class MockUDFRegistration(UDFRegistration):
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        native_app_params: Optional[Dict[str, Any]] = None,
     ) -> UserDefinedFunction:
         if is_permanent:
             self._session._conn.log_not_supported_error(
@@ -136,6 +98,10 @@ class MockUDFRegistration(UDFRegistration):
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
 
+        current_schema = self._session.get_current_schema()
+        current_database = self._session.get_current_database()
+        udf_name = get_fully_qualified_name(udf_name, current_schema, current_database)
+
         # allow registering pandas UDF from udf(),
         # but not allow registering non-pandas UDF from pandas_udf()
         if from_pandas_udf_function and not is_pandas_udf:
@@ -143,18 +109,6 @@ class MockUDFRegistration(UDFRegistration):
                 "You cannot create a non-vectorized UDF using pandas_udf(). "
                 "Use udf() instead."
             )
-
-        if packages:
-            pass  # NO-OP
-
-        if imports is not None:
-            self._udf_level_imports[udf_name] = set()
-            for _import in imports:
-                if type(_import) is str:
-                    self._import_file(_import, udf_name=udf_name)
-                else:
-                    local_path, import_path = _import
-                    self._import_file(local_path, import_path, udf_name=udf_name)
 
         custom_python_runtime_version_allowed = False
 
@@ -169,8 +123,21 @@ class MockUDFRegistration(UDFRegistration):
                 error_code="1304",
             )
 
-        if type(func) is tuple:  # register from file
+        if packages:
+            pass  # NO-OP
+
+        if imports is not None or type(func) is tuple:
             self._udf_level_imports[udf_name] = set()
+
+        if imports is not None:
+            for _import in imports:
+                if type(_import) is str:
+                    self._import_file(_import, udf_name=udf_name)
+                else:
+                    local_path, import_path = _import
+                    self._import_file(local_path, import_path, udf_name=udf_name)
+
+        if type(func) is tuple:  # register from file
             module_name = self._import_file(func[0], udf_name=udf_name)
             self._registry[udf_name] = (module_name, func[1])
         else:

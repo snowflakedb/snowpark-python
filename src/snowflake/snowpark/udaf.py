@@ -7,7 +7,7 @@
 
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
@@ -294,7 +294,7 @@ class UDAFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -426,6 +426,8 @@ class UDAFRegistration:
             parallel,
         )
 
+        native_app_params = kwargs.get("native_app_params", None)
+
         # register udaf
         return self._do_register_udaf(
             handler,
@@ -446,6 +448,7 @@ class UDAFRegistration:
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            native_app_params=native_app_params,
         )
 
     def register_from_file(
@@ -612,6 +615,7 @@ class UDAFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
@@ -657,7 +661,7 @@ class UDAFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
+        if (not custom_python_runtime_version_allowed) and (self._session is not None):
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -666,6 +670,7 @@ class UDAFRegistration:
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=handler,
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler_name,
@@ -673,6 +678,7 @@ class UDAFRegistration:
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -683,6 +689,7 @@ class UDAFRegistration:
                 secrets=secrets,
                 statement_params=statement_params,
                 comment=comment,
+                native_app_params=native_app_params,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

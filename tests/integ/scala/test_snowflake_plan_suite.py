@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, LongType
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 if sys.version_info <= (3, 9):
     from typing import Generator
@@ -111,6 +111,9 @@ def test_multiple_queries(session):
         Utils.drop_table(session, table_name2)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Unable to detect sql_simplifier_enabled fixture in SP"
+)
 def test_plan_height(session, temp_table, sql_simplifier_enabled):
     df1 = session.table(temp_table)
     assert df1._plan.plan_height == 1
