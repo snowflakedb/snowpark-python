@@ -15,7 +15,7 @@ class Index:
         tupleize_cols=True,
     ) -> native_pd.Index:
 
-        # TODO: SNOW-1359041: Lazy Index
+        # TODO: SNOW-1359041: Switch to lazy index implementation
         return native_pd.Index(
             data=data,
             dtype=dtype,
