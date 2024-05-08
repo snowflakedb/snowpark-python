@@ -783,7 +783,7 @@ class TestFillValue:
         def op_helper(ser):
             other = rhs
             if (
-                isinstance(other, pd.Index) or isinstance(other, native_pd.Index)
+                isinstance(other, (pd.Index, native_pd.Index))
             ) and isinstance(ser, native_pd.Series):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
