@@ -124,7 +124,7 @@ ITEM_TYPE_LIST_CONVERSION = [
     ["list", lambda x: x],
     ["array", lambda x: np.array(x)],
     ["tuple", lambda x: tuple(x)],
-    ["index", lambda x: pd.Index(x)],
+    ["index", lambda x: native_pd.Index(x)],
 ]
 
 
