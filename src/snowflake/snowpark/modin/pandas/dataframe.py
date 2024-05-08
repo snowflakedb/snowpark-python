@@ -2265,7 +2265,15 @@ class DataFrame(BasePandasDataset):
     def set_index(
         self,
         keys: IndexLabel
-        | list[IndexLabel | pd.Index | pd.Series | list | np.ndarray | Iterable],
+        | list[
+            IndexLabel
+            | pd.Index
+            | pandas.Index
+            | pd.Series
+            | list
+            | np.ndarray
+            | Iterable
+        ],
         drop: bool = True,
         append: bool = False,
         inplace: bool = False,
