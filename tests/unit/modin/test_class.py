@@ -6,7 +6,7 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas._index import Index as ModinIndex
+from snowflake.snowpark.modin.pandas.index import Index as ModinIndex
 
 
 def test_class_equivalence():
