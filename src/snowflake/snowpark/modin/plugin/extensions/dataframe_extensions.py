@@ -238,3 +238,20 @@ def to_pandas(
         Name: Animal, dtype: object
     """
     return self._to_pandas(statement_params=statement_params, **kwargs)
+
+
+@register_dataframe_accessor("cache")
+@snowpark_pandas_telemetry_method_decorator
+def cache(self) -> pd.DataFrame:
+    """
+    Materialize and cache the current Snowpark pandas DataFrame inplace.
+
+    Returns:
+        Snowpark pandas DataFrame
+
+    Note:
+        This method is inplace - the returned DataFrame is a reference to the same
+        DataFrame as was passed in.
+    """
+    self._query_compiler.cache_result()
+    return self

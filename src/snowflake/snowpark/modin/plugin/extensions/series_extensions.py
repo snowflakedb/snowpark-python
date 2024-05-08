@@ -203,3 +203,20 @@ def to_pandas(
     Name: Animal, dtype: object
     """
     return self._to_pandas(statement_params=statement_params, **kwargs)
+
+
+@register_series_accessor("cache")
+@snowpark_pandas_telemetry_method_decorator
+def cache(self) -> Series:
+    """
+    Materialize and cache the current Snowpark pandas Series inplace.
+
+    Returns:
+        Snowpark pandas Series
+
+    Note:
+        This method is inplace - the returned Series is a reference to the same
+        Series as was passed in.
+    """
+    self._query_compiler.cache_result()
+    return self
