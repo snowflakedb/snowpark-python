@@ -46,7 +46,7 @@
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
-- Added `DataFrame.cache` and `Series.cache` methods for users to cache computationally intensive pipelines.
+- Added `DataFrame.cache` and `Series.cache` methods for users to cache computationally intensive intermediate results for reuse.
 
 ## 1.14.0a2 (2024-04-18)
 
