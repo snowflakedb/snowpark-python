@@ -8,6 +8,7 @@ import json
 import math
 import numbers
 import operator
+import re
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -56,6 +57,13 @@ from ._util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+
+
+_DEFAULT_OUTPUT_FORMAT = {
+    DateType: "YYYY-MM-DD",
+    TimeType: "HH24:MI:SS",
+    TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
+}
 
 
 class LocalTimezone:
@@ -332,7 +340,7 @@ def mock_to_date(
         _fmt = fmt[row.name]
         data = row[0]
         auto_detect = _fmt is None or _fmt.lower() == "auto"
-        date_format, _, _ = convert_snowflake_datetime_format(
+        date_format, _ = convert_snowflake_datetime_format(
             _fmt, default_format="%Y-%m-%d"
         )
 
@@ -523,9 +531,7 @@ def mock_to_time(
             convert_numeric_string_value_to_float_seconds(d) % 86400
         ).time()
 
-    def convert_string_to_time(
-        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
-    ):
+    def convert_string_to_time(_data: str, _time_format: str, _fractional_seconds: int):
         data_parts = _data.split(".")
         if len(data_parts) == 2:
             # there is a part of seconds
@@ -544,10 +550,7 @@ def mock_to_time(
             process_string_time_with_fractional_seconds(_data, _fractional_seconds),
             _time_format,
         )
-        # there is a special case that if the time is 12 p.m noon, then no need to adjust
-        if _hour_delta == 12 and target_datetime.time().hour == 12:
-            _hour_delta = 0
-        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+        return target_datetime.time()
 
     res = []
 
@@ -562,7 +565,6 @@ def mock_to_time(
         try:
             (
                 time_fmt,
-                hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
 
@@ -571,9 +573,7 @@ def mock_to_time(
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
-                        convert_string_to_time(
-                            data, time_fmt, hour_delta, fractional_seconds
-                        )
+                        convert_string_to_time(data, time_fmt, fractional_seconds)
                     )
             elif isinstance(datatype, TimestampType):
                 res.append(data.time())
@@ -583,9 +583,7 @@ def mock_to_time(
                         res.append(convert_int_string_to_time(data))
                     else:
                         res.append(
-                            convert_string_to_time(
-                                data, time_fmt, hour_delta, fractional_seconds
-                            )
+                            convert_string_to_time(data, time_fmt, fractional_seconds)
                         )
                 elif isinstance(data, datetime.time):
                     res.append(data)
@@ -670,12 +668,11 @@ def _to_timestamp(
         if not isinstance(_fmt, numbers.Number):
             (
                 timestamp_format,
-                hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
         else:
             # if _fmt is a number, then snowflake expects <numeric_expr> + <scale>, format doesn't apply here
-            timestamp_format, hour_delta, fractional_seconds = None, 0, 0
+            timestamp_format, fractional_seconds = None, 0
 
         if data is None:
             return None
@@ -765,7 +762,6 @@ def _to_timestamp(
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
-            parsed = parsed + datetime.timedelta(hours=hour_delta)
             return parsed
         except BaseException:
             if try_cast:
@@ -863,59 +859,142 @@ def mock_to_char(
     column: ColumnEmulator,
     fmt: Optional[str] = None,
     try_cast: bool = False,
-) -> ColumnEmulator:  # TODO: support more input types
+) -> ColumnEmulator:
+    """
+    https://docs.snowflake.com/en/sql-reference/functions/to_char
+    [x] expr: An expression of any data type.
+    [x] numeric_expr: A numeric expression.
+    [x] date_or_time_expr: An expression of type DATE, TIME, or TIMESTAMP.
+    [x] binary_expr: An expression of type BINARY or VARBINARY.
+
+    """
     source_datatype = column.sf_type.datatype
 
-    if isinstance(source_datatype, DateType):
-        date_format, _, _ = convert_snowflake_datetime_format(
-            fmt, default_format="%Y-%m-%d"
-        )
-        func = partial(
-            try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
-        )
-    elif isinstance(source_datatype, TimeType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Time data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Timestamp data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, _NumericType):
-        if fmt:
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+
+    def convert_char(row):
+        _fmt = fmt[row.name]
+        data = row[0]
+
+        if isinstance(source_datatype, _NumericType):
+            if _fmt:
+                # https://docs.snowflake.com/en/sql-reference/sql-format-models
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                    internal_feature_name="mock_to_char",
+                    parameters_info={
+                        "source_datatype": type(source_datatype).__name__,
+                        "fmt": str(_fmt),
+                    },
+                    raise_error=NotImplementedError,
+                )
+            converter = (
+                lambda x: "{:.{}f}".format(data, source_datatype.scale)
+                if isinstance(source_datatype, DecimalType)
+                else str(x)
+            )
+            return try_convert(converter, try_cast, data)
+        elif isinstance(source_datatype, (DateType, TimeType)):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
+            (
+                format,
+                _,
+            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            converter = (
+                datetime.datetime.strftime
+                if isinstance(source_datatype, DateType)
+                else datetime.time.strftime
+            )
+            return try_convert(lambda x: converter(x, format), try_cast, data)
+        elif isinstance(source_datatype, TimestampType):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
+            (
+                format,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            # handle 3f, can use str index
+            time_str = try_convert(
+                lambda x: datetime.date.strftime(x, format), try_cast, data
+            ).strip()
+            # python doesn't offer a way to control digits in microseconds
+            # when converting datatime into string using format %f, hence here we manually control the output fractional
+            # microsecond parts
+            # we find the beginning of 6 consecutive digits and manipulate the string
+            # CAVEAT: this solution can not handle cases yyyymmddhhmmss
+            if "%f" in format:
+                pattern = r"\d{6}"
+                if len(re.findall(pattern, time_str)) > 1:
+                    # if we detect multiple consecutive 6 digits, it's a format we can't handle
+                    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                        external_feature_name=f"Use format string {_fmt} with TimestampType in TO_CHAR",
+                        internal_feature_name="mock_to_char",
+                        parameters_info={
+                            "source_datatype": type(source_datatype).__name__,
+                            "fmt": str(_fmt),
+                        },
+                        raise_error=NotImplementedError,
+                    )
+                start_idx = re.search(r"\d{6}", time_str).start()
+                end_idx = start_idx + 6
+                # truncate the microsecond string
+                fractional_seconds_str = time_str[start_idx:end_idx][
+                    0 : 6 if fractional_seconds >= 6 else fractional_seconds - 6
+                ]
+                # concatenate the whole string
+                time_str = (
+                    time_str[:start_idx]
+                    + fractional_seconds_str
+                    + (time_str[end_idx:] if end_idx < len(time_str) else "")
+                )
+            return time_str
+        elif isinstance(source_datatype, BinaryType):
+            _fmt = (_fmt or "HEX").upper()
+            fmt_decoder = {
+                "HEX": binascii.hexlify,
+                "BASE64": base64.b64encode,
+                "UTF-8": lambda x: x,
+            }.get(_fmt)
+
+            if fmt_decoder is None:
+                raise SnowparkSQLException(f"Invalid binary format {fmt}")
+            return try_convert(fmt_decoder, try_cast, data).decode()
+        elif isinstance(source_datatype, BooleanType):
+            return try_convert(lambda x: str(x).lower(), try_cast, data)
+        elif isinstance(source_datatype, (VariantType, ArrayType, MapType)):
+            from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+            # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
+            # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
+            return try_convert(
+                lambda x: json.dumps(
+                    x, cls=CUSTOM_JSON_ENCODER, separators=(",", ":")
+                ).strip('"'),
+                try_cast,
+                data,
+            )
+        elif isinstance(source_datatype, StringType):
+            return try_convert(lambda x: str(x), try_cast, data)
+        elif isinstance(source_datatype, NullType):
+            return None
+        else:
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                external_feature_name=f"Data type {type(source_datatype).__name__} in TO_CHAR",
                 internal_feature_name="mock_to_char",
                 parameters_info={
                     "source_datatype": type(source_datatype).__name__,
-                    "fmt": str(fmt),
+                    "fmt": str(_fmt),
                 },
                 raise_error=NotImplementedError,
             )
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    elif isinstance(source_datatype, BooleanType):
-        func = partial(try_convert, lambda x: str(x).lower(), try_cast)
-    elif isinstance(source_datatype, VariantType):
-        from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-        # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
-        # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
-        func = partial(
-            try_convert,
-            lambda x: json.dumps(x, cls=CUSTOM_JSON_ENCODER).strip('"'),
-            try_cast,
-        )
-    else:
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    new_col = column.apply(func)
-    new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
-    return new_col
+    res = column.to_frame().apply(convert_char, axis=1)
+    res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
+    return res
+
+
+@patch("to_varchar")
+def mock_to_varchar(*args, **kwargs) -> ColumnEmulator:
+    return mock_to_char(*args, **kwargs)
 
 
 @patch("to_double")
