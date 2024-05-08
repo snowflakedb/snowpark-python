@@ -30,7 +30,7 @@ from tests.integ.modin.utils import (
 # In general, 7 UNIONs occur because we concat 8 query compilers together:
 # count, mean, std, min, 0.25, 0.5, 0.75, max
 # However, for 1-column frames, we compute all the quantiles in a single query compiler, lowering the
-# union count to 5 UNIONs for 7 query compilers
+# union count to 5 UNIONs for 6 query compilers
 def test_describe_numeric_only(data):
     with SqlCounter(query_count=1, union_count=5 if len(data) == 1 else 7):
         eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: df.describe())
