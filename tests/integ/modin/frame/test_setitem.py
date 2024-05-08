@@ -333,7 +333,7 @@ def test_df_setitem_self_df_set_aligned_row_key(native_df):
         ["a", "c", "b"],  # replace with different type
         native_pd.Series(["x", "y", "z"], index=[2, 0, 1]),
         pd.RangeIndex(3),
-        pd.Index(
+        native_pd.Index(
             [datetime.datetime.now(), datetime.datetime.now(), datetime.datetime.now()]
         ),
     ],
@@ -355,7 +355,6 @@ def test_df_setitem_replace_column_with_single_column(column, key):
                 column = pd.Index(column)
             elif isinstance(column, native_pd.Series):
                 column = try_cast_to_snowpark_pandas_series(column)
-
         df[key] = column
 
     expected_join_count = 2

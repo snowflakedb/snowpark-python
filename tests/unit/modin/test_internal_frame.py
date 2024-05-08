@@ -555,8 +555,16 @@ def test_immutability(test_dataframes):
     frame.data_columns_index.set_names(["abc"], inplace=True)
     assert frame.data_columns_index.names == [None]
 
-    frame.index_columns_index.set_names(["abc"], inplace=True)
-    assert frame.index_columns_index.names == [None]
+    from snowflake.snowpark.modin.pandas.index import Index
+
+    index = frame.index_columns_index
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(index, Index):
+        index = index.to_pandas()
+
+    # name attribute is mutable
+    index.set_names(["abc"], inplace=True)
+    assert index.names == ["abc"]
 
     assert len(frame.ordering_columns) == 1
     frame.ordering_columns.append(OrderingColumn("abc"))

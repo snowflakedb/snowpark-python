@@ -2243,7 +2243,9 @@ def set_frame_2d_labels(
     #   duplicate_data_column_pos_to_count_map = {1: 2, 2: 3}
     #   new_data_column_pandas_labels_to_append = ["E", 1, "X", 2]
     col_info = _extract_loc_set_col_info(internal_frame, columns)
-
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(item, pd.Index):
+        item = item.to_pandas()
     # Some variables shared in this method
     index_is_scalar = is_scalar(index)
     index_is_frame = isinstance(index, InternalFrame)
@@ -2278,7 +2280,7 @@ def set_frame_2d_labels(
             col_info,
             index_is_bool_indexer,
         )
-
+    # breakpoint()
     if item_is_scalar:
         result_frame = _set_2d_labels_helper_for_non_frame_item(
             internal_frame, index, index_is_bool_indexer
