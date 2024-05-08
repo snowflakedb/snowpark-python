@@ -161,15 +161,3 @@ def test_pivot_table_not_implemented_or_supported(df_data):
         match="median",
     ):
         snow_df.pivot_table(index="A", columns="C", values="D", aggfunc="median")
-
-    with pytest.raises(
-        NotImplementedError,
-        match="pivot_table with no index configuration is currently not supported",
-    ):
-        snow_df.pivot_table(index=None, columns="C", values="D")
-
-    with pytest.raises(
-        NotImplementedError,
-        match="pivot_table with no index configuration is currently not supported",
-    ):
-        snow_df.pivot_table(index=None, columns=None, values="D")
