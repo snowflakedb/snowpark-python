@@ -9154,7 +9154,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ] = "linear",
         method: Literal["single", "table"] = "single",
         index: Optional[Union[list[str], list[float]]] = None,
-        index_dtype: Optional[npt.DTypeLike] = None,
+        index_dtype: npt.DTypeLike = float,
     ) -> "SnowflakeQueryCompiler":
         """
         Returns values at the given quantiles for each column.
@@ -9173,14 +9173,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: {"single", "table"}
             When "single", computes percentiles against values within the column; when "table", computes
             against values in the whole table. Currently, only "single" is supported.
-        index: Optional[List[str]], default None
+        index: Optional[List[str]], default: None
             When specified, sets the index column of the result to be this list. This is not part of
             the pandas API for quantile, and only used to implement df.describe().
             When unspecified, the index is the float values of the quantiles.
-        index_dtype: Optional[npt.DTypeLike], default None
+        index_dtype: npt.DTypeLike, default: float
             When specified along with ``index``, determines the type of the index column. This is only used
             for the single-column case, where index values must be coerced to strings to support an UNPIVOT,
-            and otherwise is inferred. As with ``index``, this is not part of the public API, and only used
+            and otherwise is inferred. As with ``index``, this is not part of the public API, and only specified
             by ``describe``.
 
         Returns
@@ -9210,6 +9210,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert index is None or len(index) == len(
             q
         ), f"length of index {index} did not match quantiles {q}"
+        # If the index is unspecified, then use the quantiles as the index
         index_values = q if index is None else index
         if len(query_compiler._modin_frame.data_column_pandas_labels) == 1 and all(
             q[i] < q[i + 1] for i in range(len(q) - 1)
@@ -9221,7 +9222,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # The dtype of the resulting index column should always be float unless explicitly specified,
             # such as with `df.describe`, where the column should be strings.
             return query_compiler._quantiles_single_col(
-                q, interpolation, index=index_values, index_dtype=index_dtype or float
+                q, interpolation, index=index_values, index_dtype=index_dtype
             )
         original_frame = query_compiler._modin_frame
         data_column_pandas_labels = original_frame.data_column_pandas_labels
