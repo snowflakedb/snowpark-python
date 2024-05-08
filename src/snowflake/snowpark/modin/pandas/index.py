@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import numpy as np
 import pandas as native_pd
 
 
@@ -49,20 +50,38 @@ class Index:
     """
 
     # same fields as native pandas index constructor
-    def __new__(
-        cls,
+    def __init__(
+        self,
         data=None,
         dtype=None,
         copy=False,
         name=None,
         tupleize_cols=True,
-    ) -> native_pd.Index:
+    ) -> None:
 
         # TODO: SNOW-1359041: Switch to lazy index implementation
-        return native_pd.Index(
-            data=data,
-            dtype=dtype,
-            copy=copy,
-            name=name,
-            tupleize_cols=tupleize_cols,
-        )
+        if isinstance(data, native_pd.Index):
+            self._index = data
+        else:
+            self._index = native_pd.Index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+
+    def to_pandas(self):
+        return self._index
+
+    def values(self):
+        raise NotImplementedError("Values not yet implemented")
+
+    def __array__(self, dtype=None) -> np.ndarray:
+        """
+        The array interface, return my values.
+        """
+        return self._index.__array__(dtype=dtype)
+
+    def __repr__(self):
+        return self.to_pandas().__repr__()
