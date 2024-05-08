@@ -589,9 +589,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 pd.Series(index.get_level_values(level))
                 for level in range(index.nlevels)
             ]
-        elif isinstance(index, pd.Index):
-            return [pd.Series(index)]
-        elif isinstance(index, pandas.Index):
+        elif isinstance(index, (pd.Index, pandas.Index)):
             return [pd.Series(index)]
         else:
             raise TypeError("Index must be pd.Index or pd.MultiIndex object")
