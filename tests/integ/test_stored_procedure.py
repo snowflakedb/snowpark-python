@@ -75,9 +75,10 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
     reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
@@ -122,9 +123,10 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
             assert return1_sproc(session=new_session) == "1"
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
     reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
@@ -867,10 +869,10 @@ def test_permanent_sp_negative(session, db_parameters):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: enable",
+    reason="TODO: SNOW-1370028",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
-def test_sp_negative(session, local_testing_mode):
+def test_sp_negative(session):
     def f(_, x):
         return x
 
@@ -900,10 +902,7 @@ def test_sp_negative(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1).collect()
 
-    if local_testing_mode:
-        assert "does not exist" in str(ex_info)
-    else:
-        assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         sproc(
@@ -1363,7 +1362,7 @@ def test_sp_replace(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: enable",
+    reason="TODO: Support if_not_exists in Local Testing",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,

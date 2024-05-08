@@ -434,10 +434,9 @@ def test_register_udf_from_file(session, resources_path):
     )
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
     reason="Vectorized UDF is not supported in Local Testing",
-    run=False,
 )
 @pytest.mark.skipif(
     not is_pandas_available, reason="pandas is required to register vectorized UDFs"

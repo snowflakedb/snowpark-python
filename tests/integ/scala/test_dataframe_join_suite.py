@@ -163,7 +163,7 @@ def test_join_with_multiple_conditions(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: match error behavior",
+    reason="SNOW-1235716: match error behavior",
 )
 def test_join_with_ambiguous_column_in_condition(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
@@ -554,7 +554,7 @@ def test_join_ambiguous_columns_with_specified_sources(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: match error behavior",
+    reason="SNOW-1235716: match error behavior",
 )
 def test_join_ambiguous_columns_without_specified_sources(session):
     df = session.create_dataframe([[1, "one"], [2, "two"]]).to_df(
@@ -765,11 +765,7 @@ def test_using_joins(session, join_type, local_testing_mode):
     assert sorted(res, key=lambda x: -x[0]) == [Row(-1, -10), Row(-2, -20)]
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="TODO: bug",
-)
-def test_columns_with_and_without_quotes(session):
+def test_columns_with_and_without_quotes(session, local_testing_mode):
     lhs = session.create_dataframe([[1, 1.0]]).to_df(["intcol", "doublecol"])
     rhs = session.create_dataframe([[1, 2.0]]).to_df(['"INTCOL"', '"DoubleCol"'])
 
@@ -795,9 +791,10 @@ def test_columns_with_and_without_quotes(session):
     )
     assert res == []
 
-    with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-        lhs.join(rhs, col("intcol") == col('"INTCOL"')).collect()
-    assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
+    if not local_testing_mode:  # TODO: match error experience SNOW-1235716
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+            lhs.join(rhs, col("intcol") == col('"INTCOL"')).collect()
+        assert "reference to the column 'INTCOL' is ambiguous." in ex_info.value.message
 
 
 @pytest.mark.localtest
@@ -1022,7 +1019,7 @@ def test_join_of_join(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: match error behavior",
+    reason="SNOW-1235716: match error behavior",
 )
 def test_negative_test_join_of_join(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1045,7 +1042,7 @@ def test_negative_test_join_of_join(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: bug",
+    reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_drop_on_join(
     session,
@@ -1069,7 +1066,7 @@ def test_drop_on_join(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: bug",
+    reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_drop_on_self_join(session):  # TODO: Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1086,7 +1083,7 @@ def test_drop_on_self_join(session):  # TODO: Fix drop
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: bug",
+    reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_with_column_on_join(session):  # TODO: Fix drop
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1298,7 +1295,7 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: match error behavior",
+    reason="SNOW-1235716: match error behavior",
 )
 def test_report_error_when_refer_common_col(session):
     df1 = session.create_dataframe([[1, 2]]).to_df(["a", "b"])
@@ -1491,7 +1488,7 @@ def test_select_columns_on_join_result_with_conflict_name(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: match error behavior",
+    reason="SNOW-1235716: match error behavior",
 )
 def test_nested_join_diamond_shape_error(
     session,
