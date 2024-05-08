@@ -13,7 +13,7 @@ import sys
 import tempfile
 import typing
 import uuid
-from collections import Iterable
+from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
