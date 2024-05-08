@@ -1007,7 +1007,7 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
         with pytest.raises(AssertionError, match=err_msg):
             assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
-    elif (isinstance(key, pd.Index) and item == "xyz") or (
+    elif (isinstance(key, (native_pd.Index, pd.Index)) and item == "xyz") or (
         isinstance(key, slice) and (item is None or item == "xyz")
     ):
         # In these three cases, Snowpark pandas works and the values are logically correct. However, Snowpark pandas

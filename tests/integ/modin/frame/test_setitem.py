@@ -361,8 +361,6 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     expected_join_count = 2
     if isinstance(column, native_pd.Series):
         expected_join_count = 1
-    elif isinstance(column, native_pd.Index):
-        expected_join_count = 4
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
