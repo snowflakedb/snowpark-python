@@ -1037,7 +1037,7 @@ def test_negative_test_join_of_join(session):
         assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
 
     finally:
-        session.table(table_name1).drop()
+        session.table(table_name1).drop_table()
 
 
 @pytest.mark.skipif(
