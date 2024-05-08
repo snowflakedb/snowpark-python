@@ -108,15 +108,16 @@ def test_describe_empty_cols():
         # Since we have K=2 object columns, the result is 9 + (4 * 2 - 1) = 16 UNIONs.
         ([int, object], None, None, 16),
         (np.number, [], None, 7),
-        # Including only datetimes has 1 fewer UNION, since it has 7 statistics
-        # since std is not computed.
-        # (count, mean, min, 0.25, 0.5, 0.75, max)
-        (np.datetime64, [], None, 6),
+        # Including only datetimes has 7 statistics since std is not computed.
+        # Since there is only 1 column, all quantiles are computed in a single QC.
+        # (count, mean, min, [0.25, 0.5, 0.75], max)
+        (np.datetime64, [], None, 4),
         ([int, np.datetime64], [], None, 7),
         # *** Only exclude is specified ***
         (None, [int, object], None, 7),
         # np.datetime64 is not a subtype of np.number, and should still be included
-        (None, [object, "number"], None, 6),
+        # There's only one column, so quantiles are computed together.
+        (None, [object, "number"], None, 4),
         # Error if all columns get excluded
         (None, [object, "number", np.datetime64], ValueError, 0),
         # When include is "all", exclude must be unspecified
@@ -327,8 +328,8 @@ DUP_COL_FAIL_REASON = "SNOW-1019479: describe on frames with mixed object/number
         ),
         (object, None, 5),
         (None, object, 7),
-        (int, float, 7),
-        (float, int, 7),
+        (int, float, 5),
+        (float, int, 5),
     ],
 )
 def test_describe_duplicate_columns(include, exclude, expected_union_count):

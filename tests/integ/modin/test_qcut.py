@@ -42,15 +42,19 @@ def test_qcut_non_series(x, q):
     [
         (5, 1, 1),
         (100, 1, 1),
-        (1000, 1, 16),
+        (1000, 1, 11),
         (5, 10, 2),
         (100, 10, 2),
-        (1000, 10, 122),
-        # TODO: With SNOW-1229442, uncomment the following two lines.
-        # These configs do not work, as the current quantile implementation
-        # is buggy and fails within Snowpark for larger len(q).
-        # (5, 47, 1), (100, 47, 1), (1000, 47, 1),
-        # (5, 10000, 1), (100, 10000, 1), (1000, 10000, 1)
+        (1000, 10, 22),
+        (5, 47, 2),
+        (100, 47, 2),
+        (1000, 47, 22),
+        # TODO: SNOW-1229442
+        # qcut was significantly optimized with SNOW-1368640 and SNOW-1370365, but still
+        # cannot compute 10k q values in a reasonable amount of time.
+        # (5, 10000, 1),
+        # (100, 10000, 1),
+        # (1000, 10000, 1),
     ],
 )
 def test_qcut_series(n, q, expected_query_count):
@@ -64,7 +68,7 @@ def test_qcut_series(n, q, expected_query_count):
     with SqlCounter(
         query_count=expected_query_count,
         high_count_expected=True,
-        high_count_reason="Bug in quantile, TODO SNOW-1229442.",
+        high_count_reason="to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
     ):
         ans = pd.qcut(snow_series, q, labels=False, duplicates="drop")
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
@@ -105,8 +109,9 @@ def test_qcut_series_with_none_labels(n, q, expected_query_count):
     [
         1,
         10,
+        47,
         # TODO: Once SNOW-1229442 is done, uncomment following lin.
-        # 47, 10000
+        # 10000
     ],
 )
 @pytest.mark.parametrize("s", [native_pd.Series([0]), native_pd.Series([1])])
@@ -136,15 +141,16 @@ def test_qcut_series_single_element_negative(q, s):
     [
         1,
         10,
+        47,
         # uncomment this line once quantile is fixed in TODO SNOW-1229442.
-        # 47, 10000
+        # 10000
     ],
 )
 @pytest.mark.parametrize("s", [native_pd.Series([0]), native_pd.Series([1])])
 def test_qcut_series_single_element(q, s):
     native_ans = native_pd.qcut(s, q, duplicates="drop", labels=False)
 
-    with SqlCounter(query_count=1 if q == 1 else 2, join_count=1, union_count=q):
+    with SqlCounter(query_count=1 if q == 1 else 2, join_count=1):
         ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
@@ -200,16 +206,16 @@ def test_qcut_increasing_quantiles_negative(q):
 
 @pytest.mark.parametrize("data", [[2014, 2014, 2015, 2016, 2017, 2014]])
 @pytest.mark.parametrize(
-    "q,union_count",
-    [([0, 0.15, 0.35, 0.51, 0.78, 1], 5), ([0, 0.5, 1], 2), ([0.2, 0.8], 1)],
+    "q",
+    [[0, 0.15, 0.35, 0.51, 0.78, 1], [0, 0.5, 1], [0.2, 0.8]],
 )
-def test_qcut_list_of_values(data, q, union_count):
+def test_qcut_list_of_values(data, q):
     native_s = native_pd.Series(data)
     snow_s = pd.Series(data)
 
     native_ans = native_pd.qcut(native_s, q, duplicates="drop", labels=False)
 
-    with SqlCounter(query_count=1, join_count=1, union_count=union_count):
+    with SqlCounter(query_count=1, join_count=1):
         ans = pd.qcut(snow_s, q, duplicates="drop", labels=False)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
@@ -229,7 +235,7 @@ def test_qcut_list_of_values_raise_negative():
     with pytest.raises(ValueError, match=expected_msg):
         native_pd.qcut(native_s, q, duplicates="raise", labels=False)
 
-    with SqlCounter(query_count=3, union_count=10):
+    with SqlCounter(query_count=3):
         with pytest.raises(ValueError, match=expected_msg):
             pd.qcut(snow_s, q, duplicates="raise", labels=False)
 

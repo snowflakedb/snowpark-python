@@ -29,7 +29,7 @@ DATETIME_DATA = [
         [0.2, 0.8, 0.1],  # output will not be sorted by quantile
     ],
 )
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=1)
 def test_quantile_basic(q):
     snow_ser = pd.Series(NUMERIC_DATA)
     native_ser = native_pd.Series(NUMERIC_DATA)
@@ -40,7 +40,7 @@ def test_quantile_basic(q):
     )
 
 
-@sql_count_checker(query_count=1, union_count=4)
+@sql_count_checker(query_count=1)
 def test_quantile_withna():
     # nans in the data do not affect the quantile
     data = [np.nan, 25, 0, 75, 50, 100, np.nan]

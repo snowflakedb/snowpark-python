@@ -8,7 +8,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
@@ -133,15 +132,15 @@ def test_quantile_datetime_negative():
 
 
 @pytest.mark.xfail(
-    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442"
+    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442",
+    strict=True,
 )
-@pytest.mark.skipif(running_on_public_ci())
 @sql_count_checker(query_count=0)
 def test_quantile_large():
     snow_series = pd.DataFrame({"a": range(1000), "b": range(1000)})
     q = np.linspace(0, 1, 16)
 
     # actual query count for this 81. This seems like a bug.
-    ans = snow_series.quantile(q, "linear").to_pandas()
+    ans = snow_series.quantile(q, interpolation="linear").to_pandas()
 
     assert len(ans) == len(q)
