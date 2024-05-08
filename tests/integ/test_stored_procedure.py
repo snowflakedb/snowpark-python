@@ -67,6 +67,7 @@ from tests.integ.scala.test_datatype_suite import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
+    IS_STRUCTURED_TYPES_SUPPORTED,
     TempObjectType,
     TestFiles,
     Utils,
