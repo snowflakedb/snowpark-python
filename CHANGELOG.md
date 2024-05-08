@@ -4,7 +4,7 @@
 
 ### Improvements
 
-- Improved error message to remind users set `{"infer_schema":True}` when read csv file without specifying its schema.ß
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
 
 ### Local Testing Updates
 
