@@ -45,10 +45,7 @@ from typing import Dict, List, Optional, Union
 
 from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import (
-    unwrap_stage_location_single_quote,
-    warning_dict,
-)
+from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
@@ -2177,15 +2174,11 @@ def test_deprecate_call_udf_with_list(session, caplog):
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
     )
-    try:
-        with caplog.at_level(logging.WARNING):
-            add_udf(["a", "b"])
-        assert (
-            "Passing arguments to a UDF with a list or tuple is deprecated"
-            in caplog.text
-        )
-    finally:
-        warning_dict.clear()
+    with caplog.at_level(logging.WARNING):
+        add_udf(["a", "b"])
+    assert (
+        "Passing arguments to a UDF with a list or tuple is deprecated" in caplog.text
+    )
 
 
 def test_strict_udf(session):

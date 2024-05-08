@@ -106,7 +106,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.context import _use_scoped_temp_objects
+from snowflake.snowpark.context import (
+    _is_execution_environment_sandboxed_for_client,
+    _use_scoped_temp_objects,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import SnowparkClientException
@@ -130,6 +133,7 @@ from snowflake.snowpark.functions import (
     to_timestamp_tz,
     to_variant,
 )
+from snowflake.snowpark.lineage import Lineage
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._pandas_util import (
@@ -212,6 +216,15 @@ def _get_active_sessions() -> Set["Session"]:
 def _add_session(session: "Session") -> None:
     with _session_management_lock:
         _active_sessions.add(session)
+
+
+def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
+    # Precedence to checking sandbox to avoid any side effects
+    if _is_execution_environment_sandboxed_for_client:
+        session = None
+    else:
+        session = session or _get_active_session()
+    return session
 
 
 def _close_session_atexit():
@@ -465,6 +478,7 @@ class Session:
             )
         )
         self._file = FileOperation(self)
+        self._lineage = Lineage(self)
         self._analyzer = (
             Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
         )
@@ -539,6 +553,13 @@ class Session:
         return self._sql_simplifier_enabled
 
     @property
+    def cte_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+        """
+        return self._cte_optimization_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -590,6 +611,15 @@ class Session:
         except Exception:
             pass
         self._sql_simplifier_enabled = value
+
+    @cte_optimization_enabled.setter
+    @experimental_parameter(version="1.15.0")
+    def cte_optimization_enabled(self, value: bool) -> None:
+        if value:
+            self._conn._telemetry_client.send_cte_optimization_telemetry(
+                self._session_id
+            )
+        self._cte_optimization_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -692,6 +722,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
+            self.sproc._import_file(path, import_path=import_path)
 
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
@@ -734,6 +765,7 @@ class Session:
         """
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
+            self.sproc._clear_session_imports()
         self._import_paths.clear()
 
     def _resolve_import_path(
@@ -2746,7 +2778,22 @@ class Session:
     def _use_object(self, object_name: str, object_type: str) -> None:
         if object_name:
             validate_object_name(object_name)
-            self._run_query(f"use {object_type} {object_name}")
+            query = f"use {object_type} {object_name}"
+            if isinstance(self._conn, MockServerConnection):
+                use_ddl_pattern = (
+                    r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
+                )
+
+                if match := re.match(use_ddl_pattern, query):
+                    # if the query is "use xxx", then the object name is already verified by the upper stream
+                    # we do not validate here
+                    object_type = match.group(1)
+                    object_name = match.group(2)
+                    setattr(self._conn, f"_active_{object_type}", object_name)
+                else:
+                    self._run_query(query)
+            else:
+                self._run_query(query)
         else:
             raise ValueError(f"'{object_type}' must not be empty or None.")
 
@@ -2788,6 +2835,14 @@ class Session:
         See details of how to use this object in :class:`FileOperation`.
         """
         return self._file
+
+    @property
+    def lineage(self) -> Lineage:
+        """
+        Returns a :class:`Lineage` object that you can use to explore lineage of snowflake entities.
+        See details of how to use this object in :class:`Lineage`.
+        """
+        return self._lineage
 
     @property
     def udf(self) -> UDFRegistration:

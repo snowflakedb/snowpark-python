@@ -1,8 +1,19 @@
-Please answer these questions before submitting your pull requests. Thanks!
+<!---
+Please answer these questions before creating your pull request. Thanks!
+--->
 
-1. What GitHub issue is this PR addressing? Make sure that there is an accompanying issue to your PR.
+1. Which Jira issue is this PR addressing? Make sure that there is an accompanying issue to your PR.
 
-   Fixes #NNNN
+   <!---
+   In this section, please add a Snowflake Jira issue number.
+   
+   Note that if a corresponding GitHub issue exists, you should still include
+   the Snowflake Jira issue number. For example, for GitHub issue
+   https://github.com/snowflakedb/snowpark-python/issues/1400, you should
+   add "SNOW-1335071" here.
+    --->
+
+   Fixes SNOW-NNNNNNN
 
 2. Fill out the following pre-review checklist:
 
