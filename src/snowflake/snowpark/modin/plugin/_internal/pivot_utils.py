@@ -111,7 +111,7 @@ def perform_pivot_and_concatenate(
             # corresponds to.
             # We also join vertically if there are multiple columns and multiple
             # pivot values.
-            if should_join_along_columns:  # or (not multiple_values_and_columns):
+            if should_join_along_columns:
                 last_ordered_dataframe = last_ordered_dataframe.join(
                     right=new_pivot_ordered_dataframe,
                     left_on_cols=groupby_snowflake_quoted_identifiers,
