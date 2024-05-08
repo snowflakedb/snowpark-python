@@ -78,32 +78,78 @@ def test_pivot(session):
             [
                 Row(
                     1,
-                    Decimal("9000.000000"),
-                    Decimal("4000.000000"),
+                    "A",
+                    Decimal("10000.000000"),
+                    None,
                     Decimal("5200.000000"),
-                    Decimal("5500.000000"),
+                    Decimal("5000.000000"),
+                ),
+                Row(
+                    1,
+                    "B",
+                    Decimal("8000.000000"),
+                    Decimal("4000.000000"),
+                    None,
+                    Decimal("6000.000000"),
                 ),
                 Row(
                     2,
+                    "A",
                     Decimal("2650.000000"),
                     Decimal("45350.000000"),
-                    Decimal("19750.000000"),
-                    Decimal("6000.000000"),
+                    Decimal("4500.000000"),
+                    None,
+                ),
+                Row(
+                    2, "B", None, None, Decimal("35000.000000"), Decimal("6000.000000")
                 ),
             ],
         ),
-        (count, [Row(1, 2, 2, 2, 2), Row(2, 2, 2, 2, 2)]),
-        (max, [Row(1, 10000, 5000, 10000, 6000), Row(2, 4500, 90500, 35000, 9500)]),
-        (min, [Row(1, 8000, 3000, 400, 5000), Row(2, 800, 200, 4500, 2500)]),
-        (sum, [Row(1, 18000, 8000, 10400, 11000), Row(2, 5300, 90700, 39500, 12000)]),
+        (
+            count,
+            [
+                Row(1, "A", 1, 0, 2, 1),
+                Row(1, "B", 1, 2, 0, 1),
+                Row(2, "A", 2, 2, 1, 0),
+                Row(2, "B", 0, 0, 1, 2),
+            ],
+        ),
+        (
+            max,
+            [
+                Row(1, "A", 10000, None, 10000, 5000),
+                Row(1, "B", 8000, 5000, None, 6000),
+                Row(2, "A", 4500, 90500, 4500, None),
+                Row(2, "B", None, None, 35000, 9500),
+            ],
+        ),
+        (
+            min,
+            [
+                Row(1, "A", 10000, None, 400, 5000),
+                Row(1, "B", 8000, 3000, None, 6000),
+                Row(2, "A", 800, 200, 4500, None),
+                Row(2, "B", None, None, 35000, 2500),
+            ],
+        ),
+        (
+            sum,
+            [
+                Row(1, "A", 10000, None, 10400, 5000),
+                Row(1, "B", 8000, 8000, None, 6000),
+                Row(2, "A", 5300, 90700, 4500, None),
+                Row(2, "B", None, None, 35000, 12000),
+            ],
+        ),
     ],
 )
 def test_pivot_agg_functions(session, func, expected):
     Utils.check_answer(
-        TestData.monthly_sales(session)
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
         .pivot("month")
         .agg(func(col("amount")))
-        .sort(col("empid")),
+        .sort(col("empid"), col("team")),
         expected,
         sort=False,
     )

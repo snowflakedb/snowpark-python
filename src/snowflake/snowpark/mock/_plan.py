@@ -1406,6 +1406,7 @@ def execute_mock_plan(
             "min": min,
             "sum": sum,
         }
+
         if agg_function_name not in agg_functions:
             raise ValueError(
                 f"Unsupported pivot aggregation function {agg_function_name}."
@@ -1446,6 +1447,11 @@ def execute_mock_plan(
         default = (
             source_plan.default_on_null.value if source_plan.default_on_null else None
         )
+
+        # Count defaults to 0 rather than None
+        if agg_function_name == "count":
+            default = default or 0
+
         result = child_rf.pivot_table(
             columns=pivot_column,
             values=agg_column,
