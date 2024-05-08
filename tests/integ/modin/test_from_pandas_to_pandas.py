@@ -108,7 +108,9 @@ def check_result_from_and_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    if columns is not None and not isinstance(columns, (list, pd.Index)):
+    if columns is not None and not isinstance(
+        columns, (list, native_pd.Index, pd.Index)
+    ):
         columns = [columns]
     native_df = native_pd.DataFrame(data=data, index=index, columns=columns)
     snow_df = pd.DataFrame(native_df)

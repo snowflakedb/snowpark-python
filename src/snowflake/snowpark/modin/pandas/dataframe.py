@@ -2290,7 +2290,7 @@ class DataFrame(BasePandasDataset):
                 label_or_series.append(key._query_compiler)
             elif isinstance(key, (np.ndarray, list, Iterator)):
                 label_or_series.append(pd.Series(key)._query_compiler)
-            elif isinstance(key, pd.Index):
+            elif isinstance(key, (pd.Index, pandas.Index)):
                 label_or_series += [
                     s._query_compiler for s in self._to_series_list(key)
                 ]

@@ -2310,8 +2310,12 @@ def set_frame_2d_labels(
         #       'x' | 97 | 96 | ...
         #       'y' | 97 | 96 | ...
         #       ... | .. | .. | ...
+        import pandas as native_pd
+
         item_values = (
-            item.tolist() if isinstance(item, (pd.Index, np.ndarray)) else item
+            item.tolist()
+            if isinstance(item, (pd.Index, native_pd.Index, np.ndarray))
+            else item
         )
 
         item_data_column_pandas_labels = col_info.column_pandas_labels
