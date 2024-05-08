@@ -23,21 +23,24 @@ DATETIME_DATA = [
 
 
 @pytest.mark.parametrize(
-    "q",
+    "q, expected_union_count",
     [
-        [0.1, 0.2, 0.8],
-        [0.2, 0.8, 0.1],  # output will not be sorted by quantile
+        ([0.1, 0.2, 0.8], 0),
+        (
+            [0.2, 0.8, 0.1],
+            2,
+        ),  # output will not be sorted by quantile, and thus cannot use the no-union code
     ],
 )
-@sql_count_checker(query_count=1)
-def test_quantile_basic(q):
+def test_quantile_basic(q, expected_union_count):
     snow_ser = pd.Series(NUMERIC_DATA)
     native_ser = native_pd.Series(NUMERIC_DATA)
-    eval_snowpark_pandas_result(
-        snow_ser,
-        native_ser,
-        lambda df: df.quantile(q),
-    )
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(
+            snow_ser,
+            native_ser,
+            lambda df: df.quantile(q),
+        )
 
 
 @sql_count_checker(query_count=1)
