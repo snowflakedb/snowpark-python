@@ -49,16 +49,17 @@ def test_quantile_basic(q, interpolation):
 
 @pytest.mark.parametrize("q", TEST_QUANTILES)
 def test_quantile_single_column(q):
-    # When the input frame has only a single column, no UNION ALLs are performed
+    # When the input frame has only a single column, and q is sorted, no UNION ALLs are performed
+    expected_union_count = len(q) - 1 if sorted(q) != q else 0
     snow_df, native_df = create_test_dfs({"a": [1, 2, 3, 4]})
-    with SqlCounter(query_count=1, union_count=0):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.quantile(q))
     # This should apply even if the input frame has multiple columns, but numeric_only=True
     # filters it down to only one
     snow_df, native_df = create_test_dfs(
         {"a": [1, 2, 3, 4], "b": ["the", "quick", "brown", "fox"]}
     )
-    with SqlCounter(query_count=1, union_count=0):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda df: df.quantile(q, numeric_only=True)
         )

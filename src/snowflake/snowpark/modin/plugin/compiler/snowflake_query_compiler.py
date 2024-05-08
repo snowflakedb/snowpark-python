@@ -9178,9 +9178,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             the pandas API for quantile, and only used to implement df.describe().
             When unspecified, the index is the float values of the quantiles.
         index_dtype: Optional[npt.DTypeLike], default None
-            When specified along with index, determines the type of the index column. This is only used
+            When specified along with ``index``, determines the type of the index column. This is only used
             for the single-column case, where index values must be coerced to strings to support an UNPIVOT,
-            and otherwise is inferred.
+            and otherwise is inferred. As with ``index``, this is not part of the public API, and only used
+            by ``describe``.
 
         Returns
         -------
@@ -9209,10 +9210,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert index is None or len(index) == len(
             q
         ), f"length of index {index} did not match quantiles {q}"
-        if len(query_compiler.columns) == 1:
-            # Use method without UNION ALL operations if the query compiler has only a single column
-            index_values = q if index is None else index
-            return self._quantiles_single_col(
+        index_values = q if index is None else index
+        if len(query_compiler._modin_frame.data_column_pandas_labels) == 1 and all(
+            q[i] < q[i + 1] for i in range(len(q) - 1)
+        ):
+            # Use helper method without UNION ALL operations if the query compiler has only a single column
+            # and the list of quantiles is sorted. _quantiles_single_col internally uses an UNPIVOT
+            # where we cannot preserve order without adding an extra JOIN.
+            #
+            # The dtype of the resulting index column should always be float unless explicitly specified,
+            # such as with `df.describe`, where the column should be strings.
+            return query_compiler._quantiles_single_col(
                 q, interpolation, index=index_values, index_dtype=index_dtype or float
             )
         original_frame = query_compiler._modin_frame
@@ -9237,7 +9245,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels=[concat_utils.CONCAT_POSITION_COLUMN_LABEL],
             )[0]
         )
-        index_values = q if index is None else index
         # For each quantile and an N-column dataframe, create a 1x(N+2) frame with a column
         # for that quantile of the original column, one column with the quantile to use as the
         # index later, and one column for global ordering. Each frame is union_all'd together.
@@ -9275,7 +9282,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             OrderingColumn(global_ordering_identifier),
             *ordered_dataframe.ordering_columns,
         )
-        result = SnowflakeQueryCompiler(
+        return SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=ordered_dataframe,
                 data_column_pandas_labels=original_frame.data_column_pandas_labels,
@@ -9287,7 +9294,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
             )
         )
-        return result
 
     def _quantiles_single_col(
         self,
@@ -9297,7 +9303,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_dtype: Optional[npt.DTypeLike] = None,
     ) -> "SnowflakeQueryCompiler":
         """
-        Helper method for qcut() + quantile() to compute quantiles over frames with a single column.
+        Helper method for ``qcut`` and ``quantile`` to compute quantiles over frames with a single column.
+        ``q`` must be sorted in ascending order (see Notes section).
 
         Normally, we compute single row for every given quantile, with each column corresponding to
         a column to the input frame.
@@ -9317,7 +9324,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |  0.75 | 0.75 | 1.75 |
         +-------+------+------+
 
-        When there is a large number of q (as is the case for most uses of qcut), the number of
+        When the list ``q`` has many elements (as is the case for most uses of qcut), the number of
         UNION operations increases dramatically, and may cause Snowpark to create temporary tables.
         This greatly increases latency.
 
@@ -9334,8 +9341,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                                                                      |    q2 | 1.75 |
                                                                      +-------+------+
 
-        qcut() can drop the index column afterwards, but quantile() keeps it.
+        ``qcut`` can drop the index column afterwards, but ``quantile`` and ``describe`` keep it.
+
+        Parameters
+        ----------
+        q : list[float]
+            A list of floats representing the quantiles to compute, sorted in ascending order.
+            In ``qcut`` and ``describe``, ``q`` is guaranteed to be sorted in the output.
+            In ``quantile``, this is not guaranteed, and must be verified by the caller.
+        interpolation : {"linear", "lower", "higher", "midpoint", "nearest"}
+            See documentation for ``quantile``.
+        index : list[str] | list[float], optional
+            The labels for the resulting index column, allowing us to avoid a JOIN query by directly
+            setting the correct column names before UNPIVOT. This is used primarily for ``describe``,
+            where the resulting row labels are percentiles like "25%" rather than decimals like "0.25".
+        index_dtype : npt.DtypeLike, optional
+            The type to which to coerce the resulting index column. Since UNPIVOT requires string column
+            names, the resulting index column must be explicitly casted after the operation.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            A 1-column SnowflakeQueryCompiler with `index` as its index and the computed
+            quantiles as its data column.
+
+        Notes
+        -----
+        ``q`` must be sorted in ascending order, as OrderedFrame.unpivot will use the value column
+        (``b`` in the above example table) as its ordering column. Although the underlying Snowpark
+        DataFrame.unpivot operation nominally preserves the order of columns_list in the rows of
+        the resulting output, we cannot use the ROW_POSITION operator without first providing an
+        existing ordering column. Using transpose_single_row, or using a dummy index as the ordering
+        column would allow us to create an accurate row position column, but would require a
+        potentially expensive JOIN operator afterwards to apply the correct index labels.
         """
+        assert len(self._modin_frame.data_column_pandas_labels) == 1
+
         if index is not None:
             # Snowpark UNPIVOT requires these to be strings
             index = list(map(str, index))
@@ -9357,7 +9398,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_ident = ordered_dataframe.generate_snowflake_quoted_identifiers(
             pandas_labels=[None]
         )[0]
-        # In order to preserve index labels, we call unpivot directly instead of using transpose_single_row
+        # In order to set index labels without a JOIN, we call unpivot directly instead of using
+        # transpose_single_row. This also lets us avoid JSON serialization/deserialization.
         ordered_dataframe = ordered_dataframe.unpivot(
             original_frame.data_column_snowflake_quoted_identifiers[0],
             index_ident,
@@ -9376,7 +9418,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         if index_dtype:
             # We cannot call astype() directly to convert an index column, so we replicate
-            # the logic here so we don't have to mess with set_index
+            # the logic here so we don't have to mess with set_index.
             internal_frame = (
                 internal_frame.update_snowflake_quoted_identifiers_with_expressions(
                     {
