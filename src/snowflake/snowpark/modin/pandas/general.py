@@ -1076,7 +1076,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1195,7 +1194,11 @@ def concat(
 
     # Assign names to unnamed series - the names function as column labels for Series.
     # If all Series have no name, use the keys as names.
-    if all(obj.name is None for obj in objs):
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
         for i, obj in enumerate(objs):
             objs[i] = obj.rename(keys[i])
 
@@ -1222,12 +1225,16 @@ def concat(
             message="copy parameter has been ignored with Snowflake execution engine",
         )
 
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
+
     result = objs[0]._query_compiler.concat(
         axis,
         [o._query_compiler for o in objs[1:]],
         join=join,
         ignore_index=ignore_index,
-        keys=keys if not all(isinstance(obj, Series) for obj in objs) else None,
+        keys=keys,
         levels=levels,
         names=names,
         verify_integrity=verify_integrity,

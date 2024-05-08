@@ -3804,7 +3804,14 @@ def test_df_loc_set_none():
     )
 
 
+@sql_count_checker(query_count=1, join_count=3)
 def test_df_loc_set_with_index_and_column_labels():
+    """
+    Create a DataFrame using 3 Series objects and perform loc set with a scalar.
+    2 joins are performed since the concat() operation is used to concat the three Series
+    into one DataFrame object, 1 join from loc set operation.
+    """
+
     def loc_set_helper(df):
         df.loc["a", "three"] = 1.0
 

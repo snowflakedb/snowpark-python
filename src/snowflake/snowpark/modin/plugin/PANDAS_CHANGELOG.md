@@ -1,4 +1,9 @@
-## 1.15.0a1 (tbd)
+## 1.16.0a1 (tbd)
+
+### Bug Fixes
+- Fixed bug when creating a DataFrame with a dict of Series objects.
+
+## 1.15.0a1 (2024-07-05)
 
 ### Bug Fixes
 - Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
@@ -26,14 +31,13 @@
   - `DataFrame.nunique` if `axis == 1`
   - `DataFrame.apply` if `axis == 0` or `func` is not callable or `result_type` is given or `args` and `kwargs` contain DataFrame or Series.
   - `Series.apply` if `axis == 0` or `func` is not callable or `result_type` is given.
-  - `Series.applymap` if `na_action == 'igonre'`.
+  - `Series.applymap` if `na_action == 'ignore'`.
   - `DataFrame/Series.ffill` if given the `limit` or `downcast` parameter.
   - `DataFrame/Series.fillna` if given the `limit` or `downcast` parameter.
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
   - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
   - Series datetime accessor properties and methods `Series.dt.*`
-  - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
   - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
   - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
