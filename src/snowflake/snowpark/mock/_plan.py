@@ -1431,9 +1431,6 @@ def execute_mock_plan(
             col for col in child_rf.keys() if col not in {agg_column, pivot_column}
         ]
 
-        # Missing values are filled with a sentinel object that can later be replaced with Nones
-        sentinel = object()
-
         # Snowflake treats an empty aggregation as None, whereas pandas treats it as 0.
         # This requires us to wrap the aggregation function with extract logic to handle this special case.
         def agg_function(column):
@@ -1451,7 +1448,6 @@ def execute_mock_plan(
             values=agg_column,
             aggfunc=agg_function,
             index=indices,
-            fill_value=sentinel,
         )
         result.reset_index(inplace=True)
 
@@ -1462,15 +1458,16 @@ def execute_mock_plan(
         if pivot_values:
             result = result[list(indices) + pivot_values]
 
+        # Missing values are filled with a sentinel object that can later be replaced with Nones
+        sentinel = object()
+
         # Non-indice columns lack an sf_type, add them back in.
         for res_col in set(result.columns) - set(indices):
+            # fill_na will not fill na like values with None, but it can replace them with a sentinel value
+            filled = result[res_col].fillna(sentinel)
+
             # Sentinel values are replaced with None, then all Nones are replaced with the default if provided
-            data = (
-                result[res_col]
-                .replace({sentinel: None})
-                .replace({None: default})
-                .values
-            )
+            data = filled.replace({sentinel: None}).replace({None: default}).values
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
         return result
