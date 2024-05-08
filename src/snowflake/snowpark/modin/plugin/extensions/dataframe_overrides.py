@@ -20,7 +20,9 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    dataframe_not_implemented,
+)
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
@@ -67,13 +69,13 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
 @_inherit_docstrings(native_pd.DataFrame.infer_objects, apilink="pandas.DataFrame")
 @register_dataframe_accessor("infer_objects")
 @snowpark_pandas_telemetry_method_decorator
+@dataframe_not_implemented()
 def infer_objects(
     self,
 ) -> SnowflakeQueryCompiler:  # pragma: no cover # noqa: RT01, D200
     """
     Attempt to infer better dtypes for object columns.
     """
-    ErrorMessage.not_implemented()
     return self.__constructor__(query_compiler=self._query_compiler.infer_objects())
 
 

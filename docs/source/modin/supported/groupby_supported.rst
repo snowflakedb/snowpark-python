@@ -33,7 +33,7 @@ Function application
 | ``agg``                     | P                               | ``axis`` other than 0 is not     | ``Y``, support functions are count, mean, min, max,|
 |                             |                                 | implemented.                     | sum, median, std, and var                          |
 |                             |                                 |                                  | (including both Python and NumPy functions)        |
-|                             |                                 |                                  | otherwise ``D``.                                   |
+|                             |                                 |                                  | otherwise ``N``.                                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``aggregate``               | P                               | ``axis`` other than 0 is not     | See ``agg``                                        |
 |                             |                                 | implemented.                     |                                                    |
@@ -41,9 +41,7 @@ Function application
 | ``apply``                   | P                               | ``axis`` other than 0 is not     | ``Y`` if the following are true, otherwise ``N``:  |
 |                             |                                 | implemented.                     |   - ``func`` is a callable that always returns     |
 |                             |                                 |                                  |     either a pandas DataFrame, a pandas Series, or |
-|                             |                                 | ``SeriesGroupBy.apply`` is not   |     objects that are neither DataFrame nor Series. |
-|                             |                                 | implemented.                     |   - ``apply`` called on DataFrameGroupBy, not      |
-|                             |                                 |                                  |     SeriesGroupBy                                  |
+|                             |                                 |                                  |     objects that are neither DataFrame nor Series. |
 |                             |                                 |                                  |   - grouping on axis=0                             |
 |                             |                                 |                                  |   - Not applying transform to a dataframe with a   |
 |                             |                                 |                                  |     non-unique index                               |
@@ -58,6 +56,9 @@ Function application
 |                             |                                 |                                  |     row at a given position                        |
 |                             |                                 |                                  |   - Not applying ``func`` that returns two         |
 |                             |                                 |                                  |     Series that have different names               |
+|                             |                                 |                                  |   - Not grouping by an "external" by, i.e. an      |
+|                             |                                 |                                  |     object that is not a label for a column or     |
+|                             |                                 |                                  |     level of the dataframe                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``filter``                  | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
@@ -111,9 +112,7 @@ Computations/descriptive stats
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``head``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``idxmax``                  | P                               | When GroupBy axis is 1:                            |
-|                             |                                 | - if idxmax axis is 1, then ``N``;                 |
-|                             |                                 | - if idxmax axis is 0, then ``D``.                 |
+| ``idxmax``                  | P                               | When GroupBy axis is 1,``N``;                      |
 |                             |                                 | GroupBy axis = 0 is fully supported.               |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``idxmin``                  | P                               | See ``idxmax``                                     |
@@ -158,7 +157,7 @@ Computations/descriptive stats
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``skew``                    | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``std``                     | P                               | ``D`` if ``ddof`` is not 0 or 1                    |
+| ``std``                     | P                               | ``N`` if ``ddof`` is not 0 or 1                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``sum``                     | Y                               | See ``count``                                      |
 +-----------------------------+---------------------------------+----------------------------------------------------+
