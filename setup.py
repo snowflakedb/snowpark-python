@@ -6,6 +6,7 @@ import os
 from codecs import open
 
 from setuptools import setup
+from setuptools_protobuf import Protobuf
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
@@ -14,6 +15,10 @@ MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
 CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
+SETUP_REQ_LIST = [
+    "setuptools-protobuf[mypy]>=0.1",
+    "protoc-wheel-0>=25",
+]
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
@@ -47,6 +52,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-timeout",
     "pytest-xdist",
     "pre-commit",
+    "protoc-wheel-0",
+    "setuptools-protobuf[mypy]>=0.1",
 ]
 
 # read the version
@@ -80,6 +87,7 @@ setup(
         "Changelog": "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md",
     },
     python_requires=REQUIRED_PYTHON_VERSION,
+    setup_requires=SETUP_REQ_LIST,
     install_requires=INSTALL_REQ_LIST,
     namespace_packages=["snowflake"],
     # When a new package (directory) is added, we should also add it here
@@ -160,4 +168,5 @@ setup(
         "Topic :: Scientific/Engineering :: Information Analysis",
     ],
     zip_safe=False,
+    protobufs=[Protobuf("src/snowflake/snowpark/ast.proto")],
 )
