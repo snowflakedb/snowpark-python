@@ -47,7 +47,7 @@
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 
 ### Improvements
-- Improved performance for `pd.qcut`, `Series.quantile`, and `Series.describe`.
+- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
