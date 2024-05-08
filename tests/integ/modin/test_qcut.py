@@ -271,6 +271,7 @@ def test_qcut_invalid_quantiles_negative(q):
 def test_qcut_two_columns():
     # reported by Mats Stewall, applying qcut twice leads to exploding SQL query.
     # attempt finding a remedy
+
     DATA_PATH = "SNOWFLAKE_SAMPLE_DATA.TPCH_SF1"
     spd_order = pd.read_snowflake(f"{DATA_PATH}.ORDERS").drop(
         ["O_ORDERPRIORITY", "O_CLERK", "O_SHIPPRIORITY", "O_COMMENT"], axis=1

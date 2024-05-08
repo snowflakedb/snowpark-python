@@ -9300,7 +9300,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         q: list[float],
         interpolation: Literal["linear", "lower", "higher", "midpoint", "nearest"],
         index: Optional[Union[list[str], list[float]]] = None,
-        index_dtype: Optional[npt.DTypeLike] = None,
+        index_dtype: npt.DTypeLike = float,
     ) -> "SnowflakeQueryCompiler":
         """
         Helper method for ``qcut`` and ``quantile`` to compute quantiles over frames with a single column.
@@ -9355,7 +9355,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The labels for the resulting index column, allowing us to avoid a JOIN query by directly
             setting the correct column names before UNPIVOT. This is used primarily for ``describe``,
             where the resulting row labels are percentiles like "25%" rather than decimals like "0.25".
-        index_dtype : npt.DtypeLike, optional
+        index_dtype : npt.DtypeLike, default: float
             The type to which to coerce the resulting index column. Since UNPIVOT requires string column
             names, the resulting index column must be explicitly casted after the operation.
 
@@ -9382,59 +9382,60 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index = list(map(str, index))
         original_frame = self._modin_frame
         col_label = original_frame.data_column_pandas_labels[0]
-        col_ident = original_frame.data_column_snowflake_quoted_identifiers[0]
+        col_identifier = original_frame.data_column_snowflake_quoted_identifiers[0]
         new_labels = [str(quantile) for quantile in q]
-        new_idents = (
+        new_identifiers = (
             original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=new_labels
             )
         )
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
-                column_quantile(col(col_ident), interpolation, quantile).as_(new_ident)
-                for new_ident, quantile in zip(new_idents, q)
+                column_quantile(col(col_identifier), interpolation, quantile).as_(
+                    new_ident
+                )
+                for new_ident, quantile in zip(new_identifiers, q)
             ]
         )
-        index_ident = ordered_dataframe.generate_snowflake_quoted_identifiers(
+        index_identifier = ordered_dataframe.generate_snowflake_quoted_identifiers(
             pandas_labels=[None]
         )[0]
         # In order to set index labels without a JOIN, we call unpivot directly instead of using
         # transpose_single_row. This also lets us avoid JSON serialization/deserialization.
         ordered_dataframe = ordered_dataframe.unpivot(
             original_frame.data_column_snowflake_quoted_identifiers[0],
-            index_ident,
-            new_idents,
-            col_mapper=dict(zip(new_idents, index))
+            index_identifier,
+            new_identifiers,
+            col_mapper=dict(zip(new_identifiers, index))
             if index is not None
-            else dict(zip(new_idents, new_labels)),
+            else dict(zip(new_identifiers, new_labels)),
         ).ensure_row_position_column()
         internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=[col_label],
             data_column_pandas_index_names=[None],
-            data_column_snowflake_quoted_identifiers=[col_ident],
+            data_column_snowflake_quoted_identifiers=[col_identifier],
             index_column_pandas_labels=[None],
-            index_column_snowflake_quoted_identifiers=[index_ident],
+            index_column_snowflake_quoted_identifiers=[index_identifier],
         )
-        if index_dtype:
-            # We cannot call astype() directly to convert an index column, so we replicate
-            # the logic here so we don't have to mess with set_index.
-            internal_frame = (
-                internal_frame.update_snowflake_quoted_identifiers_with_expressions(
-                    {
-                        index_ident: column_astype(
-                            index_ident,
-                            TypeMapper.to_pandas(
-                                internal_frame.quoted_identifier_to_snowflake_type()[
-                                    index_ident
-                                ]
-                            ),
-                            index_dtype,
-                            TypeMapper.to_snowflake(index_dtype),
-                        )
-                    }
-                )[0]
-            )
+        # We cannot call astype() directly to convert an index column, so we replicate
+        # the logic here so we don't have to mess with set_index.
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    index_identifier: column_astype(
+                        index_identifier,
+                        TypeMapper.to_pandas(
+                            internal_frame.quoted_identifier_to_snowflake_type()[
+                                index_identifier
+                            ]
+                        ),
+                        index_dtype,
+                        TypeMapper.to_snowflake(index_dtype),
+                    )
+                }
+            )[0]
+        )
 
         return SnowflakeQueryCompiler(internal_frame)
 
