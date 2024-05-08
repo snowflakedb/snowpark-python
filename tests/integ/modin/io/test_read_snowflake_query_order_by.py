@@ -21,8 +21,7 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_select_star_with_order_by(session, caplog):
     # This test ensures that the presence of an ORDER BY causes us not to take the fastpath
     # of select * from table, where we just do `pd.read_snowflake("table")` instead.
@@ -48,7 +47,7 @@ def test_select_star_with_order_by(session, caplog):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_no_order_by_but_column_name_shadows(session, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe(
@@ -59,16 +58,15 @@ def test_no_order_by_but_column_name_shadows(session, caplog):
     caplog.clear()
     WarningMessage.printed_warnings = set()
     with caplog.at_level(logging.DEBUG):
-        df = pd.read_snowflake(f"SELECT * FROM {table_name}")
+        df = pd.read_snowflake(f'SELECT A, B, "ORDER BY" FROM {table_name}')
     # verify no temporary table is materialized for regular table
     assert "Materialize temporary table" not in caplog.text
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING not in caplog.text
     assert df.columns.tolist() == ["A", "B", "ORDER BY"]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("order_by_col", [1, '"ORDER BY"', '"ORDER BY 1"', "A"])
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_order_by_and_column_name_shadows(session, caplog, order_by_col):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     # Want random permutation, but need to make sure that there are no duplicates in the sorting column
@@ -94,8 +92,26 @@ def test_order_by_and_column_name_shadows(session, caplog, order_by_col):
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
+def test_order_by_as_column_name_should_not_warn_negative(session, caplog):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame(
+            [[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["A", "B", " ORDER BY "]
+        )
+    ).write.save_as_table(table_name, table_type="temp")
+    caplog.clear()
+    WarningMessage.printed_warnings = set()
+    with caplog.at_level(logging.DEBUG):
+        df = pd.read_snowflake(f'SELECT " ORDER BY " FROM {table_name}')
+        df.to_pandas()  # Force materialization of snowpark dataframe backing this dataframe.
+    # In this case, there is no ORDER BY, but since we use string matching, we will get a false
+    # positive here.
+    assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
+    assert df.columns.tolist() == [" ORDER BY "]
+
+
+@sql_count_checker(query_count=4)
 def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
     session, caplog
 ):
@@ -116,13 +132,11 @@ def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
     # (for context as to why, see Thierry's message here:
     # https://snowflake.slack.com/archives/C02BTC3HY/p1708032327090439?thread_ts=1708025496.641369&cid=C02BTC3HY)
     # so we still include the sort in our code.
-    # verify that we use the metadata row number (not call row_number), since there's no sort.
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
     assert df.columns.tolist() == ["A", "B", "ORDER BY"]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_order_by_with_no_limit_but_colname_shadows(session, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     native_df = native_pd.DataFrame(
@@ -142,8 +156,7 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog):
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_order_by_with_limit_and_name_shadows(session, caplog):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     native_df = native_pd.DataFrame(
@@ -159,8 +172,7 @@ def test_order_by_with_limit_and_name_shadows(session, caplog):
     assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
-@sql_count_checker(query_count=6, join_count=2)
+@sql_count_checker(query_count=5, join_count=1)
 def test_read_snowflake_query_complex_query_with_join_and_order_by(session, caplog):
     # create table
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -193,9 +205,8 @@ def test_read_snowflake_query_complex_query_with_join_and_order_by(session, capl
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("ordinal", [1, 2, 28])
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_order_by_with_position_key(session, ordinal, caplog):
     column_order = [
         "col12",

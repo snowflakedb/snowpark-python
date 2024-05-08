@@ -380,6 +380,13 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def SERVER_FAILED_FETCH_LINEAGE(message: str) -> SnowparkFetchDataException:
+        return SnowparkFetchDataException(
+            f"Failed to fetch a lineage information. The error is: {message}",
+            error_code="1406",
+        )
+
+    @staticmethod
     def SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
         dest_filename: str,
     ) -> SnowparkUploadUdfFileException:

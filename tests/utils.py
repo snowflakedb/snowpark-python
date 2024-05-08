@@ -791,6 +791,7 @@ class TestData:
                 1706774400,
                 "2024-02-01 00:00:00.000000",
                 "Thu, 01 Feb 2024 00:00:00 -0600",
+                "1706774400",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -808,6 +809,7 @@ class TestData:
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
                 StructField("str_w_tz", StringType()),
+                StructField("str_ts", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
@@ -1216,6 +1218,10 @@ class TestFiles:
     @property
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
+
+    @property
+    def test_file_csv_quotes_special(self):
+        return os.path.join(self.resources_path, "testCSVquotesSpecial.csv")
 
     @functools.cached_property
     def test_file_csv_special_format(self):
