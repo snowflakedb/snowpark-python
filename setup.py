@@ -47,6 +47,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-xdist",
     "pre-commit",
 ]
+SERVER_SIDE_REQUIREMENTS = ["pex>=2.3.1"]
 
 # read the version
 VERSION = ()
@@ -134,6 +135,7 @@ setup(
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
         ],
+        "server": SERVER_SIDE_REQUIREMENTS,
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -147,9 +149,6 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Topic :: Database",
         "Topic :: Software Development",
