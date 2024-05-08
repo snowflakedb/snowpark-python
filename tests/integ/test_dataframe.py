@@ -1032,7 +1032,7 @@ def test_filter(session):
     assert res == expected
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
     reason="SQL is not supported in Local Testing",
 )
