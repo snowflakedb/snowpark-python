@@ -5,7 +5,10 @@
 import pandas as native_pd
 
 
+# modin index class, wrapper to native pandas for now
 class Index:
+
+    # same fields as native pandas index constructor
     def __new__(
         cls,
         data=None,
