@@ -7,6 +7,9 @@
 #### New Features
 
 - Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
+- Added support for the following APIs:
+  - snowflake.snowpark.DataFrame:
+    - pivot
 
 #### Bug Fixes
 
@@ -35,8 +38,6 @@
     - get
     - concat
     - concat_ws
-  - snowflake.snowpark.DataFrame:
-    - pivot
 
 #### Bug Fixes
 
