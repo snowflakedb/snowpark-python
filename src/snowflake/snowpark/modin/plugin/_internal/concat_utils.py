@@ -209,10 +209,14 @@ def union_all(
     # names of the columns of the first query. So here we copy identifiers from
     # first frame.
     # Reference: https://docs.snowflake.com/en/sql-reference/operators-query
-    ordered_dataframe = frame1.ordered_dataframe.select(
+    ordered_dataframe1 = frame1.ordered_dataframe.select(
         frame1_identifiers_for_union_all
-    ).union_all(frame2.ordered_dataframe.select(frame2_identifiers_for_union_all))
-    ordered_dataframe = ordered_dataframe.sort(frame1.ordering_columns)
+    )
+    ordered_dataframe2 = frame2.ordered_dataframe.select(
+        frame2_identifiers_for_union_all
+    )
+    ordered_unioned_dataframe = ordered_dataframe1.union_all(ordered_dataframe2)
+    ordered_dataframe = ordered_unioned_dataframe.sort(frame1.ordering_columns)
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
         data_column_pandas_labels=frame1.data_column_pandas_labels,

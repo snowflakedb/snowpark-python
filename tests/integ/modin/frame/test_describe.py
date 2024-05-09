@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.utils import TestFiles
 
 
 @pytest.mark.parametrize(
@@ -339,3 +340,10 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
             *create_test_dfs(data, columns=columns),
             lambda df: df.describe(include=include, exclude=exclude),
         )
+
+
+# SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
+def test_describe_object_file(resources_path):
+    test_files = TestFiles(resources_path)
+    df = pd.read_csv(test_files.test_concat_file1_csv)
+    eval_snowpark_pandas_result("pd", "native_pd", df.describe(include="O"))
