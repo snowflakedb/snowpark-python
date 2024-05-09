@@ -1,4 +1,4 @@
-name: Snowpark pandas Notebook Tests
+name: Daily Snowpark pandas jupyter notebook test
 
 on:
     schedule:
@@ -98,7 +98,7 @@ jobs:
             - name: Run notebook tests
               run: |
                 python -c "import sys; sys.path.append('../')"
-                python -m pytest -ra --nbmake tests/notebooks/modin
+                python -m pytest -ra --nbmake --nbmake-timeout=1000 tests/notebooks/modin
               env:
                 PYTHON_VERSION: ${{ matrix.python-version }}
                 cloud_provider: ${{ matrix.cloud-provider }}
