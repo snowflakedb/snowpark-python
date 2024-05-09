@@ -47,6 +47,9 @@
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
+### Improvements
+- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
+
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
 
