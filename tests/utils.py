@@ -139,12 +139,18 @@ class Utils:
 
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
     def drop_stage(session: "Session", name: str):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod

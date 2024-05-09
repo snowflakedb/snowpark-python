@@ -33,7 +33,13 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getvalue('local_testing_mode')",
+        reason="UDTF is not supported in Local Testing",
+    ),
+]
 
 wordcount_table_name = Utils.random_table_name()
 

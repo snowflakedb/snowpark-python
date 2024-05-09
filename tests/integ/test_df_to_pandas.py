@@ -28,7 +28,7 @@ import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
-from snowflake.snowpark.functions import col, to_timestamp
+from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -138,24 +138,29 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: dtype and value mismatch",
+)
 def test_to_pandas_precision_for_number_38_0(session):
     # Assert that we try to fit into int64 when possible and keep precision
-    df = session.sql(
-        """
-    SELECT
-        CAST(COLUMN1 as NUMBER(38,0)) AS A,
-        CAST(COLUMN2 as NUMBER(18,0)) AS B
-    FROM VALUES
-        (1111111111111111111, 222222222222222222),
-        (3333333333333333333, 444444444444444444),
-        (5555555555555555555, 666666666666666666),
-        (7777777777777777777, 888888888888888888),
-        (9223372036854775807, 111111111111111111),
-        (2222222222222222222, 333333333333333333),
-        (4444444444444444444, 555555555555555555),
-        (6666666666666666666, 777777777777777777),
-        (-9223372036854775808, 999999999999999999)
-        """
+
+    df = session.create_dataframe(
+        [
+            [1111111111111111111, 222222222222222222],
+            [3333333333333333333, 444444444444444444],
+            [5555555555555555555, 666666666666666666],
+            [7777777777777777777, 888888888888888888],
+            [9223372036854775807, 111111111111111111],
+            [2222222222222222222, 333333333333333333],
+            [4444444444444444444, 555555555555555555],
+            [6666666666666666666, 777777777777777777],
+            [-9223372036854775808, 999999999999999999],
+        ],
+        schema=["A", "B"],
+    ).select(
+        col("A").cast(DecimalType(38, 0)).alias("A"),
+        col("B").cast(DecimalType(18, 0)).alias("B"),
     )
 
     pdf = df.to_pandas()
@@ -167,19 +172,20 @@ def test_to_pandas_precision_for_number_38_0(session):
     assert pdf["A"].min() == -9223372036854775808
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: div0 and round functions not supported",
+)
 def test_to_pandas_precision_for_non_zero_scale(session):
-    df = session.sql(
-        """
-        SELECT
-            num1,
-            num2,
-            DIV0(num1, num2) AS A,
-            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS B,
-            ROUND(B, 2) as C
-        FROM (VALUES
-            (1, 11)
-        ) X(num1, num2);
-        """
+
+    df = session.create_dataframe([[1, 11]], schema=["num1", "num2"]).select(
+        col("num1"),
+        col("num2"),
+        div0(col("num1"), col("num2")).alias("A"),
+        div0(col("num1").cast(IntegerType()), col("num2").cast(IntegerType())).alias(
+            "B"
+        ),
+        round(col("B"), 2).alias("C"),
     )
 
     pdf = df.to_pandas()
@@ -189,6 +195,11 @@ def test_to_pandas_precision_for_non_zero_scale(session):
     assert pdf["C"].dtype == "float64"
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_to_pandas_non_select(session):
     # `with ... select ...` is also a SELECT statement
     isinstance(session.sql("select 1").to_pandas(), PandasDF)

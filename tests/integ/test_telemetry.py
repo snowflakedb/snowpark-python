@@ -47,6 +47,14 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="This is testing inbound telemetry",
+        run=False,
+    )
+]
+
 
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
