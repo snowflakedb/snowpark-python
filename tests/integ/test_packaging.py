@@ -22,6 +22,13 @@ from snowflake.snowpark.functions import call_udf, col, count_distinct, sproc, u
 from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
+pytestmark = pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="Local Testing packaging operation is no-op",
+    run=False,
+)
+
+
 if sys.version_info >= (3, 9):
     runtime_39_or_above = True
 else:

@@ -101,6 +101,10 @@ def test_df_agg_tuples_basic_without_std(session):
     Utils.assert_rows(res, [Row(1, 4, 2, 4.75)])
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: stddev function not supported",
+)
 def test_df_agg_tuples_basic(session):
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
@@ -193,6 +197,10 @@ def test_df_agg_tuples_avg_basic(session):
     Utils.assert_rows(res, [Row(1.5)])
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: stddev function not supported",
+)
 def test_df_agg_tuples_std_basic(session):
     """Test for making sure all stddev variations work as expected"""
 

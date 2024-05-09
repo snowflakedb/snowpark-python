@@ -96,7 +96,9 @@ def test_join_on_top_of_unions(session):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_combination_of_multiple_data_sources(session, resources_path):
+def test_combination_of_multiple_data_sources(
+    session, resources_path, local_testing_mode
+):
     test_files = TestFiles(resources_path)
     test_file_csv = "testCSV.csv"
     tmp_stage_name = Utils.random_stage_name()
@@ -110,9 +112,11 @@ def test_combination_of_multiple_data_sources(session, resources_path):
     )
 
     try:
-        Utils.create_table(session, tmp_table_name, "num int")
-        session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
-        session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
+        session.create_dataframe(data=[1, 2, 3], schema=["num"]).write.save_as_table(
+            tmp_table_name
+        )
+        if not local_testing_mode:
+            session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
         Utils.upload_to_stage(
             session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
         )
