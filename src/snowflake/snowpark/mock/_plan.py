@@ -1428,6 +1428,10 @@ def execute_mock_plan(
                 raise_error=NotImplementedError,
             )
 
+        # source_plan.grouping_columns contains columns specified in the groupby clause.
+        # If that clause is omitted then the default behavior is to use all columns that are not
+        # being used as either the agg column or the pivot column.
+        # See here for more details: https://community.snowflake.com/s/article/Pivot-returns-more-rows-than-expected
         grouping_columns = [
             plan.session._analyzer.analyze(c) for c in source_plan.grouping_columns
         ]
