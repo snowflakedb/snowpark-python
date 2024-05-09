@@ -1484,9 +1484,9 @@ def is_repr_truncated(
     """
     if 0 == num_cols_to_display and 0 == num_rows_to_display:
         return False
-    elif 0 == num_cols_to_display or num_cols_to_display is None:
+    elif 0 == num_cols_to_display:
         return row_count > num_rows_to_display
-    elif 0 == num_rows_to_display or num_rows_to_display is None:
+    elif 0 == num_rows_to_display:
         return col_count > num_cols_to_display
     else:
         return row_count > num_rows_to_display or col_count > num_cols_to_display
