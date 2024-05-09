@@ -1041,3 +1041,21 @@ def test_concat_none_index_name(index1, index2):
         "native_pd",
         _concat_operation([df1, df2]),
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_concat_keys():
+    native_data = {
+        "one": native_pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": native_pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": native_pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+    native_df = native_pd.concat(native_data.values(), axis=1, keys=native_data.keys())
+
+    data = {
+        "one": pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+    snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
+    assert_frame_equal(snow_df, native_df)
