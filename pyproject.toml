@@ -7,7 +7,7 @@ name = "snowflake-snowpark-python"
 dynamic = ["version"]
 description = "Snowflake Snowpark for Python"
 readme = "README.md"
-license = "Apache License, Version 2.0"
+# license = "Apache License, Version 2.0"
 requires-python = ">=3.8, <3.12"
 authors = [
     { name = "Snowflake, Inc", email = "snowflake-python-libraries-dl@snowflake.com" },
@@ -113,4 +113,4 @@ Source = "https://github.com/snowflakedb/snowpark-python"
 
 [tool.setuptools-protobuf]
 protobufs = ["src/snowflake/snowpark/ast.proto"]
-mypy = true
+mypy = false
