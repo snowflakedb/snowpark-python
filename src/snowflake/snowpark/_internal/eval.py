@@ -13,6 +13,17 @@ def process_ast(base64_encoded_ast: str) -> None:
 
 
 def main():
+    """This is the main entry point used by XP for sending over a Snowpark IR AST."""
+
+    # use https://grpc.io/docs/languages/python/basics/ for this?
+    # i.e. use this as entry point together with timeout. Then start grpc server, wait for single query, execute and
+    # then terminate process.
+    # that should work.
+
+    from snowflake.snowpark import Session
+
+    session = Session.builder.getOrCreate()
+    print(f'Currently used warehouse is: {session.get_current_warehouse()}')
     process_ast("test")
 
 
