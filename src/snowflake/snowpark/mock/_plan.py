@@ -1460,9 +1460,6 @@ def execute_mock_plan(
         )
         result.reset_index(inplace=True)
 
-        # Pandas pivot can include many levels of indicies. we're only interested in the last one
-        result.columns = result.columns.get_level_values(-1)
-
         # Select down to indices and provided values if specific values were requested
         if pivot_values:
             result = result[list(indices) + pivot_values]
