@@ -315,7 +315,8 @@ def test_insert_empty_multiindex_frame(value):
     expected_df = native_pd.DataFrame(
         value,
         columns=["col3"],
-        index=pd.Index([(None, None)] * 4),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        index=pd.Index([(None, None)] * 4).to_pandas(),
     )
     assert_snowpark_pandas_equal_to_pandas(snow_df, expected_df)
 
@@ -730,8 +731,8 @@ def test_insert_with_unique_and_duplicate_index_values(
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index)
-    native_df2 = native_pd.DataFrame(data2, index=other_index)
+    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
+    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
 
     def insert_op(df):
         df.insert(

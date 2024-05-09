@@ -1751,19 +1751,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas doesn't yet support '{op}' binary operation"
             )
-
         if is_scalar(other):
             # (Case 1): other is scalar
             # -------------------------
             return self._binary_op_scalar_rhs(op, other, fill_value)
 
-        if not isinstance(other, (Series, DataFrame)) and is_list_like(other):
+        if not isinstance(other, (Series, DataFrame)):
             # (Case 2): other is list-like
             # ----------------------------
-            if axis == 0:
-                return self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
-            else:  # axis=1
-                return self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(other, pd.Index):
+                other = other.to_pandas()
+            if is_list_like(other):
+                if axis == 0:
+                    return self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
+                else:  # axis=1
+                    return self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
 
         if squeeze_self and isinstance(other, Series):
             # (Case 3): Series/Series

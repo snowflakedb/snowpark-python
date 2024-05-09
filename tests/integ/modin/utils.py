@@ -424,12 +424,13 @@ def eval_snowpark_pandas_result(
                 == snow_err_msg[: snow_err_msg.index("dtype")]
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
+        if isinstance(snow_pandas, pd.Index):
+            snow_pandas = snow_pandas.to_pandas()
         pd_result = operation(native_pandas)
         snow_result = operation(snow_pandas)
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 

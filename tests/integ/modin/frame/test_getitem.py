@@ -40,6 +40,10 @@ def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
     # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
+
     def get_helper(df):
         if isinstance(df, pd.DataFrame):
             return df[key]
@@ -68,6 +72,10 @@ def test_df_getitem_with_string_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
     # df[string list-like key] is the same as df.loc[:, string list-like key]
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
+
     def get_helper(df):
         return df[key]
 
@@ -89,6 +97,10 @@ def test_df_getitem_with_string_list_like(
 )
 def test_df_getitem_with_int_list_like(key):
     # df[int list-like key] is the same as df.loc[:, int list-like key]
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
+
     def get_helper(df):
         return df[key]
 
@@ -162,7 +174,8 @@ def test_df_getitem_with_none_nan_columns():
     # an Index with dtype=object will keep them as separate values. If dtype=object is not explicitly specified
     # (either in the columns of the DF constructor or in the indexing key), then None is implicitly coerced
     # to nan.
-    key = pd.Index([None, np.nan], dtype=object)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    key = pd.Index([None, np.nan], dtype=object).to_pandas()
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     eval_snowpark_pandas_result(
@@ -188,6 +201,9 @@ def test_df_getitem_with_none_nan_columns():
 def test_df_getitem_with_labels_two_columns_with_index(key):
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
 
     def helper(df):
         ans_df = df[key]

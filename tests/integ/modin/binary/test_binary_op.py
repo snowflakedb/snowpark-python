@@ -787,7 +787,11 @@ class TestFillValue:
             ):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
-                index_as_list = other.tolist()
+                index_as_list = (
+                    other.to_pandas().tolist()
+                    if isinstance(other, pd.Index)
+                    else other.to_list()
+                )
                 # Since the behavior of all list-like objects is supposed to be the same, convert index to a list
                 # for native pandas and compare it with the index version for Snowpark pandas.
                 # The issue is that native pandas calls isna() directly on other and errors with:
