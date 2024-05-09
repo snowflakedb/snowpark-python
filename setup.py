@@ -104,6 +104,8 @@ setup(
         "snowflake.snowpark.modin.plugin.extensions",
         "snowflake.snowpark.modin.plugin.io",
         "snowflake.snowpark.modin.plugin.utils",
+        "snowflake.snowpark._internal.tcm",
+        "snowflake.snowpark._internal.tcm.proto",
     ],
     package_dir={
         "": "src",

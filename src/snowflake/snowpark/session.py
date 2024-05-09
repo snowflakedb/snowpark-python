@@ -498,7 +498,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
 
         # local import due to pex issue.
-        from snowflake.snowpark._internal.tcm.ast import AstBatch
+        from snowflake.snowpark._internal.tcm.snowpark_ast import AstBatch
 
         self._ast_batch = AstBatch(self)
 
