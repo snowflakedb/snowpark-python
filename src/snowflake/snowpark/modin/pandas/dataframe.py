@@ -155,7 +155,6 @@ class DataFrame(BasePandasDataset):
         # Siblings are other dataframes that share the same query compiler. We
         # use this list to update inplace when there is a shallow copy.
         self._siblings = []
-
         # Engine.subscribe(_update_engine)
         if isinstance(data, (DataFrame, Series)):
             self._query_compiler = data._query_compiler.copy()
@@ -227,7 +226,12 @@ class DataFrame(BasePandasDataset):
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
-                        new_qc = new_qc.reindex(axis=0, labels=index)
+                        new_qc = new_qc.reindex(
+                            axis=0,
+                            labels=index.to_pandas()
+                            if isinstance(index, pd.Index)
+                            else index,
+                        )
                     if columns is not None:
                         new_qc = new_qc.reindex(axis=1, labels=columns)
 
@@ -238,8 +242,13 @@ class DataFrame(BasePandasDataset):
                     k: v._to_pandas() if isinstance(v, Series) else v
                     for k, v in data.items()
                 }
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             pandas_df = pandas.DataFrame(
-                data=data, index=index, columns=columns, dtype=dtype, copy=copy
+                data=data,
+                index=index.to_pandas() if isinstance(index, pd.Index) else index,
+                columns=columns,
+                dtype=dtype,
+                copy=copy,
             )
             self._query_compiler = from_pandas(pandas_df)._query_compiler
         else:
@@ -576,7 +585,6 @@ class DataFrame(BasePandasDataset):
                         external_by.append(current_by)
 
                 by = internal_by + external_by
-
         return DataFrameGroupBy(
             self,
             by,
@@ -2298,7 +2306,12 @@ class DataFrame(BasePandasDataset):
                 label_or_series.append(key._query_compiler)
             elif isinstance(key, (np.ndarray, list, Iterator)):
                 label_or_series.append(pd.Series(key)._query_compiler)
-            elif isinstance(key, (pd.Index, pandas.Index)):
+            elif isinstance(key, pd.Index):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                label_or_series += [
+                    s._query_compiler for s in self._to_series_list(key.to_pandas())
+                ]
+            elif isinstance(key, pandas.Index):
                 label_or_series += [
                     s._query_compiler for s in self._to_series_list(key)
                 ]
@@ -2324,12 +2337,13 @@ class DataFrame(BasePandasDataset):
         )
 
         # TODO: SNOW-782633 improve this code once duplicate is supported
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         # this needs to pull all index which is inefficient
-        if verify_integrity and not new_query_compiler.index.is_unique:
-            duplicates = new_query_compiler.index[
-                new_query_compiler.index.duplicated()
-            ].unique()
-            raise ValueError(f"Index has duplicate keys: {duplicates}")
+        if verify_integrity:
+            pandas_index = new_query_compiler.index.to_pandas()
+            if not pandas_index.is_unique:
+                duplicates = pandas_index[pandas_index.duplicated()].unique()
+                raise ValueError(f"Index has duplicate keys: {duplicates}")
 
         return self._create_or_update_from_compiler(new_query_compiler, inplace=inplace)
 
@@ -3385,7 +3399,8 @@ class DataFrame(BasePandasDataset):
         axis = self._get_axis_number(axis)
         renamed = self if inplace else self.copy()
         if axis == 0:
-            renamed.index = renamed.index.set_names(name)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            renamed.index = pd.Index(renamed.index.to_pandas().set_names(name))
         else:
             renamed.columns = renamed.columns.set_names(name)
         if not inplace:

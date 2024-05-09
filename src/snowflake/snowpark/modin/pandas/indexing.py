@@ -1175,6 +1175,8 @@ class _iLocIndexer(_LocationIndexerBase):
 
             if isinstance(item, pandas.Index):
                 item = np.array(item.tolist()).transpose()
+            elif isinstance(item, pd.Index):
+                item = np.array(item.to_pandas().tolist()).transpose()
             else:
                 item = np.array(item)
 

@@ -467,6 +467,12 @@ def assert_values_equal(
     Returns:
         bool telling whether the values are equal.
     """
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(expected, pd.Index):
+        expected = expected.to_pandas()
+    if isinstance(actual, pd.Index):
+        actual = actual.to_pandas()
+
     if isinstance(expected, native_pd.DataFrame):
         assert isinstance(
             actual, native_pd.DataFrame

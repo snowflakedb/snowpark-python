@@ -48,7 +48,13 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
     snowpandas_index = snowpark_pandas_df.index
     if index_col:
         expected_index = index_col if isinstance(index_col, list) else [index_col]
-        assert snowpandas_index.names == expected_index
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        from snowflake.snowpark.modin.pandas.index import Index
+
+        if isinstance(snowpandas_index, Index):
+            assert snowpandas_index.to_pandas().names == expected_index
+        else:
+            assert snowpandas_index.names == expected_index
     else:
         assert snowpandas_index.dtype == np.dtype("int64")
         assert sorted(snowpandas_index.values.tolist()) == [0, 1, 2]
@@ -77,7 +83,8 @@ def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     # verify all columns are data columns
     assert snowpark_pandas_df.columns.tolist() == ["ID", "SHOE_MODEL"]
     # verify a default row_position column is created
-    snowpandas_index = snowpark_pandas_df.index
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    snowpandas_index = snowpark_pandas_df.index.to_pandas()
     assert snowpandas_index.dtype == np.dtype("int64")
     assert sorted(snowpandas_index.values.tolist()) == [0, 1]
 
@@ -97,9 +104,10 @@ def test_to_snowpark_pandas_with_operations(session, tmp_table_basic) -> None:
 
     snowpark_pandas_df = snowpark_df.to_snowpark_pandas()
     # verify all columns are data columns
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     assert snowpark_pandas_df.columns.tolist() == ["size", "model"]
     # verify a default row_position column is created
-    snowpandas_index = snowpark_pandas_df.index
+    snowpandas_index = snowpark_pandas_df.index.to_pandas()
     assert snowpandas_index.dtype == np.dtype("int64")
     assert sorted(snowpandas_index.values.tolist()) == [0]
 

@@ -1572,7 +1572,12 @@ def to_datetime(
         )
     arg_is_scalar = is_scalar(arg)
     # handle empty array, list, dict
-    if not arg_is_scalar and not isinstance(arg, (DataFrame, Series)) and len(arg) == 0:
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if (
+        not arg_is_scalar
+        and not isinstance(arg, (DataFrame, Series))
+        and len(arg.to_pandas() if isinstance(arg, pd.Index) else arg) == 0
+    ):
         return arg if isinstance(arg, Series) else Series(arg)  # always return a Series
     if not isinstance(arg, (DataFrame, Series)):
         # turn dictionary like arg into DataFrame and list like or scalar to Series
@@ -1582,6 +1587,9 @@ def to_datetime(
             name = None
             # keep index name
             if isinstance(arg, pandas.Index):
+                name = arg.name
+            elif isinstance(arg, pd.Index):
+                arg = arg.to_pandas()
                 name = arg.name
             arg = Series(arg)
             arg.name = name

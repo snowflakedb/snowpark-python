@@ -3566,11 +3566,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         # note that the index dtype has to match the original
                         # index's dtype, even if we could use a more restrictive
                         # type for this portion of the index.
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                         pd.Index(
                             row.iloc[i],
                             name=original_index_name,
                             dtype=index_dtype,
-                        )
+                        ).to_pandas()
                         for i, (original_index_name, index_dtype) in enumerate(
                             zip(
                                 original_index_names,
@@ -4653,7 +4654,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         ).result_frame
                         if not label_join_result.num_rows:
                             raise KeyError(
-                                f"{index_renamer.index.values.tolist()} not found in axis"
+                                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                                f"{index_renamer.index.to_pandas().values.tolist()} not found in axis"
                             )
 
                     # Left join index_renamer_internal_frame.

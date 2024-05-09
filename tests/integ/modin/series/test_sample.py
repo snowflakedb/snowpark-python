@@ -24,15 +24,17 @@ def ignore_index(request):
 def test_series_sample_n(n, ignore_index):
     s = pd.Series(range(100, 110)).sample(n=n, ignore_index=ignore_index)
     assert len(s) == (n if n is not None else 1)
-    assert_index_equal(s.index, s.index)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert_index_equal(s.index.to_pandas(), s.index.to_pandas())
 
 
 @pytest.mark.parametrize("frac", [None, 0, 0.1, 0.5, 0.8, 1])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_series_sample_frac(frac, ignore_index):
     s = pd.Series(range(100, 110)).sample(frac=frac, ignore_index=ignore_index)
-    assert s.index.is_unique
-    assert_index_equal(s.index, s.index)
+    index = s.index.to_pandas()
+    assert index.is_unique
+    assert_index_equal(index, s.index.to_pandas())
 
 
 @pytest.mark.parametrize(
