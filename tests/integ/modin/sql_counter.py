@@ -15,9 +15,6 @@ from decorator import decorator
 from pandas._typing import Scalar
 
 from snowflake.snowpark import QueryRecord
-from snowflake.snowpark.modin.plugin.default2pandas.stored_procedure_utils import (
-    FALLBACK_TAG,
-)
 from snowflake.snowpark.session import Session
 
 UPDATED_SUFFIX = "updated"
@@ -39,7 +36,6 @@ UNION = " UNION "
 NO_CHECK = "no_check"
 
 QUERY_COUNT_PARAMETER = "query_count"
-FALLBACK_COUNT_PARAMETER = "fallback_count"
 JOIN_COUNT_PARAMETER = "join_count"
 SPROC_COUNT_PARAMETER = "sproc_count"
 UDF_COUNT_PARAMETER = "udf_count"
@@ -52,7 +48,6 @@ HIGH_COUNT_REASON = "high_count_reason"
 SQL_COUNT_PARAMETERS = [
     QUERY_COUNT_PARAMETER,
     JOIN_COUNT_PARAMETER,
-    FALLBACK_COUNT_PARAMETER,
     SPROC_COUNT_PARAMETER,
     UDF_COUNT_PARAMETER,
     UDTF_COUNT_PARAMETER,
@@ -62,14 +57,6 @@ SQL_COUNT_PARAMETERS = [
 BOOL_PARAMETERS = [EXPECT_HIGH_COUNT]
 
 SQL_COUNTER_CALLED = "sql_counter_called"
-
-# For fallback operations we expect they can take at least 8 queries (each) based on our current design, since this
-# is independent of the specific test logic, we adjust the query count down based on the fallback query count threshold.
-# The way to think of this is we treat a baseline of 8 queries as 1 query for each fallback with respect to the high
-# query count check.  For example, if a test with query_count=12, fallback_count=1 would check 12-(8-1)=5<10 so it
-# would pass.  However, test with query_count=20, fallback_count=1 would check 20-(8-1)=13>10 would fail the high query
-# count check.
-FALLBACK_QUERY_COUNT_THRESHOLD = 8
 
 # The high count threshold is checked for each test, if the adjusted query count exceeds this threshold then
 # the test will fail with an explanation on how to mitigate.
@@ -112,7 +99,7 @@ class SqlCounter:
         with SqlCounter(query_count=5, udf_count=1):
             ...
 
-        This will check the query_count is 5 and udf_count is 1, and *all* other counts (like fallback_count, etc)
+        This will check the query_count is 5 and udf_count is 1, and *all* other counts (like udtf_count, etc)
         are expected to equal 0.
 
     If we do not expect the test to invoke any queries, we still recommend to at least explicitly check the
@@ -238,18 +225,7 @@ class SqlCounter:
                 if QUERY_COUNT_PARAMETER in kwargs.keys()
                 else 0
             )
-            fallback_count = (
-                actual_counts[FALLBACK_COUNT_PARAMETER]
-                if FALLBACK_COUNT_PARAMETER in kwargs.keys()
-                else 0
-            )
-
-            # For every fallback, we count FALLBACK_COUNT_PARAMETER as only 1 query in the adjusted_query_count.
-            adjusted_query_count = (
-                query_count - (FALLBACK_QUERY_COUNT_THRESHOLD - 1) * fallback_count
-            )
-
-            high_query_count_check = adjusted_query_count <= HIGH_QUERY_COUNT_THRESHOLD
+            high_query_count_check = query_count <= HIGH_QUERY_COUNT_THRESHOLD
             suppress_high_query_count = (
                 self._expect_high_count and self._high_count_reason is not None
             )
@@ -257,7 +233,7 @@ class SqlCounter:
             pytest.assume(
                 high_query_count_check or suppress_high_query_count,
                 f"""
-    Sql count check '{QUERY_COUNT_PARAMETER}' failed on high query count, adjusted_query_count={adjusted_query_count}>{HIGH_QUERY_COUNT_THRESHOLD}.
+    Sql count check '{QUERY_COUNT_PARAMETER}' failed on high query count.
     The test is generating too many queries, please investigate the high query count for potential performance problems
     and/or consider refactoring the sql count checks to be more granular.  To suppress this failure, please create a
     jira (if there is a follow up action required) and add the arguments 'high_count_expected=True' and
@@ -329,9 +305,6 @@ class SqlCounter:
         """Return number of joins across all sql queries"""
         return self._count_instances_by_query_substr(contains=[JOIN])
 
-    def actual_fallback_count(self):
-        return self._count_by_query_substr(contains=[CALL, FALLBACK_TAG])
-
     def actual_sproc_count(self):
         return self._count_by_query_substr(contains=[CALL])
 
@@ -376,7 +349,6 @@ def sql_count_checker(
     high_count_reason=None,
     query_count=None,
     join_count=None,
-    fallback_count=None,
     sproc_count=None,
     udf_count=None,
     udtf_count=None,
