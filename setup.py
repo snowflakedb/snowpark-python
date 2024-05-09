@@ -46,6 +46,9 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-timeout",
     "pytest-xdist",
     "pre-commit",
+    "protoc-wheel-0",
+    "setuptools-protobuf",
+    "tox",
 ]
 
 # read the version
