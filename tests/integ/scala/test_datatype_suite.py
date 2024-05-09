@@ -332,7 +332,7 @@ def test_dtypes(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: Cast to StructType not supported",
+    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
@@ -346,7 +346,7 @@ def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: Cast to StructType not supported",
+    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
@@ -387,7 +387,7 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: Cast to StructType not supported",
+    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",

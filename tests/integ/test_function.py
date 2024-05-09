@@ -415,7 +415,7 @@ def test_startswith(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: KeyError: 2 raised",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
 )
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
@@ -572,12 +572,11 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: substring raises unsupported operand type(s) for -: 'str' and 'int'",
+    reason="BUG: SNOW-1370338: substring raises unsupported operand type(s) for -: 'str' and 'int'",
 )
 def test_basic_string_operations(session):
     # Substring
     df = session.create_dataframe(["a not that long string"], schema=["a"])
-    # df = session.sql("select 'a not that long string'").to_df("a")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
     assert "Numeric value 'b' is not recognized" in str(ex_info)
@@ -728,7 +727,7 @@ def test_bround(session):
 # Enable for local testing after addressing SNOW-850268
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
+    reason="BUG: SNOW-1370338: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
 )
 def test_count_distinct(session):
     df = session.create_dataframe(
@@ -1685,7 +1684,7 @@ def test_date_operations_negative(session):
 # TODO: enable for local testing after addressing SNOW-850263
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: TypeError: unsupported type for timedelta days component: numpy.int64",
+    reason="BUG: SNOW-1370338 TypeError: unsupported type for timedelta days component: numpy.int64",
 )
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
@@ -1853,7 +1852,7 @@ def test_array_unique_agg(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: KeyError: 2 raised",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
 )
 def test_create_map(session):
     df = session.create_dataframe(

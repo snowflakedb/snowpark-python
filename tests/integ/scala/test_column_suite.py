@@ -426,7 +426,7 @@ def test_drop_columns_by_column(session):
 
 @pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="SQL query not supported",
+    reason="this tests fully qualified column name which is not supported by col() function",
     run=False,
 )
 def test_fully_qualified_column_name(session):
