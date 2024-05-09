@@ -572,7 +572,7 @@ def test_unary_expression(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: Window function WithinGroup is not supported",
+    reason="Window function WithinGroup is not supported",
 )
 def test_list_agg_within_group_sort_order(session):
     df1 = session.sql(
@@ -591,10 +591,6 @@ def test_list_agg_within_group_sort_order(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="TODO: refactor this to avoid type mismatch",
-)
 def test_binary_expression(session):
     """=, !=, >, <, >=, <=, EQUAL_NULL, AND, OR, +, -, *, /, %, POWER, BITAND, BITOR, BITXOR"""
     df1 = session.create_dataframe(

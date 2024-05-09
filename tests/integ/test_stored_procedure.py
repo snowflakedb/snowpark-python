@@ -1458,8 +1458,10 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="Comment is a SQL feature"
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="Comment is a SQL feature",
+    run=False,
 )
 @pytest.mark.parametrize(
     "prefix",
