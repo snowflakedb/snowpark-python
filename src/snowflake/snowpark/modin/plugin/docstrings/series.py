@@ -88,7 +88,12 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def name():
-        pass
+        """
+        Return the name of the Series.
+
+        The name of a Series becomes its index or column name if it is used to form a DataFrame.
+        It is also used whenever displaying the Series using the interpreter.
+        """
 
     @_doc_binary_op(operation="addition", bin_op="add")
     def __add__():
@@ -201,7 +206,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         First try to use `__getattribute__` method. If it fails
         try to get `key` from `Series` fields.
         """
-        pass
 
     def abs():
         """
@@ -748,7 +752,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         >>> s.count()
         2
         """
-        pass
 
     def cov():
         """
@@ -1684,6 +1687,35 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
     def reindex():
         pass
 
+    def rename_axis():
+        """
+        Set the name of the axis for the index or columns.
+
+        Parameters
+        ----------
+        mapper : scalar, list-like, optional
+            Value to set the axis name attribute.
+
+        index : scalar, list-like, dict-like or function, optional
+            A scalar, list-like, dict-like or functions transformations to apply to that axis' values.
+
+            Use either ``mapper`` and ``axis`` to specify the axis to target with ``mapper``, or ``index``.
+
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to rename. For Series this parameter is unused and defaults to 0.
+
+        copy : bool, default None
+            Also copy underlying data. This parameter is ignored in Snowpark pandas.
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new Series.
+
+        Returns
+        -------
+        Series or None
+            Series, or None if ``inplace=True``.
+        """
+
     def rename():
         # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
@@ -1949,6 +1981,8 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             * higher: *j*.
             * nearest: *i* or *j*, whichever is nearest.
             * midpoint: (*i* + *j*) / 2.
+
+            Snowpark pandas currently only supports "linear" and "nearest".
 
         Returns
         -------
@@ -2890,11 +2924,17 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def empty():
-        pass
+        """
+        Indicator whether the Series is empty.
+
+        True if the Series is entirely empty (no items), meaning it is of length 0.
+        """
 
     @property
     def hasnans():
-        pass
+        """
+        Return True if there are any NaNs.
+        """
 
     def isna():
         """
@@ -2982,7 +3022,9 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def ndim(self) -> int:
-        pass
+        """
+        Number of dimensions of the underlying data, by definition 1.
+        """
 
     def nunique():
         """
@@ -2991,7 +3033,15 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def shape():
-        pass
+        """
+        Return a tuple of the shape of the underlying data.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.shape
+        (3,)
+        """
 
     def shift():
         """
