@@ -29,7 +29,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: fix RuntimeConfig for Local Testing and enable",
+    reason="SNOW-1374069: fix RuntimeConfig for Local Testing",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):

@@ -1076,7 +1076,7 @@ def test_permanent_udf_negative(session, db_parameters):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: fix to match error behavior and enable",
+    reason="SNOW-1370028: align error behavior when UDF receives bad input",
 )
 def test_udf_negative(session, local_testing_mode):
     def f(x):
@@ -1190,7 +1190,7 @@ def test_udf_negative(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: fix and enable",
+    reason="SNOW-1374204: Align error behavior when UDF/Sproc registration receives bad import",
 )
 def test_add_import_negative(session, resources_path):
     test_files = TestFiles(resources_path)
@@ -1245,7 +1245,7 @@ def test_add_import_negative(session, resources_path):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: enable, this test shows some data types are stored as str in VariantType",
+    reason="SNOW-1370035: date time objects are received as str inside UDF",
 )
 def test_udf_variant_type(session):
     def variant_get_data_type(v):
@@ -1450,7 +1450,7 @@ def test_udf_replace(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: support if_not_exists in UDF registration and enable",
+    reason="SNOW-1370035: support if_not_exists in UDF registration and enable",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
@@ -2289,7 +2289,7 @@ def test_deprecate_call_udf_with_list(session, caplog):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: support strict UDF in Local Testing",
+    reason="SNOW-1370035: support strict UDF in Local Testing",
 )
 def test_strict_udf(session):
     @udf(strict=True)
@@ -2340,7 +2340,7 @@ def test_numpy_udf(session, func):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: fix bug SNOW-1370447",
+    reason="SNOW-1370447: mock_timestamp_ntz raises error",
 )
 @pytest.mark.skipif(
     not is_pandas_available, reason="pandas required for vectorized UDF"
@@ -2404,7 +2404,7 @@ def test_udf_timestamp_type_hint(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: refactor vectorized UDF into a separate test and enable ",
+    reason="Vectorized UDTF is not supported in Local Testing",
 )
 def test_vectorized_udf_timestamp_type_hint(session):
     data = [

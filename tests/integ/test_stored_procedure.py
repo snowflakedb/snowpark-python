@@ -869,7 +869,7 @@ def test_permanent_sp_negative(session, db_parameters):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: SNOW-1370028",
+    reason="SNOW-1370028",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_sp_negative(session):
@@ -1270,7 +1270,7 @@ def test_temp_sp_with_import_and_upload_stage(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: align error behavior on when imports has bad input value",
+    reason="SNOW-1374204: align error behavior on when imports has bad input value",
 )
 def test_add_import_negative(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
@@ -1362,7 +1362,7 @@ def test_sp_replace(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: Support if_not_exists in Local Testing",
+    reason="SNOW-1370044: Support if_not_exists in Local Testing",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
@@ -1632,7 +1632,7 @@ def test_call_sproc_with_session_as_first_argument(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: support strict option for stored procedures in Local Testing",
+    reason="SNOW-1370044: support strict option for stored procedures in Local Testing",
 )
 def test_strict_stored_procedure(session):
     @sproc(strict=True)
@@ -1646,7 +1646,7 @@ def test_strict_stored_procedure(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: fix and enable",
+    reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_anonymous_stored_procedure(session):
     add_sp = session.sproc.register(
