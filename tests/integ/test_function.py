@@ -246,7 +246,7 @@ def test_current_date_and_time(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="regexp_replace is not supported in Local Testing",
+    reason="FEAT: regexp_replace function not supported",
 )
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
@@ -271,7 +271,7 @@ def test_regexp_replace(session, col_a):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="regexp_extract is not supported in Local Testing",
+    reason="FEAT: regexp_extract function not supported",
 )
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
@@ -341,7 +341,7 @@ def test_date_to_char(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="round is not supported in Local Testing",
+    reason="FEAT: round function not supported",
 )
 def test_format_number(session):
     # Create a dataframe with a column of numbers
@@ -361,7 +361,7 @@ def test_format_number(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="month_between is not supported in Local Testing",
+    reason="FEAT: months_between function not supported",
 )
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
@@ -413,6 +413,10 @@ def test_startswith(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
+)
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
     # case sensitive
@@ -444,6 +448,10 @@ def test_struct(session):
     assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: strtok_to_array function not supported",
+)
 def test_strtok_to_array(session):
     # Create a dataframe
     data = [("a.b.c")]
@@ -494,6 +502,10 @@ def test_least(session, use_col, values, expected):
     assert res[0][0] == expected
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: hash function not supported",
+)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_hash(session, col_a, col_b):
     df = session.create_dataframe([[10, "10"]], schema=["a", "b"])
@@ -504,16 +516,20 @@ def test_hash(session, col_a, col_b):
     assert res[0][1] == 3622494980440108984
 
 
-def test_basic_numerical_operations_negative(session):
+def test_basic_numerical_operations_negative(session, local_testing_mode):
     # sqrt
-    df = session.sql("select 4").to_df("a")
+    df = session.create_dataframe([4], schema=["a"])
     with pytest.raises(TypeError) as ex_info:
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    # TODO: SNOW-1235716 error experience
+    with pytest.raises(
+        SnowparkSQLException if not local_testing_mode else ValueError
+    ) as ex_info:
         df.select(sqrt(lit(-1))).collect()
-    assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
+    if not local_testing_mode:
+        assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
 
     # abs
     with pytest.raises(TypeError) as ex_info:
@@ -554,9 +570,13 @@ def test_basic_numerical_operations_negative(session):
     assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370338: substring raises unsupported operand type(s) for -: 'str' and 'int'",
+)
 def test_basic_string_operations(session):
     # Substring
-    df = session.sql("select 'a not that long string'").to_df("a")
+    df = session.create_dataframe(["a not that long string"], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
     assert "Numeric value 'b' is not recognized" in str(ex_info)
@@ -639,6 +659,10 @@ def test_basic_string_operations(session):
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_to_string function not supported",
+)
 def test_substring_index(session):
     """test calling substring_index with delimiter as string"""
     df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
@@ -659,6 +683,10 @@ def test_substring_index(session):
     assert respos[2][0] is None
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_to_string function not supported",
+)
 def test_substring_index_col(session):
     """test calling substring_index with delimiter as column"""
     df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
@@ -670,6 +698,10 @@ def test_substring_index_col(session):
     assert reslit[0][0] == "b,c,d"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: bitshitright function not supported",
+)
 def test_bitshiftright(session):
     # Create a dataframe
     data = [(65504), (1), (4)]
@@ -678,6 +710,10 @@ def test_bitshiftright(session):
     assert res[0][0] == 32752 and res[1][0] == 0 and res[2][0] == 2
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: round function not supported",
+)
 def test_bround(session):
     # Create a dataframe
     data = [(decimal.Decimal(1.235)), decimal.Decimal(3.5)]
@@ -689,6 +725,10 @@ def test_bround(session):
 
 
 # Enable for local testing after addressing SNOW-850268
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370338: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
+)
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -794,6 +834,10 @@ def test_call_builtin_avg_from_range(session):
     assert res == expected
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: is_array function not supported",
+)
 def test_is_negative(session):
     td = TestData.string1(session)
 
@@ -942,6 +986,10 @@ def test_parse_json(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: as_array function not supported",
+)
 def test_as_negative(session):
     td = TestData.string1(session)
 
@@ -1175,34 +1223,46 @@ def test_to_binary(session):
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_min_max_functions(session):
     # array_min
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect()
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
+    res = df.select(array_min(df["a"]).as_("min_a")).collect()
     assert res == [Row(MIN_A="0")]
 
-    df = session.sql("select array_construct() as A")
+    df = session.create_dataframe([1]).select(array_construct().alias("A"))
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
-    df = session.sql("select array_construct(null, null, null) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(None), lit(None), lit(None)).alias("a")
+    )
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
-    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    df = session.create_dataframe([[[None, None, None]]], schema=["a"])
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A="null")]
 
     # array_max
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A="20")]
 
-    df = session.sql("select array_construct() as A")
+    df = session.create_dataframe([1]).select(array_construct().alias("A"))
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
-    df = session.sql("select array_construct(null, null, null) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(None), lit(None), lit(None)).alias("A")
+    )
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
@@ -1211,6 +1271,10 @@ def test_array_min_max_functions(session):
     assert res == [Row(MAX_A="null")]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_flatten function not supported",
+)
 def test_array_flatten(session):
     df = session.create_dataframe(
         [
@@ -1244,9 +1308,15 @@ def test_array_flatten(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_sort(session):
     # Behavior with SQL nulls:
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
 
     res = df.select(array_sort(df.a).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
@@ -1328,8 +1398,12 @@ def test_coalesce(session):
     assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: uniform function not supported",
+)
 def test_uniform(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # both intervals are ints
     int_uniform = df.select(uniform(1, 100, random()).alias("X")).collect()[0]
@@ -1362,8 +1436,12 @@ def test_uniform(session):
     assert decimal_int == decimal_decimal
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: uniform function not supported",
+)
 def test_uniform_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(uniform(lit("z"), 11, random())).collect()
     assert "Numeric value 'z' is not recognized" in str(ex_info)
@@ -1380,15 +1458,19 @@ def test_negate_and_not_negative(session):
     assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: random function not supported",
+)
 def test_random_negative(session):
-    df = session.sql("select 1")
+    df = session.create_dataframe([1], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(random("abc")).collect()
     assert "Numeric value 'abc' is not recognized" in str(ex_info)
 
 
 def test_check_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # check_json
     with pytest.raises(TypeError) as ex_info:
@@ -1402,7 +1484,7 @@ def test_check_functions_negative(session):
 
 
 def test_parse_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # parse_json
     with pytest.raises(TypeError) as ex_info:
@@ -1416,7 +1498,7 @@ def test_parse_functions_negative(session):
 
 
 def test_json_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # json_extract_path_text
     with pytest.raises(TypeError) as ex_info:
@@ -1435,7 +1517,7 @@ def test_json_functions_negative(session):
 
 
 def test_to_filetype_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
     # to_json
     with pytest.raises(TypeError) as ex_info:
         df.select(to_json([1])).collect()
@@ -1447,8 +1529,12 @@ def test_to_filetype_negative(session):
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_distinct(session):
-    df = session.sql("select 1 A")
+    df = session.create_dataframe([1], schema=["a"])
     df = df.withColumn(
         "array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2))
     )
@@ -1460,7 +1546,7 @@ def test_array_distinct(session):
 
 
 def test_array_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
@@ -1551,7 +1637,7 @@ def test_array_negative(session):
 
 
 def test_object_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(object_agg([1], "column")).collect()
@@ -1584,7 +1670,7 @@ def test_object_negative(session):
 
 
 def test_date_operations_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(datediff("year", [1], "col")).collect()
@@ -1596,6 +1682,10 @@ def test_date_operations_negative(session):
 
 
 # TODO: enable for local testing after addressing SNOW-850263
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370338 TypeError: unsupported type for timedelta days component: numpy.int64",
+)
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
@@ -1611,6 +1701,10 @@ def test_date_add_date_sub(session):
     assert res[2].DATE == datetime.date(2019, 9, 16)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: datediff function not supported",
+)
 def test_daydiff(session):
     df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
     res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).collect()
@@ -1618,13 +1712,17 @@ def test_daydiff(session):
 
 
 def test_get_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
     assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_generate_range function not supported",
+)
 def test_array_generate_range(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1656,13 +1754,17 @@ def test_array_generate_range(session):
 
 
 def test_sequence_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(sequence([1], 1)).collect()
     assert "'SEQUENCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_generate_range function not supported",
+)
 def test_sequence(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1714,6 +1816,10 @@ def test_sequence(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: array_unqite_agg function not supported",
+)
 def test_array_unique_agg(session):
     def _result_str2lst(result):
         col_str = result[0][0]
@@ -1744,6 +1850,10 @@ def test_array_unique_agg(session):
     ), f"Unexpected result: {result_list}, expected: {expected_result}"
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
+)
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],
