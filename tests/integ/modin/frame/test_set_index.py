@@ -112,13 +112,15 @@ def test_set_index_dup_column_name():
 def test_set_index_names(snow_df):
     with SqlCounter(query_count=1):
         # Verify column names becomes index names.
+        # multi index, native pandas automatically used
         assert snow_df.set_index(["a", "b"]).index.names == ["a", "b"]
 
     # Verify name from input index is set.
     index = native_pd.Index([1, 2, 0])
     index.names = ["iname"]
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     with SqlCounter(query_count=3, join_count=1):
-        assert snow_df.set_index(index).index.names == ["iname"]
+        assert snow_df.set_index(index).index.to_pandas().names == ["iname"]
 
     # Verify names from input multiindex are set.
     multi_index = native_pd.MultiIndex.from_arrays(
@@ -327,12 +329,13 @@ def test_set_index_pass_multiindex(drop, append, native_df):
 @pytest.mark.parametrize(
     "keys, expected_query_count",
     [
-        (["a"], 3),
-        ([[1, 6, 6]], 5),
+        (["a"], 1),
+        ([[1, 6, 6]], 3),
     ],
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):
     snow_df = pd.DataFrame(native_df)
+    # breakpoint()
     with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
             snow_df,

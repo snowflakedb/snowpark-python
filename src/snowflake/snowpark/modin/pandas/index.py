@@ -62,6 +62,8 @@ class Index:
         # TODO: SNOW-1359041: Switch to lazy index implementation
         if isinstance(data, native_pd.Index):
             self._index = data
+        elif isinstance(data, Index):
+            self._index = data.to_pandas()
         else:
             self._index = native_pd.Index(
                 data=data,

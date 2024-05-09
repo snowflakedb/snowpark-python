@@ -204,7 +204,10 @@ def indices_dict():
         "bool-object": pd.Index([True, False] * HALF_INDEX_SAMPLE_SIZE, dtype=object),
         "string-python": pd.Index(
             pd.array(
-                pd.Index([f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object),
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                pd.Index(
+                    [f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object
+                ).to_pandas(),
                 dtype="string[python]",
             )
         ),
@@ -224,16 +227,19 @@ def indices_dict():
         # NumericIndex is a pandas 2.x feature
         "num_int32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int32"),
         "num_int16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
-        "num_int8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("int8"),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        "num_int8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).to_pandas().astype("int8"),
         "num_uint64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint64"),
         "num_uint32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint32"),
         "num_uint16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint16"),
-        "num_uint8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("uint8"),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        "num_uint8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).to_pandas().astype("uint8"),
         "num_float32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float32"),
         "categorical": pd.Index(list("abcde") * 20, dtype="category"),
         "interval": pd.IntervalIndex.from_breaks(np.linspace(0, 100, num=101)),
-        "complex64": pd.Index(np.arange(100)).astype("complex64"),
-        "complex128": pd.Index(np.arange(100)).astype("complex128"),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        "complex64": pd.Index(np.arange(100)).to_pandas().astype("complex64"),
+        "complex128": pd.Index(np.arange(100)).to_pandas().astype("complex128"),
         "period": pd.period_range(
             start=datetime(2000, 1, 1), periods=100, freq="D", name="period[B]"
         ),

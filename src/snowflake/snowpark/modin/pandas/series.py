@@ -150,7 +150,10 @@ class Series(BasePandasDataset):
                 pandas.DataFrame(
                     pandas.Series(
                         data=data,
-                        index=index,
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        index=index.to_pandas()
+                        if isinstance(index, pd.Index)
+                        else index,
                         dtype=dtype,
                         name=name,
                         copy=copy,
@@ -244,7 +247,9 @@ class Series(BasePandasDataset):
         bool
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return key in self.index
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        index = self.index
+        return key in index.to_pandas() if isinstance(index, pd.Index) else key in index
 
     def __copy__(self, deep=True):
         """

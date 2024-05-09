@@ -108,9 +108,7 @@ def check_result_from_and_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    if columns is not None and not isinstance(
-        columns, (list, native_pd.Index, pd.Index)
-    ):
+    if columns is not None and not isinstance(columns, (list, native_pd.Index)):
         columns = [columns]
     native_df = native_pd.DataFrame(data=data, index=index, columns=columns)
     snow_df = pd.DataFrame(native_df)
@@ -127,7 +125,8 @@ def test_value_type_match_index_type(name, indices_dict):
     expected_query_count = 1 if name in ("uint-small", "tuples", "multi") else 6
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
-        size = len(index)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        size = len(index.to_pandas() if isinstance(index, pd.Index) else index)
         data = np.random.randn(size)
         check_result_from_and_to_pandas(
             data,
@@ -144,7 +143,8 @@ def test_type_mismatch_index_type(name, indices_dict):
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         expected_index_type = FROM_TO_PANDAS_TYPE_MISMATCH_INDICES[name]
-        size = len(index)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        size = len(index.to_pandas() if isinstance(index, pd.Index) else index)
         data = np.random.randn(size)
         check_result_from_and_to_pandas(
             data,
@@ -158,18 +158,26 @@ def test_type_mismatch_index_type(name, indices_dict):
 @pytest.mark.parametrize("name", FROM_TO_PANDAS_VALUE_TYPE_MISMATCH_INDICES)
 def test_value_type_mismatch_index_type(name, indices_dict):
     expected_query_count = 6 if "datetime" in name else 0
+    if "categorical" in name:
+        expected_query_count = 1
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
-        size = len(index)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        size = len(index.to_pandas() if isinstance(index, pd.Index) else index)
         data = np.random.randn(size)
         # 1. raises AssertionError from assert_frame_equal()
         # 2. raises ArrowNotImplementedError when converting the pandas dataframe to parquet
         # files in connector's write_pandas, because arrow doesn't support complex128 type
         # see https://issues.apache.org/jira/browse/ARROW-14268
-        with pytest.raises((AssertionError, NotImplementedError)):
+        if "categorical" in name:
             check_result_from_and_to_pandas(
                 data, index=index, columns=name, check_index_type=False
             )
+        else:
+            with pytest.raises((AssertionError, NotImplementedError)):
+                check_result_from_and_to_pandas(
+                    data, index=index, columns=name, check_index_type=False
+                )
 
 
 @pytest.mark.skip(reason="SNOW-1358681")
@@ -241,10 +249,12 @@ def test_column_index_names(pandas_label):
     snow_df = pd.DataFrame({pandas_label: [1, 2]})
     expected_columns_index = pd.Index([pandas_label])
     # verify columns is same as original dataframe.
-    assert_index_equal(snow_df.columns, expected_columns_index)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    pandas_index = expected_columns_index.to_pandas()
+    assert_index_equal(snow_df.columns, pandas_index)
     # convert back to native pandas and verify columns is same as the original dataframe
     native_df = snow_df.to_pandas()
-    assert_index_equal(native_df.columns, expected_columns_index)
+    assert_index_equal(native_df.columns, pandas_index)
 
 
 @pytest.mark.parametrize("name", [None, *VALID_PANDAS_LABELS])
@@ -337,7 +347,8 @@ def test_rw_datetimeindex():
 
     # When pulling from a datetime index from Snowpark pandas, `freq` is not supported and only timezone offset can be
     # preserved
-    ntz_index = df.set_index("ntz").index
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    ntz_index = df.set_index("ntz").index.to_pandas()
     assert_index_equal(
         ntz_index,
         native_pd.DatetimeIndex(
@@ -348,7 +359,8 @@ def test_rw_datetimeindex():
         ),
     )
 
-    tz_index = df.set_index("tz").index
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    tz_index = df.set_index("tz").index.to_pandas()
     assert_index_equal(
         tz_index,
         native_pd.DatetimeIndex(
@@ -497,7 +509,8 @@ def test_from_pandas_duplicate_labels():
     )
     snow_df = pd.DataFrame(native_df)
     assert snow_df.columns.tolist() == ["a"]
-    assert snow_df.index.name == "a"
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert snow_df.index.to_pandas().name == "a"
 
     # Duplicate index labels
     native_df = native_pd.DataFrame(

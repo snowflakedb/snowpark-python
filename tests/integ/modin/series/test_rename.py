@@ -8,6 +8,7 @@ from datetime import datetime
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pandas._testing as tm
 import pytest
 from modin.pandas import Index, MultiIndex, Series
@@ -38,28 +39,37 @@ class TestRename:
         # dict
         with SqlCounter(query_count=3, join_count=1):
             renamed = ts.to_pandas().rename(renamer)
-            rename_dict = dict(zip(ts.index, renamed.index))
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            rename_dict = dict(zip(ts.index.to_pandas(), renamed.index))
             renamed2 = ts.rename(rename_dict)
             # Note: renaming index with dict on Snowflake will use variant as the new data type if rename includes type
             # change, e.g., here the dict turns datetime values into strings. When pulling the variant index out, the string
             # values in the variant column will be quoted
-            assert_index_equal(renamed.index, renamed2.index.str.replace('"', ""))
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            assert_index_equal(
+                renamed.index, renamed2.index.to_pandas().str.replace('"', "")
+            )
 
     @sql_count_checker(query_count=1, join_count=1)
     def test_rename_partial_dict(self):
         # partial dict
         ser = Series(np.arange(4), index=["a", "b", "c", "d"], dtype="int64")
         renamed = ser.rename({"b": "foo", "d": "bar"})
-        assert_index_equal(renamed.index, Index(["a", "foo", "c", "bar"]))
+        assert_index_equal(
+            renamed.index.to_pandas(), native_pd.Index(["a", "foo", "c", "bar"])
+        )
 
     @sql_count_checker(query_count=2, join_count=1)
     def test_rename_retain_index_name(self):
         # index with name
         renamer = Series(
-            np.arange(4), index=Index(["a", "b", "c", "d"], name="name"), dtype="int64"
+            np.arange(4),
+            index=pd.Index(["a", "b", "c", "d"], name="name"),
+            dtype="int64",
         )
         renamed = renamer.rename({})
-        assert renamed.index.name == renamer.index.name
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        assert renamed.index.to_pandas().name == renamer.index.to_pandas().name
 
     @sql_count_checker(query_count=2, join_count=1)
     def test_rename_by_series(self):
@@ -75,7 +85,10 @@ class TestRename:
             with SqlCounter(query_count=2):
                 result = ser.rename(name)
                 assert result.name == name
-                tm.assert_numpy_array_equal(result.index.values, ser.index.values)
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                tm.assert_numpy_array_equal(
+                    result.index.to_pandas().values, ser.index.to_pandas().values
+                )
                 assert ser.name is None
 
     @sql_count_checker(query_count=5)
@@ -86,7 +99,8 @@ class TestRename:
             assert ser.name == name
 
             exp = np.array(["a", "b", "c"], dtype=np.object_)
-            tm.assert_numpy_array_equal(ser.index.values, exp)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            tm.assert_numpy_array_equal(ser.index.to_pandas().values, exp)
 
     @sql_count_checker(query_count=0)
     def test_rename_axis_supported(self):
