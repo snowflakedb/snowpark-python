@@ -72,6 +72,10 @@ class Index:
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
+        # pandas_df = native_pd.DataFrame(data=self.to_pandas())
+        # from snowflake.snowpark.modin.pandas import DataFrame
+        # snowpark_df = DataFrame(pandas_df)
+        # self._query_compiler =
 
     def to_pandas(self):
         return self._index
@@ -83,7 +87,7 @@ class Index:
         """
         The array interface, return my values.
         """
-        return self._index.__array__(dtype=dtype)
+        return self.to_pandas().__array__(dtype=dtype)
 
     def __repr__(self):
         return self.to_pandas().__repr__()

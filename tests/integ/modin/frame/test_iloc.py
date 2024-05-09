@@ -339,7 +339,10 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        lambda df: df.iloc[lambda x: x.index % 2 == 0],
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda df: df.iloc[
+            lambda x: [a % 2 == 0 for a in pd.Index(x.index).to_pandas().values]
+        ],
     )
 
     def test_func(df: DataFrame) -> Series:
@@ -354,7 +357,13 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        lambda df: df.iloc[(lambda x: x.index % 2 == 0, [2, 3])],
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda df: df.iloc[
+            (
+                lambda x: [a % 2 == 0 for a in pd.Index(x.index).to_pandas().values],
+                [2, 3],
+            )
+        ],
     )
 
 
@@ -691,8 +700,12 @@ def test_df_iloc_get_key_bool(
         elif key_type == "series" and isinstance(_df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
-
-        return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        return (
+            _df.iloc[_key.to_pandas() if isinstance(_key, pd.Index) else _key]
+            if axis == "row"
+            else _df.iloc[:, _key.to_pandas() if isinstance(_key, pd.Index) else _key]
+        )
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
     expected_join_count = 0
@@ -918,7 +931,12 @@ def test_df_iloc_get_key_numeric(
         elif key_type == "series" and isinstance(df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
-        return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        return (
+            df.iloc[_key.to_pandas() if isinstance(_key, pd.Index) else _key]
+            if axis == "row"
+            else df.iloc[:, _key.to_pandas() if isinstance(_key, pd.Index) else _key]
+        )
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
     join_count = 2 if axis == "row" else 0
@@ -1265,7 +1283,9 @@ def test_df_iloc_get_non_numeric_key_negative(
 ):
     # Check whether invalid non-numeric keys passed in raise TypeError. list-like objects need to be numeric, scalar
     # keys can only be integers. Native pandas Series and DataFrames are invalid inputs.
-
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
     # General case fails with TypeError.
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
     with pytest.raises(IndexError, match=error_msg):
@@ -1770,7 +1790,10 @@ def test_df_iloc_set_with_row_key_slice_range(numeric_test_data_4x4, start, stop
     [
         lambda l: list(l),
         lambda l: np.array(l),
-        lambda l: pd.Index([(tuple(t) if is_list_like(t) else t) for t in l]),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda l: pd.Index(
+            [(tuple(t) if is_list_like(t) else t) for t in l]
+        ).to_pandas(),
     ],
 )
 def test_df_iloc_set_with_row_key_list(
@@ -2138,6 +2161,8 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
     numeric_test_data_4x4, row_pos, col_pos, item_value
 ):
     expected_query_count = 2
+    if isinstance(item_value, pd.Index):
+        item_value = item_value.to_pandas()
     if isinstance(item_value, Iterable):
         if len(item_value) > 1:
             expected_join_count = 3

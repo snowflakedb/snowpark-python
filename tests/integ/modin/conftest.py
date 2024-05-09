@@ -352,14 +352,18 @@ def datetime_series(nper=30, freq: Frequency = "B", name=None) -> pandas.Series:
 def iloc_snowpark_pandas_input_map():
     return {
         "categorical[int]": pd.Categorical([1, 3, 4]),
-        "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]).to_pandas(),
         "Series": pd.Series([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, -1]),
         "Series[positive_int]": pd.Series(
             [0, 1]
         ),  # To test `convert_positional_key` shortcircuit
         "Series_all_positive_int": pd.Series([1, 1, 2]),
         "RangeIndex": pd.RangeIndex(1, 4),
-        "Index[bool]": pd.Index([True, True, False, False, False, True, True]),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        "Index[bool]": pd.Index(
+            [True, True, False, False, False, True, True]
+        ).to_pandas(),
         # In pandas 1.5.x the default type was float, but in 2.x is object
         "emptyFloatSeries": pd.Series(dtype=float),
         "multi_index_Series": pd.Series(

@@ -1064,7 +1064,10 @@ class TestSeriesGroupBy:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
+                    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                    index=pd.Index(
+                        ["i1", None, "i0", "i2", "i3"], name="index"
+                    ).to_pandas(),
                     columns=pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
