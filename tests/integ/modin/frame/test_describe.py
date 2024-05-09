@@ -123,6 +123,7 @@ def test_describe_empty_cols():
         ([int, "O"], [float, "O"], ValueError, 0),
         # Like select_dtypes, a dtype in include/exclude can be a subtype of a dtype in the other
         ([int, "O"], [float, np.number, np.datetime64], None, 9),
+        ("O", None, None, 9),
     ],
 )
 def test_describe_include_exclude(
