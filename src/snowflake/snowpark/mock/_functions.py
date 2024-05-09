@@ -864,6 +864,7 @@ def mock_to_char(
     https://docs.snowflake.com/en/sql-reference/functions/to_char
     [x] expr: An expression of any data type.
     [x] numeric_expr: A numeric expression.
+        [ ] numeric_expr with format: not supported, check SNOW-1372863
     [x] date_or_time_expr: An expression of type DATE, TIME, or TIMESTAMP.
     [x] binary_expr: An expression of type BINARY or VARBINARY.
 
@@ -878,7 +879,7 @@ def mock_to_char(
 
         if isinstance(source_datatype, _NumericType):
             if _fmt:
-                # https://docs.snowflake.com/en/sql-reference/sql-format-models
+                # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
                 LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                     external_feature_name="Use format strings with Numeric types in TO_CHAR",
                     internal_feature_name="mock_to_char",
@@ -938,13 +939,11 @@ def mock_to_char(
                 end_idx = start_idx + 6
                 # truncate the microsecond string
                 fractional_seconds_str = time_str[start_idx:end_idx][
-                    0 : 6 if fractional_seconds >= 6 else fractional_seconds - 6
+                    0 : min(6, fractional_seconds)
                 ]
                 # concatenate the whole string
                 time_str = (
-                    time_str[:start_idx]
-                    + fractional_seconds_str
-                    + (time_str[end_idx:] if end_idx < len(time_str) else "")
+                    time_str[:start_idx] + fractional_seconds_str + time_str[end_idx:]
                 )
             return time_str
         elif isinstance(source_datatype, BinaryType):
