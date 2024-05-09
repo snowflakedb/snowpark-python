@@ -123,7 +123,6 @@ Series
     Series.cumsum
     Series.describe
     Series.diff
-    Series.is_unique
     Series.max
     Series.mean
     Series.median
@@ -134,7 +133,6 @@ Series
     Series.std
     Series.sum
     Series.var
-    Series.kurtosis
     Series.unique
     Series.nunique
     Series.is_unique
@@ -148,7 +146,6 @@ Series
 
     Series.drop
     Series.drop_duplicates
-    Series.duplicated
     Series.get
     Series.head
     Series.idxmax

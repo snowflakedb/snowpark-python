@@ -549,7 +549,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         By setting start_time to be later than end_time, you can get the times that are not between the two times.
         """
-        pass
 
     def bfill():
         """
@@ -1051,7 +1050,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def ffill():
         """
-        Synonym for `DataFrame.fillna` with ``method='ffill'``.
+        Synonym for :meth:`DataFrame.fillna` with ``method='ffill'``.
         """
 
     pad = ffill
@@ -1330,6 +1329,9 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def convert_dtypes():
         """
         Convert columns to best possible dtypes using dtypes supporting ``pd.NA``.
+
+        This is not supported in Snowpark pandas because Snowpark pandas always uses nullable
+        data types internally. Calling this method will raise a `NotImplementedError`.
         """
 
     def isin():
@@ -1849,7 +1851,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Return the memory usage of the `BasePandasDataset`.
         """
-        pass
 
     @doc(
         _num_doc,
@@ -1868,13 +1869,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Get modulo of `BasePandasDataset` and `other`, element-wise (binary operator `mod`).
         """
-        pass
 
     def mode():
         """
         Get the mode(s) of each element along the selected axis.
         """
-        pass
 
     def mul():
         """
@@ -2038,6 +2037,31 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
+
+        Parameters
+        ----------
+        mapper : scalar, list-like, optional
+            Value to set the axis name attribute.
+
+        index, columns : scalar, list-like, dict-like or function, optional
+            A scalar, list-like, dict-like or functions transformations to apply to that axis' values.
+
+            Use either ``mapper`` and ``axis`` to specify the axis to target with ``mapper``, or
+            ``index`` and/or ``columns``.
+
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to rename.
+
+        copy : bool, default None
+            Also copy underlying data. This parameter is ignored in Snowpark pandas.
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new DataFrame.
+
+        Returns
+        -------
+        DataFrame or None
+            DataFrame, or None if ``inplace=True``.
         """
 
     def reorder_levels():
@@ -3165,7 +3189,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     @property
     def values():
         """
-        Return a NumPy representation of the `BasePandasDataset`.
+        Return a NumPy representation of the dataset.
+
+        Returns
+        -------
+        np.ndarray
         """
 
     def __array_ufunc__():
