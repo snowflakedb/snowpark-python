@@ -1,0 +1,125 @@
+[build-system]
+requires = ["setuptools", "setuptools-protobuf"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snowflake-snowpark-python"
+dynamic = ["version"]
+description = "Snowflake Snowpark for Python"
+readme = "README.md"
+license = "Apache License, Version 2.0"
+requires-python = ">=3.8, <3.12"
+authors = [
+    { name = "Snowflake, Inc", email = "snowflake-python-libraries-dl@snowflake.com" },
+]
+keywords = [
+    "Snowflake",
+    "analytics",
+    "cloud",
+    "database",
+    "db",
+    "warehouse",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Other Environment",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: SQL",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "cloudpickle==2.2.1;python_version~='3.11'",
+    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
+    "protobuf>=5.26",
+    "pyyaml",
+    "snowflake-connector-python>=3.10.0, <4.0.0",
+    "typing-extensions>=4.1.0, <5.0.0",
+    "wheel",
+]
+
+[project.optional-dependencies]
+development = [
+    "cachetools",
+    "coverage",
+    "pre-commit",
+    "protoc-wheel-0",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-xdist",
+    "pytest<8.0.0",
+    "setuptools-protobuf[mypy]>=0.1",
+    "sphinx==5.0.2",
+]
+localtest = [
+    "pandas",
+    "pyarrow",
+    "requests",
+]
+modin = [
+    "modin==0.28.1",
+    "snowflake-connector-python[pandas]>=3.10.0, <4.0.0",
+]
+modin-development = [
+    "cachetools",
+    "coverage",
+    "decorator",
+    "modin==0.28.1",
+    "pre-commit",
+    "protoc-wheel-0",
+    "pytest-assume",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-xdist",
+    "pytest<8.0.0",
+    "scipy",
+    "setuptools-protobuf[mypy]>=0.1",
+    "snowflake-connector-python[pandas]>=3.10.0, <4.0.0",
+    "sphinx==5.0.2",
+    "statsmodels",
+]
+opentelemetry = [
+    "opentelemetry-api>=1.0.0, <2.0.0",
+    "opentelemetry-sdk>=1.0.0, <2.0.0",
+]
+pandas = [
+    "snowflake-connector-python[pandas]>=3.10.0, <4.0.0",
+]
+secure-local-storage = [
+    "snowflake-connector-python[secure-local-storage]>=3.10.0, <4.0.0",
+]
+
+[project.urls]
+Changelog = "https://github.com/snowflakedb/snowpark-python/blob/main/CHANGELOG.md"
+Documentation = "https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html"
+Homepage = "https://www.snowflake.com/"
+Issues = "https://github.com/snowflakedb/snowpark-python/issues"
+Source = "https://github.com/snowflakedb/snowpark-python"
+
+[tool.hatch.version]
+path = "snowflake/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/snowflake.snowpark",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
