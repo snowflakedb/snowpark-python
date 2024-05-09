@@ -313,9 +313,7 @@ def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes_select(
-    session, query, expected_dtypes, expected_schema, sql_simplifier_enabled
-):
+def test_structured_dtypes_select(session, query, expected_dtypes, expected_schema):
     df = session.sql(query)
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
