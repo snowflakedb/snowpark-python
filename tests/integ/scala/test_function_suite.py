@@ -4291,6 +4291,7 @@ def test_get_path(session, v, k):
     )
 
 
+@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
         TestData.object2(session).select(get(col("obj"), col("k"))),
@@ -4604,7 +4605,7 @@ def test_rank(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: row_number over window does not have consistent result.",
+    reason="SNOW-1374081: row_number over window does not have consistent result.",
 )
 def test_row_number(session):
     Utils.check_answer(
