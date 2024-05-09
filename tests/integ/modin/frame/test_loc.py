@@ -3802,3 +3802,35 @@ def test_df_loc_set_none():
         native_pd.DataFrame({"a": [1, 2, 3, 100]}, index=[0, 1, 2, None]),
         check_dtype=False,
     )
+
+
+@sql_count_checker(query_count=1, join_count=3)
+def test_df_loc_set_with_index_and_column_labels():
+    """
+    Create a DataFrame using 3 Series objects and perform loc set with a scalar.
+    2 joins are performed since the concat() operation is used to concat the three Series
+    into one DataFrame object, 1 join from loc set operation.
+    """
+
+    def loc_set_helper(df):
+        df.loc["a", "three"] = 1.0
+
+    series1 = native_pd.Series(np.random.randn(3), index=["a", "b", "c"])
+    series2 = native_pd.Series(np.random.randn(4), index=["a", "b", "c", "d"])
+    series3 = native_pd.Series(np.random.randn(3), index=["b", "c", "d"])
+
+    native_df = native_pd.DataFrame(
+        {
+            "one": series1,
+            "two": series2,
+            "three": series3,
+        }
+    )
+    snow_df = pd.DataFrame(
+        {
+            "one": pd.Series(series1),
+            "two": pd.Series(series2),
+            "three": pd.Series(series3),
+        }
+    )
+    eval_snowpark_pandas_result(snow_df, native_df, loc_set_helper, inplace=True)
