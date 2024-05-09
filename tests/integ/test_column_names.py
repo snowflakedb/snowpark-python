@@ -508,7 +508,8 @@ def test_udf(session, use_qualified_name, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="SNOW-1359104: Column alias creates incorrect column name."
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1359104: Column alias creates incorrect column name.",
 )
 def test_unary_expression(session):
     """Alias, UnresolvedAlias, Cast, UnaryMinus, IsNull, IsNotNull, IsNaN, Not"""
