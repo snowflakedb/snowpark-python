@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 TEST_QUANTILE_DATA = {
     "dates": [
@@ -27,7 +27,7 @@ TEST_QUANTILE_DATA = {
 TEST_QUANTILES = [
     0.1,
     [0.1, 0.2, 0.8],
-    [0.2, 0.8, 0.1],  # output will not be sorted by quantile
+    [0.2, 0.9, 0.8, 0.5, 0.1],  # output will not be sorted by quantile
 ]
 
 
@@ -36,13 +36,31 @@ TEST_QUANTILES = [
 def test_quantile_basic(q, interpolation):
     snow_df = pd.DataFrame(TEST_QUANTILE_DATA)
     native_df = native_pd.DataFrame(TEST_QUANTILE_DATA)
-    expected_query_count = 2 if isinstance(q, list) else 0
-
-    with SqlCounter(query_count=1, union_count=expected_query_count):
+    with SqlCounter(
+        query_count=1, union_count=0 if isinstance(q, float) else len(q) - 1
+    ):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.quantile(q, numeric_only=True),
+        )
+
+
+@pytest.mark.parametrize("q", TEST_QUANTILES)
+def test_quantile_single_column(q):
+    # When the input frame has only a single column, and q is sorted, no UNION ALLs are performed
+    expected_union_count = 0 if isinstance(q, float) or sorted(q) == q else len(q) - 1
+    snow_df, native_df = create_test_dfs({"a": [1, 2, 3, 4]})
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.quantile(q))
+    # This should apply even if the input frame has multiple columns, but numeric_only=True
+    # filters it down to only one
+    snow_df, native_df = create_test_dfs(
+        {"a": [1, 2, 3, 4], "b": ["the", "quick", "brown", "fox"]}
+    )
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: df.quantile(q, numeric_only=True)
         )
 
 
@@ -111,3 +129,18 @@ def test_quantile_datetime_negative():
     snow_df = pd.DataFrame(TEST_QUANTILE_DATA)
     with pytest.raises(NotImplementedError):
         snow_df.quantile(numeric_only=False)
+
+
+@pytest.mark.xfail(
+    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442",
+    strict=True,
+)
+@sql_count_checker(query_count=0)
+def test_quantile_large():
+    snow_series = pd.DataFrame({"a": range(1000), "b": range(1000)})
+    q = np.linspace(0, 1, 16)
+
+    # actual query count for this 81. This seems like a bug.
+    ans = snow_series.quantile(q, interpolation="linear").to_pandas()
+
+    assert len(ans) == len(q)

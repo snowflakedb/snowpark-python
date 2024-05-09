@@ -1076,7 +1076,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1193,7 +1192,17 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1215,6 +1224,10 @@ def concat(
             argument="copy",
             message="copy parameter has been ignored with Snowflake execution engine",
         )
+
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
 
     result = objs[0]._query_compiler.concat(
         axis,
@@ -2196,23 +2209,22 @@ def qcut(
 
     ans = x._qcut(q, retbins, duplicates)
 
-    # Within Snowpark Pandas, we avoid issuing a count query. However, for qcut if q !=1 and x is a Series/list-like containing
-    # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
-    #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-    # With q qcut being an API that requires conversion, we can mimick this behavior here.
-    ret = ans.to_pandas().to_numpy()
-
-    if len(ret) == 1 and isinstance(q, int) and q != 1:
+    if isinstance(q, int) and q != 1 and len(ans) == 1:
         if duplicates == "raise":
+            # We issue a count query since if q !=1 and x is a Series/list-like containing
+            # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
+            #                You can drop duplicate edges by setting the 'duplicates' kwarg.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
+
             # Produce raising error.
             raise ValueError(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            # The result will always be NaN because no unique bin could be found.
+            return pd.Series([np.nan])
 
-    return ret
+    return ans
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

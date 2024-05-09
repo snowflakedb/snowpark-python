@@ -11,6 +11,11 @@ from snowflake.snowpark._internal.utils import (
 )
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_create_scoped_temp_objects_syntax(session):
     snowpark_temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     session._run_query(
