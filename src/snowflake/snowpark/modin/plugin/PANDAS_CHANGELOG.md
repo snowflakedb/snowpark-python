@@ -15,6 +15,7 @@
 - Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
 - Fixed binary operations with single-row DataFrame and Series.
 - Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
+- Fixed support for `display.max_rows` and `display.max_cols` being set to `None`.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in the following APIs:
