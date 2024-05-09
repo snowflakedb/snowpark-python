@@ -9,7 +9,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, parse_json
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -20,9 +20,13 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-def test_write_with_target_column_name_order(session):
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: support truncate and column_order in save as table",
+)
+def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
-    session.create_dataframe(
+    empty_df = session.create_dataframe(
         [],
         schema=StructType(
             [
@@ -30,7 +34,8 @@ def test_write_with_target_column_name_order(session):
                 StructField("b", IntegerType()),
             ]
         ),
-    ).write.save_as_table(table_name, table_type="temporary")
+    )
+    empty_df.write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
@@ -39,14 +44,18 @@ def test_write_with_target_column_name_order(session):
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # Explicitly use "index"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
         Utils.check_answer(session.table(table_name), [Row(1, 2)])
 
         # use order by "name"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
@@ -74,6 +83,11 @@ def test_write_with_target_column_name_order(session):
         Utils.drop_table(session, special_table_name)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SQL query feature AUTOINCREMENT not supported",
+    run=False,
+)
 def test_write_with_target_table_autoincrement(
     session,
 ):  # Scala doesn't support this yet.
@@ -91,6 +105,10 @@ def test_write_with_target_table_autoincrement(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: Inserting data into table by matching columns is not supported",
+)
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -121,6 +139,10 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: Inserting data into table by matching columns is not supported",
+)
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
@@ -227,6 +249,10 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_stage(session, target_stage_name)
 
 
+@pytest.mark.skipfi(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: session._table_exists not supported",
+)
 def test_write_table_names(session, db_parameters):
     database = session.get_current_database().replace('"', "")
     schema = f"schema_{Utils.random_alphanumeric_str(10)}"
@@ -363,6 +389,10 @@ def test_write_table_names(session, db_parameters):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
+)
 def test_writer_csv(session, tmpdir_factory):
 
     """Tests for df.write.csv()."""
@@ -422,14 +452,21 @@ def test_writer_csv(session, tmpdir_factory):
         Utils.drop_stage(session, temp_stage)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+)
 def test_writer_json(session, tmpdir_factory):
 
     """Tests for df.write.json()."""
-    df = session.sql(
-        """
-        select parse_json('[{a: 1, b: 2}, {a: 3, b: 0}]') raw_data
-            union all select parse_json('[{a: -1, b: 4}, {a: 17, b: -6}]')
-    """
+    df1 = session.create_dataframe(
+        ["[{a: 1, b: 2}, {a: 3, b: 0}]"], schema=["raw_data"]
+    )
+    df2 = session.create_dataframe(
+        ["[{a: -1, b: 4}, {a: 17, b: -6}]"], schema=["raw_data"]
+    )
+    df = df1.select(parse_json(col("raw_data"))).union_all(
+        df2.select(parse_json("raw_data"))
     )
 
     ROWS_COUNT = 2
@@ -471,7 +508,11 @@ def test_writer_json(session, tmpdir_factory):
         Utils.drop_stage(session, temp_stage)
 
 
-def test_writer_parquet(session, tmpdir_factory):
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+)
+def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
     """Tests for df.write.parquet()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     ROWS_COUNT = 3
