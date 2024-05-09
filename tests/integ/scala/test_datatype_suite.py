@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, udf
@@ -304,11 +305,17 @@ def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
     assert df.dtypes == expected_dtypes
 
 
+@pytest.mark.skipif(
+    "config.getvalue('disable_sql_simplifier')",
+    reason="without sql_simplifier returned types are all variants",
+)
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes_select(session, query, expected_dtypes, expected_schema):
+def test_structured_dtypes_select(
+    session, query, expected_dtypes, expected_schema, sql_simplifier_enabled
+):
     df = session.sql(query)
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
@@ -341,6 +348,7 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
     ]
 
 
+@pytest.mark.skipif(not installed_pandas, reason="Pandas required for this test.")
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
