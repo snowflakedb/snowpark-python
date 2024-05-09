@@ -233,7 +233,7 @@ class SqlCounter:
             pytest.assume(
                 high_query_count_check or suppress_high_query_count,
                 f"""
-    Sql count check '{QUERY_COUNT_PARAMETER}' failed on high query count.
+    Sql count check '{QUERY_COUNT_PARAMETER}' failed on high query count, query_count={query_count}>{HIGH_QUERY_COUNT_THRESHOLD}
     The test is generating too many queries, please investigate the high query count for potential performance problems
     and/or consider refactoring the sql count checks to be more granular.  To suppress this failure, please create a
     jira (if there is a follow up action required) and add the arguments 'high_count_expected=True' and
