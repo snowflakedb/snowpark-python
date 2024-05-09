@@ -152,6 +152,11 @@ class TestWithGlobalSettings:
         self.num_rows = pd.get_option("display.max_rows")
         self.num_cols = pd.get_option("display.max_columns")
 
+        self.native_df = native_pd.DataFrame(
+            data=np.zeros(shape=(40, 40)), columns=[f"x{i}" for i in range(40)]
+        )
+        self.snow_df = pd.DataFrame(self.native_df)
+
     def teardown_class(self):
         native_pd.set_option("display.max_rows", self.native_num_rows)
         native_pd.set_option("display.max_columns", self.native_num_cols)
@@ -162,19 +167,34 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_columns", 10)
         pd.set_option("display.max_columns", 10)
 
-        native_df = native_pd.DataFrame(
-            data=np.zeros(shape=(40, 40)), columns=[f"x{i}" for i in range(40)]
-        )
-        snow_df = pd.DataFrame(native_df)
-
         # This test should only issue 6 SQL queries given dataframe creation from large
         # local data: 1) Creating temp table, 2) Setting query tag, 3) Inserting into temp table,
         # 4) Unsetting query tag, 5) Select Columns, 6) Drop temp table.
         # However, an additional 6 queries are issued to eagerly get the row count.
         # for now, track only SELECT count here
         with SqlCounter(select_count=1):
-            snow_str = repr(snow_df)
-        native_str = repr(native_df)
+            snow_str = repr(self.snow_df)
+        native_str = repr(self.native_df)
+
+        assert snow_str == native_str
+
+    def test_with_max_rows_none(self):
+        native_pd.set_option("display.max_rows", None)
+        pd.set_option("display.max_rows", None)
+
+        with SqlCounter(select_count=1):
+            snow_str = repr(self.snow_df)
+        native_str = repr(self.native_df)
+
+        assert snow_str == native_str
+
+    def test_with_max_columns_none(self):
+        native_pd.set_option("display.max_columns", None)
+        pd.set_option("display.max_columns", None)
+
+        with SqlCounter(select_count=1):
+            snow_str = repr(self.snow_df)
+        native_str = repr(self.native_df)
 
         assert snow_str == native_str
 
