@@ -393,6 +393,7 @@ def test_session_register_udf(session, local_testing_mode):
             Row(7),
         ],
     )
+    # Query tags not supported in local testing.
     if not local_testing_mode:
         query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
         add_udf_with_statement_params = session.udf.register(
