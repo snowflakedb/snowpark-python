@@ -27,6 +27,15 @@ from snowflake.snowpark.functions import (
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.utils import TestFiles, Utils
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="CTE is a SQL feature",
+        run=False,
+    )
+]
+
+
 WITH = "WITH"
 
 

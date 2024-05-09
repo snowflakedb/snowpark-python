@@ -1037,6 +1037,10 @@ def test_sp_negative(session):
     assert "pandas stored procedure is not supported" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="Table sproc is not supported in Local Testing",
+)
 @pytest.mark.parametrize("is_permanent", [True, False])
 @pytest.mark.parametrize("anonymous", [True, False])
 @pytest.mark.parametrize(
@@ -1454,6 +1458,11 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="Comment is a SQL feature",
+    run=False,
+)
 @pytest.mark.parametrize(
     "prefix",
     ["simple", "'single quotes'", '"double quotes"', "\nnew line", "\\backslash"],

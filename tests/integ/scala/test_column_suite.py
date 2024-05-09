@@ -424,6 +424,11 @@ def test_drop_columns_by_column(session):
     assert df.drop(df2["one"]).schema.fields[0].name == '"One"'
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="this tests fully qualified column name which is not supported by col() function",
+    run=False,
+)
 def test_fully_qualified_column_name(session):
     random_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = "{}.{}".format(
@@ -512,6 +517,11 @@ def test_column_constructors_select(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SQL expr feature not supported",
+    run=False,
+)
 def test_sql_expr_column(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(sql_expr("col")).collect() == [Row(1)]
@@ -658,6 +668,10 @@ def test_regexp(session):
     ).collect() == [Row(True), Row(True), Row(True), Row(False)]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="FEAT: SNOW-1346957 collate feature not supported",
+)
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
 def test_collate(session, spec):
     Utils.check_answer(
@@ -987,6 +1001,10 @@ def test_in_expression_with_multiple_queries(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_with_multiple_queries(session):
     from snowflake.snowpark._internal.analyzer import analyzer

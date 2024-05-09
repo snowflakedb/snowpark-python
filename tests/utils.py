@@ -139,12 +139,18 @@ class Utils:
 
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
     def drop_stage(session: "Session", name: str):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
@@ -791,6 +797,7 @@ class TestData:
                 1706774400,
                 "2024-02-01 00:00:00.000000",
                 "Thu, 01 Feb 2024 00:00:00 -0600",
+                "1706774400",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -808,6 +815,7 @@ class TestData:
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
                 StructField("str_w_tz", StringType()),
+                StructField("str_ts", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),

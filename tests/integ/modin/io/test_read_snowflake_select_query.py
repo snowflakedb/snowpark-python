@@ -29,7 +29,7 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_read_snowflake_basic_query_with_weird_formatting(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -57,7 +57,7 @@ def test_read_snowflake_basic_query_with_weird_formatting(session):
     assert pdf.values[1].tolist() == BASIC_TYPE_DATA2
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=5)
 def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -120,7 +120,7 @@ def test_read_snowflake_basic_query_with_comment_preceding_sql_multiline_string(
     assert pdf.values[1].tolist() == BASIC_TYPE_DATA2
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize("only_nulls", [True, False])
 def test_read_snowflake_query_none_nan_condition(session, only_nulls):
     # create table
@@ -147,7 +147,7 @@ def test_read_snowflake_query_none_nan_condition(session, only_nulls):
 @pytest.mark.parametrize(
     "col_name_and_alias_tuple", VALID_SNOWFLAKE_COLUMN_NAMES_AND_ALIASES
 )
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_read_snowflake_query_aliased_columns(session, col_name_and_alias_tuple):
     # create table
     col_name, alias = col_name_and_alias_tuple
@@ -166,7 +166,7 @@ def test_read_snowflake_query_aliased_columns(session, col_name_and_alias_tuple)
 @pytest.mark.parametrize(
     "col_name_and_alias_tuple", VALID_SNOWFLAKE_COLUMN_NAMES_AND_ALIASES
 )
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_read_snowflake_query_aliased_columns_and_columns_kwarg_specified(
     session, col_name_and_alias_tuple
 ):
@@ -248,7 +248,7 @@ def test_read_snowflake_query_with_index_col_and_columns_overlap(session):
     assert pdf.index.name == "index_col"
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_read_snowflake_query_additional_derived_column(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -336,7 +336,7 @@ def test_read_snowflake_query_table_bad_sql_negative(bad_sql) -> None:
     assert ex.value.error_code == SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value
 
 
-@sql_count_checker(query_count=6, join_count=2)
+@sql_count_checker(query_count=5, join_count=1)
 def test_read_snowflake_query_complex_query_with_join(session):
     # create table
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -364,7 +364,7 @@ def test_read_snowflake_query_complex_query_with_join(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=6)
 def test_read_snowflake_query_connect_by(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
