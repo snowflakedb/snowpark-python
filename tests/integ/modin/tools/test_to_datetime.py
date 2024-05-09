@@ -23,7 +23,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkSQLException,
 )
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
@@ -101,23 +100,18 @@ class TestTimeConversionFormats:
         expected = Timestamp(expected)
         assert result == expected
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @pytest.mark.parametrize(
         "arg, format",
         [
             ["1/1/2000", "%d/%w/%Y"],
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-    def test_to_datetime_format_fallback(self, cache, arg, format):
-        assert to_datetime(arg, format=format, cache=cache) == native_pd.to_datetime(
-            arg, format=format, cache=cache
-        )
+    @sql_count_checker(query_count=0)
+    def test_to_datetime_format_unimplemented(self, cache, arg, format):
+        with pytest.raises(NotImplementedError):
+            assert to_datetime(
+                arg, format=format, cache=cache
+            ) == native_pd.to_datetime(arg, format=format, cache=cache)
 
     @pytest.mark.parametrize(
         "arg, format",
@@ -382,25 +376,16 @@ class TestTimeConversionFormats:
     def test_to_datetime_format_time(self, cache, value, format, dt):
         assert to_datetime(value, format=format, cache=cache) == dt
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-    @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
-    def test_to_datetime_with_non_exact_fallback(self, cache):
+    @sql_count_checker(query_count=0)
+    def test_to_datetime_with_non_exact_unimplemented(self, cache):
         # GH 10834
         # 8904
         # exact kw
         ser = Series(
             ["19MAY11", "foobar19MAY11", "19MAY11:00:00:00", "19MAY11 00:00:00Z"]
         )
-        result = to_datetime(ser, format="%d%b%y", exact=False, cache=cache)
-        expected = to_datetime(
-            ser.str.extract(r"(\d+\w+\d+)", expand=False), format="%d%b%y", cache=cache
-        )
-        assert_series_equal(result, expected)
+        with pytest.raises(NotImplementedError):
+            to_datetime(ser, format="%d%b%y", exact=False, cache=cache)
 
     @pytest.mark.parametrize(
         "arg",
@@ -421,11 +406,6 @@ class TestTimeConversionFormats:
         result = to_datetime(arg, format="%Y-%m-%d %H:%M:%S.%f", cache=cache)
         assert result == expected
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize(
         "value,fmt,expected",
         [
@@ -433,9 +413,10 @@ class TestTimeConversionFormats:
             ["2013020", "%Y%U%w", Timestamp("2013-01-13")],
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_format_weeks(self, value, fmt, expected, cache):
-        assert to_datetime(value, format=fmt, cache=cache) == expected
+        with pytest.raises(NotImplementedError):
+            assert to_datetime(value, format=fmt, cache=cache) == expected
 
     @pytest.mark.parametrize(
         "fmt,dates,expected_dates",
@@ -477,11 +458,6 @@ class TestTimeConversionFormats:
         # with SqlCounter(query_count=1):
         tm.assert_equal(result, expected_dates)
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
     @pytest.mark.parametrize(
         "fmt,dates,expected_dates",
         [
@@ -505,15 +481,13 @@ class TestTimeConversionFormats:
             ],
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+    @sql_count_checker(query_count=0)
     def test_to_datetime_parse_tzname_or_tzoffset_fallback(
         self, fmt, dates, expected_dates
     ):
         # GH 13486
-        result = to_datetime(dates, format=fmt).to_list()
-        # with SqlCounter(query_count=1):
-        tm.assert_equal(result, expected_dates)
+        with pytest.raises(NotImplementedError):
+            to_datetime(dates, format=fmt).to_list()
 
     @sql_count_checker(query_count=4)
     def test_to_datetime_parse_tzname_or_tzoffset_different_tz_to_utc(self):
@@ -684,12 +658,6 @@ class TestToDatetime:
             native_pd.to_datetime(sample),
         )
 
-    @pytest.mark.xfail(
-        reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-        strict=True,
-        raises=RuntimeError,
-    )
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @pytest.mark.parametrize(
         "sample",
         [
@@ -700,15 +668,16 @@ class TestToDatetime:
             },  # non int types
         ],
     )
-    @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_df_fallback(self, sample):
-        eval_snowpark_pandas_result(
-            pd.DataFrame(sample),
-            native_pd.DataFrame(sample),
-            lambda df: pd.to_datetime(df)
-            if isinstance(df, pd.DataFrame)
-            else native_pd.to_datetime(df),
-        )
+        with pytest.raises(NotImplementedError):
+            eval_snowpark_pandas_result(
+                pd.DataFrame(sample),
+                native_pd.DataFrame(sample),
+                lambda df: pd.to_datetime(df)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.to_datetime(df),
+            )
 
     @pytest.mark.parametrize(
         "origin,unit",

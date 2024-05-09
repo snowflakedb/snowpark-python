@@ -49,6 +49,7 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
     assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
     assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
+    session.close()
 
     # test no given db information
     session = Session.builder.configs(options={"local_testing": True}).create()
@@ -58,6 +59,7 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{CURRENT_SCHEMA.upper()}"'
     assert session.get_current_database() == f'"{CURRENT_DATABASE.upper()}"'
     assert session.get_current_role() == f'"{CURRENT_ROLE.upper()}"'
+    session.close()
 
     # test update module variable
     monkeypatch.setattr(
@@ -90,6 +92,7 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
     assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
     assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
+    session.close()
 
 
 def test_session_use_object():
@@ -106,3 +109,4 @@ def test_session_use_object():
     assert session.get_current_schema() == '"TEST_SCHEMA"'
     assert session.get_current_database() == '"TEST_DATABASE"'
     assert session.get_current_role() == '"TEST_ROLE"'
+    session.close()

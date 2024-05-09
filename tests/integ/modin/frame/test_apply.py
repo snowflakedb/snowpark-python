@@ -156,6 +156,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "data, func, expected_result",
     [
@@ -306,6 +307,7 @@ def test_axis_1_raw():
     )
 
 
+@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])

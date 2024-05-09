@@ -15,7 +15,7 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
     )  # pragma: no cover
 
 
-install_msg = "Run `pip install snowflake-snowpark-python[modin]` to resolve."
+install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 
 # pandas import needs to come before Python version + modin checks,
 # since modin may raise its own warnings/errors on the wrong pandas version
@@ -30,7 +30,7 @@ if pandas.__version__ != supported_pandas_version:
     )  # pragma: no cover
 
 try:
-    import modin
+    import modin  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     raise ModuleNotFoundError(
         "Modin is not installed. " + install_msg
