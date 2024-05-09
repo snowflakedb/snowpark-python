@@ -165,6 +165,11 @@ def test_logical_operator_raise_error(session):
     assert "Cannot convert a Column object into bool" in str(execinfo)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SQL expr is not supported in Local Testing",
+    run=False,
+)
 def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")
@@ -179,6 +184,10 @@ def test_when_accept_sql_expr(session):
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1358930 TODO: Decimal should not be casted to int64",
+)
 def test_column_with_builtins_that_shadow_functions(session):
     conversion_error_msg_text = "Cannot convert a Column object into bool"
     iter_error_msg_text = "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."
