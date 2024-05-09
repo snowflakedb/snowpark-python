@@ -2,17 +2,20 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+# Note: Do not call this file ast.py, because it clashes when using the python
+#       interpreter as there are some bugs which require ast to point to the internal ast file.
+
 import base64
 import itertools
 import sys
 import uuid
 from typing import Tuple
 
-import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
-
 
 # TODO: currently unused.
 def expr_to_dataframe_expr(expr):
+    import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
+
     dfe = proto.SpDataframeExpr()
     variant = expr.WhichOneof("variant")
     getattr(dfe, variant).CopyFrom(getattr(expr, variant))
@@ -44,6 +47,8 @@ class AstBatch:
         return (str(self._request_id), batch)
 
     def _init_batch(self) -> None:
+        import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
+
         self._request_id = uuid.uuid4()  # Generate a new unique ID.
         self._request = proto.Request()
         self._request.client_version.major = 42

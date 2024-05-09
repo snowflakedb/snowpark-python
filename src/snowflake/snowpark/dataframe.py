@@ -3313,8 +3313,13 @@ class DataFrame:
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
 
-            print(f"Original: {self._plan.queries}")
-            print(f"AST: {self._session._ast_batch._request}")
+            print("--- SNOWPARK SERVER SIDE ---")  # noqa: T201
+            print(f"Original: {self._plan.queries}")  # noqa: T201
+            print(f"AST: {self._session._ast_batch._request}")  # noqa: T201
+            request_id, b64_encoded_ast = self._session._ast_batch.flush()
+            print(f"Request Id: {request_id}")  # noqa: T201
+            print(f"AST (base64 encoded protobuf): {b64_encoded_ast}")  # noqa: T201
+            print("--- SNOWPARK SERVER SIDE ---")  # noqa: T201
 
             ast = self._session._ast_batch.flush()
             # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
@@ -3322,7 +3327,7 @@ class DataFrame:
             # print(f'Base 64: {preview_sql}')
             # self._session.sql(preview_sql).show()
             res = self._session._conn.ast_query(ast)
-            print(f"AST response: {res}")
+            print(f"AST response: {res}")  # noqa: T201
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
