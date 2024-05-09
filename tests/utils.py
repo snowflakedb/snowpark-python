@@ -1335,6 +1335,14 @@ class TestFiles:
     def test_conda_environment_file(self):
         return os.path.join(self.resources_path, "test_environment.yml")
 
+    @property
+    def test_concat_file1_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file1.csv")
+
+    @property
+    def test_concat_file2_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file2.csv")
+
 
 class TypeMap(NamedTuple):
     col_name: str
