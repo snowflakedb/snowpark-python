@@ -398,8 +398,10 @@ def test_semi_structure_to_char(session, convert_func):
     assert session.create_dataframe([1]).select(
         convert_func(to_array(lit("Example"))),  # ArrayType
         convert_func(to_variant(lit("Example"))),  # VariantType
+        convert_func(to_variant(lit(123))),  # VariantType
+        convert_func(to_variant(lit("123"))),  # VariantType
         convert_func(to_object(parse_json(lit('{"Tree": "Pine"}')))),  # MapType
-    ).collect() == [Row('["Example"]', "Example", '{"Tree":"Pine"}')]
+    ).collect() == [Row('["Example"]', "Example", "123", "123", '{"Tree":"Pine"}')]
 
 
 def test_format_number(session):

@@ -889,24 +889,26 @@ def mock_to_char(
                     },
                     raise_error=NotImplementedError,
                 )
-            converter = (
+            convert_numeric_to_str = (
                 lambda x: "{:.{}f}".format(data, source_datatype.scale)
                 if isinstance(source_datatype, DecimalType)
                 else str(x)
             )
-            return try_convert(converter, try_cast, data)
+            return try_convert(convert_numeric_to_str, try_cast, data)
         elif isinstance(source_datatype, (DateType, TimeType)):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
             (
                 format,
                 _,
             ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
-            converter = (
+            convert_date_time_to_str = (
                 datetime.datetime.strftime
                 if isinstance(source_datatype, DateType)
                 else datetime.time.strftime
             )
-            return try_convert(lambda x: converter(x, format), try_cast, data)
+            return try_convert(
+                lambda x: convert_date_time_to_str(x, format), try_cast, data
+            )
         elif isinstance(source_datatype, TimestampType):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
             (
@@ -921,7 +923,9 @@ def mock_to_char(
             # when converting datatime into string using format %f, hence here we manually control the output fractional
             # microsecond parts
             # we find the beginning of 6 consecutive digits and manipulate the string
-            # CAVEAT: this solution can not handle cases yyyymmddhhmmss
+            # CAVEAT: this solution can not handle format like 'yyyymmddhhmmssff' in which case there are multiple
+            # 6 digits occurrences, we cannot distinguish
+            # whether the 6 digits are the part of fractional seconds or other parts of datetime
             if "%f" in format:
                 pattern = r"\d{6}"
                 if len(re.findall(pattern, time_str)) > 1:
@@ -962,19 +966,21 @@ def mock_to_char(
         elif isinstance(source_datatype, (VariantType, ArrayType, MapType)):
             from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-            # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
-            # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
+            # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string
+            # when handling string object, e.g., json.dumps("123"), by default json dumps added
+            # double quotes to the output which we do not need in output, we strip the beginning and ending
+            # double quote by calling strip('"'), this has no side effect to other input types.
             return try_convert(
                 lambda x: json.dumps(
-                    x, cls=CUSTOM_JSON_ENCODER, separators=(",", ":")
+                    x,
+                    cls=CUSTOM_JSON_ENCODER,
+                    separators=(",", ":"),  # remove trailing space after the separators
                 ).strip('"'),
                 try_cast,
                 data,
             )
-        elif isinstance(source_datatype, StringType):
-            return try_convert(lambda x: str(x), try_cast, data)
-        elif isinstance(source_datatype, NullType):
-            return None
+        elif isinstance(source_datatype, (StringType, NullType)):
+            return data
         else:
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                 external_feature_name=f"Data type {type(source_datatype).__name__} in TO_CHAR",
@@ -986,6 +992,7 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
+    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
     res = column.to_frame().apply(convert_char, axis=1)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
