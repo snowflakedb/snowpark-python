@@ -2026,7 +2026,7 @@ def test_attribute_reference_to_sql(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SNOW-936617 TODO: Selecting columns of the same name is not supported in Local Testing",
+    reason="SNOW-936617: Selecting columns of the same name is not supported in Local Testing",
 )
 def test_dataframe_duplicated_column_names(session):
     df = session.sql("select 1 as a, 2 as a")
@@ -2284,7 +2284,7 @@ def test_fillna(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SNOW-929218 TODO: support coercion in Local Testing",
+    reason="SNOW-929218: support coercion in Local Testing",
 )
 def test_replace_with_coercion(session):
     df = session.create_dataframe(

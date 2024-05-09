@@ -85,7 +85,7 @@ def test_regexp(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: SNOW-1346957 Collation not supported in Local Testing",
+    reason="SNOW-1346957: Collation not supported in Local Testing",
 )
 def test_collate(session):
     df1 = session.sql("select 'v' as c")
@@ -168,7 +168,7 @@ def test_scalar_subquery(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: SNOW-982770 Rank is not supported in Local Testing",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
 )
 def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
@@ -206,7 +206,7 @@ def test_cast(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: SNOW-1355930 any_value is not supported in Local Testing",
+    reason="SNOW-1355930: any_value is not supported in Local Testing",
 )
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
@@ -227,7 +227,7 @@ def test_unspecified_frame(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="TODO: SNOW-982770 Rank is not supported in Local Testing",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
 )
 def test_special_frame_boundry(session):
     df1 = session.sql("select 'v' as \" a\"")
@@ -306,7 +306,7 @@ def test_literal(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SNOW-1358946 TODO: Interval is not supported in Local Testing",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
 )
 def test_interval(session):
     df1 = session.create_dataframe(
@@ -508,7 +508,7 @@ def test_udf(session, use_qualified_name, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')", reason="SNOW-1359104 TODO: bug"
+    "config.getvalue('local_testing_mode')", reason="SNOW-1359104: Column alias creates incorrect column name."
 )
 def test_unary_expression(session):
     """Alias, UnresolvedAlias, Cast, UnaryMinus, IsNull, IsNotNull, IsNaN, Not"""
