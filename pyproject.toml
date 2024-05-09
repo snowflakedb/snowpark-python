@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-protobuf"]
+requires = ["setuptools", "setuptools-protobuf", "protoc-wheel-0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -111,15 +111,6 @@ Homepage = "https://www.snowflake.com/"
 Issues = "https://github.com/snowflakedb/snowpark-python/issues"
 Source = "https://github.com/snowflakedb/snowpark-python"
 
-[tool.hatch.version]
-path = "snowflake/__init__.py"
-
-[tool.hatch.build.targets.wheel]
-packages = [
-    "src/snowflake.snowpark",
-]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-]
+[tool.setuptools-protobuf]
+protobufs = ["src/snowflake/snowpark/ast.proto"]
+mypy = true
