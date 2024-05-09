@@ -94,7 +94,7 @@ def test_qcut_series_with_none_labels_negative(n, q, expected_query_count):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas API supports only labels=False, if you need support"
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
             " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
         ),
     ):
