@@ -3,6 +3,9 @@
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
 
+### Improvements
+- Improved performance of `pd.qcut` by removing joins in generated sql query.
+
 ## 1.15.0a1 (2024-07-05)
 
 ### Bug Fixes
