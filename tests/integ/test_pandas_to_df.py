@@ -533,7 +533,6 @@ def test_write_to_different_schema(session, local_testing_mode):
         # For owner's rights stored proc test, current schema does not change after creating a new schema
         if not is_in_stored_procedure():
             session.use_schema(original_schema_name)
-            # session.sql(f"use schema {original_schema_name}").collect()
         assert session.get_current_schema() == original_schema_name
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
         session.write_pandas(
