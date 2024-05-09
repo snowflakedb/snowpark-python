@@ -86,8 +86,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
-
-# import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -510,7 +508,9 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        ast_stmt: Optional["proto.Assign"] = None,
+        ast_stmt: Optional[
+            "snowflake.snowpark._internal.tcm.proto.ast_pb2.proto.Assign"
+        ] = None,
     ) -> None:
         """
         :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
@@ -1333,7 +1333,7 @@ class DataFrame:
         elif isinstance(expr, str):
             ast.sp_dataframe_filter.condition.sp_column_sql_expr.sql = expr
         else:
-            assert False, f"Unexpected type of {expr}: {type(expr)}"
+            raise TypeError(f"Unexpected type of {expr}: {type(expr)}")
 
         if self._select_statement:
             return self._with_plan(
@@ -3307,7 +3307,7 @@ class DataFrame:
         query = self._plan.queries[-1].sql.strip().lower()
 
         # TODO: A little hack to prevent infinite recursion.
-        if not "snowpark_coprocessor" in query:
+        if "snowpark_coprocessor" not in query:
             # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
