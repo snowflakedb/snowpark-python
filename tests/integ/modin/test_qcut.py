@@ -87,6 +87,7 @@ def test_qcut_series_non_range_data(data, q):
 
 @pytest.mark.parametrize("n,expected_query_count", [(5, 1), (100, 1), (1000, 6)])
 @pytest.mark.parametrize("q", [1, 10, 47, 10000])
+@sql_count_checker(query_count=0)
 def test_qcut_series_with_none_labels_negative(n, q, expected_query_count):
 
     native_ans = native_pd.qcut(native_pd.Series(range(n)), q, labels=None)
