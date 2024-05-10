@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
@@ -345,6 +346,10 @@ def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
 
 
 @pytest.mark.skipif(
+    "config.getvalue('disable_sql_simplifier')",
+    reason="without sql_simplifier returned types are all variants",
+)
+@pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
@@ -385,6 +390,7 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
     ]
 
 
+@pytest.mark.skipif(not installed_pandas, reason="Pandas required for this test.")
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",

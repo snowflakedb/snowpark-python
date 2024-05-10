@@ -222,6 +222,10 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
 
 
 # TODO: enable for local testing after emulating snowflake data types
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="geometry and geopgrahy types not yet supported in local testing mode.",
+)
 def test_table_with_semi_structured_types(session, semi_structured_table):
     df = session.table(semi_structured_table)
     types = [s.datatype for s in df.schema.fields]
@@ -256,7 +260,10 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
     )
 
 
-# TODO: enable for local testing. Emulate data type
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1374013: Local testing fails to parse time '09:15:29.999999'",
+)
 def test_table_with_time_type(session, table_with_time):
     df = session.table(table_with_time)
     # snowflake time has accuracy to 0.99999999. Python has accuracy to 0.999999.
