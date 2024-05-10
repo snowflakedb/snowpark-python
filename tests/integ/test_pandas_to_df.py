@@ -72,7 +72,7 @@ def tmp_table_complex(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 @pytest.mark.parametrize("quote_identifiers", [True, False])
 @pytest.mark.parametrize("auto_create_table", [True, False])
@@ -164,7 +164,7 @@ def test_write_pandas_with_overwrite(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 def test_write_pandas(session, tmp_table_basic):
     pd = PandasDF(
@@ -229,7 +229,7 @@ def test_write_pandas(session, tmp_table_basic):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 def test_write_pandas_with_use_logical_type(
     session, tmp_table_basic, local_testing_mode
@@ -282,7 +282,7 @@ def test_write_pandas_with_use_logical_type(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 def test_write_pandas_with_table_type(session, table_type: str):
@@ -312,7 +312,7 @@ def test_write_pandas_with_table_type(session, table_type: str):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 def test_write_temp_table_no_breaking_change(session, table_type, caplog):
@@ -385,7 +385,7 @@ def test_create_dataframe_from_pandas(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 def test_write_pandas_temp_table_and_irregular_column_names(session, table_type):
@@ -440,7 +440,7 @@ def test_write_pandas_with_timestamps(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 TypeError: Mock.keys() returned a non-iterable (type Mock)",
+    reason="SNOW-1370341: TypeError: Mock.keys() returned a non-iterable (type Mock)",
 )
 def test_auto_create_table_similar_column_names(session, local_testing_mode):
     """Tests whether similar names cause issues when auto-creating a table as expected."""
@@ -513,7 +513,7 @@ def test_special_name_quoting(
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370341 schema name mismatch",
+    reason="SNOW-1370341: schema name mismatch",
 )
 def test_write_to_different_schema(session, local_testing_mode):
     pd_df = PandasDF(
