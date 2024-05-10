@@ -186,9 +186,9 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing:
-    name: Test Local Testing Module py-${{ matrix.os.download_name }}-${{ matrix.python-version }}
+    name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
-    runs-on: ${{ matrix.os.image_name }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
