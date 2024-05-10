@@ -1059,6 +1059,8 @@ def test_concat_from_file(resources_path):
         "native_pd",
         _concat_operation([df1, df2]),
     )
+
+
 @sql_count_checker(query_count=1, join_count=2)
 def test_concat_keys():
     native_data = {
