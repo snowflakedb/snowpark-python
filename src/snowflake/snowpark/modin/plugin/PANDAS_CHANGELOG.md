@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 
 ## 1.15.0a1 (2024-07-05)
 
