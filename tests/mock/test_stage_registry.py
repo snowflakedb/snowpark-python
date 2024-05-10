@@ -21,7 +21,7 @@ def test_util():
     assert extract_stage_name_and_prefix("@stage/dir") == ("stage", "dir")
     assert extract_stage_name_and_prefix('@"stage.abc"/dir') == ("stage.abc", "dir")
     assert extract_stage_name_and_prefix('@"st123a/ge.abc"/dir/subdir') == (
-        f"st123a{os.sep}ge.abc",
+        "st123a/ge.abc",
         f"dir{os.sep}subdir",
     )
 
