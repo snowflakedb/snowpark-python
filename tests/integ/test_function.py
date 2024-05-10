@@ -168,7 +168,6 @@ from snowflake.snowpark.types import (
 from tests.utils import TestData, Utils
 
 
-@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -215,7 +214,6 @@ def test_order(session):
     ]
 
 
-@pytest.mark.localtest
 def test_current_date_and_time(session):
     max_delta = 1
     df = (
@@ -282,7 +280,6 @@ def test_regexp_extract(session):
     assert res[0]["RES"] == "30" and res[1]["RES"] == "50"
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -292,7 +289,6 @@ def test_concat(session, col_a, col_b, col_c):
     assert res[0][0] == "123"
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
 )
@@ -302,7 +298,6 @@ def test_concat_ws(session, col_a, col_b, col_c):
     assert res[0][0] == "1,2,3"
 
 
-@pytest.mark.localtest
 def test_concat_edge_cases(session):
     df = session.create_dataframe(
         [[None, 1, 2, 3], [4, None, 6, 7], [8, 9, None, 11], [12, 13, 14, None]]
@@ -318,7 +313,6 @@ def test_concat_edge_cases(session):
     assert nulls_ws == [Row(None), Row(None), Row(None), Row("12,13,14")]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "col_a",
     ["a", col("a")],
@@ -349,7 +343,6 @@ def test_primitive_to_char(session, col_a, data, fmt, expected, convert_func):
     assert res[0][0] == expected
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("convert_func", [to_char, to_varchar])
 def test_date_or_time_to_char(session, convert_func):
     # DateType
@@ -400,7 +393,6 @@ def test_date_or_time_to_char(session, convert_func):
     ]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("convert_func", [to_char, to_varchar])
 def test_semi_structure_to_char(session, convert_func):
     assert session.create_dataframe([1]).select(
@@ -445,7 +437,6 @@ def test_months_between(session, col_a, col_b):
     assert res[0][0] == 1.0
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
@@ -454,7 +445,6 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -463,21 +453,18 @@ def test_cast_decimal(session, number_word):
     )
 
 
-@pytest.mark.localtest
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
-@pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
-@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -533,7 +520,6 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
     "values,expected",
@@ -554,7 +540,6 @@ def test_greatest(session, use_col, values, expected):
     assert res[0][0] == expected
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
     "values,expected",
@@ -1043,7 +1028,6 @@ def test_is_negative(session):
     assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -1241,7 +1225,6 @@ def test_as_negative(session):
     )
 
 
-@pytest.mark.localtest
 def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     df = (
         session.create_dataframe(
@@ -1273,7 +1256,6 @@ def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
 
 
-@pytest.mark.localtest
 def test_to_binary(session):
     res = (
         TestData.test_data1(session)
@@ -1452,7 +1434,6 @@ def test_vector_distances(session):
     )
 
 
-@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(
@@ -1520,7 +1501,6 @@ def test_uniform_negative(session):
     assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
@@ -2045,7 +2025,6 @@ def test_create_map_negative(session):
     )
 
 
-@pytest.mark.localtest
 def test_to_double(session, local_testing_mode):
 
     # Test supported input type
@@ -2112,7 +2091,6 @@ def test_to_double(session, local_testing_mode):
         )
 
 
-@pytest.mark.localtest
 def test_to_decimal(session, local_testing_mode):
     # Supported input type
     df = session.create_dataframe(

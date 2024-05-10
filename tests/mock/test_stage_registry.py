@@ -15,7 +15,6 @@ from snowflake.snowpark.mock._stage_registry import (
 )
 
 
-@pytest.mark.localtest
 def test_util():
     assert extract_stage_name_and_prefix("@stage") == ("stage", "")
     assert extract_stage_name_and_prefix("@stage/dir") == ("stage", "dir")
@@ -26,7 +25,6 @@ def test_util():
     )
 
 
-@pytest.mark.localtest
 def test_stage_put_file():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.create_or_replace_stage("test_stage")
@@ -125,7 +123,6 @@ def test_stage_put_file():
         )
 
 
-@pytest.mark.localtest
 def test_stage_put_stream():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.create_or_replace_stage("test_stage")

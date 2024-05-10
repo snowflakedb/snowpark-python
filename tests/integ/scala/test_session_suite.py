@@ -49,7 +49,6 @@ def test_invalid_configs(session, db_parameters):
             assert "Incorrect username or password was specified" in str(ex_info)
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="db_parameters is not available")
 def test_current_database_and_schema(session, db_parameters, local_testing_mode):
     database = quote_name(db_parameters["database"])
@@ -76,7 +75,6 @@ def test_current_database_and_schema(session, db_parameters, local_testing_mode)
             session._run_query(f"use schema {schema}")
 
 
-@pytest.mark.localtest
 def test_quote_all_database_and_schema_names(session):
     def is_quoted(name: str) -> bool:
         return name[0] == '"' and name[-1] == '"'
@@ -85,7 +83,6 @@ def test_quote_all_database_and_schema_names(session):
     assert is_quoted(session.get_current_schema())
 
 
-@pytest.mark.localtest
 def test_create_dataframe_sequence(session):
     df = session.create_dataframe([[1, "one", 1.0], [2, "two", 2.0]])
     assert [field.name for field in df.schema.fields] == ["_1", "_2", "_3"]
@@ -101,7 +98,6 @@ def test_create_dataframe_sequence(session):
     assert df.collect() == [Row("one"), Row("two")]
 
 
-@pytest.mark.localtest
 def test_create_dataframe_namedtuple(session):
     class P1(NamedTuple):
         a: int
@@ -115,7 +111,8 @@ def test_create_dataframe_namedtuple(session):
 # this test requires the parameters used for connection has `public role`,
 # and the public role has the privilege to access the current database and
 # schema of the current role
-@pytest.mark.localtest
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Not enough privilege to run this test")
 def test_get_schema_database_works_after_use_role(session):
     current_role = session.get_current_role()
@@ -162,7 +159,6 @@ def test_select_current_client(session):
     assert get_version() in current_client
 
 
-@pytest.mark.localtest
 def test_negative_test_to_invalid_table_name(session):
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         session.table("negative.test.invalid.table.name")
@@ -171,7 +167,6 @@ def test_negative_test_to_invalid_table_name(session):
     )
 
 
-@pytest.mark.localtest
 def test_create_dataframe_from_seq_none(session, local_testing_mode):
     assert session.create_dataframe([None, 1]).to_df("int").collect() == [
         Row(None),
@@ -225,7 +220,6 @@ def test_dataframe_created_before_session_close_are_not_usable_after_closing_ses
     assert ex_info.value.error_code == "1404"
 
 
-@pytest.mark.localtest
 def test_load_table_from_array_multipart_identifier(session):
     name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe(
@@ -237,7 +231,6 @@ def test_load_table_from_array_multipart_identifier(session):
     assert len(session.table(multipart).schema.fields) == 1
 
 
-@pytest.mark.localtest
 def test_session_info(session):
     session_info = session._session_info
     assert get_version() in session_info

@@ -178,7 +178,6 @@ def test__do_register_sp_submits_correct_packages(
         )
 
 
-@pytest.mark.localtest
 def test_basic_stored_procedure(session, local_testing_mode):
     def return1(session_):
         return session_.create_dataframe([["1"]]).collect()[0][0]
@@ -240,7 +239,6 @@ def test_basic_stored_procedure(session, local_testing_mode):
     assert pow_sp(2, 10, session=session) == 1024
 
 
-@pytest.mark.localtest
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
     expected_err = Exception if local_testing_mode else SnowparkSQLException
 
@@ -263,7 +261,6 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
     assert local_testing_mode or "not recognized" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_stored_procedure_with_column_datatype(session, local_testing_mode):
     def add(session_, x, y):
         return x + y
@@ -411,7 +408,6 @@ def test_stored_procedure_with_structured_returns(session):
     assert df.dtypes == expected_dtypes
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_call_table_sproc_triggers_action(session, anonymous):
     """Here we create a table sproc which creates a table. we call the table sproc using
@@ -441,7 +437,6 @@ def test_call_table_sproc_triggers_action(session, anonymous):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_recursive_function(session):
     # Test recursive function
     def factorial(session_, n):
@@ -453,7 +448,6 @@ def test_recursive_function(session):
     assert factorial_sp(3) == factorial(session, 3)
 
 
-@pytest.mark.localtest
 def test_nested_function(session):
     def outer_func(session_):
         def inner_func():
@@ -483,7 +477,6 @@ def test_nested_function(session):
     assert square_sp(2) == 4
 
 
-@pytest.mark.localtest
 def test_decorator_function(session):
     def decorator_do_twice(func):
         def wrapper(*args, **kwargs):
@@ -506,7 +499,6 @@ def test_decorator_function(session):
     assert square_twice_sp(2) == 16
 
 
-@pytest.mark.localtest
 def test_annotation_syntax(session):
     @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
     def add_sp(session_, x, y):
@@ -521,7 +513,6 @@ def test_annotation_syntax(session):
     assert snow() == "snow"
 
 
-@pytest.mark.localtest
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
@@ -565,7 +556,6 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
 
 
-@pytest.mark.localtest
 def test_session_register_sp(session, local_testing_mode):
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
@@ -591,7 +581,6 @@ def test_session_register_sp(session, local_testing_mode):
     Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
-@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -638,7 +627,6 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -682,7 +670,6 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -708,7 +695,6 @@ def test_add_import_stage_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_sp_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -747,7 +733,6 @@ def test_sp_level_import(session, resources_path, local_testing_mode):
         assert "No module named" in ex_info.value.message
 
 
-@pytest.mark.localtest
 def test_type_hints(session):
     @sproc()
     def add_sp(session_: Session, x: int, y: int) -> int:
@@ -800,7 +785,6 @@ def test_type_hints(session):
     assert get_sp({"0": "snow", "1": "flake"}, "0") == "snow"
 
 
-@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(session_: Session, x: int, y: int) -> int:
         return (
@@ -815,7 +799,6 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
-@pytest.mark.localtest
 def test_register_sp_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -1644,7 +1627,6 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
@@ -1679,7 +1661,6 @@ def test_execute_as_options_while_registering_from_file(
     assert mod5_sp_stage(3) == 3
 
 
-@pytest.mark.localtest
 def test_call_sproc_with_session_as_first_argument(session):
     @sproc
     def return1(_: Session) -> int:
