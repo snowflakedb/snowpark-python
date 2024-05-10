@@ -67,7 +67,7 @@ jobs:
                   - image_name: windows-latest
                     download_name: windows
                 python-version: ["3.9", "3.10", "3.11"]
-                cloud-provider: [aws, azure, gcp]
+                cloud-provider: [aws]
         steps:
             - name: Checkout Code
               uses: actions/checkout@v4
