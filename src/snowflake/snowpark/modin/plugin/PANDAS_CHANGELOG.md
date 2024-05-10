@@ -7,6 +7,7 @@
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
+- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
 ## 1.15.0a1 (2024-07-05)
 

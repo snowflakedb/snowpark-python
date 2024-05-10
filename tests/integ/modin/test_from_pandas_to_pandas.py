@@ -10,7 +10,7 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from pandas import DatetimeTZDtype
-from pandas._testing import assert_frame_equal, assert_index_equal, assert_series_equal
+from pandas._testing import assert_index_equal
 from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 import snowflake.snowpark
@@ -25,6 +25,8 @@ from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
     VALID_PANDAS_LABELS,
+    assert_frame_equal,
+    assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
 from tests.utils import Utils
@@ -170,7 +172,6 @@ def test_value_type_mismatch_index_type(name, indices_dict):
             )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_basic_type_data():
     check_result_from_and_to_pandas(
@@ -187,7 +188,6 @@ def test_basic_type_data():
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_base_index():
     # base class index (appears sometimes as well!)
@@ -216,7 +216,6 @@ def test_base_index_with_variant_data(data, index, columns):
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("col_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_column_name(col_name):
@@ -226,7 +225,6 @@ def test_column_name(col_name):
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_index_name(index_name):
@@ -256,7 +254,6 @@ def test_to_pandas_column_index_names(name):
     assert pdf.columns.names == [name]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_from_to_pandas_datetime64_support():
     # This test verifies the datetime64 columns and index conversions, including from and to pandas.
@@ -626,3 +623,22 @@ def test_snowpark_pandas_statement_params():
             == mock_to_pandas.call_args.kwargs["statement_params"]["SNOWPARK_API"]
         )
         assert "efg" == mock_to_pandas.call_args.kwargs["statement_params"]["abc"]
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_create_df_from_series():
+    native_data = {
+        "one": native_pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": native_pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": native_pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+
+    data = {
+        "one": pd.Series([1, 2, 3], index=["a", "b", "c"]),
+        "two": pd.Series([2, 3, 4, 5], index=["a", "b", "c", "d"]),
+        "three": pd.Series([3, 4, 5], index=["b", "c", "d"]),
+    }
+    native_df = native_pd.DataFrame(native_data)
+    snow_df = pd.DataFrame(data)
+
+    assert_frame_equal(snow_df, native_df)
