@@ -119,8 +119,11 @@ def test_put_with_one_file(
         10,
         11,
     ) and first_result_with_statement_params.source_size in (10, 11)
-    target_size_set = (64, 96) if not local_testing_mode else (10,)
-    with_statement_params_target_size_set = (0, 64) if not local_testing_mode else (10,)
+    # in local testing, target size on mac and linux is 10, on windows is 11
+    target_size_set = (64, 96) if not local_testing_mode else (10, 11)
+    with_statement_params_target_size_set = (
+        (0, 64) if not local_testing_mode else (10, 11)
+    )
     assert (
         first_result.target_size in target_size_set
         and first_result_with_statement_params.target_size
@@ -491,11 +494,11 @@ def test_get_one_file(
     try:
         assert len(results) == len(results_with_statement_params) == 1
         assert results[0].file == results_with_statement_params[0].file == file_name
-        # 10 is for local testing, 54, 55 is for non-local testing
+        # 10 (mac and linux), 11 (windows) is for local testing, 54, 55 is for non-local testing
         assert results[0].size in (
-            (54, 55) if not local_testing_mode else (10,)
+            (54, 55) if not local_testing_mode else (10, 11)
         ) and results_with_statement_params[0].size in (
-            (54, 55) if not local_testing_mode else (10,)
+            (54, 55) if not local_testing_mode else (10, 11)
         )
         assert (
             results[0].status == results_with_statement_params[0].status == "DOWNLOADED"
@@ -532,8 +535,8 @@ def test_get_multiple_files(
         assert results[1].file == os.path.basename(path2)
         assert results[2].file == os.path.basename(path3)
 
-        assert results[0].size in ((54, 55) if not local_testing_mode else (10,))
-        assert results[1].size in ((54, 55) if not local_testing_mode else (10,))
+        assert results[0].size in ((54, 55) if not local_testing_mode else (10, 11))
+        assert results[1].size in ((54, 55) if not local_testing_mode else (10, 11))
         assert results[2].size in (10, 11)
     finally:
         os.remove(f"{temp_target_directory}/{os.path.basename(path1)}")
