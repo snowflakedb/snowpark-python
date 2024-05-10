@@ -350,6 +350,10 @@ def test_call_named_stored_procedure(
 
 
 @pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="Structured types are not supported in Local Testing",
+)
+@pytest.mark.skipif(
     not IS_STRUCTURED_TYPES_SUPPORTED,
     reason="Structured types not enabled in this account.",
 )
