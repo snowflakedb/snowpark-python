@@ -2097,7 +2097,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         Returns
         -------
-        pandas.api.typing.Resampler
+        Resampler
             Resampler object.
 
         See Also
@@ -2109,7 +2109,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         Notes
         -----
-        DataFrame/Series.resample only support frequencies "second", "minute", "hour", and "day" in conjunction
+        Snowpark pandas DataFrame/Series.resample only support frequencies "second", "minute", "hour", and "day" in conjunction
         with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill".
 
         Examples
