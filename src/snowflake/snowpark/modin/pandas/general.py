@@ -1076,7 +1076,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1193,7 +1192,17 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1215,6 +1224,10 @@ def concat(
             argument="copy",
             message="copy parameter has been ignored with Snowflake execution engine",
         )
+
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
 
     result = objs[0]._query_compiler.concat(
         axis,
@@ -2157,11 +2170,9 @@ def qcut(
 ):  # noqa: PR01, RT01, D200
     """
     Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas.
+    retbins=True is not supported in Snowpark pandas API.
 
-    labels=False will run binning computation in Snowflake, whereas if labels is an array
-    the data will be fetched to the client and the binning run client-side, as Snowpark pandas API does
-    not yet support pd.Categorical in its ORM mapper.
+    labels=False will run binning computation in Snowflake, other values are not supported in Snowpark pandas API.
     """
 
     kwargs = {
@@ -2192,7 +2203,10 @@ def qcut(
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
-        return pandas.qcut(x.to_pandas(), q, **kwargs)
+        ErrorMessage.not_implemented(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        )
 
     ans = x._qcut(q, retbins, duplicates)
 
