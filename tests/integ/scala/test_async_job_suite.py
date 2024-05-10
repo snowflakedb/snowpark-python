@@ -37,6 +37,14 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 test_file_csv = "testCSV.csv"
 tmp_stage_name1 = Utils.random_stage_name()
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getvalue('local_testing_mode')",
+        reason="Async Job is a SQL feature",
+        run=False,
+    )
+]
+
 
 def test_async_collect_common(session):
     df = session.create_dataframe(
