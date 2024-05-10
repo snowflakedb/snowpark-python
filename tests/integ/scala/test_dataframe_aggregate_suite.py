@@ -47,6 +47,7 @@ from snowflake.snowpark.functions import (
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
+@pytest.mark.localtest
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
     reason="FEAT: pivot not supported",
@@ -69,6 +70,92 @@ def test_pivot(session):
     assert (
         "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method."
         in str(ex_info)
+    )
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            avg,
+            [
+                Row(
+                    1,
+                    "A",
+                    Decimal("10000.000000"),
+                    None,
+                    Decimal("5200.000000"),
+                    Decimal("5000.000000"),
+                ),
+                Row(
+                    1,
+                    "B",
+                    Decimal("8000.000000"),
+                    Decimal("4000.000000"),
+                    None,
+                    Decimal("6000.000000"),
+                ),
+                Row(
+                    2,
+                    "A",
+                    Decimal("2650.000000"),
+                    Decimal("45350.000000"),
+                    Decimal("4500.000000"),
+                    None,
+                ),
+                Row(
+                    2, "B", None, None, Decimal("35000.000000"), Decimal("6000.000000")
+                ),
+            ],
+        ),
+        (
+            count,
+            [
+                Row(1, "A", 1, 0, 2, 1),
+                Row(1, "B", 1, 2, 0, 1),
+                Row(2, "A", 2, 2, 1, 0),
+                Row(2, "B", 0, 0, 1, 2),
+            ],
+        ),
+        (
+            max,
+            [
+                Row(1, "A", 10000, None, 10000, 5000),
+                Row(1, "B", 8000, 5000, None, 6000),
+                Row(2, "A", 4500, 90500, 4500, None),
+                Row(2, "B", None, None, 35000, 9500),
+            ],
+        ),
+        (
+            min,
+            [
+                Row(1, "A", 10000, None, 400, 5000),
+                Row(1, "B", 8000, 3000, None, 6000),
+                Row(2, "A", 800, 200, 4500, None),
+                Row(2, "B", None, None, 35000, 2500),
+            ],
+        ),
+        (
+            sum,
+            [
+                Row(1, "A", 10000, None, 10400, 5000),
+                Row(1, "B", 8000, 8000, None, 6000),
+                Row(2, "A", 5300, 90700, 4500, None),
+                Row(2, "B", None, None, 35000, 12000),
+            ],
+        ),
+    ],
+)
+def test_pivot_agg_functions(session, func, expected):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month")
+        .agg(func(col("amount")))
+        .sort(col("empid"), col("team")),
+        expected,
+        sort=False,
     )
 
 
@@ -110,10 +197,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
-)
+@pytest.mark.localtest
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -178,10 +262,12 @@ def test_group_by_pivot_dynamic_subquery(session):
     )
 
 
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getvalue('local_testing_mode')",
-    reason="FEAT: pivot not supported",
+    reason="TODO: Join fails with error 'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): The DataFrame does not contain the column named JAN.'",
+    run=False,
 )
+@pytest.mark.localtest
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
@@ -202,10 +288,7 @@ def test_join_on_pivot(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="FEAT: pivot not supported",
-)
+@pytest.mark.localtest
 def test_pivot_on_join(session):
     df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
 
@@ -250,10 +333,7 @@ def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     assert pivot_op_df.count() == 1
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
-)
+@pytest.mark.localtest
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -338,10 +418,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
-@pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="FEAT: pivot not supported",
-)
+@pytest.mark.localtest
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
