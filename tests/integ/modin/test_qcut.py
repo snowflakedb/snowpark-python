@@ -336,6 +336,7 @@ def test_qcut_two_columns():
     high_count_reason="data pipeline, multiple chained operations.",
 )
 def test_qcut_with_groupby_apply():
+    # Test here that pipeline reported works and does not produce error.
     spd_order = pd.read_snowflake("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.ORDERS")
 
     spd_order = spd_order.astype({"O_ORDERDATE": "datetime64"})
@@ -367,5 +368,48 @@ def test_qcut_with_groupby_apply():
         spd_order_rfm["RECENCY"], q=5, labels=False
     ).values.astype(int)
     ans = spd_order_rfm.head().to_pandas()
+    assert len(ans) > 0
 
+
+@sql_count_checker(
+    query_count=14,
+    join_count=3,
+    udf_count=3,
+    union_count=2,
+    high_count_expected=True,
+    high_count_reason="data pipeline, multiple chained operations.",
+)
+def test_cut_with_groupby_apply():
+    # Test here that pipeline reported works and does not produce error.
+    spd_order = pd.read_snowflake("SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.ORDERS")
+
+    spd_order = spd_order.astype({"O_ORDERDATE": "datetime64"})
+    start_date = spd_order["O_ORDERDATE"].max() + pd.Timedelta(days=1)
+
+    column_agg = {
+        "O_ORDERKEY": "count",
+        "O_ORDERDATE": ["max", "min"],
+        "O_TOTALPRICE": ["sum", "mean"],
+    }
+
+    spd_order_rfm = spd_order.groupby(by="O_CUSTKEY", as_index=False).agg(column_agg)
+
+    spd_order_rfm.columns = [
+        "O_CUSTKEY",
+        "FREQUENCY",
+        "MAX_ORDER_DATE",
+        "MIN_ORDER_DATE",
+        "MONETARY",
+        "AVG_ORDER_SIZE",
+    ]
+    spd_order_rfm["RECENCY"] = spd_order_rfm["MAX_ORDER_DATE"].apply(
+        lambda x: (start_date - x).days
+    )
+
+    spd_order_rfm.drop(["MAX_ORDER_DATE", "MIN_ORDER_DATE"], axis=1, inplace=True)
+
+    spd_order_rfm["R_SCORE"] = pd.cut(
+        spd_order_rfm["RECENCY"], bins=5, labels=False
+    ).values.astype(int)
+    ans = spd_order_rfm.head().to_pandas()
     assert len(ans) > 0
