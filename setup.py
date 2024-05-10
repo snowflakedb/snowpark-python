@@ -87,6 +87,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
