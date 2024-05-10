@@ -21,11 +21,17 @@ from snowflake.snowpark.exceptions import (
     SnowparkMissingDbOrSchemaException,
     SnowparkSessionException,
 )
+from snowflake.snowpark.functions import current_timestamp
 from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="This is testing logging into Snowflake",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -123,6 +129,11 @@ def test_get_schema_database_works_after_use_role(session):
         session.use_role(current_role)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="_remove_config is an internal API and local testing has default schema name",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -191,6 +202,10 @@ def test_create_dataframe_from_array(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1375271: match error behavior",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
@@ -232,6 +247,10 @@ def test_session_info(session):
 
 
 @pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1375271: match error behavior",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_close_session(session, db_parameters):
@@ -245,7 +264,7 @@ def test_dataframe_close_session(session, db_parameters):
         new_session.close()
 
     with pytest.raises(SnowparkSessionException) as ex_info:
-        new_session.sql("select current_timestamp()").collect()
+        new_session.create_dataframe([[]]).select(current_timestamp()).collect()
     assert ex_info.value.error_code == "1404"
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.range(10).collect()
