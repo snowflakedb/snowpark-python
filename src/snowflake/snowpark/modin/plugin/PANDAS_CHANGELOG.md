@@ -2,19 +2,29 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 
-## 1.15.0a1 (2024-07-05)
+### Behavior Changes
+- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
+- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
+
+### Improvements
+- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
+
+### New Features
+- Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
+
+## 1.15.0a1 (2024-05-03)
 
 ### Bug Fixes
 - Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
-- Fixed `@udf` decorator when `packages=None` are specified preventing error in `Series.apply`.
+- Fixed `@udf` decorator when `packages=None` is specified thus preventing an error in `Series.apply`.
 - Fixed incorrect regex used in `Series.str.contains`.
-- Fixed DataFrame's `__getitem__` with boolean DataFrame key.
+- Fixed DataFrame's `__getitem__` with a boolean DataFrame key.
 - Fixed incorrect regex used in `DataFrame/Series.replace`.
-- Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
-- Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
+- Fixed AssertionError in `Series.sort_values` after repr and indexing operations are performed.
+- Fixed the UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`.
 - Fixed binary operations with single-row DataFrame and Series.
-- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in the following APIs:
@@ -24,12 +34,12 @@
   - `DataFrame/Series.all` if called on non-integer/boolean columns.
   - `DataFrame/Series.any` if called on non-integer/boolean columns.
   - `DataFrame/Series.astype` if casting from string to datetime or `errors == 'ignore'`.
-  - `DataFrame/Series.dropna` if `axis == 1`
+  - `DataFrame/Series.dropna` if `axis == 1`.
   - `DataFrame/Series.mask` if given `axis` or `level` parameters.
   - `DataFrame/Series.rename` if `mapper` is callable or the DataFrame/Series has MultiIndex.
   - `DataFrame/Series.sort_values` if given the `key` parameter.
   - `DataFrame/Series.sort_index` if given the `key` parameter.
-  - `DataFrame.nunique` if `axis == 1`
+  - `DataFrame.nunique` if `axis == 1`.
   - `DataFrame.apply` if `axis == 0` or `func` is not callable or `result_type` is given or `args` and `kwargs` contain DataFrame or Series.
   - `Series.apply` if `axis == 0` or `func` is not callable or `result_type` is given.
   - `Series.applymap` if `na_action == 'ignore'`.
@@ -38,7 +48,7 @@
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
   - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
-  - Series datetime accessor properties and methods `Series.dt.*`
+  - Series datetime accessor properties and methods `Series.dt.*`.
   - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
   - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
@@ -48,14 +58,6 @@
   - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
   Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
-- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
-- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
-
-### Improvements
-- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
-
-### New Features
-- Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
 
 ## 1.14.0a2 (2024-04-18)
 
