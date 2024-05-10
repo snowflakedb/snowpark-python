@@ -49,6 +49,7 @@
   Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
+- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
 ### Improvements
 - Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.

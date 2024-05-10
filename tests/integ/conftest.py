@@ -132,7 +132,7 @@ def clean_up_external_access_integration_resources(
 
 
 @pytest.fixture(scope="session")
-def db_parameters() -> Dict[str, str]:
+def db_parameters(local_testing_mode) -> Dict[str, str]:
     # If its running on our public CI or Jenkins, replace the schema
     if running_on_public_ci() or running_on_jenkins():
         # tests related to external access integration requires secrets, network rule to be created ahead
@@ -143,6 +143,7 @@ def db_parameters() -> Dict[str, str]:
         )
     else:
         CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
+    CONNECTION_PARAMETERS["local_testing"] = local_testing_mode
     return CONNECTION_PARAMETERS
 
 
