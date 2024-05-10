@@ -8,6 +8,9 @@
 ### Improvements
 - Improved performance of `pd.qcut` by removing joins in generated sql query.
 
+### Improvements
+- Allow `session.write_pandas` to write Snowpark pandas DataFrame or Series to a table.
+
 ## 1.15.0a1 (2024-07-05)
 
 ### Bug Fixes
