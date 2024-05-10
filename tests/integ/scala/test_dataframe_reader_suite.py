@@ -357,7 +357,10 @@ def test_read_csv_with_default_infer_schema(session):
 
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
         session.read.options({"infer_schema": False}).csv(test_file_on_stage)
-    assert 'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})' in str(exec_info)
+    assert (
+        'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})'
+        in str(exec_info)
+    )
 
     # check infer_schema default as true
     Utils.check_answer(
