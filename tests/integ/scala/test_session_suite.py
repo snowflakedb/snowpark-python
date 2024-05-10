@@ -21,7 +21,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkMissingDbOrSchemaException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.functions import current_timestamp
 from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
@@ -203,7 +202,7 @@ def test_create_dataframe_from_array(session, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SNOW-1375271: match error behavior",
+    reason="SNOW-1375271: match error behavior when session is closed",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
@@ -248,7 +247,7 @@ def test_session_info(session):
 
 @pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
-    reason="SNOW-1375271: match error behavior",
+    reason="SNOW-1375271: match error behavior when session is closed",
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
@@ -264,7 +263,7 @@ def test_dataframe_close_session(session, db_parameters):
         new_session.close()
 
     with pytest.raises(SnowparkSessionException) as ex_info:
-        new_session.create_dataframe([[]]).select(current_timestamp()).collect()
+        new_session.sql("select current_timestamp()").collect()
     assert ex_info.value.error_code == "1404"
     with pytest.raises(SnowparkSessionException) as ex_info:
         new_session.range(10).collect()
