@@ -238,7 +238,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-local-testing
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
           path: |
             .tox/.coverage
             .tox/coverage.xml
