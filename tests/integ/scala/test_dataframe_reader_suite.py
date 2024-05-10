@@ -351,7 +351,6 @@ def test_read_csv(session, mode):
     assert "is out of range" in str(ex_info)
 
 
-
 def test_read_csv_with_default_infer_schema(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -370,7 +369,6 @@ def test_read_csv_with_default_infer_schema(session):
             Row(c1=2, c2="two", c3=Decimal("2.2")),
         ],
     )
-
 
 
 @pytest.mark.skipif(
