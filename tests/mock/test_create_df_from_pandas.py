@@ -26,7 +26,6 @@ except ImportError:
     pytest.skip("pandas is not installed, skipping the tests", allow_module_level=True)
 
 
-@pytest.mark.localtest
 def test_create_from_pandas_basic_pandas_types(session):
     now_time = datetime.datetime(
         year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
@@ -124,7 +123,6 @@ StructField('TIMEDELTA', LongType(), nullable=True)\
     ]
 
 
-@pytest.mark.localtest
 def test_create_from_pandas_basic_python_types(session):
     date_data = datetime.date(year=2023, month=10, day=26)
     time_data = datetime.time(hour=12, minute=12, second=12)
@@ -161,7 +159,6 @@ StructType([StructField('A', DateType(), nullable=True), StructField('B', TimeTy
     ]
 
 
-@pytest.mark.localtest
 def test_create_from_pandas_datetime_types(session):
     now_time = datetime.datetime(
         year=2023,
@@ -217,7 +214,6 @@ def test_create_from_pandas_datetime_types(session):
     ]
 
 
-@pytest.mark.localtest
 def test_create_from_pandas_extension_types(session):
     """
 
@@ -335,7 +331,6 @@ StructType([StructField('A', VariantType(), nullable=True), StructField('B', Var
     ]
 
 
-@pytest.mark.localtest
 def test_na_and_null_data(session):
     pandas_df = pd.DataFrame(
         data={
@@ -354,7 +349,6 @@ def test_na_and_null_data(session):
     assert sp_df.select("A").collect() == [Row("abc"), Row(None), Row("a"), Row("")]
 
 
-@pytest.mark.localtest
 def test_datetime_nat_nan(session):
     df = pd.DataFrame(
         {

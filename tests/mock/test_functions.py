@@ -4,8 +4,6 @@
 import datetime
 import math
 
-import pytest
-
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (  # count,; is_null,;
     abs,
@@ -22,7 +20,6 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
 )
 
 
-@pytest.mark.localtest
 def test_col(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -37,7 +34,6 @@ def test_col(session):
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
 
 
-@pytest.mark.localtest
 def test_max(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -58,7 +54,6 @@ def test_max(session):
     assert math.isnan(origin_df.select(max("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
 def test_min(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -80,7 +75,6 @@ def test_min(session):
     assert math.isnan(origin_df.select(min("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
 def test_to_date(session):
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
@@ -93,7 +87,6 @@ def test_to_date(session):
     ]
 
 
-@pytest.mark.localtest
 def test_contains(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -132,7 +125,6 @@ def test_contains(session):
     ]
 
 
-@pytest.mark.localtest
 def test_abs(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -145,7 +137,6 @@ def test_abs(session):
     assert origin_df.select(abs(col("m"))).collect() == [Row(1), Row(1), Row(2)]
 
 
-@pytest.mark.localtest
 def test_asc_and_desc(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -164,7 +155,6 @@ def test_asc_and_desc(session):
     assert origin_df.sort(desc(col("v"))).collect() == expected
 
 
-@pytest.mark.localtest
 def test_count(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -180,7 +170,6 @@ def test_count(session):
     assert origin_df.select(count("v")).collect() == [Row(6)]
 
 
-@pytest.mark.localtest
 def test_is_null(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -201,7 +190,6 @@ def test_is_null(session):
     ]
 
 
-@pytest.mark.localtest
 def test_take_first(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -243,7 +231,6 @@ def test_take_first(session):
     assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
 
 
-@pytest.mark.localtest
 def test_show(session):
     origin_df: DataFrame = session.create_dataframe(
         [

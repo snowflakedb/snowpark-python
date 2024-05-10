@@ -343,7 +343,6 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
@@ -407,7 +406,6 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_write_pandas_with_timestamps(session, local_testing_mode):
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))

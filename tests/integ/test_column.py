@@ -14,7 +14,6 @@ from snowflake.snowpark.functions import col, lit, parse_json, when
 from tests.utils import TestData, Utils
 
 
-@pytest.mark.localtest
 def test_column_constructors_subscriptable(session):
     df = session.create_dataframe([[1, 2, 3]]).to_df("col", '"col"', "col .")
     assert df.select(df["col"]).collect() == [Row(1)]
@@ -32,7 +31,6 @@ def test_column_constructors_subscriptable(session):
     assert "The DataFrame does not contain the column" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_between(session):
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
         ["a", "b"]
@@ -48,7 +46,6 @@ def test_between(session):
     )
 
 
-@pytest.mark.localtest
 def test_try_cast(session):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
     cast_res = df.select(df["a"].cast("date")).collect()
@@ -56,7 +53,6 @@ def test_try_cast(session):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
-@pytest.mark.localtest
 def test_try_cast_work_cast_not_work(session, local_testing_mode):
     df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(
@@ -71,7 +67,6 @@ def test_try_cast_work_cast_not_work(session, local_testing_mode):
     )  # try_cast doesn't throw exception
 
 
-@pytest.mark.localtest
 def test_cast_try_cast_negative(session):
     df = session.create_dataframe([["aaa"]], schema=["a"])
     with pytest.raises(ValueError) as execinfo:
@@ -90,21 +85,18 @@ def test_cast_decimal(session, number_word):
     )
 
 
-@pytest.mark.localtest
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
-@pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(parse_json(df["a"]).cast("array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
-@pytest.mark.localtest
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -113,7 +105,6 @@ def test_startswith(session):
     )
 
 
-@pytest.mark.localtest
 def test_endswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").endswith(lit("ana"))),
@@ -122,7 +113,6 @@ def test_endswith(session):
     )
 
 
-@pytest.mark.localtest
 def test_substring(session):
     Utils.check_answer(
         TestData.string4(session).select(
@@ -133,7 +123,6 @@ def test_substring(session):
     )
 
 
-@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).filter(col("a").contains(lit("e"))),
@@ -142,7 +131,6 @@ def test_contains(session):
     )
 
 
-@pytest.mark.localtest
 def test_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
@@ -157,7 +145,6 @@ def test_when_accept_literal_value(session):
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
 
 
-@pytest.mark.localtest
 def test_logical_operator_raise_error(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     with pytest.raises(TypeError) as execinfo:

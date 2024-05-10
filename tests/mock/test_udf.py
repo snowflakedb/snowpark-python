@@ -13,7 +13,6 @@ from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 
 
-@pytest.mark.localtest
 def test_udf_cleanup_on_err(session):
     cur_dir = os.path.dirname(os.path.realpath(__file__))
     test_file = os.path.join(cur_dir, "files", "udf_file.py")
@@ -36,7 +35,6 @@ def test_udf_cleanup_on_err(session):
     )  # assert sys.path is cleaned up after UDF exits on exception
 
 
-@pytest.mark.localtest
 def test_registering_udf_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
 
@@ -66,7 +64,6 @@ def test_registering_udf_with_qualified_identifier(session):
         )
 
 
-@pytest.mark.localtest
 def test_registering_sproc_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
 

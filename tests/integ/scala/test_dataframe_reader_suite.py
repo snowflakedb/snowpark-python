@@ -242,7 +242,6 @@ def setup(session, resources_path, local_testing_mode):
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_only_json_file}").collect()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv(session, mode):
     reader = get_reader(session, mode)
@@ -374,7 +373,6 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_infer_schema_negative(session, mode, caplog):
     reader = get_reader(session, mode)
@@ -394,7 +392,6 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
             assert "Could not infer csv schema due to exception:" in caplog.text
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_incorrect_schema(session, mode):
     reader = get_reader(session, mode)
@@ -468,7 +465,6 @@ def test_save_as_table_do_not_change_col_name(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_read_csv_with_more_operations(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     df1 = session.read.schema(user_schema).csv(test_file_on_stage).filter(col("a") < 2)
@@ -516,7 +512,6 @@ def test_read_csv_with_more_operations(session):
     ]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
@@ -579,7 +574,6 @@ def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     ]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_to_read_files_from_stage(session, resources_path, mode, local_testing_mode):
     data_files_stage = Utils.random_stage_name()
@@ -614,7 +608,6 @@ def test_to_read_files_from_stage(session, resources_path, mode, local_testing_m
             session.sql(f"DROP STAGE IF EXISTS {data_files_stage}")
 
 
-@pytest.mark.localtest
 @pytest.mark.xfail(reason="SNOW-575700 flaky test", strict=False)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_for_all_csv_compression_keywords(session, temp_schema, mode):
@@ -651,7 +644,6 @@ def test_for_all_csv_compression_keywords(session, temp_schema, mode):
         session.sql(f"drop file format {format_name}")
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     schema1 = StructType(
@@ -733,7 +725,6 @@ def test_read_csv_with_special_chars_in_format_type_options(session, mode):
     assert res == [Row('"1.234"', '"09:10:11"'), Row('"2.5"', "12:34:56")]
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_quotes_containing_delimiter(session, mode):
     schema1 = StructType(
@@ -866,7 +857,6 @@ def test_read_metadata_column_from_stage(session, file_format):
         )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_json_with_no_schema(session, mode):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
@@ -923,7 +913,6 @@ def test_read_json_with_no_schema(session, mode):
         get_reader(session, mode).schema(user_schema).json(json_path)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_json_with_infer_schema(session, mode):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"

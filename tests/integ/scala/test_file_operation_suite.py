@@ -89,7 +89,6 @@ def temp_stage(session, resources_path, local_testing_mode):
         Utils.drop_stage(session, tmp_stage_name)
 
 
-@pytest.mark.localtest
 def test_put_with_one_file(
     session, temp_stage, path1, path2, path3, local_testing_mode
 ):
@@ -181,7 +180,6 @@ def test_put_with_one_file(
     assert third_result.message == ""
 
 
-@pytest.mark.localtest
 def test_put_with_one_file_twice(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
@@ -218,7 +216,6 @@ def test_put_with_one_file_twice(session, temp_stage, path1, local_testing_mode)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="cannot write file to root directory in sandbox"
 )
-@pytest.mark.localtest
 def test_put_with_one_relative_path_file(
     session, temp_stage, path1, local_testing_mode
 ):
@@ -252,7 +249,6 @@ def test_put_with_one_relative_path_file(
         os.remove(file_name)
 
 
-@pytest.mark.localtest
 def test_put_with_multiple_files(
     session, temp_stage, temp_source_directory, path1, path2, path3, local_testing_mode
 ):
@@ -277,7 +273,6 @@ def test_put_with_multiple_files(
     assert all(row.status in ("UPLOADED", "SKIPPED") for row in second_result)
 
 
-@pytest.mark.localtest
 def test_put_negative(
     session, temp_stage, temp_source_directory, path1, local_testing_mode
 ):
@@ -299,7 +294,6 @@ def test_put_negative(
         assert "does not exist or not authorized." in str(stage_not_exist_info)
 
 
-@pytest.mark.localtest
 def test_put_stream_with_one_file(
     session, temp_stage, path1, path2, path3, path4, local_testing_mode
 ):
@@ -382,7 +376,6 @@ def test_put_stream_with_one_file(
     assert fourth_result.message == ""
 
 
-@pytest.mark.localtest
 def test_put_stream_with_one_file_twice(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}"
@@ -460,7 +453,6 @@ def test_put_stream_negative(session, temp_stage, path1, local_testing_mode):
         assert ex_info.value.error_code == "1408" if not local_testing_mode else True
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("with_file_prefix", [True, False])
 def test_get_one_file(
     session,
@@ -507,7 +499,6 @@ def test_get_one_file(
         os.remove(f"{temp_target_directory}/{file_name}")
 
 
-@pytest.mark.localtest
 def test_get_multiple_files(
     session, temp_stage, temp_target_directory, path1, path2, path3, local_testing_mode
 ):
@@ -541,7 +532,6 @@ def test_get_multiple_files(
         os.remove(f"{temp_target_directory}/{os.path.basename(path3)}")
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-570941: get with pattern is not supported"
 )
@@ -586,7 +576,6 @@ def test_get_with_pattern_and_relative_target_directory(
         os.remove(f"{temp_target_directory}/{os.path.basename(path3)}")
 
 
-@pytest.mark.localtest
 @pytest.mark.skip("Error 'max_workers must be greater than 0' on Azure and GCP")
 def test_get_negative_test(
     session, temp_stage, temp_target_directory, path1, local_testing_mode
@@ -616,7 +605,6 @@ def test_get_negative_test(
         shutil.rmtree("not_exist_target_test")
 
 
-@pytest.mark.localtest
 @pytest.mark.skip(
     "Python connector doesn't have COLLISION in the result"
     "This error sometimes happen probably because python-connector doesn't handle file conflict well."
@@ -645,7 +633,6 @@ def test_get_negative_test_file_name_collision(
             shutil.rmtree(target_directory)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("auto_compress", [True, False])
 @pytest.mark.parametrize("with_file_prefix", [True, False])
 def test_get_stream(
@@ -671,7 +658,6 @@ def test_get_stream(
     fd.close()
 
 
-@pytest.mark.localtest
 def test_get_stream_negative(session, temp_stage):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
@@ -691,7 +677,6 @@ def test_get_stream_negative(session, temp_stage):
     assert "the file does not exist" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_quoted_local_file_name(
     session, temp_stage, tmp_path_factory, local_testing_mode
 ):
@@ -727,7 +712,6 @@ def test_quoted_local_file_name(
             shutil.rmtree(special_directory)
 
 
-@pytest.mark.localtest
 def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     temp_stage = "s peci'al chars"
