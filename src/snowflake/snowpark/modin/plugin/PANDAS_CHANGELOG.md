@@ -2,12 +2,7 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
-- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
-
-### Behavior Changes
-- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
-- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
 ## 1.15.0a1 (2024-07-05)
 
@@ -20,6 +15,7 @@
 - Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
 - Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
 - Fixed binary operations with single-row DataFrame and Series.
+- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 
 ### Behavior Changes
 - Raise not implemented error instead of fallback to pandas in the following APIs:
@@ -53,6 +49,8 @@
   - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
   Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
+- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
+- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
 ### Improvements
 - Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
