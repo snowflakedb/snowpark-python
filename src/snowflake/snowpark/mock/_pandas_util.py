@@ -138,6 +138,8 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Period):
                 # snowflake returns the ordinal of a period object
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].ordinal
+            elif isinstance(plain_data[row_idx][col_idx], type(pd.NaT)):
+                plain_data[row_idx][col_idx] = None
             else:
                 previous_inferred_type = inferred_type_dict.get(col_idx)
                 data_type = infer_type(plain_data[row_idx][col_idx])
