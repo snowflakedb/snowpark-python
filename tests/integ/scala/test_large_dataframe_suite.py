@@ -92,6 +92,11 @@ def test_limit_on_order_by(session, is_sample_data_available):
         assert int(e1[0]) < int(e2[0])
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="This is testing SQL generation.",
+    run=False,
+)
 @pytest.mark.parametrize("use_scoped_temp_objects", [True, False])
 def test_create_dataframe_for_large_values_check_plan(session, use_scoped_temp_objects):
     origin_use_scoped_temp_objects_setting = session._use_scoped_temp_objects
@@ -185,6 +190,10 @@ def test_create_dataframe_for_large_values_basic_types(session):
 
 
 # TODO: enable for local testing after emulating sf data types
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_create_dataframe_for_large_values_array_map_variant(session):
     schema = StructType(
         [
