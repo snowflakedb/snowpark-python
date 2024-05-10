@@ -40,15 +40,15 @@ def test_qcut_non_series(x, q):
 @pytest.mark.parametrize(
     "n,q,expected_query_count",
     [
-        (5, 1, 1),
-        (100, 1, 1),
-        (1000, 1, 11),
-        (5, 10, 2),
-        (100, 10, 2),
-        (1000, 10, 22),
-        (5, 47, 2),
-        (100, 47, 2),
-        (1000, 47, 22),
+        (5, 1, 2),
+        (100, 1, 2),
+        (1000, 1, 12),
+        (5, 10, 3),
+        (100, 10, 3),
+        (1000, 10, 18),
+        (5, 47, 3),
+        (100, 47, 3),
+        (1000, 47, 18),
         # TODO: SNOW-1229442
         # qcut was significantly optimized with SNOW-1368640 and SNOW-1370365, but still
         # cannot compute 10k q values in a reasonable amount of time.
@@ -87,21 +87,33 @@ def test_qcut_series_non_range_data(data, q):
 
 @pytest.mark.parametrize("n,expected_query_count", [(5, 1), (100, 1), (1000, 6)])
 @pytest.mark.parametrize("q", [1, 10, 47, 10000])
-def test_qcut_series_with_none_labels(n, q, expected_query_count):
+@sql_count_checker(query_count=0)
+def test_qcut_series_with_none_labels_negative(n, q, expected_query_count):
 
     native_ans = native_pd.qcut(native_pd.Series(range(n)), q, labels=None)
 
-    # Large n can not inline everything into a single query and will instead create a temp table.
-    with SqlCounter(query_count=expected_query_count):
-        ans = pd.qcut(pd.Series(range(n)), q, labels=None)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        ),
+    ):
+        # Large n can not inline everything into a single query and will instead create a temp table.
+        with SqlCounter(query_count=expected_query_count):
+            ans = pd.qcut(pd.Series(range(n)), q, labels=None)
 
-    # assign to series to compare
-    native_ans = native_pd.Series(native_ans)
-    ans = native_pd.Series(ans)
+        # assign to series to compare
+        native_ans = native_pd.Series(native_ans)
+        ans = native_pd.Series(ans)
 
-    native_pd.testing.assert_series_equal(
-        ans, native_ans, check_exact=False, check_dtype=False, check_index_type=False
-    )
+        native_pd.testing.assert_series_equal(
+            ans,
+            native_ans,
+            check_exact=False,
+            check_dtype=False,
+            check_index_type=False,
+        )
 
 
 @pytest.mark.parametrize(
@@ -124,13 +136,13 @@ def test_qcut_series_single_element_negative(q, s):
         re_match = "Bin edges must be unique: .*"
         with pytest.raises(ValueError, match=re_match):
             native_pd.qcut(s, q, labels=False)
-        with SqlCounter(query_count=3):
+        with SqlCounter(query_count=2):
             with pytest.raises(ValueError, match=re_match):
                 pd.qcut(pd.Series(s), q, labels=False)
     else:
         native_ans = native_pd.qcut(s, q, labels=False)
 
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=1):
             ans = pd.qcut(pd.Series(s), q, labels=False)
 
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
@@ -150,7 +162,7 @@ def test_qcut_series_single_element_negative(q, s):
 def test_qcut_series_single_element(q, s):
     native_ans = native_pd.qcut(s, q, duplicates="drop", labels=False)
 
-    with SqlCounter(query_count=1 if q == 1 else 2, join_count=1):
+    with SqlCounter(query_count=2 if q == 1 else 3):
         ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
@@ -215,7 +227,7 @@ def test_qcut_list_of_values(data, q):
 
     native_ans = native_pd.qcut(native_s, q, duplicates="drop", labels=False)
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2):
         ans = pd.qcut(snow_s, q, duplicates="drop", labels=False)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
@@ -235,7 +247,7 @@ def test_qcut_list_of_values_raise_negative():
     with pytest.raises(ValueError, match=expected_msg):
         native_pd.qcut(native_s, q, duplicates="raise", labels=False)
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=1):
         with pytest.raises(ValueError, match=expected_msg):
             pd.qcut(snow_s, q, duplicates="raise", labels=False)
 
@@ -268,12 +280,7 @@ def test_qcut_invalid_quantiles_negative(q):
         snow_s.quantile(q)
 
 
-@sql_count_checker(
-    query_count=5,
-    join_count=14,
-    high_count_expected=True,
-    high_count_reason="data pipeline, to_pandas() data transfer issues many CREATE SCOPED TEMPORARY TABLE ... / INSERT INTO ... queries",
-)
+@sql_count_checker(query_count=7)
 def test_qcut_two_columns():
     # reported by Mats Stewall, applying qcut twice leads to exploding SQL query.
     # attempt finding a remedy

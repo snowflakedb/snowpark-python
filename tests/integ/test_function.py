@@ -140,6 +140,7 @@ from snowflake.snowpark.functions import (
     to_double,
     to_json,
     to_object,
+    to_varchar,
     to_variant,
     to_xml,
     translate,
@@ -323,20 +324,92 @@ def test_concat_edge_cases(session):
     ["a", col("a")],
 )
 @pytest.mark.parametrize(
-    "data, expected",
-    [(1, "1"), (True, "true")],
+    "data, fmt, expected",
+    [
+        (1, None, "1"),  # IntegerType
+        (12345.6789, None, "12345.6789"),  # FloatType
+        (
+            decimal.Decimal("12345.6789"),
+            None,
+            "12345.678900000000000000",
+        ),  # DecimalType
+        ("abc", None, "abc"),  # StringType
+        (True, None, "true"),  # BooleanType
+        (None, None, None),  # NullType
+        (b"123", None, "313233"),  # BinaryType + default hex encoding
+        (b"123", "hex", "313233"),  # BinaryType + hex encoding
+        (b"123", "base64", "MTIz"),  # BinaryType + base64 encoding
+        (b"123", "utf-8", "123"),  # BinaryType + utf-8 encoding
+    ],
 )
-def test_to_char(session, col_a, data, expected):
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_primitive_to_char(session, col_a, data, fmt, expected, convert_func):
     df = session.create_dataframe([[data]], schema=["a"])
-    res = df.select(to_char(col_a)).collect()
+    res = df.select(convert_func(col_a, fmt)).collect()
     assert res[0][0] == expected
 
 
 @pytest.mark.localtest
-def test_date_to_char(session):
-    df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
-    res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
-    assert res[0][0] == "12-21-2021"
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_date_or_time_to_char(session, convert_func):
+    # DateType
+    df = session.create_dataframe(
+        [datetime.date(2021, 12, 21), datetime.date(1969, 12, 31)], schema=["a"]
+    )
+    assert df.select(convert_func(col("a"), "mm-dd-yyyy")).collect() == [
+        Row("12-21-2021"),
+        Row("12-31-1969"),
+    ]
+    assert df.select(convert_func(col("a"))).collect() == [
+        Row("2021-12-21"),
+        Row("1969-12-31"),
+    ]
+
+    # TimeType
+    df = session.create_dataframe(
+        [datetime.time(9, 12, 56), datetime.time(22, 33, 44)], schema=["a"]
+    )
+    assert df.select(convert_func(col("a"), "mi:hh24:ss")).collect() == [
+        Row("12:09:56"),
+        Row("33:22:44"),
+    ]
+    assert df.select(convert_func(col("a"), "mi:hh12:ss AM")).collect() == [
+        Row("12:09:56 AM"),
+        Row("33:10:44 PM"),
+    ]
+    assert df.select(convert_func(col("a"))).collect() == [
+        Row("09:12:56"),
+        Row("22:33:44"),
+    ]
+
+    # TimestampType
+    df = session.create_dataframe(
+        [
+            datetime.datetime(2021, 12, 21, 9, 12, 56),
+            datetime.datetime(1969, 1, 1, 1, 1, 1),
+        ],
+        schema=["a"],
+    )
+    assert df.select(convert_func(col("a"), "mm-dd-yyyy mi:ss:hh24")).collect() == [
+        Row("12-21-2021 12:56:09"),
+        Row("01-01-1969 01:01:01"),
+    ]
+    assert df.select(convert_func(col("a"))).collect() == [
+        Row("2021-12-21 09:12:56.000"),
+        Row("1969-01-01 01:01:01.000"),
+    ]
+
+
+@pytest.mark.localtest
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_semi_structure_to_char(session, convert_func):
+    assert session.create_dataframe([1]).select(
+        convert_func(to_array(lit("Example"))),  # ArrayType
+        convert_func(to_variant(lit("Example"))),  # VariantType
+        convert_func(to_variant(lit(123))),  # VariantType
+        convert_func(to_variant(lit("123"))),  # VariantType
+        convert_func(to_object(parse_json(lit('{"Tree": "Pine"}')))),  # MapType
+    ).collect() == [Row('["Example"]', "Example", "123", "123", '{"Tree":"Pine"}')]
 
 
 @pytest.mark.skipif(
