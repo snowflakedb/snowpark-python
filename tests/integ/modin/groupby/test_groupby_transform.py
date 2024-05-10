@@ -48,7 +48,7 @@ def test_dataframe_groupby_transform(
                 as_index=as_index,
                 group_keys=group_keys,
                 sort=sort,
-            ).transform(func)
+            ).transform(func),
         )
 
 
@@ -98,7 +98,7 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
                 as_index=as_index,
                 group_keys=group_keys,
                 sort=sort,
-            ).transform(func, *args, **kwargs)
+            ).transform(func, *args, **kwargs),
         )
 
 
@@ -152,5 +152,32 @@ def test_dataframe_groupby_transform_conflicting_labels():
     eval_snowpark_pandas_result(
         *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
         transform_helper,
-        inplace=True
+        inplace=True,
+    )
+
+
+@sql_count_checker(
+    query_count=11,
+    join_count=5,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
+)
+def test_dataframe_groupby_transform_conflicting_labels_chained():
+    """
+    Based on SNOW-1361200 - The bug occurred because of conflicting UDTF columns appended during groupby transform
+    operations in `create_udtf_for_groupby_apply`.
+    This test is supposed to work correctly and match native pandas.
+    """
+
+    def transform_helper(df):
+        df1 = df.groupby("X").transform("count")
+        df2 = df1.groupby("Y").transform("count")
+        return df2
+
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9], "Z": [9, 8, 7, 6, 5, 4]}
+        ),
+        transform_helper,
     )
