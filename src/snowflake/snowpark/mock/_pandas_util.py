@@ -117,7 +117,9 @@ def _extract_schema_and_data_from_pandas_df(
                 def convert_to_python_obj(obj):
                     if isinstance(obj, numpy.float_):
                         return float(obj)
-                    elif isinstance(obj, numpy.int_):
+                    elif isinstance(obj, numpy.int64):
+                        # on Windows, numpy.int64 and numpy.int_ are different
+                        # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
                         return int(obj.value / 1000)
