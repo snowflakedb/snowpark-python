@@ -736,7 +736,7 @@ def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
     temp_stage = "s peci'al chars"
     if not local_testing_mode:
         Utils.create_stage(session, f'"{temp_stage}"', is_temporary=False)
-    # windows does not support creating dirtory with name containing '"'
+    # windows does not support creating directory with name containing '"'
     stage_with_prefix = (
         f'"{temp_stage}"/{stage_prefix}/"'
         if not IS_WINDOWS
