@@ -254,7 +254,7 @@ class DataFrame(BasePandasDataset):
         str
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        num_rows = pandas.get_option("display.max_rows") or len(self.index)
+        num_rows = pandas.get_option("display.max_rows") or len(self)
         # see _repr_html_ for comment, allow here also all column behavior
         num_cols = pandas.get_option("display.max_columns") or len(self.columns)
 
