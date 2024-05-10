@@ -8,12 +8,23 @@
 
 ### Local Testing Updates
 
+#### New Features
+
+- Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
+- Added support for DecimalType, BinaryType, ArrayType, MapType, TimestampType, DateType and TimeType data conversion in the mocked function `to_char`.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions:
+    - to_varchar
+
 #### Bug Fixes
 
 - Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
 - Fixed a bug that when there is `None` value in arithmetic calculation, the output should remain `None` instead of `math.nan`.
 - Fixed a bug in function `sum` and `covar_pop` that when there is `math.nan` in the data, the output should also be `math.nan`.
 - Fixed a bug that stage operation can not handle directories.
+- Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
+- Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
+- Fixed a bug that when processing datetime format, fractional second part is not handled properly.
 
 ## 1.16.0 (TBD)
 

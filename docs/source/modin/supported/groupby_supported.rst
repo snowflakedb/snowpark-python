@@ -41,9 +41,7 @@ Function application
 | ``apply``                   | P                               | ``axis`` other than 0 is not     | ``Y`` if the following are true, otherwise ``N``:  |
 |                             |                                 | implemented.                     |   - ``func`` is a callable that always returns     |
 |                             |                                 |                                  |     either a pandas DataFrame, a pandas Series, or |
-|                             |                                 | ``SeriesGroupBy.apply`` is not   |     objects that are neither DataFrame nor Series. |
-|                             |                                 | implemented.                     |   - ``apply`` called on DataFrameGroupBy, not      |
-|                             |                                 |                                  |     SeriesGroupBy                                  |
+|                             |                                 |                                  |     objects that are neither DataFrame nor Series. |
 |                             |                                 |                                  |   - grouping on axis=0                             |
 |                             |                                 |                                  |   - Not applying transform to a dataframe with a   |
 |                             |                                 |                                  |     non-unique index                               |
@@ -58,6 +56,9 @@ Function application
 |                             |                                 |                                  |     row at a given position                        |
 |                             |                                 |                                  |   - Not applying ``func`` that returns two         |
 |                             |                                 |                                  |     Series that have different names               |
+|                             |                                 |                                  |   - Not grouping by an "external" by, i.e. an      |
+|                             |                                 |                                  |     object that is not a label for a column or     |
+|                             |                                 |                                  |     level of the dataframe                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``filter``                  | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
