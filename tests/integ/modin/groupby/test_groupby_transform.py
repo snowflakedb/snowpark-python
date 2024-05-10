@@ -2,11 +2,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pytest
 
-from tests.integ.modin.sql_counter import SqlCounter
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
 @pytest.mark.parametrize("dropna", [True, False])
@@ -98,3 +100,57 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
                 sort=sort,
             ).transform(func, *args, **kwargs)
         )
+
+
+@sql_count_checker(
+    query_count=9,
+    join_count=4,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="performing two groupby transform operations that use UDTFs",
+)
+def test_dataframe_groupby_transform_conflicting_labels_negative():
+    """
+    Based on SNOW-1361200 - The bug occurred because of conflicting UDTF columns appended during groupby transform
+    operations in `create_udtf_for_groupby_apply`.
+    This test is supposed to raise NotImplementedError because it's supposed to have pandas labels that
+    conflict with each other, not Snowflake column labels.
+    """
+    df = pd.DataFrame({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]})
+    df["X_DATA"] = df["X"]
+    df["A"] = df.groupby("X")["X_DATA"].transform("count")
+    err_msg = (
+        "No support for applying a function that returns two dataframes that have different labels for the"
+        " column at a given position, a function that returns two dataframes that have different column index"
+        " names, or a function that returns two series with different names or conflicting labels for the row"
+        " at a given position."
+    )
+    with pytest.raises(NotImplementedError, match=err_msg):
+        df["B"] = df.groupby("X")["X_DATA"].transform("cumcount")
+        pd.show(df)
+
+
+@sql_count_checker(
+    query_count=11,
+    join_count=10,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
+)
+def test_dataframe_groupby_transform_conflicting_labels():
+    """
+    Based on SNOW-1361200 - The bug occurred because of conflicting UDTF columns appended during groupby transform
+    operations in `create_udtf_for_groupby_apply`.
+    This test is supposed to work correctly and match native pandas.
+    """
+
+    def transform_helper(df):
+        df["X_DATA"] = df["X"]
+        df["A"] = df.groupby("X")["X_DATA"].transform("count")
+        df["B"] = df.groupby("X")["X_DATA"].transform("count")
+
+    eval_snowpark_pandas_result(
+        *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
+        transform_helper,
+        inplace=True
+    )

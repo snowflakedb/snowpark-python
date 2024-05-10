@@ -47,8 +47,6 @@ from snowflake.snowpark.window import Window
 
 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER = '"LABEL"'
 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER = '"VALUE"'
-APPLY_ORIGINAL_ROW_POSITION_COLUMN_QUOTED_IDENTIFIER = '"ORIGINAL_ROW_POSITION"'
-APPLY_ROW_POSITION_WITHIN_GROUP_COLUMN_QUOTED_IDENTIFIER = '"ROW_POSITION_WITHIN_GROUP"'
 APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION_QUOTED_IDENTIFIER = (
     '"FIRST_GROUP_KEY_OCCURRENCE_POSITION"'
 )
@@ -614,15 +612,19 @@ def create_udtf_for_groupby_apply(
         # ...then the data columns for the input dataframe or series.
         *input_data_column_types,
     ]
+    # Random number generator to create a number to append to column names for UDTF.
+    # Need to generate this since a collision with "ROW_POSITION_WITHIN_GROUP" and "ORIGINAL_ROW_POSITON"
+    # occurs when two groupby transform/apply operations are performed on the same DataFrame.
+    rng = np.random.default_rng()
     return udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
             [
                 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_ROW_POSITION_WITHIN_GROUP_COLUMN_QUOTED_IDENTIFIER,
+                f'"ROW_POSITION_WITHIN_GROUP_{str(rng.random(size=1))}"',
                 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_ORIGINAL_ROW_POSITION_COLUMN_QUOTED_IDENTIFIER,
+                f'"ORIGINAL_ROW_POSITION_{str(rng.random(size=1))}"',
                 APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION_QUOTED_IDENTIFIER,
             ],
         ),
