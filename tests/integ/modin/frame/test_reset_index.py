@@ -379,7 +379,9 @@ def test_reset_index_level_duplicates(native_df_multiindex):
     snow_df_multiindex = pd.DataFrame(native_df_multiindex)
     df = snow_df_multiindex.reset_index(level=[0, "a"])
     # pandas returns None ("b" index is dropped), which is not reasonable
-    assert df.index.name == "b"
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
+    assert df.index.to_pandas().name == "b"
     assert df.columns.tolist() == ["a", "c", "d"]
 
 

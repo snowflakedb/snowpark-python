@@ -33,17 +33,21 @@ def test_df_sample_rows_n(n, ignore_index):
         n=n, ignore_index=ignore_index
     )
     assert len(sample_df) == n
-    assert_index_equal(sample_df.index, sample_df.index)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    sample_index = sample_df.index.to_pandas()
+    assert_index_equal(sample_index, sample_df.index.to_pandas())
 
 
 @pytest.mark.parametrize("frac", [0, 0.1, 0.9, 1])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_df_sample_rows_frac(frac, ignore_index):
     sample_df = pd.DataFrame(np.random.randint(100, size=(20, 20))).sample(
         frac=frac, ignore_index=ignore_index
     )
-    assert sample_df.index.is_unique
-    assert_index_equal(sample_df.index, sample_df.index)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    sample_index = sample_df.index.to_pandas()
+    assert sample_index.is_unique
+    assert_index_equal(sample_index, sample_df.index.to_pandas())
 
 
 @pytest.mark.parametrize(

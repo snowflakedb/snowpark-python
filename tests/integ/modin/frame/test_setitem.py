@@ -443,8 +443,8 @@ def test_df_setitem_with_unique_and_duplicate_index_values(
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index)
-    native_df2 = native_pd.DataFrame(data2, index=other_index)
+    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
+    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
 
     def setitem_op(df):
         df["foo2"] = (

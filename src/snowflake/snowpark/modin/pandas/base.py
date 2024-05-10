@@ -1470,7 +1470,8 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             raise ValueError("invalid how option: %s" % how)
         if subset is not None:
             if axis == 1:
-                indices = self.index.get_indexer_for(subset)
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                indices = self.index.to_pandas().get_indexer_for(subset)
                 check = indices == -1
                 if check.any():
                     raise KeyError(list(np.compress(check, subset)))

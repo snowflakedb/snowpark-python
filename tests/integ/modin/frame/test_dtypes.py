@@ -472,7 +472,8 @@ def test_empty_index(index, expected_index_dtype):
     assert expected.index.dtype == expected_index_dtype
     created = pd.Series(data=[], index=index)
     assert created.dtype == np.dtype("object")
-    assert created.index.dtype == expected_index_dtype
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert created.index.to_pandas().dtype == expected_index_dtype
     roundtripped = created.to_pandas()
     assert roundtripped.dtype == np.dtype("object")
     assert roundtripped.index.dtype == expected_index_dtype

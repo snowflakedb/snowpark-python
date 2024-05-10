@@ -866,7 +866,10 @@ def get_valid_col_positions_from_col_labels(
             )
             col_loc = col_loc.index
             # get the position of the selected labels
-            return [pos for pos, label in enumerate(columns) if label in col_loc]
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            return [
+                pos for pos, label in enumerate(columns) if label in col_loc.to_pandas()
+            ]
         else:
             # for other series, convert to list and process later
             col_loc = col_loc.to_pandas().iloc[:, 0].to_list()
