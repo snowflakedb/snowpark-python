@@ -67,7 +67,7 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``agg``                     | P                               | ``margins``, ``observed``,       | If ``axis == 0``: ``Y`` when  function is one of   |
 |                             |                                 | ``sort``                         | ``count``, ``mean``, ``min``, ``max``, ``sum``,    |
-|                             |                                 |                                  |``median``; ``std`` and ``var`` supported with      |
+|                             |                                 |                                  | ``median``; ``std`` and ``var`` supported with     |
 |                             |                                 |                                  | ``ddof=0`` or ``ddof=1``; ``quantile`` is          |
 |                             |                                 |                                  | supported when ``q`` is the default value or a     |
 |                             |                                 |                                  | scalar.                                            |
