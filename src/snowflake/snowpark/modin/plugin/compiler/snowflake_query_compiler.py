@@ -3,6 +3,7 @@
 #
 import functools
 import itertools
+import json
 import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -69,6 +70,7 @@ from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.functions import (
     abs as abs_,
+    array_construct,
     builtin,
     cast,
     coalesce,
@@ -208,7 +210,6 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinKeyCoalesceConfig,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
     OrderedDataFrame,
     OrderingColumn,
 )
@@ -308,6 +309,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    DoubleType,
     FloatType,
     IntegerType,
     MapType,
@@ -326,7 +328,7 @@ from snowflake.snowpark.window import Window
 _logger = logging.getLogger(__name__)
 
 # TODO: SNOW-1229442 remove this restriction once bug in quantile is fixed.
-# For now, limit number of quantiles supported in pd.qcut, df.quantiles to avoid producing recursion limit failure in Snowpark.
+# For now, limit number of quantiles supported df.quantiles to avoid producing recursion limit failure in Snowpark.
 MAX_QUANTILES_SUPPORTED: int = 16
 
 
@@ -2838,6 +2840,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 snowflake_type_map[quoted_identifier]
                 for quoted_identifier in by_snowflake_quoted_identifiers_list
             ],
+            existing_identifiers=self._modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
@@ -12065,129 +12068,81 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Construct bins from quantiles.
         # First step is to transform the quantiles given as a list of float values in q to values according to the data.
-        qc_quantiles = self._quantiles_single_col(q, "linear", index_dtype=float)
+        # We add a new ARRAY column 'quantiles' with quantile values.
+        data_column = col(self._modin_frame.data_column_snowflake_quoted_identifiers[0])
+        frame = self._modin_frame.append_column(
+            "quantiles",
+            array_construct(
+                *[
+                    builtin("percentile_cont")(pandas_lit(quantile))
+                    .within_group(data_column)
+                    .over()
+                    .cast(DoubleType())
+                    for quantile in q
+                ]
+            ),
+        )
+        quantile_column_snowlake_identifier = (
+            frame.data_column_snowflake_quoted_identifiers[-1]
+        )
         # There are two behaviors here:
         # - If duplicates = 'raise', check if there are duplicates and raise an error.
         # - If drop, ignore and continue with distinct quantile values.
 
+        # Note: This eager query can be avoided for case duplicates = 'drop' by using a
+        # combination of higher-order function FILTER and ARRAY_POSITION. But FILTER
+        # is not yet supported in snowpark.
+        # TODO SNOW-1375054: perform this eager query only when dupliates = 'raise'
+        # For duplicates = 'drop' calcuate qcut lazily using ARRAY_POSITION(FILTER(...))
+
+        # Try to fetch 2 rows from the dataframe. We use number of rows returned here
+        # to determine if the frame has single element or is empty.
+        first_two_rows = (
+            frame.ordered_dataframe.select(quantile_column_snowlake_identifier)
+            .limit(2)
+            .collect()
+        )
+        # Array is returned as serialied json. Create list from serialized string.
+        quantiles = json.loads(first_two_rows[0][0])
+
         if duplicates == "raise":
-            # Check if there are duplicates by issuing an extra query, and raise if so.
+            # Check if there are duplicates, and raise if so.
             # If not, proceed and assume quantiles to be duplicate free.
-
-            # Note: This could be done with one query, same logic should be reused for Series.is_unique().
-            n_unique = qc_quantiles.nunique(dropna=False, axis=0).to_numpy().ravel()[0]
-
+            n_unique = len(set(quantiles))
             if n_unique != len(q):
-
                 # if self has a single element or is empty, duplicates are ok - even for 'raise'.
-                if self.get_axis_len(0) > 1:
-                    arr = qc_quantiles.to_numpy().ravel()
+                if len(first_two_rows) > 1:
                     # throw Pandas compatible error message
                     raise ValueError(
-                        f"Bin edges must be unique: {repr(arr)}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg"
+                        f"Bin edges must be unique: {quantiles}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg"
                     )
 
         # other duplicates case ('drop') is handled here.
-        qc_unique_quantiles = qc_quantiles.unique()
+        unique_quantiles = list(dict.fromkeys(quantiles))
 
-        # There will be 0, ..., len(qc_unique_quantiles) - 1 cuts, result will be thus in this range.
-        # We can find for values the cut they belong to by performing a left <= join. As this feature is not supported
-        # within OrderedDataFrame yet, we use the Snowpark layer directly. This should have no negative
-        # consequences when it comes to building lazy graphs, as qcut is a materializing operation.
-
-        quantile_frame = qc_unique_quantiles._modin_frame.ensure_row_position_column()
-        value_frame = self._modin_frame.ensure_row_position_column()
-
-        (
-            quantile_data_identifier,
-            quantile_row_position_identifier,
-            value_data_identifier,
-            value_row_position_identifier,
-        ) = value_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=["q_data", "q_row_pos", "v_data", "v_row_pos"]
-        )
-
-        value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
-
-        quantile_snowpark_frame = (
-            quantile_frame.ordered_dataframe.to_projected_snowpark_dataframe(
-                True, True, True
+        # There will be 0, ..., len(unique_quantiles) - 1 cuts, result will be thus in this range.
+        # We can find for values the cut they belong to by comparing against quantiled values.
+        case_expr: Optional[CaseExpr] = None
+        for index, quantile in enumerate(unique_quantiles):
+            bin = max(index - 1, 0)
+            cond = data_column <= quantile
+            case_expr = (
+                when(cond, bin) if case_expr is None else case_expr.when(cond, bin)
             )
-        )
-        value_snowpark_frame = (
-            value_frame.ordered_dataframe.to_projected_snowpark_dataframe(
-                True, True, True
-            )
+        case_expr = (
+            case_expr.otherwise(None) if case_expr is not None else pandas_lit(None)
         )
 
-        # relabel to new identifiers to reference within range join below.
-        quantile_snowpark_frame = quantile_snowpark_frame.select(
-            col(quantile_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-                quantile_data_identifier
-            ),
-            col(quantile_frame.row_position_snowflake_quoted_identifier).as_(
-                quantile_row_position_identifier
-            ),
-        )
-
-        value_snowpark_frame = value_snowpark_frame.select(
-            *tuple(value_index_identifiers),
-            col(value_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-                value_data_identifier
-            ),
-            col(value_frame.row_position_snowflake_quoted_identifier).as_(
-                value_row_position_identifier
-            ),
-        )
-
-        # Perform a left join. The idea is to find all values which fall into an interval defined by the quantiles
-        # in quantile. The closest can be then identified using the row position. An alternative to this
-        # was to use an ASOF join with a proper matching condition.
-        ans = value_snowpark_frame.join(
-            quantile_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            <= quantile_snowpark_frame[quantile_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
-
-        # Result will be v_row_pos and min(q_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval. Therefore, floor it with 0.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier]
-        ).min(quantile_row_position_identifier)
-        column_names = ans.columns
-        ans = ans.select(
-            *tuple(value_index_identifiers),
-            col(value_row_position_identifier),
-            iff(  # floor result here to 0.
-                col(column_names[-1]) != pandas_lit(0),
-                col(column_names[-1]) - pandas_lit(1),
-                col(column_names[-1]),
-            ),
-        )
-        column_names = ans.columns
-        new_data_identifier = column_names[-1]
-
-        # Create OrderedDataFrame and InternalFrame and QC out of this.
-        # Need to restore index as well which has been passed through.
-        new_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(ans),
-            projected_column_snowflake_quoted_identifiers=value_index_identifiers
-            + [new_data_identifier],
-            ordering_columns=[OrderingColumn(value_row_position_identifier)],
-            row_position_snowflake_quoted_identifier=value_row_position_identifier,
-        )
+        frame = frame.append_column("qcut_bin", case_expr)
+        new_data_identifier = frame.data_column_snowflake_quoted_identifiers[-1]
 
         new_frame = InternalFrame.create(
-            ordered_dataframe=new_ordered_dataframe,
+            ordered_dataframe=frame.ordered_dataframe,
             data_column_pandas_labels=self._modin_frame.data_column_pandas_labels,
             data_column_pandas_index_names=self._modin_frame.data_column_index_names,
             data_column_snowflake_quoted_identifiers=[new_data_identifier],
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=value_index_identifiers,
+            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
         )
 
         return SnowflakeQueryCompiler(new_frame)

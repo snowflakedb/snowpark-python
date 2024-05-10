@@ -3,13 +3,16 @@
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
 - Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
+- Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
 ### Improvements
-- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
+- Improved performance for `Series.quantile` and `Series.describe`. 
+- Improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
+- Improved performance of `pd.qcut` by removing joins in generated sql query.
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
