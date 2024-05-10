@@ -3,6 +3,7 @@ include CHANGELOG.md
 include LICENSE.txt
 include NOTICE
 recursive-include src/snowflake/snowpark py.typed *.py
+recursive-include src/snowflake/snowpark *.proto
 
 exclude .pre-commit-config.yaml
 exclude CONTRIBUTING.md
