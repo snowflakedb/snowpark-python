@@ -2107,6 +2107,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         groupby: Group Series/DataFrame by mapping, function, label, or list of labels.
         asfreq: Reindex a Series/DataFrame with the given frequency without grouping.
 
+        Notes
+        -----
+        DataFrame/Series.resample only support frequencies "second", "minute", "hour", and "day" in conjunction
+        with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill".
+
         Examples
         --------
         >>> index = pd.date_range('1/1/2000', periods=9, freq='min')
