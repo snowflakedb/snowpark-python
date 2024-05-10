@@ -11,6 +11,8 @@
 - Added support for the following APIs:
   - snowflake.snowpark.functions:
     - to_varchar
+  - snowflake.snowpark.DataFrame:
+    - pivot
 
 #### Bug Fixes
 
