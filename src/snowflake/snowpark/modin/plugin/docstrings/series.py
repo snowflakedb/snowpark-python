@@ -1107,6 +1107,11 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         Encode the object as an enumerated type or categorical variable.
         """
 
+    def case_when():
+        """
+        Replace values where the conditions are True.
+        """
+
     def fillna():
         # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """

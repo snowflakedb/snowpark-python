@@ -1018,6 +1018,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
+    def map():
+        """
+        Apply a function to `BasePandasDataset elementwise.
+        """
+
     def mask():
         """
         Replace values where the condition is True.
