@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkUploadFileException,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, TestFiles, Utils
 
 
 def random_alphanumeric_name():
@@ -736,7 +736,12 @@ def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
     temp_stage = "s peci'al chars"
     if not local_testing_mode:
         Utils.create_stage(session, f'"{temp_stage}"', is_temporary=False)
-    stage_with_prefix = f'"{temp_stage}"/{stage_prefix}/"'
+    # windows does not support creating dirtory with name containing '"'
+    stage_with_prefix = (
+        f'"{temp_stage}"/{stage_prefix}/"'
+        if not IS_WINDOWS
+        else f'"{temp_stage}"/{stage_prefix}/dir'
+    )
     special_directory = tmp_path_factory.mktemp("dir !_")
     try:
         special_path1 = special_directory.joinpath("file_!.txt")
