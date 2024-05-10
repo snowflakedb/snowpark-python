@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed issues with concat with index and column alignment that impacted datasets loaded from file
 
 ## 1.15.0a1 (2024-07-05)
 
