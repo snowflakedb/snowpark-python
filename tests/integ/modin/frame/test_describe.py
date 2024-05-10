@@ -350,4 +350,5 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
 def test_describe_object_file(resources_path):
     test_files = TestFiles(resources_path)
     df = pd.read_csv(test_files.test_concat_file1_csv)
-    eval_snowpark_pandas_result("pd", "native_pd", df.describe(include="O"))
+    native_df = df.to_pandas()
+    eval_snowpark_pandas_result(df, native_df, lambda x: x.describe(include="O"))
