@@ -177,6 +177,7 @@ class TestWithGlobalSettings:
         native_str = repr(self.native_df)
 
         assert snow_str == native_str
+        self.teardown_class()
 
     def test_with_max_rows_none(self):
         native_pd.set_option("display.max_rows", None)
@@ -187,6 +188,7 @@ class TestWithGlobalSettings:
         native_str = repr(self.native_df)
 
         assert snow_str == native_str
+        self.teardown_class()
 
     def test_with_max_columns_none(self):
         native_pd.set_option("display.max_columns", None)
