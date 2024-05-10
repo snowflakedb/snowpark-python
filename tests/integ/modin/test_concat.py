@@ -363,7 +363,7 @@ def test_concat_invalid_type_negative(df1):
         _concat_operation([df1, "abc"], [df1.to_pandas(), "abc"]),
         expect_exception=True,
         expect_exception_type=TypeError,
-        expect_exception_match="cannot concatenate object of type '<class 'str' '; only Series and DataFrame objs are valid",
+        expect_exception_match="cannot concatenate object of type '<class 'str'>'; only Series and DataFrame objs are valid",
     )
 
 
