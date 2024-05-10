@@ -87,21 +87,33 @@ def test_qcut_series_non_range_data(data, q):
 
 @pytest.mark.parametrize("n,expected_query_count", [(5, 1), (100, 1), (1000, 6)])
 @pytest.mark.parametrize("q", [1, 10, 47, 10000])
-def test_qcut_series_with_none_labels(n, q, expected_query_count):
+@sql_count_checker(query_count=0)
+def test_qcut_series_with_none_labels_negative(n, q, expected_query_count):
 
     native_ans = native_pd.qcut(native_pd.Series(range(n)), q, labels=None)
 
-    # Large n can not inline everything into a single query and will instead create a temp table.
-    with SqlCounter(query_count=expected_query_count):
-        ans = pd.qcut(pd.Series(range(n)), q, labels=None)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        ),
+    ):
+        # Large n can not inline everything into a single query and will instead create a temp table.
+        with SqlCounter(query_count=expected_query_count):
+            ans = pd.qcut(pd.Series(range(n)), q, labels=None)
 
-    # assign to series to compare
-    native_ans = native_pd.Series(native_ans)
-    ans = native_pd.Series(ans)
+        # assign to series to compare
+        native_ans = native_pd.Series(native_ans)
+        ans = native_pd.Series(ans)
 
-    native_pd.testing.assert_series_equal(
-        ans, native_ans, check_exact=False, check_dtype=False, check_index_type=False
-    )
+        native_pd.testing.assert_series_equal(
+            ans,
+            native_ans,
+            check_exact=False,
+            check_dtype=False,
+            check_index_type=False,
+        )
 
 
 @pytest.mark.parametrize(
