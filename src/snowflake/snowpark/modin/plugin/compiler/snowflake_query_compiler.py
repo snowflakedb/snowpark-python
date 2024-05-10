@@ -4980,10 +4980,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
         index_columns = self._modin_frame.index_column_snowflake_quoted_identifiers
-        index_columns_same = all(
+        index_columns_different = not all(
             f.index_column_snowflake_quoted_identifiers == index_columns for f in frames
         )
-        if len({f.num_index_columns for f in frames}) > 1 or not index_columns_same:
+        is_mixed_index_multiindex = len({f.num_index_columns for f in frames}) > 1
+        is_multiindex = any(f.num_index_columns > 1 for f in frames)
+
+        if is_mixed_index_multiindex or (not is_multiindex and index_columns_different):
             # If ignore_index is True on axis = 0 we fix index compatibility by doing
             # reset and drop all indices.
             if axis == 0 and ignore_index:
