@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 
 ### Improvements
 - Improved performance of `pd.qcut` by removing joins in generated sql query.

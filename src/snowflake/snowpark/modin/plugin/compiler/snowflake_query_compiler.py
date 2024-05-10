@@ -2840,6 +2840,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 snowflake_type_map[quoted_identifier]
                 for quoted_identifier in by_snowflake_quoted_identifiers_list
             ],
+            existing_identifiers=self._modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
