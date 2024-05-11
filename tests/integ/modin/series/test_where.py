@@ -120,10 +120,14 @@ def test_series_where_with_series_cond_single_index_different_names():
     cond = [False, True, False]
 
     snow_ser = pd.Series(data, index=pd.Index(["a", "b", "c"], name="Y"))
-    native_ser = native_pd.Series(data, index=pd.Index(["a", "b", "c"], name="Y"))
+    native_ser = native_pd.Series(
+        data, index=native_pd.Index(["a", "b", "c"], name="Y")
+    )
 
     cond_snow_ser = pd.Series(cond, index=pd.Index(["a", "b", "c"], name="X"))
-    cond_native_ser = native_pd.Series(cond, index=pd.Index(["a", "b", "c"], name="X"))
+    cond_native_ser = native_pd.Series(
+        cond, index=native_pd.Index(["a", "b", "c"], name="X")
+    )
 
     eval_snowpark_pandas_result(
         snow_ser,
@@ -140,12 +144,13 @@ def test_series_where_with_duplicated_index_aligned():
     data = [1, 2, 3]
     cond = [False, True, False]
     index = pd.Index(["a", "a", "c"], name="index")
+    native_index = native_pd.Index(["a", "a", "c"], name="index")
 
     snow_ser = pd.Series(data, index=index)
-    native_ser = native_pd.Series(data, index=index)
+    native_ser = native_pd.Series(data, index=native_index)
 
     cond_snow_ser = pd.Series(cond, index=index)
-    cond_native_ser = native_pd.Series(cond, index=index)
+    cond_native_ser = native_pd.Series(cond, index=native_index)
 
     eval_snowpark_pandas_result(
         snow_ser,

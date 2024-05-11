@@ -149,8 +149,8 @@ class Series(BasePandasDataset):
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
-                        data=data,
                         # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        data=data.to_pandas() if isinstance(data, pd.Index) else data,
                         index=index.to_pandas()
                         if isinstance(index, pd.Index)
                         else index,
@@ -646,6 +646,9 @@ class Series(BasePandasDataset):
             # With __setitem__, the length of the value must match length of the key. Currently, loc setitem can
             # handle this with boolean keys.
 
+            if isinstance(key, pd.Index):
+                key = key.to_pandas()
+
             # Convert list-like keys to Series.
             if not isinstance(key, pd.Series) and is_list_like(key):
                 key = pd.Series(key)
@@ -668,6 +671,9 @@ class Series(BasePandasDataset):
             self._update_inplace(new_query_compiler=new_qc)
 
         else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(key, pd.Index):
+                key = key.to_pandas()
             self.loc[key] = value
 
     def __sub__(self, right):
