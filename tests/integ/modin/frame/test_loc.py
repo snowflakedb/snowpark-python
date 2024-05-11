@@ -124,7 +124,7 @@ ITEM_TYPE_LIST_CONVERSION = [
     ["list", lambda x: x],
     ["array", lambda x: np.array(x)],
     ["tuple", lambda x: tuple(x)],
-    ["index", lambda x: native_pd.Index(x)],
+    ["index", lambda x: pd.Index(x)],
 ]
 
 
@@ -914,11 +914,13 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
     )
 
     # test case for df.loc[row_key] = item
-    def key_converter(key):
+    def key_converter(key, df):
         # Convert key to the required type.
         _key = key
         if key_type == "index":
-            _key = pd.Index(key)
+            _key = (
+                pd.Index(key) if isinstance(df, pd.DataFrame) else native_pd.Index(key)
+            )
         elif key_type == "array":
             _key = np.array(key)
         return _key
@@ -928,15 +930,15 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
             if (0 < len(row_key) != len(df)) and is_bool(row_key[0]):
                 # pandas raises IndexError if length of like-like boolean row key is not equal to the number of rows.
                 with pytest.raises(IndexError, match="Boolean index has wrong length"):
-                    df.loc[key_converter(row_key)] = item
-                _row_key = key_converter(row_key + [False] * (len(df) - len(row_key)))[
-                    : len(df)
-                ]
+                    df.loc[key_converter(row_key, df)] = item
+                _row_key = key_converter(
+                    row_key + [False] * (len(df) - len(row_key)), df
+                )[: len(df)]
             else:
-                _row_key = key_converter(row_key)
+                _row_key = key_converter(row_key, df)
             df.loc[_row_key] = item
         else:
-            _row_key = key_converter(row_key)
+            _row_key = key_converter(row_key, df)
             df.loc[_row_key] = pd.DataFrame(item)
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -950,15 +952,15 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
             if (0 < len(row_key) != len(df)) and is_bool(row_key[0]):
                 # pandas raises IndexError if length of like-like boolean row key is not equal to the number of rows.
                 with pytest.raises(IndexError, match="Boolean index has wrong length"):
-                    df.loc[key_converter(row_key)] = item
-                _row_key = key_converter(row_key + [False] * (len(df) - len(row_key)))[
-                    : len(df)
-                ]
+                    df.loc[key_converter(row_key, df)] = item
+                _row_key = key_converter(
+                    row_key + [False] * (len(df) - len(row_key)), df
+                )[: len(df)]
             else:
-                _row_key = key_converter(row_key)
+                _row_key = key_converter(row_key, df)
             df.loc[_row_key, :] = item
         else:
-            _row_key = key_converter(row_key)
+            _row_key = key_converter(row_key, df)
             df.loc[_row_key, :] = pd.DataFrame(item)
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -1012,8 +1014,16 @@ def test_df_loc_set_series_and_list_like_row_key_negative(key_type):
     def loc_set_helper(df):
         if isinstance(df, native_pd.DataFrame):
             with pytest.raises(KeyError, match="not in index"):
-                df.loc[row_key_with_oob] = item
-            df.loc[valid_row_key] = item
+                df.loc[
+                    row_key_with_oob.to_pandas()
+                    if isinstance(row_key_with_oob, pd.Index)
+                    else row_key_with_oob
+                ] = item
+            df.loc[
+                valid_row_key.to_pandas()
+                if isinstance(valid_row_key, pd.Index)
+                else valid_row_key
+            ] = item
         else:
             _row_key_with_oob = (
                 pd.Series(row_key_with_oob)
@@ -1028,8 +1038,19 @@ def test_df_loc_set_series_and_list_like_row_key_negative(key_type):
     def loc_set_helper(df):
         if isinstance(df, native_pd.DataFrame):
             with pytest.raises(KeyError, match="not in index"):
-                df.loc[row_key_with_oob, :] = item
-            df.loc[valid_row_key, :] = item
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                df.loc[
+                    row_key_with_oob.to_pandas()
+                    if isinstance(row_key_with_oob, pd.Index)
+                    else row_key_with_oob,
+                    :,
+                ] = item
+            df.loc[
+                valid_row_key.to_pandas()
+                if isinstance(valid_row_key, pd.Index)
+                else valid_row_key,
+                :,
+            ] = item
         else:
             _row_key_with_oob = (
                 pd.Series(row_key_with_oob)
@@ -1090,7 +1111,11 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
         _row_key = row_key
         # Convert key to the required type.
         if key_type == "index":
-            _row_key = pd.Index(_row_key)
+            _row_key = (
+                pd.Index(_row_key)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_row_key)
+            )
         elif key_type == "array":
             _row_key = np.array(_row_key)
         elif key_type == "series":
@@ -1116,7 +1141,11 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
             if isinstance(col_key, (list, native_pd.Series)) and 2 in col_key:
                 # Set the new columns to NaN values to prevent assignment of byte values.
                 df.loc[:, ["E", 1, "X", 2]] = np.nan
-            df.loc[row_key, col_key] = item
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            df.loc[
+                row_key,
+                col_key.to_pandas() if isinstance(col_key, pd.Index) else col_key,
+            ] = item
         else:
             key = (
                 row_key,
@@ -1160,7 +1189,11 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         _row_key = row_key
         # Convert key to the required type.
         if key_type == "index":
-            _row_key = pd.Index(_row_key)
+            _row_key = (
+                pd.Index(_row_key)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_row_key)
+            )
         elif key_type == "array":
             _row_key = np.array(_row_key)
         elif key_type == "series":
@@ -1175,7 +1208,11 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         # convert row key to appropriate type
         row_key = key_converter(df)
         if isinstance(df, native_pd.DataFrame):
-            df.loc[row_key, col_key] = item
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            df.loc[
+                row_key.to_pandas() if isinstance(row_key, pd.Index) else row_key,
+                col_key.to_pandas() if isinstance(col_key, pd.Index) else col_key,
+            ] = item
         else:
             key = (
                 row_key,
@@ -1192,10 +1229,21 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         isinstance(col_key, slice)
         or (
             (hasattr(col_key, "dtype") and col_key.dtype == bool)
-            or isinstance(col_key[0], bool)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            or isinstance(
+                col_key.to_pandas()[0] if isinstance(col_key, pd.Index) else col_key[0],
+                bool,
+            )
         )
         # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
-        or (df.columns.equals(df.columns.union(col_key)))
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        or (
+            df.columns.equals(
+                df.columns.union(
+                    col_key.to_pandas() if isinstance(col_key, pd.Index) else col_key
+                )
+            )
+        )
     ):
         query_count, join_count, expect_exception = 1, 4, False
     if isinstance(col_key, native_pd.Series):
@@ -1251,7 +1299,11 @@ def test_df_loc_set_general_key_with_duplicate_rows(item, key_type):
         _row_key = row_key
         # Convert key to the required type.
         if key_type == "index":
-            _row_key = pd.Index(_row_key)
+            _row_key = (
+                pd.Index(_row_key)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_row_key)
+            )
         elif key_type == "ndarray":
             _row_key = np.array(_row_key)
         elif key_type == "series":
@@ -1577,7 +1629,11 @@ def test_df_loc_get_key_bool(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=bool)
+            _key = (
+                pd.Index(_key, dtype=bool)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_key, dtype=bool)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key, dtype=bool)
         elif key_type == "series":
@@ -1920,7 +1976,11 @@ def test_df_loc_get_key_non_boolean(
         elif key_type == "index":
             # native pandas has a bug to overwrite loc result's index name to the key's index name
             # so for testing, we overwrite the index name to be the same as the index name in the main frame
-            return pd.Index(key.to_list(), name=index_name)
+            return (
+                pd.Index(key.to_list(), name=index_name)
+                if is_snow_type
+                else native_pd.Index(key.to_list(), name=index_name)
+            )
 
     # default index
     with SqlCounter(query_count=1, join_count=1):
@@ -2204,8 +2264,8 @@ def test_df_loc_get_with_non_monotonic_index_get_key_slice(key, expected_index):
     # native df cannot get the bound for non-unique labels
     with pytest.raises(KeyError):
         native_df.loc[key]
-
-    assert list(snow_df.loc[key].index) == expected_index
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert list(snow_df.loc[key].index.to_pandas()) == expected_index
 
 
 @pytest.mark.parametrize(
@@ -2496,6 +2556,9 @@ def test_df_loc_set_scalar_with_item_negative(
                 item_ = pd.DataFrame(item_value)
             elif isinstance(item_value, native_pd.Series):
                 item_ = pd.Series(item_value)
+        else:
+            if isinstance(item_value, pd.Index):
+                item_ = item_.to_pandas()
         if col_key is None:
             df.loc[row_key] = item_
         else:
@@ -2840,15 +2903,20 @@ def test_df_loc_set_with_column_wise_list_like_item(
     snow_df = pd.DataFrame(native_df)
     native_item = item
 
+    if isinstance(col_key, pd.Index):
+        col_key = col_key.to_pandas()
+
     def loc_set_helper(df):
         if isinstance(df, pd.DataFrame):
             df.loc[row_key, col_key] = item_to_type(item)
         else:
             # Native pandas does not allow enlargement with col_key ["B"] but allows enlargement with "B". Need to
             # convert ["B"] to "B" for comparison.
-            df.loc[
-                row_key, (col_key[0] if convert_list_to_string else col_key)
-            ] = item_to_type(native_item)
+            df.loc[row_key, (col_key[0] if convert_list_to_string else col_key)] = (
+                item_to_type(native_item).to_pandas()
+                if isinstance(item_to_type(native_item), pd.Index)
+                else item_to_type(native_item)
+            )
 
     convert_list_to_string = False
     if (
@@ -3005,8 +3073,11 @@ def test_df_loc_set_with_row_wise_list_like_item(
     native_item = item
 
     def loc_set_helper(df):
-        df.loc[row_key, col_key] = item_to_type(
-            item if isinstance(df, pd.DataFrame) else native_item
+        new_item = item_to_type(item if isinstance(df, pd.DataFrame) else native_item)
+        df.loc[row_key, col_key] = (
+            new_item.to_pandas()
+            if isinstance(new_item, pd.Index) and isinstance(df, native_pd.DataFrame)
+            else new_item
         )
 
     # Native pandas has different error messages depending on whether a column not present in the df is used in the
@@ -3029,7 +3100,11 @@ def test_df_loc_set_with_row_wise_list_like_item(
             # Only native pandas raises an error if a column not present in df is used when item and column key lengths
             # don't match.
             with pytest.raises(ValueError, match=err_msg):
-                native_df.loc[row_key, col_key] = item_to_type(item)
+                native_df.loc[row_key, col_key] = (
+                    item_to_type(item).to_pandas()
+                    if isinstance(item_to_type(item), pd.Index)
+                    else item_to_type(item)
+                )
             # Change item so that native pandas result matches expected Snowpark pandas result.
             native_item = (
                 item[: len(col_key)]
@@ -3049,7 +3124,11 @@ def test_df_loc_set_with_row_wise_list_like_item(
         # ValueError: shape mismatch: value array of shape (4,) could not be broadcast to indexing result of shape (2,3)
         native_err_msg = re.escape("array")
         with pytest.raises(ValueError, match=native_err_msg):
-            native_df.loc[row_key, col_key] = item_to_type(item)
+            native_df.loc[row_key, col_key] = (
+                item_to_type(item).to_pandas()
+                if isinstance(item_to_type(item), pd.Index)
+                else item_to_type(item)
+            )
         with SqlCounter(query_count=0, join_count=0):
             snowpark_err_msg = (
                 "Must have equal len keys and value when setting with an iterable"
@@ -3215,7 +3294,7 @@ def test_df_loc_set_duplicate_index_negative(index, columns, item):
         helper(native_df)
     # Snowpark pandas perform a left join behavior which leads to more rows
     helper(snow_df)
-    assert snow_df.index.to_list() == [0, 1, 1, 2, 3]
+    assert snow_df.index.to_pandas().to_list() == [0, 1, 1, 2, 3]
 
 
 @pytest.mark.parametrize(
@@ -3564,7 +3643,9 @@ def test_df_loc_set_with_empty_key_and_empty_item_negative(
         if isinstance(key, native_pd.Series) and isinstance(df, pd.DataFrame):
             df.loc[pd.Series(key)] = item
         else:
-            df.loc[key] = item
+            df.loc[key.to_pandas() if isinstance(key, pd.Index) else key] = (
+                item.to_pandas() if isinstance(item, pd.Index) else item
+            )
 
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
@@ -3594,7 +3675,7 @@ def test_series_loc_set_with_empty_key_and_scalar_item(
         if isinstance(key, native_pd.Series) and isinstance(df, pd.DataFrame):
             df.loc[pd.Series(key)] = item
         else:
-            df.loc[key] = item
+            df.loc[key.to_pandas() if isinstance(key, pd.Index) else key] = item
 
     # CASE 1: type of Snowflake column matches item type:
     # The df should not change.
@@ -3647,7 +3728,11 @@ def test_df_loc_set_with_empty_key_and_list_like_item(
         _key = key
         if isinstance(df, pd.DataFrame):
             _key = pd.Series(key) if isinstance(key, native_pd.Series) else key
-        df.loc[_key] = item
+            df.loc[_key] = item
+        else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            _key = _key.to_pandas() if isinstance(_key, pd.Index) else _key
+            df.loc[_key] = item.to_pandas() if isinstance(item, pd.Index) else item
 
     with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
@@ -3677,6 +3762,10 @@ def test_df_loc_set_with_empty_key_and_series_item_negative(
         if isinstance(df, pd.DataFrame):
             _key = pd.Series(key) if isinstance(key, native_pd.Series) else key
             _item = pd.Series(item) if isinstance(item, native_pd.Series) else item
+        else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            _key = _key.to_pandas() if isinstance(_key, pd.Index) else _key
+            _item = item.to_pandas() if isinstance(item, pd.Index) else item
         df.loc[_key] = _item
 
     with SqlCounter(query_count=0, join_count=0):

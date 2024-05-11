@@ -31,8 +31,11 @@ def test_getattr(name, expected_query_count, expected_join_count):
 
         if isinstance(snow_res, pd.Series):
             assert_series_equal(snow_res, native_res, check_dtype=False)
-        elif isinstance(snow_res, (pd.Index, native_pd.Index)):
+        elif isinstance(snow_res, native_pd.Index):
             assert_index_equal(snow_res, native_res)
+        elif isinstance(snow_res, pd.Index):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            assert_index_equal(snow_res.to_pandas(), native_res)
         elif inspect.ismethod(snow_res):
             # e.g., mean will return bound method similar to pandas
             assert inspect.ismethod(native_res)

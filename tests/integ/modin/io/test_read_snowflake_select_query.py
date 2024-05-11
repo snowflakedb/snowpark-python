@@ -244,7 +244,8 @@ def test_read_snowflake_query_with_index_col_and_columns_overlap(session):
     )
     pdf = df.to_pandas()
     assert pdf.index.dtype == np.int64
-    assert pdf.columns.equals(pd.Index(["col0", "index_col"]))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert pdf.columns.equals(pd.Index(["col0", "index_col"]).to_pandas())
     assert pdf.index.name == "index_col"
 
 
