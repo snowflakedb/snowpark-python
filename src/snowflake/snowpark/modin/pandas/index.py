@@ -91,3 +91,10 @@ class Index:
 
     def __repr__(self):
         return self.to_pandas().__repr__()
+
+    # def __iter__(self):
+    #     return self.to_pandas().__iter__()
+    #
+    # @property
+    # def ndim(self):
+    #     return 1
