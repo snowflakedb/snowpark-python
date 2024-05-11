@@ -48,10 +48,18 @@ test_dfs = [
 @pytest.mark.parametrize("test_df", test_dfs)
 @sql_count_checker(query_count=1)
 def test_axes(test_df):
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    def convert_axes_to_correct_type(df):
+        axes = df.axes
+        if isinstance(df, pd.DataFrame):
+            return [axes[0].to_pandas(), axes[1]]
+        else:
+            return axes
+
     eval_snowpark_pandas_result(
         pd.DataFrame(test_df),
         test_df,
-        lambda df: df.axes,
+        lambda df: convert_axes_to_correct_type(df),
         comparator=assert_axes_result_equal,
     )
 
@@ -62,7 +70,8 @@ def test_index(test_df):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_df),
         test_df,
-        lambda df: df.index,
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda df: df.index.to_pandas() if isinstance(df, pd.DataFrame) else df.index,
         comparator=assert_index_equal,
         # exact is set to False so that we only compare the values within the index,
         # not the dtype or class of the Index type.
@@ -80,10 +89,15 @@ def test_index(test_df):
 @sql_count_checker(query_count=8, join_count=3)
 def test_set_and_assign_index(test_df):
     def assign_index(df, keys):
-        df.index = keys
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        if not isinstance(keys, pd.Index):
+            df.index = keys
+        else:
+            df.index = keys.to_pandas()
         return df.index
 
     def set_index(df, keys):
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         df.set_index(keys)
         return df.index
 
@@ -91,14 +105,20 @@ def test_set_and_assign_index(test_df):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_df),
         test_df,
-        lambda df: assign_index(df, new_index),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda df: assign_index(df, new_index).to_pandas()
+        if isinstance(df, pd.DataFrame)
+        else assign_index(df, new_index),
         comparator=assert_index_equal,
     )
 
     eval_snowpark_pandas_result(
         pd.DataFrame(test_df),
         test_df,
-        lambda df: set_index(df, df.columns[0]),
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda df: set_index(df, df.columns[0]).to_pandas()
+        if isinstance(df, pd.DataFrame)
+        else set_index(df, df.columns[0]),
         comparator=assert_index_equal,
     )
 
@@ -245,7 +265,8 @@ def test_duplicate_labels_assignment():
     )
     snow_df.columns = ["a"]
     assert snow_df.columns.tolist() == ["a"]
-    assert snow_df.index.name == "a"
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    assert snow_df.index.to_pandas().name == "a"
 
     # Duplicate index labels
     snow_df = pd.DataFrame(
@@ -276,8 +297,8 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         native_pd.DataFrame({"A": [3.14, 1.414, 1.732], "B": [9.8, 1.0, 0]}),
         "rows",
         [None] * 3,
-        5,
-        2,
+        4,
+        1,
     ],
     [  # Labels is a MultiIndex from tuples.
         native_pd.DataFrame({"A": [1, 2, 3], -2515 / 135: [4, 5, 6]}),
@@ -286,15 +307,15 @@ TEST_DATA_FOR_DF_SET_AXIS = [
             [("r0", "rA", "rR"), ("r1", "rB", "rS"), ("r2", "rC", "rT")],
             names=["Courses", "Fee", "Random"],
         ),
-        7,
         6,
+        3,
     ],
     [
         native_pd.DataFrame({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         0,
         {1: "c", 2: "b", 3: "a"},
-        5,
-        2,
+        4,
+        1,
     ],
     [
         native_pd.DataFrame(
@@ -313,8 +334,8 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         0,
         ['"row 1"', "row 2"],
-        5,
-        2,
+        4,
+        1,
     ],
     [
         native_pd.DataFrame(
@@ -326,8 +347,8 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         "rows",
         list(range(10)),
-        5,
-        2,
+        4,
+        1,
     ],
     [
         native_pd.DataFrame(
@@ -354,8 +375,8 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         native_pd.MultiIndex.from_product(
             [["NJ", "CA"], ["temp", "precip"]], names=["number", "color"]
         ),
-        6,
-        4,
+        5,
+        2,
     ],
     # Set columns.
     [
@@ -369,7 +390,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         "columns",
         ["index"] * 4,
-        3,
+        2,
         6,
     ],
     [
@@ -384,14 +405,14 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         1,
         {99, 999, 9999, 99999, 999999},
-        3,
+        2,
         6,
     ],
     [
         native_pd.DataFrame({1: [1, 11, 111], 2: [2, 22, 222], 9: [9, 99, 999]}),
         1,
         native_pd.Index(["0", "00", "000"]),
-        3,
+        2,
         6,
     ],
     [  # Labels is a MultiIndex from arrays.
@@ -413,7 +434,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
             ],
             names=("tea", "steep time", "caffeine"),
         ),
-        3,
+        2,
         6,
     ],
     [
@@ -430,7 +451,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         1,
         list(range(6)),
-        3,
+        2,
         6,
     ],
     [
@@ -456,7 +477,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
             ],
             names=("tea", "caffeine"),
         ),
-        3,
+        2,
         6,
     ],
 ]
@@ -825,11 +846,16 @@ def test_set_axis_df_copy(native_df, axis, labels, num_queries, num_joins):
         assert snowpark_res is not None
 
         # Results should be the same for Snowpark and Native pandas.
-        assert_axes_result_equal(snowpark_res.axes, native_res.axes)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
+        snowpark_axes = snowpark_res.axes
+        if isinstance(snowpark_axes[0], pd.Index):
+            snowpark_axes = [snowpark_axes[0].to_pandas(), snowpark_axes[1]]
+        assert_axes_result_equal(snowpark_axes, native_res.axes)
 
         # Results should be different from the DataFrame on which set_axis() was performed.
         with pytest.raises(AssertionError):
-            assert_axes_result_equal(snowpark_res.axes, snowpark_df.axes)
+            assert_axes_result_equal(snowpark_axes, snowpark_df.axes)
 
 
 # Invalid input tests for DataFrame.set_axis().
@@ -931,8 +957,13 @@ def test_df_set_axis_with_quoted_index():
     native_ans = helper(native_df)
 
     with SqlCounter(query_count=1):
-        assert_axes_result_equal(ans.axes, native_ans.axes)
+        ans_axes = ans.axes
+        if isinstance(ans_axes[0], pd.Index):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            ans_axes = [ans_axes[0].to_pandas(), ans_axes[1]]
+        assert_axes_result_equal(ans_axes, native_ans.axes)
 
     assert list(native_ans.index) == labels
     with SqlCounter(query_count=1):
-        assert list(ans.index) == labels
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        assert list(ans.index.to_pandas()) == labels
