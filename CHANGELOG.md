@@ -2,9 +2,15 @@
 
 ## 1.17.0 (TBD)
 
-### Improvements
+### Snowpark API Updates
+
+#### Improvements
 
 - Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+
+### Snowpark pandas API Updates
+
+Start of Public Preview 
 
 ### Local Testing Updates
 
@@ -28,7 +34,7 @@
 - Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
 - Fixed a bug that when processing datetime format, fractional second part is not handled properly.
 
-## 1.16.0 (TBD)
+## 1.16.0 (2024-05-07)
 
 ### New Features
 
