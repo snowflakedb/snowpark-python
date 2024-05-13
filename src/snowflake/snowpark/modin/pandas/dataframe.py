@@ -244,9 +244,11 @@ class DataFrame(BasePandasDataset):
                 }
             # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             pandas_df = pandas.DataFrame(
-                data=data,
+                data=data.to_pandas() if isinstance(data, pd.Index) else data,
                 index=index.to_pandas() if isinstance(index, pd.Index) else index,
-                columns=columns,
+                columns=columns.to_pandas()
+                if isinstance(columns, pd.Index)
+                else columns,
                 dtype=dtype,
                 copy=copy,
             )
