@@ -48,7 +48,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
-from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -497,6 +496,10 @@ class Session:
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
+
+        # Import locally, to enable debugger and pex as they run into
+        # troubles resulting in a circular import.
+        from snowflake.snowpark._internal.tcm.snowpark_ast import AstBatch
 
         self._ast_batch = AstBatch(self)
 

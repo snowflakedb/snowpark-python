@@ -86,7 +86,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -509,7 +508,9 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        ast_stmt: Optional[proto.Assign] = None,
+        ast_stmt: Optional[
+            "snowflake.snowpark._internal.tcm.proto.ast_pb2.proto.Assign"
+        ] = None,
     ) -> None:
         """
         :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
@@ -1332,21 +1333,21 @@ class DataFrame:
         elif isinstance(expr, str):
             ast.sp_dataframe_filter.condition.sp_column_sql_expr.sql = expr
         else:
-            assert False, f"Unexpected type of {expr}: {type(expr)}"
+            raise TypeError(f"Unexpected type of {expr}: {type(expr)}")
 
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
                 ),
-                ast_stmt=stmt
+                ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             ),
-            ast_stmt=stmt
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -3306,22 +3307,27 @@ class DataFrame:
         query = self._plan.queries[-1].sql.strip().lower()
 
         # TODO: A little hack to prevent infinite recursion.
-        if not "snowpark_coprocessor" in query:
+        if "snowpark_coprocessor" not in query:
             # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
-            
-            print(f'Original: {self._plan.queries}')
-            print(f'AST: {self._session._ast_batch._request}')
-            
+
+            print("--- SNOWPARK SERVER SIDE ---")  # noqa: T201
+            print(f"Original: {self._plan.queries}")  # noqa: T201
+            print(f"AST: {self._session._ast_batch._request}")  # noqa: T201
+            request_id, b64_encoded_ast = self._session._ast_batch.flush()
+            print(f"Request Id: {request_id}")  # noqa: T201
+            print(f"AST (base64 encoded protobuf): {b64_encoded_ast}")  # noqa: T201
+            print("--- SNOWPARK SERVER SIDE ---")  # noqa: T201
+
             ast = self._session._ast_batch.flush()
             # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
             # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
             # print(f'Base 64: {preview_sql}')
             # self._session.sql(preview_sql).show()
             res = self._session._conn.ast_query(ast)
-            print(f"AST response: {res}")
+            print(f"AST response: {res}")  # noqa: T201
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
