@@ -87,6 +87,8 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.tcm",
+        "snowflake.snowpark._internal.tcm.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
@@ -104,8 +106,6 @@ setup(
         "snowflake.snowpark.modin.plugin.extensions",
         "snowflake.snowpark.modin.plugin.io",
         "snowflake.snowpark.modin.plugin.utils",
-        "snowflake.snowpark._internal.tcm",
-        "snowflake.snowpark._internal.tcm.proto",
     ],
     package_dir={
         "": "src",
