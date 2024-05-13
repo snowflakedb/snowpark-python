@@ -2400,6 +2400,9 @@ def test_udf_timestamp_type_hint(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDTF is not supported in Local Testing",
 )
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas is required to register vectorized UDFs"
+)
 def test_vectorized_udf_timestamp_type_hint(session):
     data = [
         [
