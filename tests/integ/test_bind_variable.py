@@ -31,7 +31,7 @@ except ImportError:
 
 pytestmark = [
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="Variable binding is a SQL feature",
         run=False,
     )
