@@ -31,7 +31,7 @@ with warnings.catch_warnings():
     from pandas import get_option  # noqa: F401
     from pandas import option_context  # noqa: F401
     from pandas import reset_option  # noqa: F401
-    from pandas import (  # noqa: F401; Index
+    from pandas import (  # noqa: F401
         NA,
         ArrowDtype,
         BooleanDtype,
