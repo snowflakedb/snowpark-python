@@ -180,7 +180,15 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         the second element is a native pandas dataframe created by forwarding
         the arguments to the pandas dataframe constructor.
     """
-    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **kwargs))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    native_kw_args = kwargs.copy()
+    if "index" in native_kw_args:
+        if isinstance(native_kw_args["index"], pd.Index):
+            native_kw_args["index"] = native_kw_args["index"].to_pandas()
+    if "columns" in native_kw_args:
+        if isinstance(native_kw_args["columns"], pd.Index):
+            native_kw_args["columns"] = native_kw_args["columns"].to_pandas()
+    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
 def create_test_series(*args, **kwargs) -> tuple[pd.Series, native_pd.Series]:

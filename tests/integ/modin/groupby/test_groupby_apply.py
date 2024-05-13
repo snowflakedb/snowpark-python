@@ -850,7 +850,7 @@ class TestFuncReturnsScalar:
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 operation(snow_df),
                 native_pd.Series(
-                    [None, None], index=pd.Index(["i0", "i1"], name="level_0")
+                    [None, None], index=native_pd.Index(["i0", "i1"], name="level_0")
                 ),
             )
         else:
@@ -935,7 +935,7 @@ class TestFuncReturnsSeries:
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
-        pandas_index = pd.Index(index, name="index")
+        pandas_index = native_pd.Index(index, name="index")
         if dropna and pandas_index.isna().all():
             pytest.xfail(
                 reason="We drop all the rows, apply the UDTF, and try to "
@@ -1094,7 +1094,10 @@ class TestSeriesGroupBy:
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2], index=["a", "a", "b"]),
             lambda s: s.groupby(
-                s.index, dropna=dropna, group_keys=group_keys, sort=sort
+                s.index.to_pandas if isinstance(s, pd.Series) else s.index,
+                dropna=dropna,
+                group_keys=group_keys,
+                sort=sort,
             ).apply(func),
         )
 
