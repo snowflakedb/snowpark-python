@@ -2,8 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
+
+import snowflake.snowpark.modin.plugin  # noqa: F401
 
 
 # modin index class, wrapper to native pandas for now
@@ -64,6 +67,9 @@ class Index:
             self._index = data
         elif isinstance(data, Index):
             self._index = data.to_pandas()
+        elif isinstance(data, (pd.DataFrame, pd.Series)):
+            self._index = data.index.to_pandas()
+            self._qc = data._query_compiler
         else:
             self._index = native_pd.Index(
                 data=data,
@@ -75,7 +81,9 @@ class Index:
         # pandas_df = native_pd.DataFrame(data=self.to_pandas())
         # from snowflake.snowpark.modin.pandas import DataFrame
         # snowpark_df = DataFrame(pandas_df)
-        # self._query_compiler =
+        self._pandas_df = self._index.to_frame()
+        # snow_df = pd.DataFrame(pandas_df)
+        # self._qc = snow_df._query_compiler
 
     def to_pandas(self):
         return self._index
