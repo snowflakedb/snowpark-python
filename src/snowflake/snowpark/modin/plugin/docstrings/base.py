@@ -1466,7 +1466,8 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         With a callable, useful in method chains. The `x` passed
         to the ``lambda`` is the DataFrame being sliced. This selects
         the rows whose index labels are even.
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
         >>> df.iloc[lambda x: x.index.to_pandas() % 2 == 0]
               a     b     c     d
         0     1     2     3     4

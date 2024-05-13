@@ -130,7 +130,8 @@ class Series(BasePandasDataset):
         if isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
-                if any(i not in data.index for i in index):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                if any(i not in data.index.to_pandas() for i in index):
                     ErrorMessage.not_implemented(
                         "Passing non-existent columns or index values to constructor "
                         + "not yet implemented."
