@@ -2277,10 +2277,11 @@ class Session:
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
 
-            If the dataframe is :class:`~snowflake.snowpark.modin.pandas.DataFrame` or :class:`~snowflake.snowpark.modin.pandas.Series`,
-            it will call :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>` or
-             :func:`snowflake.snowpark.modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>` internally
-            to write a Snowpark pandas DataFrame into a Snowflake table.
+            If the dataframe is Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            or :class:`~snowflake.snowpark.modin.pandas.Series`, it will call
+            :func:`modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
+            or :func:`modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
+            internally to write a Snowpark pandas DataFrame into a Snowflake table.
         """
         if create_temp_table:
             warning(

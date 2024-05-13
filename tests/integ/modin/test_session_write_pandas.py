@@ -111,8 +111,8 @@ def test_write_pandas_with_overwrite(
             with pytest.raises(SnowparkClientException) as ex_info:
                 session.write_pandas(pd1, "tmp_table")
             assert (
-                'Cannot write Snowpark pandas DataFrame to table "tmp_table" because it does not exist. '
-                "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
+                'Cannot write Snowpark pandas DataFrame or Series to table "tmp_table" because it does not exist. '
+                "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame or Series"
                 in str(ex_info)
             )
     finally:
@@ -171,8 +171,8 @@ def test_write_pandas(session, tmp_table_basic):
             with pytest.raises(SnowparkClientException) as ex_info:
                 session.write_pandas(df, nonexistent_table, auto_create_table=False)
                 assert (
-                    f'Cannot write Snowpark pandas DataFrame to table "{nonexistent_table}" because it does not exist. '
-                    "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
+                    f'Cannot write Snowpark pandas DataFrame or Series to table "{nonexistent_table}" because it does not exist. '
+                    "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame or Series "
                     in str(ex_info)
                 )
     finally:
