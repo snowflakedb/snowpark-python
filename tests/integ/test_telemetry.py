@@ -268,7 +268,8 @@ def test_describe_api_calls(session):
 
     empty_df = TestData.timestamp1(session).describe()
     assert empty_df._plan.api_calls == [
-        {"name": "Session.sql"},
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.select"},
         {
             "name": "DataFrame.describe",
             "subcalls": [{"name": "Session.create_dataframe[values]"}],
