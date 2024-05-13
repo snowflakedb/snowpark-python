@@ -1,4 +1,13 @@
-## 1.15.0a1 (tbd)
+## 1.16.0a1 (tbd)
+
+### Bug Fixes
+- Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
+
+### Improvements
+- Improved performance of `pd.qcut` by removing joins in generated sql query.
+
+## 1.15.0a1 (2024-07-05)
 
 ### Bug Fixes
 - Fixed overriding of subclasses' property docstrings for modin issue https://github.com/modin-project/modin/issues/7113.
@@ -9,9 +18,10 @@
 - Fixed AssertionError in `Series.sort_values` after repr and indexing operations.
 - Fixed UDTF "int64 is not serializable" errors from new Snowflake release in `apply(axis=1)`
 - Fixed binary operations with single-row DataFrame and Series.
+- Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 
 ### Behavior Changes
-- Raise not implemented error instead of fallback to pandas in following APIs:
+- Raise not implemented error instead of fallback to pandas in the following APIs:
   - `pd.merge`, `DataFrame.merge` and `DataFrame.join` if given the `validate` parameter.
   - `pd.to_numeric` if `error == 'ignore'`.
   - `pd.to_datetime` if `format` is None or not supported in Snowflake or if `exact`, `infer_datetime_format` parameters are given or `origin == 'julian'` or `error == 'ignore'`.
@@ -26,20 +36,30 @@
   - `DataFrame.nunique` if `axis == 1`
   - `DataFrame.apply` if `axis == 0` or `func` is not callable or `result_type` is given or `args` and `kwargs` contain DataFrame or Series.
   - `Series.apply` if `axis == 0` or `func` is not callable or `result_type` is given.
-  - `Series.applymap` if `na_action == 'igonre'`.
+  - `Series.applymap` if `na_action == 'ignore'`.
   - `DataFrame/Series.ffill` if given the `limit` or `downcast` parameter.
   - `DataFrame/Series.fillna` if given the `limit` or `downcast` parameter.
   - `dot` binary operation between `DataFrame/Series`.
   - `xor` binary operation between `DataFrame/Series`.
   - All `DataFrame/Series.groupby` operations if either `axis == 1`, both `by` and `level` are configured, or `by` contains any non-pandas hashable labels.
   - Series datetime accessor properties and methods `Series.dt.*`
-  - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
   - Always include the missing attribute (method, classmethod, or property) name when raising NotImplementedError.
   - `casefold`, `cat`, `decode`, `split`, `rsplit`, `get`, `join`, `get_dummies`, `pad`, `center`, `ljust`, `rjust`, `zfill`, `wrap`, `slice`, `slice_replace`, `encode`, `findall`, `match`, `extract`, `extractall`, `rstrip`, `lstrip`, `partition`, `removeprefix`, `removesuffix`, `repeat`, `rpartition`, `find`, `rfind`, `index`, `rindex`, `swapcase`, `normalize`, `translate`, `isalnum`, `isalpha`, `isspace`, `isnumeric`, and `isdecimal` for `Series.str`.
 - Removed `Series.dt.week` and `Series.dt.weekofyear` to align Snowpark pandas with the pandas 2.2.1 API.
+- In pandas 2.2.x, `df.loc` and `__setitem__` have buggy behavior in the following scenarios:
+  - A column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)).
+  - The column key has duplicates in a specific manner (https://github.com/pandas-dev/pandas/issues/58317), or
+  - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
+  Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
+- Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
+- Given an input of type `Series`, `pd.qcut` always returns a `Series`.
+- `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 
-### Behavior Changes
-- As a part of the transition to pandas 2.2.1, pandas `df.loc` and `__setitem__` have buggy behavior when a column key is used to assign a DataFrame item to a DataFrame (a scalar column key and DataFrame item are used for assignment (https://github.com/pandas-dev/pandas/issues/58482)). Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
+### Improvements
+- Improved performance for `pd.qcut`, `Series.quantile`, `Series.describe`. Also improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
+
+### New Features
+- Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
 
 ## 1.14.0a2 (2024-04-18)
 
@@ -48,17 +68,13 @@
 - The following API changes are made to align Snowpark pandas with the pandas 2.2.1 API:
   - Updated DateOffset strings to pandas 2.2.1 versions.
   - As part of this transition, we have a set of transitional API and test bugs:
-    - SNOW-1320623, SNOW-1321196 - pandas `df.loc` and `__setitem__` have buggy behavior when:
-      - the column key has duplicates in a specific manner (https://github.com/pandas-dev/pandas/issues/58317), or
-      - a new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
-      Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 2.1.x.
+    - SNOW-1320623 - `df.loc` with column keys duplicated or extra fails.
     - SNOW-1320660 - `qcut` / `cut` with bin preparation is temporarily NotImplemented due to upstream changes.
     - SNOW-1321662 - `merge` fails when join is outer and sort is False.
     - SNOW-1321682 - `df.melt` w/ duplicated cols.
     - SNOW-1318223 - `series.py::_flex_method` list-like other (`pd.Index`) may not be supported in pandas now.
     - SNOW-1321719 - `test_bitwise_operators.py` xfails.
 - Changed the dtype of the index of empty `DataFrame` and `Series` to be `int64` rather than `object` to match the behavior of pandas.
-- Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
 
 ### New Features
 - Added support for `axis` argument for `df.where` and `df.mask` when `other` is a Series.
