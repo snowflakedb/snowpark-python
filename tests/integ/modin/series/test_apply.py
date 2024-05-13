@@ -322,7 +322,6 @@ def test_apply_null_nan():
         ]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=3)
 def test_apply_json_serializable_negative():
     snow_series = pd.Series([1])
@@ -330,7 +329,7 @@ def test_apply_json_serializable_negative():
     # In Python UDF, if the return type is variant, the return value must be
     # json serializable so it can become a variant in Snowflake.
     # type() returns a type object which is not json serializable.
-    with pytest.raises(SnowparkSQLException, match="is not JSON serializable"):
+    with pytest.raises(SnowparkSQLException, match="is not serializable"):
         snow_series.apply(type).to_pandas()
 
 

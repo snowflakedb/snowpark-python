@@ -795,7 +795,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         """
         Apply function ``func`` group-wise and combine the results together.
 
-        The function passed to ``apply`` must take a dataframe as its first
+        The function passed to ``apply`` must take a dataframe or series as its first
         argument and return a DataFrame, Series or scalar. ``apply`` will
         then take care of combining the results back together into a single
         dataframe or series. ``apply`` is therefore a highly flexible
@@ -810,7 +810,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         func : callable
-            A callable that takes a dataframe as its first argument, and
+            A callable that takes a dataframe or series as its first argument, and
             returns a dataframe, a series or a scalar. In addition the
             callable may take positional and keyword arguments.
         args, kwargs : tuple and dict
