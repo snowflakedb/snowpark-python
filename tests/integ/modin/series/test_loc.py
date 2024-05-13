@@ -754,6 +754,7 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
         # Convert key and item to the required types.
         _row_key = convert_data_to_data_type(row_key, key_type)
         _item = convert_data_to_data_type(item, item_type)
+
         if isinstance(s, pd.Series):
             # Convert row key and item to Snowpark pandas if required.
             _row_key = (
@@ -762,7 +763,9 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
                 else _row_key
             )
             _item = pd.Series(_item) if isinstance(_item, native_pd.Series) else _item
+
         if isinstance(s, native_pd.Series):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             if isinstance(_row_key, pd.Index):
                 _row_key = _row_key.to_pandas()
             if isinstance(_item, pd.Index):
@@ -815,6 +818,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
     def loc_set_helper(s):
         row_key = key_converter(s)
         if isinstance(s, native_pd.Series):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             s.loc[
                 row_key.to_pandas() if isinstance(row_key, pd.Index) else row_key
             ] = item

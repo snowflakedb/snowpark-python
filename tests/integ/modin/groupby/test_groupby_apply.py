@@ -1064,10 +1064,7 @@ class TestSeriesGroupBy:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-                    index=pd.Index(
-                        ["i1", None, "i0", "i2", "i3"], name="index"
-                    ).to_pandas(),
+                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
                     columns=pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
@@ -1094,7 +1091,8 @@ class TestSeriesGroupBy:
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2], index=["a", "a", "b"]),
             lambda s: s.groupby(
-                s.index.to_pandas if isinstance(s, pd.Series) else s.index,
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                s.index.to_pandas() if isinstance(s, pd.Series) else s.index,
                 dropna=dropna,
                 group_keys=group_keys,
                 sort=sort,

@@ -534,7 +534,6 @@ class TestTimeConversionFormats:
         arg = Index(["2010-01-01 12:00:00 Z"], name="foo")
         result = to_datetime(arg, format=fmt)
         # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-
         assert result.name == arg.to_pandas().name
 
 

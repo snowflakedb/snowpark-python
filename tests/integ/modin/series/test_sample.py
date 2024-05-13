@@ -32,6 +32,7 @@ def test_series_sample_n(n, ignore_index):
 @sql_count_checker(query_count=3)
 def test_series_sample_frac(frac, ignore_index):
     s = pd.Series(range(100, 110)).sample(frac=frac, ignore_index=ignore_index)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     index = s.index.to_pandas()
     assert index.is_unique
     assert_index_equal(index, s.index.to_pandas())

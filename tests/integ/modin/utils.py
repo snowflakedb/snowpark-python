@@ -432,6 +432,7 @@ def eval_snowpark_pandas_result(
                 == snow_err_msg[: snow_err_msg.index("dtype")]
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         if isinstance(snow_pandas, pd.Index):
             snow_pandas = snow_pandas.to_pandas()
         pd_result = operation(native_pandas)
