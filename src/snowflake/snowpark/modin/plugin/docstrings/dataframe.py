@@ -2925,7 +2925,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
         >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
         >>> df_0a
            a
