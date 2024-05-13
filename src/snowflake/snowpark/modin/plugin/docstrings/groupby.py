@@ -103,12 +103,12 @@ Examples
 2    2
 1    3
 2    4
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg('min')
 1    1
 2    2
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg(['min', 'max'])
     min  max
@@ -130,7 +130,7 @@ Examples
 ... )
 
 >>> df
-    A  B         C
+   A  B         C
 0  1  1  0.362838
 1  1  2  0.227877
 2  2  3  1.267767
@@ -253,12 +253,12 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Groupby two columns and return the mean of the remaining column.
 
         >>> df.groupby(['A', 'B']).mean()   # doctest: +NORMALIZE_WHITESPACE
-               C
+                 C
         A B
-        1 2.0  2.000000
-          4.0  1.000000
-        2 3.0  1.000000
-          5.0  2.000000
+        1 2.0  2.0
+          4.0  1.0
+        2 3.0  1.0
+          5.0  2.0
 
         Groupby one column and return the mean of only particular column in
         the group.
@@ -348,11 +348,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).min()
         a    1
         b    3
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -856,10 +856,10 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         each group together into a new DataFrame:
 
         >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
-                  B    C
-        0  0.333333  0.4
-        1  0.666667  0.6
-        2  1.000000  1.0
+                    B    C
+        0.0  0.333333  0.4
+        1.0  0.666667  0.6
+        2.0  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
@@ -1021,7 +1021,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).std()
         a    3.21455
         b    0.57735
@@ -1133,13 +1133,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = df.groupby("group").rank(method='min')
         >>> df
             value
-        0   1.0
-        1	3.0
-        2	1.0
-        3   3.0
-        4   4.0
-        5   1.0
-        6   2.0
+        0   1
+        1   3
+        2   1
+        3   3
+        4   4
+        5   1
+        6   2
         """
         pass
 
@@ -1165,11 +1165,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).max()
         a    2
         b    4
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1236,17 +1236,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).var()
         a    10.333333
         b     0.333333
-        c         None
-        dtype: object
+        c          NaN
+        dtype: float64
         >>> ser.groupby(level=0).var(ddof=0)
         a    6.888889
         b    0.222222
         c    0.000000
-        dtype: object
+        dtype: float64
 
         Note that if the number of elements in a group is less or equal to the ddof, the result for the
         group will be NaN/None. For example, the value for group c is NaN when we call ser.groupby(level=0).var(),
@@ -1322,11 +1322,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).sum()
         a    3
         b    7
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1396,11 +1396,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    4
         b    3
         b    3
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).median()
-        a    7.000
-        b    3.000
-        dtype: object
+        a    7.0
+        b    3.0
+        dtype: float64
 
         For DataFrameGroupBy:
 
@@ -1654,7 +1654,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Essentially this is equivalent to
 
-        >>> self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
+        >>> self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))  # doctest: +SKIP
 
         Parameters
         ----------
@@ -1675,7 +1675,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame([['a'], ['a'], ['a'], ['b'], ['b'], ['a']],
         ...                   columns=['A'])
-        df
+        >>> df
         A
         0  a
         1  a
