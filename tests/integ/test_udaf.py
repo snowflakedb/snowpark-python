@@ -18,7 +18,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="UDAF is not supported in Local Testing",
     ),
     pytest.mark.udf,

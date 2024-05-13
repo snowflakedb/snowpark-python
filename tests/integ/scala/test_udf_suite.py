@@ -117,7 +117,7 @@ def test_empty_expression(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_construct is not yet supported in local testing mode.",
 )
 def test_udf_with_arrays(session):
@@ -156,7 +156,7 @@ def test_udf_with_map_input(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_construct is not yet supported in local testing mode.",
 )
 def test_udf_with_map_return(session):
@@ -224,7 +224,7 @@ def test_filter_on_top_of_udf(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Read semistructured parquet file not yet supported in local testing mode.",
 )
 def test_compose_on_dataframe_reader(session, resources_path):
@@ -439,7 +439,7 @@ def test_binary_type(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370173: timestamp type can return NaT when None is expected.",
 )
 def test_date_and_timestamp_type(session):
@@ -467,7 +467,7 @@ def test_date_and_timestamp_type(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370173: timestamp type can return NaT when None is expected.",
 )
 def test_time_and_timestamp_type(session):
@@ -535,7 +535,7 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_geography is not yet supported in local testing mode.",
 )
 def test_geography_type(session):
@@ -571,7 +571,7 @@ def test_geography_type(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_geometry is not yet supported in local testing mode.",
 )
 def test_geometry_type(session):
@@ -776,7 +776,7 @@ def test_variant_date_input(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374027: Local testing variant null not aligned with live.",
 )
 def test_variant_null(session):

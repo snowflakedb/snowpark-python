@@ -41,7 +41,7 @@ else:
 
 pytestmark = [
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="This is a SQL test suite",
         run=False,
     )
