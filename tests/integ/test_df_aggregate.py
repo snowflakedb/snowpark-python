@@ -102,7 +102,7 @@ def test_df_agg_tuples_basic_without_std(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: stddev function not supported",
 )
 def test_df_agg_tuples_basic(session):
@@ -198,7 +198,7 @@ def test_df_agg_tuples_avg_basic(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: stddev function not supported",
 )
 def test_df_agg_tuples_std_basic(session):

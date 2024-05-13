@@ -264,7 +264,7 @@ def test_avg(session):
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="corr is not yet supported in local testing mode.",
 )
 def test_corr(session, k, v1, v2):
@@ -293,7 +293,7 @@ def test_count(session):
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="covar_samp is not yet supported in local testing mode.",
 )
 def test_covariance(session, k, v1, v2):
@@ -309,7 +309,7 @@ def test_covariance(session, k, v1, v2):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="kurtosis is not yet supported in local testing mode.",
 )
 def test_kurtosis(session):
@@ -357,7 +357,7 @@ def test_max_min_mean(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="mode is not yet supported in local testing mode.",
 )
 def test_mode(session):
@@ -378,7 +378,7 @@ def test_mode(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="skew is not yet supported in local testing mode.",
 )
 def test_skew(session):
@@ -397,7 +397,7 @@ def test_skew(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="stddev is not yet supported in local testing mode.",
 )
 def test_stddev(session):
@@ -429,7 +429,7 @@ def test_sum(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="variance is not yet supported in local testing mode.",
 )
 def test_variance(session):
@@ -488,7 +488,7 @@ def test_coalesce(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
 )
 def test_nan_and_null(session):
@@ -519,7 +519,7 @@ def test_negate_and_not(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="random is not yet supported in local testing mode.",
 )
 def test_random(session):
@@ -555,7 +555,7 @@ def test_abs(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="ceil is not yet supported in local testing mode.",
 )
 def test_ceil_floor(session):
@@ -568,7 +568,7 @@ def test_ceil_floor(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="exp is not yet supported in local testing mode.",
 )
 def test_exp(session):
@@ -594,7 +594,7 @@ def test_exp(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="log is not yet supported in local testing mode.",
 )
 def test_log(session):
@@ -627,7 +627,7 @@ def test_pow(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="repeat is not yet supported in local testing mode.",
 )
 def test_builtin_function(session):
@@ -656,7 +656,7 @@ def test_sub_string(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="translate is not yet supported in local testing mode.",
 )
 def test_translate(session):
@@ -674,7 +674,7 @@ def test_translate(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="datediff is not yet supported in local testing mode.",
 )
 def test_datediff(session):
@@ -1913,7 +1913,7 @@ def test_to_date(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="arrays_overlap is not yet supported in local testing mode.",
 )
 def test_arrays_overlap(session):
@@ -1932,7 +1932,7 @@ def test_arrays_overlap(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_intersection is not yet supported in local testing mode.",
 )
 def test_array_intersection(session):
@@ -1951,7 +1951,7 @@ def test_array_intersection(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_array is not yet supported in local testing mode.",
 )
 def test_is_array(session):
@@ -1984,7 +1984,7 @@ def test_is_array(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_boolean is not yet supported in local testing mode.",
 )
 def test_is_boolean(session):
@@ -2007,7 +2007,7 @@ def test_is_boolean(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_binary is not yet supported in local testing mode.",
 )
 def test_is_binary(session):
@@ -2030,7 +2030,7 @@ def test_is_binary(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_char is not yet supported in local testing mode.",
 )
 def test_is_char_is_varchar(session):
@@ -2067,7 +2067,7 @@ def test_is_char_is_varchar(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_date is not yet supported in local testing mode.",
 )
 def test_is_date_is_date_value(session):
@@ -2108,7 +2108,7 @@ def test_is_date_is_date_value(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_decimal is not yet supported in local testing mode.",
 )
 def test_is_decimal(session):
@@ -2135,7 +2135,7 @@ def test_is_decimal(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_double is not yet supported in local testing mode.",
 )
 def test_is_double_is_real(session):
@@ -2186,7 +2186,7 @@ def test_is_double_is_real(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_integer is not yet supported in local testing mode.",
 )
 def test_is_integer(session):
@@ -2215,7 +2215,7 @@ def test_is_integer(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_null_value is not yet supported in local testing mode.",
 )
 def test_is_null_value(session):
@@ -2236,7 +2236,7 @@ def test_is_null_value(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_object is not yet supported in local testing mode.",
 )
 def test_is_object(session):
@@ -2259,7 +2259,7 @@ def test_is_object(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_time is not yet supported in local testing mode.",
 )
 def test_is_time(session):
@@ -2282,7 +2282,7 @@ def test_is_time(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="is_timestamp_ntz is not yet supported in local testing mode.",
 )
 def test_is_timestamp_all(session):
@@ -2349,7 +2349,7 @@ def test_is_timestamp_all(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="split is not yet supported in local testing mode.",
 )
 def test_split(session):
@@ -2399,7 +2399,7 @@ def test_endswith(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="char is not yet supported in local testing mode.",
 )
 def test_char(session):
@@ -2417,7 +2417,7 @@ def test_char(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="check_json is not yet supported in local testing mode.",
 )
 def test_check_json(session):
@@ -2456,7 +2456,7 @@ def test_check_json(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="check_xml is not yet supported in local testing mode.",
 )
 def test_check_xml(session):
@@ -2495,7 +2495,7 @@ def test_check_xml(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="json_extract_path_text is not yet supported in local testing mode.",
 )
 def test_json_extract_path_text(session):
@@ -2533,7 +2533,7 @@ def test_parse_json(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="parse_xml is not yet supported in local testing mode.",
 )
 def test_parse_xml(session):
@@ -2580,7 +2580,7 @@ def test_strip_null_value(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_agg is not yet supported in local testing mode.",
 )
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
@@ -2620,7 +2620,7 @@ def test_array_agg(session, col_amount):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_array_agg_within_group(session):
@@ -2649,7 +2649,7 @@ def test_array_agg_within_group(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_array_agg_within_group_order_by_desc(session):
@@ -2678,7 +2678,7 @@ def test_array_agg_within_group_order_by_desc(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_array_agg_within_group_order_by_multiple_columns(session):
@@ -2698,7 +2698,7 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_window_function_array_agg_within_group(session):
@@ -2713,7 +2713,7 @@ def test_window_function_array_agg_within_group(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_append is not yet supported in local testing mode.",
 )
 def test_array_append(session):
@@ -2782,7 +2782,7 @@ def test_array_append(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_cat is not yet supported in local testing mode.",
 )
 def test_array_cat(session):
@@ -2807,7 +2807,7 @@ def test_array_cat(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_compact is not yet supported in local testing mode.",
 )
 def test_array_compact(session):
@@ -2826,7 +2826,7 @@ def test_array_compact(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_construct is not yet supported in local testing mode.",
 )
 def test_array_construct(session):
@@ -2864,7 +2864,7 @@ def test_array_construct(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_construct_compact is not yet supported in local testing mode.",
 )
 def test_array_construct_compact(session):
@@ -2909,7 +2909,7 @@ def test_array_construct_compact(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_contains is not yet supported in local testing mode.",
 )
 def test_array_contains(session):
@@ -2948,7 +2948,7 @@ def test_array_contains(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_insert is not yet supported in local testing mode.",
 )
 def test_array_insert(session):
@@ -2967,7 +2967,7 @@ def test_array_insert(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_position is not yet supported in local testing mode.",
 )
 def test_array_position(session):
@@ -2986,7 +2986,7 @@ def test_array_position(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_prepend is not yet supported in local testing mode.",
 )
 def test_array_prepend(session):
@@ -3035,7 +3035,7 @@ def test_array_prepend(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_size is not yet supported in local testing mode.",
 )
 def test_array_size(session):
@@ -3078,7 +3078,7 @@ def test_array_size(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_slice is not yet supported in local testing mode.",
 )
 def test_array_slice(session):
@@ -3097,7 +3097,7 @@ def test_array_slice(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="array_to_string is not yet supported in local testing mode.",
 )
 def test_array_to_string(session):
@@ -3116,7 +3116,7 @@ def test_array_to_string(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="object_agg is not yet supported in local testing mode.",
 )
 def test_objectagg(session):
@@ -3192,7 +3192,7 @@ def test_object_construct_keep_null(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="object_delete is not yet supported in local testing mode.",
 )
 def test_object_delete(session):
@@ -3215,7 +3215,7 @@ def test_object_delete(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="object_insert is not yet supported in local testing mode.",
 )
 def test_object_insert(session):
@@ -3314,7 +3314,7 @@ def test_object_insert(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="object_pick is not yet supported in local testing mode.",
 )
 def test_object_pick(session):
@@ -3359,7 +3359,7 @@ def test_object_pick(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_array is not yet supported in local testing mode.",
 )
 def test_as_array(session):
@@ -3396,7 +3396,7 @@ def test_as_array(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_binary is not yet supported in local testing mode.",
 )
 def test_as_binary(session):
@@ -3423,7 +3423,7 @@ def test_as_binary(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_char is not yet supported in local testing mode.",
 )
 def test_as_char_as_varchar(session):
@@ -3460,7 +3460,7 @@ def test_as_char_as_varchar(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_date is not yet supported in local testing mode.",
 )
 def test_as_date(session):
@@ -3483,7 +3483,7 @@ def test_as_date(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_decimal is not yet supported in local testing mode.",
 )
 def test_as_decimal_as_number(session):
@@ -3595,7 +3595,7 @@ def test_as_decimal_as_number(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_double is not yet supported in local testing mode.",
 )
 def test_as_double_as_real(session):
@@ -3646,7 +3646,7 @@ def test_as_double_as_real(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_integer is not yet supported in local testing mode.",
 )
 def test_as_integer(session):
@@ -3675,7 +3675,7 @@ def test_as_integer(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_object is not yet supported in local testing mode.",
 )
 def test_as_object(session):
@@ -3698,7 +3698,7 @@ def test_as_object(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="timestamp_tz_from_parts is not yet supported in local testing mode.",
 )
 def test_timestamp_tz_from_parts(session, local_testing_mode):
@@ -3822,7 +3822,7 @@ def test_convert_timezone(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="time_from_parts is not yet supported in local testing mode.",
 )
 def test_time_from_parts(session):
@@ -3935,7 +3935,7 @@ def test_timestamp_from_parts_internal_negative():
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_time is not yet supported in local testing mode.",
 )
 def test_as_time(session):
@@ -4012,7 +4012,7 @@ def test_as_time(session):
     ],
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="as_timestamp_tz is not yet supported in local testing mode.",
 )
 def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
@@ -4058,7 +4058,7 @@ def test_to_array(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_json is not yet supported in local testing mode.",
 )
 def test_to_json(session):
@@ -4112,7 +4112,7 @@ def test_to_variant(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_xml is not yet supported in local testing mode.",
 )
 def test_to_xml(session):
@@ -4138,7 +4138,7 @@ def test_to_xml(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_geography is not yet supported in local testing mode.",
 )
 def test_to_geography(session):
@@ -4162,7 +4162,7 @@ def test_to_geography(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="to_geometry is not yet supported in local testing mode.",
 )
 def test_to_geometry(session):
@@ -4187,7 +4187,7 @@ def test_to_geometry(session):
 
 @pytest.mark.parametrize("a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="typeof is not yet supported in local testing mode.",
 )
 def test_typeof(session, a):
@@ -4200,7 +4200,7 @@ def test_typeof(session, a):
 
 @pytest.mark.parametrize("obj, k", [("obj", "k"), (col("obj"), col("k"))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="get_ignore_case is not yet supported in local testing mode.",
 )
 def test_get_ignore_case(session, obj, k):
@@ -4219,7 +4219,7 @@ def test_get_ignore_case(session, obj, k):
 
 @pytest.mark.parametrize("column", ["obj", col("obj")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="object_keys is not yet supported in local testing mode.",
 )
 def test_object_keys(session, column):
@@ -4241,7 +4241,7 @@ def test_object_keys(session, column):
     ],
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="get_ignore_case is not yet supported in local testing mode.",
 )
 def test_xmlget(session, v, t2, t3, instance, zero):
@@ -4280,7 +4280,7 @@ def test_xmlget(session, v, t2, t3, instance, zero):
 
 @pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="get_path is not yet supported in local testing mode.",
 )
 def test_get_path(session, v, k):
@@ -4320,7 +4320,7 @@ def test_get(session):
 
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="approx_count_distinct is not yet supported in local testing mode.",
 )
 def test_approx_count_distinct(session, col_a):
@@ -4331,7 +4331,7 @@ def test_approx_count_distinct(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="approx_percentile is not yet supported in local testing mode.",
 )
 @pytest.mark.parametrize("col_a", ["A", col("A")])
@@ -4343,7 +4343,7 @@ def test_approx_percentile(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="approx_percentile_accumulate is not yet supported in local testing mode.",
 )
 @pytest.mark.parametrize("col_a", ["A", col("A")])
@@ -4366,7 +4366,7 @@ def test_approx_percentile_accumulate(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="approx_percentile_estimate is not yet supported in local testing mode.",
 )
 @pytest.mark.parametrize("col_a", ["A", col("A")])
@@ -4380,7 +4380,7 @@ def test_approx_percentile_estimate(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="approx_percentile_accumulate is not yet supported in local testing mode.",
 )
 @pytest.mark.parametrize("col_a, col_b", [("A", "B"), (col("A"), col("B"))])
@@ -4444,7 +4444,7 @@ def test_iff(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="cume_dist is not yet supported in local testing mode.",
 )
 def test_cume_dist(session):
@@ -4458,7 +4458,7 @@ def test_cume_dist(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="dense_rank is not yet supported in local testing mode.",
 )
 def test_dense_rank(session):
@@ -4551,7 +4551,7 @@ def test_first_value(session, col_z):
 
 @pytest.mark.parametrize("col_n", ["n", col("n"), 4, 0])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="ntile is not yet supported in local testing mode.",
 )
 def test_ntile(session, col_n):
@@ -4576,7 +4576,7 @@ def test_ntile(session, col_n):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="percent_rank is not yet supported in local testing mode.",
 )
 def test_percent_rank(session):
@@ -4590,7 +4590,7 @@ def test_percent_rank(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="rank is not yet supported in local testing mode.",
 )
 def test_rank(session):
@@ -4604,7 +4604,7 @@ def test_rank(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374081: row_number over window does not have consistent result.",
 )
 def test_row_number(session):
@@ -4618,7 +4618,7 @@ def test_row_number(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_listagg(session):
@@ -4644,7 +4644,7 @@ def test_listagg(session):
     "col_expr, col_scale", [("expr", 1), (col("expr"), col("scale"))]
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="trunc is not yet supported in local testing mode.",
 )
 def test_trunc(session, col_expr, col_scale):
@@ -4654,7 +4654,7 @@ def test_trunc(session, col_expr, col_scale):
 
 @pytest.mark.parametrize("col_A, col_scale", [("A", 0), (col("A"), lit(0))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="round is not yet supported in local testing mode.",
 )
 def test_round(session, col_A, col_scale):
@@ -4666,7 +4666,7 @@ def test_round(session, col_A, col_scale):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="sin is not yet supported in local testing mode.",
 )
 def test_sin_sinh(session, col_A):
@@ -4683,7 +4683,7 @@ def test_sin_sinh(session, col_A):
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="cos is not yet supported in local testing mode.",
 )
 def test_cos_cosh(session, col_A, col_B):
@@ -4700,7 +4700,7 @@ def test_cos_cosh(session, col_A, col_B):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="tan is not yet supported in local testing mode.",
 )
 def test_tan_tanh(session, col_A):
@@ -4717,7 +4717,7 @@ def test_tan_tanh(session, col_A):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="acos is not yet supported in local testing mode.",
 )
 def test_asin_acos(session, col_A):
@@ -4734,7 +4734,7 @@ def test_asin_acos(session, col_A):
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="atan is not yet supported in local testing mode.",
 )
 def test_atan_atan2(session, col_A, col_B):
@@ -4757,7 +4757,7 @@ def test_atan_atan2(session, col_A, col_B):
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="degrees is not yet supported in local testing mode.",
 )
 def test_degrees(session, col_A, col_B):
@@ -4774,7 +4774,7 @@ def test_degrees(session, col_A, col_B):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="radians is not yet supported in local testing mode.",
 )
 def test_radians(session, col_A):
@@ -4791,7 +4791,7 @@ def test_radians(session, col_A):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="factorial is not yet supported in local testing mode.",
 )
 def test_factorial(session, col_A):
@@ -4804,7 +4804,7 @@ def test_factorial(session, col_A):
 
 @pytest.mark.parametrize("col_0, col_2, col_4", [(0, 2, 4), (lit(0), lit(2), lit(4))])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="div0 is not yet supported in local testing mode.",
 )
 def test_div0(session, col_0, col_2, col_4):
@@ -4816,7 +4816,7 @@ def test_div0(session, col_0, col_2, col_4):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="md5 is not yet supported in local testing mode.",
 )
 def test_md5_sha1_sha2(session, col_A):
@@ -4845,7 +4845,7 @@ def test_md5_sha1_sha2(session, col_A):
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="ascii is not yet supported in local testing mode.",
 )
 def test_ascii(session, col_B):
@@ -4927,7 +4927,7 @@ def test_initcap_length_lower_upper(func, expected, use_col, session):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="lpad is not yet supported in local testing mode.",
 )
 def test_lpad_rpad(session, col_A):
@@ -4946,7 +4946,7 @@ def test_lpad_rpad(session, col_A):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="ltrim is not yet supported in local testing mode.",
 )
 def test_ltrim_rtrim_trim(session, col_A):
@@ -4967,7 +4967,7 @@ def test_ltrim_rtrim_trim(session, col_A):
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="repeat is not yet supported in local testing mode.",
 )
 def test_repeat(session, col_B):
@@ -4980,7 +4980,7 @@ def test_repeat(session, col_B):
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="soundex is not yet supported in local testing mode.",
 )
 def test_soundex(session, col_A):
@@ -4993,7 +4993,7 @@ def test_soundex(session, col_A):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="insert is not yet supported in local testing mode.",
 )
 def test_insert(session, col_a):
@@ -5006,7 +5006,7 @@ def test_insert(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="left is not yet supported in local testing mode.",
 )
 def test_left(session, col_a):
@@ -5019,7 +5019,7 @@ def test_left(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="right is not yet supported in local testing mode.",
 )
 def test_right(session, col_a):
@@ -5032,7 +5032,7 @@ def test_right(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="regexp_count is not yet supported in local testing mode.",
 )
 def test_regexp_count(session, col_a):
@@ -5051,7 +5051,7 @@ def test_regexp_count(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="replace is not yet supported in local testing mode.",
 )
 def test_replace(session, col_a):
@@ -5070,7 +5070,7 @@ def test_replace(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="charindex is not yet supported in local testing mode.",
 )
 def test_charindex(session, col_a):
@@ -5089,7 +5089,7 @@ def test_charindex(session, col_a):
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="collate is not yet supported in local testing mode.",
 )
 def test_collate(session, col_a):
@@ -5101,7 +5101,7 @@ def test_collate(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="collation is not yet supported in local testing mode.",
 )
 def test_collation(session):

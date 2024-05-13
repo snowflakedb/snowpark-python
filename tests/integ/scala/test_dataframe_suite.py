@@ -265,7 +265,7 @@ def test_show_multi_lines_row(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -338,7 +338,7 @@ def test_cache_result(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -413,7 +413,7 @@ def test_drop_cache_result_context_manager(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -438,7 +438,7 @@ def test_non_select_query_composition(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -460,7 +460,7 @@ def test_non_select_query_composition_union(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -482,7 +482,7 @@ def test_non_select_query_composition_unionall(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -503,7 +503,7 @@ def test_non_select_query_composition_self_union(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -524,7 +524,7 @@ def test_non_select_query_composition_self_unionall(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -539,7 +539,7 @@ def test_only_use_result_scan_when_composing_queries(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing query generation",
     run=False,
 )
@@ -553,7 +553,7 @@ def test_joins_on_result_scan(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function corr not supported",
 )
 def test_df_stat_corr(session):
@@ -574,7 +574,7 @@ def test_df_stat_corr(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function covar_samp not supported",
 )
 def test_df_stat_cov(session):
@@ -595,7 +595,7 @@ def test_df_stat_cov(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function approx_percentile_accumulate not supported",
 )
 def test_df_stat_approx_quantile(session):
@@ -653,7 +653,7 @@ def test_df_stat_approx_quantile(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: RelationalGroupedDataFrame.Pivot not supported",
 )
 def test_df_stat_crosstab(session):
@@ -779,7 +779,7 @@ def test_df_stat_crosstab(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: sample by wrong result",
 )
 def test_df_stat_sampleBy(session):
@@ -836,7 +836,7 @@ def test_df_stat_sampleBy(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: RelationalGroupedDataFrame.Pivot not supported",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
@@ -1232,7 +1232,7 @@ def test_select(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: error experience mismatch, SnowparkSQLException",
 )
 def test_select_negative_select(session):
@@ -1348,7 +1348,7 @@ def test_dataframe_agg(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup(session):
@@ -1473,7 +1473,7 @@ def test_groupby(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_cube(session):
@@ -1554,7 +1554,7 @@ def test_cube(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: table_function.Lateral is not supported.",
     run=False,
 )
@@ -1632,7 +1632,7 @@ def test_flatten(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: session.flatten not supported",
 )
 def test_flatten_in_session(session):
@@ -1685,7 +1685,7 @@ def test_flatten_in_session(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: RecursionError: maximum recursion depth exceeded while calling a Python object",
 )
 def test_createDataFrame_with_given_schema(session):
@@ -1792,7 +1792,7 @@ def test_createDataFrame_with_given_schema_time(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: assertion error timestamp type mismatch",
 )
 def test_createDataFrame_with_given_schema_timestamp(session):
@@ -1934,7 +1934,7 @@ def test_vector(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -1980,7 +1980,7 @@ def test_show_collect_with_misc_commands(session, resources_path, tmpdir):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
 def test_createDataFrame_with_given_schema_array_map_variant(session):
@@ -2523,7 +2523,7 @@ def test_agg_with_array_args(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup_with_array_args(session):
@@ -2560,7 +2560,7 @@ def test_rollup_with_array_args(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-977749 DataFrame.group_by_grouping_sets not supported",
 )
 def test_rollup_string_with_array_args(session):
@@ -2659,7 +2659,7 @@ def test_rename_basic(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: AttributeError: 'NoneType' object has no attribute 'expr_to_alias'",
 )
 def test_rename_function_basic(session):
@@ -2674,7 +2674,7 @@ def test_rename_function_basic(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: AttributeError: 'NoneType' object has no attribute 'expr_to_alias'",
 )
 def test_rename_function_multiple(session):
@@ -2689,7 +2689,7 @@ def test_rename_function_multiple(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: ValueError: Unable to rename column Column[A] because it doesn't exist.",
 )
 def test_rename_join_dataframe(session):
@@ -2718,7 +2718,7 @@ def test_rename_join_dataframe(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: assertion error column rename mismatch",
 )
 def test_rename_to_df_and_joined_dataframe(session):
@@ -2776,7 +2776,7 @@ def test_rename_negative_test(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function datediff not supported",
 )
 def test_with_columns_keep_order(session):
@@ -3095,7 +3095,7 @@ def test_replace(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_explain(session):
@@ -3137,7 +3137,7 @@ def test_to_local_iterator(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function random not supported",
 )
 def test_random_split(session):
