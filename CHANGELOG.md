@@ -10,6 +10,10 @@
   - `DataFrame.create_or_replace_temp_view`
   - `DataFrame.create_or_replace_dynamic_table`
 
+### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+
 ### Local Testing Updates
 
 #### New Features
