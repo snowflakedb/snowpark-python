@@ -82,7 +82,6 @@ class TestRename:
 
         with SqlCounter(query_count=1, join_count=1):
             renamed = df.rename(index={"foo": "foo2", "bar": "bar2"})
-            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             assert_index_equal(
                 renamed.index.to_pandas(), native_pd.Index(["foo2", "bar2"])
             )
@@ -95,7 +94,6 @@ class TestRename:
         # partial columns
         with SqlCounter(query_count=0):
             renamed = snow_float_frame.rename(columns={"C": "foo", "D": "bar"})
-            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             assert_index_equal(
                 renamed.columns, native_pd.Index(["A", "B", "foo", "bar"])
             )
@@ -103,7 +101,6 @@ class TestRename:
         # other axis
         with SqlCounter(query_count=1, join_count=1):
             renamed = snow_float_frame.T.rename(index={"C": "foo", "D": "bar"})
-            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             assert_index_equal(
                 renamed.index.to_pandas(), native_pd.Index(["A", "B", "foo", "bar"])
             )

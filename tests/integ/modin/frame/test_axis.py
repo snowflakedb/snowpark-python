@@ -90,14 +90,16 @@ def test_index(test_df):
 def test_set_and_assign_index(test_df):
     def assign_index(df, keys):
         # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-        if not isinstance(keys, pd.Index):
+        if isinstance(df, pd.DataFrame):
             df.index = keys
         else:
-            df.index = keys.to_pandas()
+            if isinstance(keys, pd.Index):
+                df.index = keys.to_pandas()
+            else:
+                df.index = keys
         return df.index
 
     def set_index(df, keys):
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         df.set_index(keys)
         return df.index
 

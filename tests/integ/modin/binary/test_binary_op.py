@@ -801,6 +801,7 @@ class TestFillValue:
             ):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                 index_as_list = (
                     other.to_pandas().tolist()
                     if isinstance(other, pd.Index)

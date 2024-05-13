@@ -22,7 +22,7 @@ from tests.integ.modin.utils import (
 def snow_df():
     return pd.DataFrame(
         {"col1": ["one", "two", "three"], "col2": ["abc", "pqr", "xyz"]},
-        index=native_pd.Index([5, 1, 0]),
+        index=pd.Index([5, 1, 0]),
     )
 
 
@@ -315,8 +315,7 @@ def test_insert_empty_multiindex_frame(value):
     expected_df = native_pd.DataFrame(
         value,
         columns=["col3"],
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-        index=pd.Index([(None, None)] * 4).to_pandas(),
+        index=native_pd.Index([(None, None)] * 4),
     )
     assert_snowpark_pandas_equal_to_pandas(snow_df, expected_df)
 

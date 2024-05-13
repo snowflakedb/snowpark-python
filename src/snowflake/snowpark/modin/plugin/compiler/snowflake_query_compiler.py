@@ -1751,6 +1751,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas doesn't yet support '{op}' binary operation"
             )
+
         if is_scalar(other):
             # (Case 1): other is scalar
             # -------------------------
