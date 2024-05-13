@@ -804,6 +804,8 @@ class _LocIndexer(_LocationIndexerBase):
         squeeze_row, squeeze_col = self._should_squeeze(
             locator=row_loc, axis=0
         ), self._should_squeeze(locator=col_loc, axis=1)
+
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         qc_view = self.qc.take_2d_labels(
             self._locator_type_convert(row_loc.to_pandas())
             if isinstance(row_loc, pd.Index)
@@ -870,11 +872,13 @@ class _LocIndexer(_LocationIndexerBase):
         """
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         row_loc, col_loc = self._parse_row_and_column_locators(key)
+
         # TODO SNOW-962260 support multiindex
         if self.qc.is_multiindex(axis=0) or self.qc.is_multiindex(axis=1):
             ErrorMessage.not_implemented(
                 "loc set for multiindex is not yet implemented"
             )
+
         # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         if isinstance(item, pd.Index):
             item = item.to_pandas()
@@ -882,6 +886,7 @@ class _LocIndexer(_LocationIndexerBase):
             row_loc = row_loc.to_pandas()
         self._validate_item_type(item, row_loc)
         # If the row key is list-like (Index, list, np.ndarray, etc.), convert it to Series.
+
         if not isinstance(row_loc, pd.Series) and is_list_like(row_loc):
             row_loc = pd.Series(row_loc)
 
@@ -894,6 +899,7 @@ class _LocIndexer(_LocationIndexerBase):
         index_is_bool_indexer = isinstance(
             row_loc, BasePandasDataset
         ) and is_bool_dtype(row_loc.dtypes)
+
         index = (
             row_loc._query_compiler
             if isinstance(row_loc, BasePandasDataset)
@@ -1184,6 +1190,7 @@ class _iLocIndexer(_LocationIndexerBase):
 
             if isinstance(item, pandas.Index):
                 item = np.array(item.tolist()).transpose()
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             elif isinstance(item, pd.Index):
                 item = np.array(item.to_pandas().tolist()).transpose()
             else:

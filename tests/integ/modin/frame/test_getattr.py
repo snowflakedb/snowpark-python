@@ -5,7 +5,6 @@
 import inspect
 
 import modin.pandas as pd
-import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._testing import assert_index_equal
@@ -38,7 +37,7 @@ def test_getattr(name, expected_query_count):
             assert_index_equal(snow_res, native_res, exact=False)
         elif isinstance(snow_res, pd.Index):
             # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-            np.array_equal(snow_res.to_pandas().values, native_res.values)
+            assert_index_equal(snow_res.to_pandas(), native_res, exact=False)
         else:
             # e.g., mean will return bound method similar to pandas
             assert inspect.ismethod(snow_res)

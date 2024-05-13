@@ -646,6 +646,7 @@ class Series(BasePandasDataset):
             # With __setitem__, the length of the value must match length of the key. Currently, loc setitem can
             # handle this with boolean keys.
 
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             if isinstance(key, pd.Index):
                 key = key.to_pandas()
 

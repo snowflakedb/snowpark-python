@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
+import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -2246,6 +2247,7 @@ def set_frame_2d_labels(
     #   duplicate_data_column_pos_to_count_map = {1: 2, 2: 3}
     #   new_data_column_pandas_labels_to_append = ["E", 1, "X", 2]
     col_info = _extract_loc_set_col_info(internal_frame, columns)
+
     # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     if isinstance(item, pd.Index):
         item = item.to_pandas()
@@ -2283,7 +2285,7 @@ def set_frame_2d_labels(
             col_info,
             index_is_bool_indexer,
         )
-    # breakpoint()
+
     if item_is_scalar:
         result_frame = _set_2d_labels_helper_for_non_frame_item(
             internal_frame, index, index_is_bool_indexer
@@ -2315,11 +2317,13 @@ def set_frame_2d_labels(
         #       'x' | 97 | 96 | ...
         #       'y' | 97 | 96 | ...
         #       ... | .. | .. | ...
-        import pandas as native_pd
 
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         item_values = (
             item.tolist()
-            if isinstance(item, (pd.Index, native_pd.Index, np.ndarray))
+            if isinstance(item, (native_pd.Index, np.ndarray))
+            else item.to_pandas().to_list()
+            if isinstance(item, pd.Index)
             else item
         )
 

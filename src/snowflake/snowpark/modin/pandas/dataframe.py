@@ -155,10 +155,14 @@ class DataFrame(BasePandasDataset):
         # Siblings are other dataframes that share the same query compiler. We
         # use this list to update inplace when there is a shallow copy.
         self._siblings = []
+
         # Engine.subscribe(_update_engine)
         if isinstance(data, (DataFrame, Series)):
             self._query_compiler = data._query_compiler.copy()
-            if index is not None and any(i not in data.index for i in index):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if index is not None and any(
+                i not in data.index.to_pandas() for i in index
+            ):
                 ErrorMessage.not_implemented(
                     "Passing non-existant columns or index values to constructor not"
                     + " yet implemented."
@@ -226,6 +230,7 @@ class DataFrame(BasePandasDataset):
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                         new_qc = new_qc.reindex(
                             axis=0,
                             labels=index.to_pandas()
@@ -233,7 +238,13 @@ class DataFrame(BasePandasDataset):
                             else index,
                         )
                     if columns is not None:
-                        new_qc = new_qc.reindex(axis=1, labels=columns)
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        new_qc = new_qc.reindex(
+                            axis=1,
+                            labels=columns.to_pandas()
+                            if isinstance(columns, pd.Index)
+                            else columns,
+                        )
 
                     self._query_compiler = new_qc
                     return
@@ -3404,6 +3415,7 @@ class DataFrame(BasePandasDataset):
             # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             renamed.index = pd.Index(renamed.index.to_pandas().set_names(name))
         else:
+            # TODO: SNOW-1372242: Do we want columns here to be a pandas index or a modin index
             renamed.columns = renamed.columns.set_names(name)
         if not inplace:
             return renamed

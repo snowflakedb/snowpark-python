@@ -2161,6 +2161,7 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
     numeric_test_data_4x4, row_pos, col_pos, item_value
 ):
     expected_query_count = 2
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     if isinstance(item_value, pd.Index):
         item_value = item_value.to_pandas()
     if isinstance(item_value, Iterable):

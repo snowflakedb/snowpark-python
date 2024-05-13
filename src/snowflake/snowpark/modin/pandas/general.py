@@ -1589,6 +1589,7 @@ def to_datetime(
             if isinstance(arg, pandas.Index):
                 name = arg.name
             elif isinstance(arg, pd.Index):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                 arg = arg.to_pandas()
                 name = arg.name
             arg = Series(arg)

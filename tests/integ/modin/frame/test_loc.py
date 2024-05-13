@@ -1014,6 +1014,7 @@ def test_df_loc_set_series_and_list_like_row_key_negative(key_type):
     def loc_set_helper(df):
         if isinstance(df, native_pd.DataFrame):
             with pytest.raises(KeyError, match="not in index"):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                 df.loc[
                     row_key_with_oob.to_pandas()
                     if isinstance(row_key_with_oob, pd.Index)
@@ -2903,6 +2904,7 @@ def test_df_loc_set_with_column_wise_list_like_item(
     snow_df = pd.DataFrame(native_df)
     native_item = item
 
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     if isinstance(col_key, pd.Index):
         col_key = col_key.to_pandas()
 
@@ -2912,6 +2914,7 @@ def test_df_loc_set_with_column_wise_list_like_item(
         else:
             # Native pandas does not allow enlargement with col_key ["B"] but allows enlargement with "B". Need to
             # convert ["B"] to "B" for comparison.
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             df.loc[row_key, (col_key[0] if convert_list_to_string else col_key)] = (
                 item_to_type(native_item).to_pandas()
                 if isinstance(item_to_type(native_item), pd.Index)
@@ -3073,6 +3076,7 @@ def test_df_loc_set_with_row_wise_list_like_item(
     native_item = item
 
     def loc_set_helper(df):
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         new_item = item_to_type(item if isinstance(df, pd.DataFrame) else native_item)
         df.loc[row_key, col_key] = (
             new_item.to_pandas()
@@ -3101,6 +3105,7 @@ def test_df_loc_set_with_row_wise_list_like_item(
             # don't match.
             with pytest.raises(ValueError, match=err_msg):
                 native_df.loc[row_key, col_key] = (
+                    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
                     item_to_type(item).to_pandas()
                     if isinstance(item_to_type(item), pd.Index)
                     else item_to_type(item)
@@ -3124,6 +3129,7 @@ def test_df_loc_set_with_row_wise_list_like_item(
         # ValueError: shape mismatch: value array of shape (4,) could not be broadcast to indexing result of shape (2,3)
         native_err_msg = re.escape("array")
         with pytest.raises(ValueError, match=native_err_msg):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             native_df.loc[row_key, col_key] = (
                 item_to_type(item).to_pandas()
                 if isinstance(item_to_type(item), pd.Index)
@@ -3294,6 +3300,7 @@ def test_df_loc_set_duplicate_index_negative(index, columns, item):
         helper(native_df)
     # Snowpark pandas perform a left join behavior which leads to more rows
     helper(snow_df)
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     assert snow_df.index.to_pandas().to_list() == [0, 1, 1, 2, 3]
 
 
@@ -3643,6 +3650,7 @@ def test_df_loc_set_with_empty_key_and_empty_item_negative(
         if isinstance(key, native_pd.Series) and isinstance(df, pd.DataFrame):
             df.loc[pd.Series(key)] = item
         else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             df.loc[key.to_pandas() if isinstance(key, pd.Index) else key] = (
                 item.to_pandas() if isinstance(item, pd.Index) else item
             )
@@ -3675,6 +3683,7 @@ def test_series_loc_set_with_empty_key_and_scalar_item(
         if isinstance(key, native_pd.Series) and isinstance(df, pd.DataFrame):
             df.loc[pd.Series(key)] = item
         else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             df.loc[key.to_pandas() if isinstance(key, pd.Index) else key] = item
 
     # CASE 1: type of Snowflake column matches item type:
