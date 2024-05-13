@@ -2047,7 +2047,104 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def resample():
         """
-        Resample time-series data.
+        Resample time-series data. Convenience method for frequency conversion and resampling of time series.
+        The object must have a datetime-like index.
+
+        Snowpark pandas DataFrame/Series.resample only supports frequencies "second", "minute", "hour", and "day" in
+        conjunction with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill".
+        Snowpark pandas also only supports DatetimeIndex, and does not support PeriodIndex or TimedeltaIndex.
+
+        Parameters
+        ----------
+        rule : DateOffset, Timedelta or str
+            The offset string or object representing target conversion.
+            Snowpark pandas only supports frequencies "second", "minute", "hour", and "day"
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            Which axis to use for up- or down-sampling. For Series this parameter is unused and defaults to 0.
+            Snowpark pandas only supports ``axis`` 0 and DatetimeIndex.
+
+            Deprecated since version 2.0.0: Use frame.T.resample(…) instead.
+        closed : {'right', 'left'}, default None
+            Which side of bin interval is closed. The default is 'left' for all frequency offsets except for
+            'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
+
+            Snowpark pandas only supports ``closed=left`` and frequencies "second", "minute", "hour", and "day".
+        label : {'right', 'left'}, default None
+            Which bin edge label to label bucket with. The default is 'left' for all frequency offsets except for
+            'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
+
+            Snowpark pandas only supports ``label=left`` and frequencies "second", "minute", "hour", and "day".
+        convention : {'start', 'end', 's', 'e'}, default 'start'
+            For PeriodIndex only, controls whether to use the start or end of rule.
+            Snowpark pandas does not support PeriodIndex.
+
+            Deprecated since version 2.2.0: Convert PeriodIndex to DatetimeIndex before resampling instead.
+        kind : {'timestamp', 'period'}, optional, default None
+            Pass 'timestamp' to convert the resulting index to a DateTimeIndex
+            or 'period' to convert it to a PeriodIndex. By default, the input representation is retained.
+
+            Snowpark pandas does not support ``kind``.
+        on : str, optional
+            For a DataFrame, column to use instead of index for resampling. Column must be datetime-like.
+            Snowpark pandas does not support ``on``.
+        level : str or int, optional
+            For a MultiIndex, level (name or number) to use for resampling. level must be datetime-like.
+            Snowpark pandas does not support DataFrame/Series.resample with a MultiIndex.
+        origin : Timestamp or str, default 'start_day'
+            The timestamp on which to adjust the grouping. The timezone of origin must match the timezone of the index.
+            If a string, must be one of the following:
+
+            'epoch': origin is 1970-01-01
+            'start': origin is the first value of the timeseries
+            'start_day': origin is the first day at midnight of the timeseries
+            'end': origin is the last value of the timeseries
+            'end_day': origin is the ceiling midnight of the last day
+
+            Snowpark pandas does not support ``origin``.
+        offset : Timedelta or str, default is None
+            An offset timedelta added to the origin.
+            Snowpark pandas does not support ``offset``.
+        group_keys : bool, default False
+            Whether to include the group keys in the result index when using ``.apply()`` on the resampled object.
+            Snowpark pandas does not support ``group_keys``.
+
+        Returns
+        -------
+        Resampler
+
+        See Also
+        --------
+        Series.resample: Resample a Series.
+        DataFrame.resample : Resample a dataframe.
+        groupby: Group Series/DataFrame by mapping, function, label, or list of labels.
+        asfreq: Reindex a Series/DataFrame with the given frequency without grouping.
+
+        Notes
+        -----
+        Snowpark pandas DataFrame/Series.resample only supports frequencies "second", "minute", "hour", and "day" in conjunction
+        with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill". Snowpark pandas also only
+        supports DatetimeIndex, and does not support PeriodIndex or TimedeltaIndex.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=9, freq='min')
+        >>> series = pd.Series(range(9), index=index)
+        >>> series
+        2000-01-01 00:00:00    0
+        2000-01-01 00:01:00    1
+        2000-01-01 00:02:00    2
+        2000-01-01 00:03:00    3
+        2000-01-01 00:04:00    4
+        2000-01-01 00:05:00    5
+        2000-01-01 00:06:00    6
+        2000-01-01 00:07:00    7
+        2000-01-01 00:08:00    8
+        Freq: None, dtype: int64
+        >>> series.resample('3min').sum()
+        2000-01-01 00:00:00     3
+        2000-01-01 00:03:00    12
+        2000-01-01 00:06:00    21
+        Freq: None, dtype: int64
         """
 
     def reset_index():
