@@ -16,7 +16,13 @@ from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, Variant
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getvalue('local_testing_mode')",
+        reason="UDAF is not supported in Local Testing",
+    ),
+    pytest.mark.udf,
+]
 
 
 def test_basic_udaf(session):
