@@ -6,6 +6,10 @@
 
 - Added support to create and invoke stored procedures, UDFs and UDTFs with optional arguments.
 
+### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+
 ### Local Testing Updates
 
 #### New Features

@@ -254,9 +254,6 @@ def test_read_csv(session, mode):
     assert len(res[0]) == 3
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
-    with pytest.raises(SnowparkDataframeReaderException):
-        session.read.csv(test_file_on_stage)
-
     # if users give an incorrect schema with type error
     # the system will throw SnowflakeSQLException during execution
     incorrect_schema = StructType(
@@ -351,6 +348,31 @@ def test_read_csv(session, mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df3.collect()
     assert "is out of range" in str(ex_info)
+
+
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1411711 to fix bug",
+    run=False,
+)
+def test_read_csv_with_default_infer_schema(session):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+    with pytest.raises(SnowparkDataframeReaderException) as exec_info:
+        session.read.options({"infer_schema": False}).csv(test_file_on_stage)
+    assert (
+        'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})'
+        in str(exec_info)
+    )
+
+    # check infer_schema default as true
+    Utils.check_answer(
+        session.read.csv(test_file_on_stage),
+        [
+            Row(c1=1, c2="one", c3=Decimal("1.2")),
+            Row(c1=2, c2="two", c3=Decimal("2.2")),
+        ],
+    )
 
 
 @pytest.mark.skipif(
