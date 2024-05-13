@@ -293,7 +293,6 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         -----
         Deprecated and removed in pandas and will be likely removed in Modin.
         """
-        pass
 
     @property
     def groups():
@@ -986,9 +985,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ----------
         ddof : int, default 1.
             Degrees of freedom.
-            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it falls back with
-            native pandas using stored procedure.
-
+            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
             In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
@@ -1112,7 +1109,6 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             - bottom: assign highest rank to NaN values
         pct: bool
             Whether to display the returned rankings in percentile form.
-        axis: 0
 
         Returns
         -------
@@ -1141,7 +1137,6 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         5   1
         6   2
         """
-        pass
 
     @property
     def corrwith():
@@ -1202,8 +1197,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ----------
         ddof : int, default 1
             Degrees of freedom.
-            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it falls back with
-            native pandas using stored procedure.
+            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
             In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
@@ -1359,7 +1353,18 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def nunique():
-        pass
+        """
+        Return DataFrame with counts of unique elements in each position.
+
+        Parameters
+        ----------
+        dropna : bool, default True
+            Whether to exclude NaN in the counts.
+
+        Returns
+        -------
+        DataFrame
+        """
 
     def resample():
         pass
@@ -1503,7 +1508,14 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def __iter__():
-        pass
+        """
+        GroupBy iterator.
+
+        Returns
+        -------
+        Generator
+            A generator yielding a sequence of (name, subsetted object) for each group.
+        """
 
     def cov():
         pass
@@ -1791,7 +1803,27 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def quantile():
-        pass
+        """
+        Return group values at the given quantile, like ``numpy.percentile``.
+
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+            Value(s) between 0 and 1 providing the quantile(s) to compute.
+
+        interpolation : {'linear', 'lower', 'higher', 'midpoint', 'nearest'}
+            Method to use when the desired quantile falls between two points.
+
+            Snowpark pandas currently only supports "linear" and "nearest".
+
+        numeric_only : bool, default False
+            Include only float, int or boolean data.
+
+        Returns
+        -------
+        Series or DataFrame
+            Return type determined by caller of GroupBy object.
+        """
 
     def diff():
         pass
@@ -1837,7 +1869,18 @@ class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we
         pass
 
     def nunique():
-        pass
+        """
+        Return number unique elements in the group.
+
+        Parameters
+        ----------
+        dropna : bool, default True
+            Whether to exclude NaN in the counts.
+
+        Returns
+        -------
+        Series
+        """
 
     def apply():
         pass
