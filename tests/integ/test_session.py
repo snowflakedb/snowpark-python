@@ -337,7 +337,9 @@ def test_create_session_from_parameters(
 
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
+def test_create_session_from_connection(
+    db_parameters, sql_simplifier_enabled, local_testing_mode
+):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs({"connection": connection})
     new_session = session_builder.create()
@@ -346,7 +348,8 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
         assert session_builder._options.get("password") is None
-        assert new_session._conn._lower_case_parameters.get("password") is None
+        if not local_testing_mode:
+            assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
