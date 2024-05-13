@@ -22,7 +22,7 @@ from tests.utils import TempObjectType, TestFiles, Utils
 pytestmark = [
     pytest.mark.udf,
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="Local Testing does not support permanent udfs.",
         run=False,
     ),

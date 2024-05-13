@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
+- Fixed support for `display.max_rows` and `display.max_cols` being set to `None`.
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 
 ### Improvements

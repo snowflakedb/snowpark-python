@@ -223,7 +223,7 @@ def test_quotes_upper_and_lower_case_name(session, table_name_1):
 
 # TODO: enable for local testing after emulating snowflake data types
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="geometry and geopgrahy types not yet supported in local testing mode.",
 )
 def test_table_with_semi_structured_types(session, semi_structured_table):
@@ -261,7 +261,7 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374013: Local testing fails to parse time '09:15:29.999999'",
 )
 def test_table_with_time_type(session, table_with_time):

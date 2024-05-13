@@ -23,7 +23,7 @@ from snowflake.snowpark.types import DateType, StringType
 from tests.utils import IS_IN_STORED_PROC, TempObjectType, TestFiles, Utils
 
 pytestmark = pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Local Testing packaging operation is no-op",
     run=False,
 )
