@@ -330,7 +330,7 @@ def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
 # [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1348452: Precision not fully aligned for local testing.",
 )
 def test_sliding_rows_between_with_aggregation(session):
@@ -353,7 +353,7 @@ def test_sliding_rows_between_with_aggregation(session):
 # [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1348452: Precision not fully aligned for local testing.",
 )
 def test_reverse_sliding_rows_between_with_aggregation(session):

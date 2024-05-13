@@ -49,7 +49,7 @@ from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 @pytest.mark.localtest
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: pivot not supported",
 )
 def test_pivot(session):
@@ -160,7 +160,7 @@ def test_pivot_agg_functions(session, func, expected):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: pivot not supported",
 )
 def test_group_by_pivot(session):
@@ -234,7 +234,7 @@ def test_group_by_pivot_dynamic_any(session, caplog):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_group_by_pivot_dynamic_subquery(session):
@@ -263,7 +263,7 @@ def test_group_by_pivot_dynamic_subquery(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="TODO: Join fails with error 'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): The DataFrame does not contain the column named JAN.'",
     run=False,
 )
@@ -310,7 +310,7 @@ def test_pivot_on_join(session):
 # pivot will materialize the data before executing pivot, otherwise would fail with not finding the
 # data when doing a later schema call.
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
@@ -349,7 +349,7 @@ def test_pivot_dynamic_any(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 def test_pivot_dynamic_subquery(session):
@@ -517,7 +517,7 @@ def test_group_by(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-977749 grouping by grouping sets not supported",
 )
 def test_group_by_grouping_sets(session):
@@ -931,7 +931,7 @@ def test_count(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: stddev not supported",
 )
 def test_stddev(session):
@@ -954,7 +954,7 @@ def test_stddev(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: variance not supported",
 )
 def test_sn_moments(session):
@@ -990,7 +990,7 @@ def test_sn_moments(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: stddev not supportedg",
 )
 def test_sn_zero_moments(session):
@@ -1029,7 +1029,7 @@ def test_sn_zero_moments(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: variance not supported",
 )
 def test_sn_null_moments(session):
@@ -1087,7 +1087,7 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -1160,7 +1160,7 @@ def test_distinct_and_unionall(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: count_if not suppored in snowpark python",
 )
 def test_count_if(session):
@@ -1315,7 +1315,7 @@ def test_zero_count(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: stddev not supported",
 )
 def test_zero_stddev(session):
@@ -1369,7 +1369,7 @@ def test_listagg(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: aggregate expression within group not supported",
 )
 def test_listagg_within_group(session):

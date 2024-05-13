@@ -36,7 +36,7 @@ else:
 pytestmark = [
     pytest.mark.udf,
     pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="UDTF is not supported in Local Testing",
     ),
 ]
