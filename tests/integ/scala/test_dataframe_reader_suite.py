@@ -351,6 +351,11 @@ def test_read_csv(session, mode):
     assert "is out of range" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1411711 to fix bug",
+    run=False,
+)
 def test_read_csv_with_default_infer_schema(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
