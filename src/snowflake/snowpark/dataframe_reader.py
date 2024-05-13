@@ -393,6 +393,9 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = "CSV"
 
+        # infer schema is set to false by default
+        if "INFER_SCHEMA" not in self._cur_options:
+            self._cur_options["INFER_SCHEMA"] = False
         schema_to_cast, transformations = None, None
 
         if not self._user_schema:
@@ -418,7 +421,6 @@ class DataFrameReader:
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
         else:
-            self._cur_options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
