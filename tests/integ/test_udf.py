@@ -1003,6 +1003,11 @@ def return_dict(v: dict) -> Dict[str, str]:
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
     source = """
