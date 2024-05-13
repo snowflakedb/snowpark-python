@@ -249,7 +249,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_stage(session, target_stage_name)
 
 
-@pytest.mark.skipfi(
+@pytest.mark.skipif(
     "config.getvalue('local_testing_mode')",
     reason="FEAT: session._table_exists not supported",
 )
