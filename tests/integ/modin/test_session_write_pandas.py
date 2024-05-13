@@ -19,6 +19,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_frame_equal
 from tests.utils import Utils
 
@@ -53,59 +54,67 @@ def test_write_pandas_with_overwrite(
             columns=["id".upper(), "name".upper(), "points".upper(), "age".upper()],
         )
 
-        # Create initial table and insert 3 rows
-        table1 = session.write_pandas(
-            pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
-        )
+        with SqlCounter(query_count=5):
+            # Create initial table and insert 3 rows
+            table1 = session.write_pandas(
+                pd1,
+                table_name,
+                quote_identifiers=quote_identifiers,
+                auto_create_table=True,
+            )
 
-        assert_frame_equal(pd1, table1.to_pandas(), check_dtype=False)
+            assert_frame_equal(pd1, table1.to_pandas(), check_dtype=False)
 
-        # Insert 1 row
-        table2 = session.write_pandas(
-            pd2,
-            table_name,
-            quote_identifiers=quote_identifiers,
-            overwrite=overwrite,
-            auto_create_table=auto_create_table,
-        )
-        results = table2.to_pandas()
-        if overwrite:
-            # Results should match pd2
-            assert_frame_equal(results, pd2, check_dtype=False)
-        else:
-            # Results count should match pd1 + pd2
-            assert results.shape[0] == 4
-
-        if overwrite:
-            # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
-            table3 = session.write_pandas(
-                pd3,
+        with SqlCounter(query_count=3 if auto_create_table else 4):
+            # Insert 1 row
+            table2 = session.write_pandas(
+                pd2,
                 table_name,
                 quote_identifiers=quote_identifiers,
                 overwrite=overwrite,
                 auto_create_table=auto_create_table,
             )
-            results = table3.to_pandas()
-            assert_frame_equal(results, pd3, check_dtype=False)
-        else:
-            # In this case, the table is truncated but since there's a new schema, it should fail
-            with pytest.raises(SnowparkSQLException) as ex_info:
-                session.write_pandas(
+            results = table2.to_pandas()
+            if overwrite:
+                # Results should match pd2
+                assert_frame_equal(results, pd2, check_dtype=False)
+            else:
+                # Results count should match pd1 + pd2
+                assert results.shape[0] == 4
+
+        if overwrite:
+            with SqlCounter(query_count=3 if auto_create_table else 4):
+                # In this case, the table is first dropped and since there's a new schema, the results should now match pd3
+                table3 = session.write_pandas(
                     pd3,
                     table_name,
                     quote_identifiers=quote_identifiers,
                     overwrite=overwrite,
                     auto_create_table=auto_create_table,
                 )
-            assert "Insert value list does not match column list" in str(ex_info)
+                results = table3.to_pandas()
+                assert_frame_equal(results, pd3, check_dtype=False)
+        else:
+            with SqlCounter(query_count=1 if auto_create_table else 2):
+                # In this case, the table is truncated but since there's a new schema, it should fail
+                with pytest.raises(SnowparkSQLException) as ex_info:
+                    session.write_pandas(
+                        pd3,
+                        table_name,
+                        quote_identifiers=quote_identifiers,
+                        overwrite=overwrite,
+                        auto_create_table=auto_create_table,
+                    )
+                assert "Insert value list does not match column list" in str(ex_info)
 
-        with pytest.raises(SnowparkClientException) as ex_info:
-            session.write_pandas(pd1, "tmp_table")
-        assert (
-            'Cannot write Snowpark pandas DataFrame to table "tmp_table" because it does not exist. '
-            "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
-            in str(ex_info)
-        )
+        with SqlCounter(query_count=1):
+            with pytest.raises(SnowparkClientException) as ex_info:
+                session.write_pandas(pd1, "tmp_table")
+            assert (
+                'Cannot write Snowpark pandas DataFrame to table "tmp_table" because it does not exist. '
+                "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
+                in str(ex_info)
+            )
     finally:
         Utils.drop_table(session, table_name)
         Utils.drop_table(session, "tmp_table")
@@ -132,38 +141,43 @@ def tmp_table_basic(session):
 
 
 def test_write_pandas(session, tmp_table_basic):
-    df = pd.DataFrame(
-        [
-            (1, 4.5, "t1"),
-            (2, 7.5, "t2"),
-            (3, 10.5, "t3"),
-        ],
-        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
-    )
-
-    table = session.write_pandas(df, tmp_table_basic, overwrite=True)
-    results = table.to_pandas()
-    assert_frame_equal(results, df, check_dtype=False)
-
-    # Auto create a new table
-    session._run_query(f'drop table if exists "{tmp_table_basic}"')
-    table = session.write_pandas(df, tmp_table_basic, auto_create_table=True)
-    table_info = session.sql(f"show tables like '{tmp_table_basic}'").collect()
-    assert table_info[0]["kind"] == "TABLE"
-    results = table.to_pandas()
-    assert_frame_equal(results, df, check_dtype=False)
-
-    nonexistent_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    with pytest.raises(SnowparkClientException) as ex_info:
-        session.write_pandas(df, nonexistent_table, auto_create_table=False)
-        assert (
-            f'Cannot write Snowpark pandas DataFrame to table "{nonexistent_table}" because it does not exist. '
-            "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
-            in str(ex_info)
+    try:
+        df = pd.DataFrame(
+            [
+                (1, 4.5, "t1"),
+                (2, 7.5, "t2"),
+                (3, 10.5, "t3"),
+            ],
+            columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
         )
 
-    # Drop tables that were created for this test
-    session._run_query(f'drop table if exists "{tmp_table_basic}"')
+        with SqlCounter(query_count=4):
+            table = session.write_pandas(df, tmp_table_basic, overwrite=True)
+            results = table.to_pandas()
+            assert_frame_equal(results, df, check_dtype=False)
+    finally:
+        session._run_query(f'drop table if exists "{tmp_table_basic}"')
+
+    try:
+        with SqlCounter(query_count=6):
+            table = session.write_pandas(df, tmp_table_basic, auto_create_table=True)
+            table_info = session.sql(f"show tables like '{tmp_table_basic}'").collect()
+            assert table_info[0]["kind"] == "TABLE"
+            results = table.to_pandas()
+            assert_frame_equal(results, df, check_dtype=False)
+
+        nonexistent_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        with SqlCounter(query_count=1):
+            with pytest.raises(SnowparkClientException) as ex_info:
+                session.write_pandas(df, nonexistent_table, auto_create_table=False)
+                assert (
+                    f'Cannot write Snowpark pandas DataFrame to table "{nonexistent_table}" because it does not exist. '
+                    "Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
+                    in str(ex_info)
+                )
+    finally:
+        # Drop tables that were created for this test
+        session._run_query(f'drop table if exists "{tmp_table_basic}"')
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
@@ -179,20 +193,21 @@ def test_write_pandas_with_table_type(session, table_type: str):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        table = session.write_pandas(
-            df,
-            table_name,
-            table_type=table_type,
-            auto_create_table=True,
-        )
-        results = table.to_pandas()
-        assert_frame_equal(results, df, check_dtype=False)
-        Utils.assert_table_type(session, table_name, table_type)
+        with SqlCounter(query_count=6):
+            table = session.write_pandas(
+                df,
+                table_name,
+                table_type=table_type,
+                auto_create_table=True,
+            )
+            results = table.to_pandas()
+            assert_frame_equal(results, df, check_dtype=False)
+            Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
 
 
-def test_write_to_different_schema(session, local_testing_mode):
+def test_write_to_different_schema(session):
     pd_df = pd.DataFrame(
         [
             (1, 4.5, "Nike"),
@@ -205,24 +220,23 @@ def test_write_to_different_schema(session, local_testing_mode):
     test_schema_name = Utils.random_temp_schema()
 
     try:
-        if not local_testing_mode:
-            Utils.create_schema(session, test_schema_name)
+        Utils.create_schema(session, test_schema_name)
         # For owner's rights stored proc test, current schema does not change after creating a new schema
         if not is_in_stored_procedure():
             session.use_schema(original_schema_name)
         assert session.get_current_schema() == original_schema_name
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        session.write_pandas(
-            pd_df,
-            table_name,
-            quote_identifiers=False,
-            schema=test_schema_name,
-            auto_create_table=True,
-        )
-        Utils.check_answer(
-            session.table(f"{test_schema_name}.{table_name}").sort("id"),
-            [Row(1, 4.5, "Nike"), Row(2, 7.5, "Adidas"), Row(3, 10.5, "Puma")],
-        )
+        with SqlCounter(query_count=4):
+            session.write_pandas(
+                pd_df,
+                table_name,
+                quote_identifiers=False,
+                schema=test_schema_name,
+                auto_create_table=True,
+            )
+            Utils.check_answer(
+                session.table(f"{test_schema_name}.{table_name}").sort("id"),
+                [Row(1, 4.5, "Nike"), Row(2, 7.5, "Adidas"), Row(3, 10.5, "Puma")],
+            )
     finally:
-        if not local_testing_mode:
-            Utils.drop_schema(session, test_schema_name)
+        Utils.drop_schema(session, test_schema_name)
