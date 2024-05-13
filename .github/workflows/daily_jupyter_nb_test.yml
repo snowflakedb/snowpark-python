@@ -1,16 +1,14 @@
 name: Daily Snowpark pandas jupyter notebook test
 
 on:
-  pull_request:
-    types: [ opened, synchronize, labeled, unlabeled ]
-#    schedule:
-#      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
-#    workflow_dispatch:
-#        inputs:
-#            logLevel:
-#                default: warning
-#                description: "Log level"
-#                required: true
+    schedule:
+      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
+    workflow_dispatch:
+        inputs:
+            logLevel:
+                default: warning
+                description: "Log level"
+                required: true
 
 jobs:
     lint:
