@@ -444,6 +444,10 @@ def test_lead_lag_invalid_inputs(session):
     assert "lags must be a list of integers > 0" in str(exc)
 
 
+@pytest.mark.skipif(
+    "config.getvalue('local_testing_mode')",
+    reason="SNOW-1375417: bug in calculate_type raises TypeError for Long division",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg(session):
     """Tests time_series_agg_fixed function with various window sizes."""

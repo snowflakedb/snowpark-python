@@ -3,6 +3,10 @@
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
 - Fixed support for `display.max_rows` and `display.max_cols` being set to `None`.
+- Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
+
+### Improvements
+- Improved performance of `pd.qcut` by removing joins in generated sql query.
 
 ## 1.15.0a1 (2024-07-05)
 
