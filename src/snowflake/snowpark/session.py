@@ -2172,7 +2172,8 @@ class Session:
 
         if not auto_create_table and not self._table_exists(name):
             raise SnowparkClientException(
-                f"Cannot write Snowpark pandas DataFrame to table {location} because it does not exist. Use auto_create_table = True to create table before writing a Snowpark pandas DataFrame"
+                f"Cannot write Snowpark pandas DataFrame or Series to table {location} because it does not exist. Use "
+                f"auto_create_table = True to create table before writing a Snowpark pandas DataFrame or Series"
             )
         if_exists = "replace" if overwrite else "append"
         df.to_snowflake(

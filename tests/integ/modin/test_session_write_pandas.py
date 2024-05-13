@@ -240,3 +240,19 @@ def test_write_to_different_schema(session):
             )
     finally:
         Utils.drop_schema(session, test_schema_name)
+
+
+def test_write_series(session):
+    s = pd.Series([1, 2, 3], name="s")
+    try:
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        with SqlCounter(query_count=5):
+            table = session.write_pandas(
+                s,
+                table_name,
+                quote_identifiers=False,
+                auto_create_table=True,
+            )
+            assert_frame_equal(s.to_frame(), table.to_pandas(), check_dtype=False)
+    finally:
+        Utils.drop_table(session, table_name)
