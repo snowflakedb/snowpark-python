@@ -996,12 +996,11 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     native_ser = mixed_type_index_native_series_mixed_type_index.copy()
     snowpark_ser = pd.Series(native_ser)
 
-    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-
     # Assign item.
     native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
     snowpark_ser[key] = item
 
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     if isinstance(key, pd.Index):
         key = key.to_pandas()
 

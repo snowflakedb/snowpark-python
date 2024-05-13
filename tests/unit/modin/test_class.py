@@ -6,7 +6,7 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.index import Index as ModinIndex
+from snowflake.snowpark.modin.pandas.index import Index
 
 
 def test_class_equivalence():
@@ -31,7 +31,7 @@ def test_class_equivalence():
     assert pd.Float32Dtype is native_pd.Float32Dtype
     assert pd.Float64Dtype is native_pd.Float64Dtype
     assert pd.Grouper is native_pd.Grouper
-    assert pd.Index is ModinIndex
+    assert pd.Index is Index
     assert pd.IndexSlice is native_pd.IndexSlice
     assert pd.Int8Dtype is native_pd.Int8Dtype
     assert pd.Int16Dtype is native_pd.Int16Dtype
