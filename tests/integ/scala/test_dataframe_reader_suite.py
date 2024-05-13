@@ -352,7 +352,7 @@ def test_read_csv(session, mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1411711 to fix bug",
     run=False,
 )
