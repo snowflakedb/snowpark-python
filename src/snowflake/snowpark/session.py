@@ -497,7 +497,8 @@ class Session:
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
 
-        # local import due to pex issue.
+        # Import locally, to enable debugger and pex as they run into
+        # troubles resulting in a circular import.
         from snowflake.snowpark._internal.tcm.snowpark_ast import AstBatch
 
         self._ast_batch = AstBatch(self)

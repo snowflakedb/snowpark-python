@@ -14,6 +14,8 @@ from typing import Tuple
 
 # TODO: currently unused.
 def expr_to_dataframe_expr(expr):
+    # Import locally, to enable debugger and pex as they run into
+    # troubles resulting in a circular import.
     import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
 
     dfe = proto.SpDataframeExpr()
@@ -47,6 +49,8 @@ class AstBatch:
         return (str(self._request_id), batch)
 
     def _init_batch(self) -> None:
+        # Import locally, to enable debugger and pex as they run into
+        # troubles resulting in a circular import.
         import snowflake.snowpark._internal.tcm.proto.ast_pb2 as proto
 
         self._request_id = uuid.uuid4()  # Generate a new unique ID.
