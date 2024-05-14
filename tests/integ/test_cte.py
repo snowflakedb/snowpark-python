@@ -29,7 +29,7 @@ from tests.utils import TestFiles, Utils
 
 pytestmark = [
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="CTE is a SQL feature",
         run=False,
     )

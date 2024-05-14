@@ -45,7 +45,7 @@ from tests.utils import TestData, Utils
 # [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="precision for local testing is not yet aligned.",
 )
 def test_partition_by_order_by_rows_between(session, local_testing_mode):
@@ -103,7 +103,7 @@ def test_range_between(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362852: Window functions need better alignment with live.",
 )
 def test_window_function_with_aggregates(session):
@@ -120,7 +120,7 @@ def test_window_function_with_aggregates(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362852: Window functions need better alignment with live.",
 )
 def test_window_function_inside_where_and_having_clauses(session):
@@ -187,7 +187,7 @@ def test_reuse_window_order_by(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="ntile is not yet supported in local testing mode.",
 )
 def test_rank_functions_in_unspecific_window(session):
@@ -283,7 +283,7 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="corr is not yet supported in local testing mode.",
 )
 def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
@@ -349,7 +349,7 @@ def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="covar_samp is not yet supported in local testing mode.",
 )
 def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
@@ -418,7 +418,7 @@ def test_aggregation_function_on_invalid_column(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="skew is not yet supported in local testing mode.",
 )
 def test_skewness_and_kurtosis_functions_in_window(session):
@@ -493,7 +493,7 @@ def test_window_functions_in_multiple_selects(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="WithinGroup expressions are not yet supported by local testing mode.",
 )
 def test_listagg_window_function(session):

@@ -351,7 +351,7 @@ def test_read_csv(session, mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1411711 to fix bug",
     run=False,
 )
@@ -376,7 +376,7 @@ def test_read_csv_with_default_infer_schema(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -435,7 +435,7 @@ def test_read_csv_incorrect_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: xml not supported",
 )
 def test_save_as_table_work_with_df_created_from_read(session):
@@ -787,7 +787,7 @@ def test_read_csv_with_quotes_containing_delimiter(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370153 read metadata from stage; FEAT: parquet/avro/xml/orc support",
 )
 @pytest.mark.parametrize(
@@ -1005,11 +1005,11 @@ def test_read_json_with_infer_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: avro not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1041,7 +1041,7 @@ def test_read_avro_with_no_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1072,7 +1072,7 @@ def test_for_all_parquet_compression_keywords(session, temp_schema, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1104,7 +1104,7 @@ def test_read_parquet_with_no_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1121,7 +1121,7 @@ def test_read_parquet_with_join_table_function(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.skipif(
@@ -1201,7 +1201,7 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.skipif(
@@ -1239,7 +1239,7 @@ def test_read_parquet_with_special_characters_in_column_names(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: orc not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1271,7 +1271,7 @@ def test_read_orc_with_no_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: xml not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1303,7 +1303,7 @@ def test_read_xml_with_no_schema(session, mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370138 AssertionError; FEAT: on_error support",
 )
 def test_copy(session, local_testing_mode):
@@ -1349,7 +1349,7 @@ def test_copy(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370138 unsupported force option should raise error",
 )
 def test_copy_option_force(session):
@@ -1396,7 +1396,7 @@ def test_copy_option_force(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370138 on_error option should raise error",
 )
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
@@ -1415,7 +1415,7 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: option on_error not supported",
 )
 def test_read_file_on_error_continue_on_avro(session):
@@ -1433,7 +1433,7 @@ def test_read_file_on_error_continue_on_avro(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
@@ -1459,7 +1459,7 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370153 should return number instead of UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1476,7 +1476,7 @@ def test_pattern(session, mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -1499,7 +1499,7 @@ def test_read_staged_file_no_commit(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
     run=False,
 )
@@ -1521,7 +1521,7 @@ def test_read_csv_with_sql_simplifier(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
     run=False,
 )
@@ -1542,7 +1542,7 @@ def test_read_parquet_with_sql_simplifier(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370153 empty file path",
 )
 def test_filepath_not_exist_or_empty(session):
@@ -1571,7 +1571,7 @@ def test_filepath_not_exist_or_empty(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
 )
 def test_filepath_with_single_quote(session):

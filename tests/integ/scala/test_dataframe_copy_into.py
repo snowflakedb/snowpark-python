@@ -197,7 +197,7 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
 
 pytestmark = [
     pytest.mark.skipif(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="SNOW-952138 DataFrame.copy_into_table is not supported in Local Testing",
     )
 ]

@@ -773,6 +773,16 @@ class StringMethods:
             query_compiler=self._query_compiler.str_findall(pat, flags=flags, **kwargs)
         )
 
+    def fullmatch(self, pat, case=True, flags=0, na=None):
+        ErrorMessage.method_not_implemented_error("fullmatch", "Series.str")
+        if not isinstance(pat, (str, re.Pattern)):
+            raise TypeError("first argument must be string or compiled pattern")
+        return self._Series(
+            query_compiler=self._query_compiler.str_fullmatch(
+                pat, case=case, flags=flags, na=na
+            )
+        )
+
     def match(self, pat, case=True, flags=0, na=np.NaN):
         ErrorMessage.method_not_implemented_error("match", "Series.str")
         if not isinstance(pat, (str, _pattern_type)):

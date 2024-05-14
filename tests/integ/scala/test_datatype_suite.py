@@ -131,7 +131,7 @@ STRUCTURED_TYPES_EXAMPLES = {
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
 def test_verify_datatypes_reference(session):
@@ -256,7 +256,7 @@ def test_verify_datatypes_reference_vector(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
 def test_dtypes(session):
@@ -332,7 +332,7 @@ def test_dtypes(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
@@ -346,11 +346,11 @@ def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('disable_sql_simplifier')",
+    "config.getoption('disable_sql_simplifier', default=False)",
     reason="without sql_simplifier returned types are all variants",
 )
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
@@ -392,7 +392,7 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
 
 @pytest.mark.skipif(not installed_pandas, reason="Pandas required for this test.")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 @pytest.mark.parametrize(
