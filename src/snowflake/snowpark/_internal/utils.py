@@ -963,7 +963,7 @@ class MissingModin(MissingOptionalDependency):
     _dep_name = "modin"
 
 
-def import_or_missing_modin_pandas() -> tuple[ModuleLikeObject, bool]:
+def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
     """This function tries importing the following packages: modin.pandas
 
     If available it returns modin package with a flag of whether it was imported.
