@@ -111,7 +111,7 @@ dtype: int64
 dtype: int64
 
 >>> s.groupby(level=0).agg(['min', 'max'])
-    min  max
+   min  max
 1    1    3
 2    2    4
 """
@@ -622,18 +622,18 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ...                   index=["tuna", "salmon", "catfish", "goldfish"])
 
         >>> df
-                   a  b  c
-            tuna   1  2  3
-          salmon   1  5  6
-         catfish   2  5  8
-        goldfish   2  6  9
+                  a  b  c
+        tuna      1  2  3
+        salmon    1  5  6
+        catfish   2  5  8
+        goldfish  2  6  9
 
         >>> df.groupby("a").shift(1)
-                      b    c
-            tuna    NaN  NaN
-          salmon    2.0  3.0
-         catfish    NaN  NaN
-        goldfish    5.0  8.0
+                    b    c
+        tuna      NaN  NaN
+        salmon    2.0  3.0
+        catfish   NaN  NaN
+        goldfish  5.0  8.0
         """
 
     def nth():
@@ -678,19 +678,19 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["fox", "gorilla", "lion"])
         >>> df
-                  a   b   c
-        fox       1   8   2
-        gorilla   1   2   5
-        lion      2   6   9
+                 a  b  c
+        fox      1  8  2
+        gorilla  1  2  5
+        lion     2  6  9
 
         >>> df.groupby("a").groups
         {1: ['fox', 'gorilla'], 2: ['lion']}
 
         >>> df.groupby("a").cumsum()
-                  b   c
-        fox       8   2
-        gorilla  10   7
-        lion      6   9
+                  b  c
+        fox       8  2
+        gorilla  10  7
+        lion      6  9
         """
 
     def indices():
@@ -777,17 +777,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["cow", "horse", "bull"])
         >>> df
-                a   b   c
-        cow     1   8   2
-        horse   1   1   0
-        bull    2   6   9
+               a  b  c
+        cow    1  8  2
+        horse  1  1  0
+        bull   2  6  9
         >>> df.groupby("a").groups
         {1: ['cow', 'horse'], 2: ['bull']}
         >>> df.groupby("a").cummax()
-                b   c
-        cow     8   2
-        horse   8   2
-        bull    6   9
+               b  c
+        cow    8  2
+        horse  8  2
+        bull   6  9
         """
 
     def apply():
@@ -866,9 +866,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
                     B    C
         A
-        a 0  0.333333  0.4
-          1  0.666667  0.6
-        b 2  1.000000  1.0
+        a 0.0  0.333333  0.4
+          1.0  0.666667  0.6
+        b 2.0  1.000000  1.0
         """
 
     @property
@@ -956,17 +956,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["snake", "rabbit", "turtle"])
         >>> df
-                a   b   c
-        snake   1   0   2
-        rabbit  1   1   5
-        turtle  6   6   9
+                a  b  c
+        snake   1  0  2
+        rabbit  1  1  5
+        turtle  6  6  9
         >>> df.groupby("a").groups
         {1: ['snake', 'rabbit'], 6: ['turtle']}
         >>> df.groupby("a").cummin()
-                b   c
-        snake   0   2
-        rabbit  0   2
-        turtle  6   9
+                b  c
+        snake   0  2
+        rabbit  0  2
+        turtle  6  9
         """
 
     def bfill():
@@ -1118,24 +1118,24 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame({"group": ["a", "a", "a", "b", "b", "b", "b"], "value": [2, 4, 2, 3, 5, 1, 2]})
         >>> df
-            group   value
-        0	    a	    2
-        1	    a	    4
-        2	    a	    2
-        3       b       3
-        4       b       5
-        5       b       1
-        6       b       2
+          group  value
+        0     a      2
+        1     a      4
+        2     a      2
+        3     b      3
+        4     b      5
+        5     b      1
+        6     b      2
         >>> df = df.groupby("group").rank(method='min')
         >>> df
-            value
-        0   1
-        1   3
-        2   1
-        3   3
-        4   4
-        5   1
-        6   2
+           value
+        0      1
+        1      3
+        2      1
+        3      3
+        4      4
+        5      1
+        6      2
         """
 
     @property
@@ -1422,9 +1422,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         mouse  8  2
         mouse  3  1
         >>> df.groupby(level=0).median()
-                   a      b
-        dog    3.000  4.000
-        mouse  7.000  3.000
+                 a    b
+        dog    3.0  4.0
+        mouse  7.0  3.0
         """
 
     def head():
@@ -1497,11 +1497,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         h  None     8    80    -8
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).head(-2)
-           col1  col2  col3  col4
-        a     Z     1    40    -1
-        b  None     2    50    -2
-        c     X     3    60    -3
-        e     Y     5    20    -5
+          col1  col2  col3  col4
+        c    X     3    60    -3
+        f    X     6    30    -6
         """
 
     def cumprod():
@@ -1688,7 +1686,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame([['a'], ['a'], ['a'], ['b'], ['b'], ['a']],
         ...                   columns=['A'])
         >>> df
-        A
+           A
         0  a
         1  a
         2  a
@@ -1788,9 +1786,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         i     X     9    90    -9
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).tail(-2)
-           col1  col2  col3  col4
-        g     X     7    40    -7
-        i     X     9    90    -9
+          col1  col2  col3  col4
+        g    X     7    40    -7
+        i    X     9    90    -9
         """
 
     def expanding():
@@ -1829,6 +1827,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def take():
+        pass
+
+    def pipe():
         pass
 
 
@@ -1881,6 +1882,9 @@ class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we
         -------
         Series
         """
+
+    def unique(self):
+        pass
 
     def apply():
         pass
