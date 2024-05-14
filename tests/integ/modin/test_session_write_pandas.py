@@ -256,3 +256,58 @@ def test_write_series(session):
             assert_frame_equal(s.to_frame(), table.to_pandas(), check_dtype=False)
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize("quote_identifiers", [True, False])
+@pytest.mark.parametrize("is_modin_dataframe", [True, False])
+def test_write_pandas_with_quote_identifiers(
+    session,
+    is_modin_dataframe: bool,
+    quote_identifiers: bool,
+):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        pd1 = pd.DataFrame(
+            [
+                (1, 4.5, "Nike"),
+                (2, 7.5, "Adidas"),
+                (3, 10.5, "Puma"),
+            ],
+            columns=["id", "foot_size", "shoe_make"],
+        )
+
+        if not is_modin_dataframe:
+            pd1 = pd1.to_pandas()
+
+        if is_modin_dataframe and not quote_identifiers:
+            with pytest.raises(NotImplementedError):
+                table1 = session.write_pandas(
+                    pd1,
+                    table_name,
+                    quote_identifiers=quote_identifiers,
+                    auto_create_table=True,
+                )
+        else:
+            with SqlCounter(query_count=3 if is_modin_dataframe else 0):
+                # Create initial table and insert 3 rows
+                table1 = session.write_pandas(
+                    pd1,
+                    table_name,
+                    quote_identifiers=quote_identifiers,
+                    auto_create_table=True,
+                )
+
+                def is_quoted(name: str) -> bool:
+                    return name[0] == '"' and name[-1] == '"'
+
+                if quote_identifiers:
+                    assert is_quoted(table1.table_name)
+                    for col in table1.columns:
+                        assert is_quoted(col)
+                elif is_modin_dataframe:
+                    assert not is_quoted(table1.table_name)
+                    for col in table1.columns:
+                        assert not is_quoted(col)
+
+    finally:
+        Utils.drop_table(session, table_name)

@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
+    import_or_missing_modin_pandas,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -2140,8 +2141,8 @@ class Session:
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
-                (from :attr:`DataFrame.columns`) will be quoted. If set to ``False``, identifiers
-                are passed on to Snowflake without quoting, i.e. identifiers will be coerced to uppercase by Snowflake.
+                (from :attr:`DataFrame.columns`) will be quoted. `to_snowflake` always quote column names so
+                quote_identifiers = False is not supported here.
             auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
                 passed in ``database``, ``schema``, and ``table_name``. Note: there are usually multiple table configurations that
                 would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
@@ -2160,9 +2161,13 @@ class Session:
                 and ``transient``. An empty string means to create a permanent table. Learn more about table types
                 `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
         """
+        if not quote_identifiers:
+            raise NotImplementedError(
+                "quote_identifiers = False is not supported by `to_snowflake`."
+            )
 
         def quote_id(id: str) -> str:
-            return '"' + id + '"' if quote_identifiers else id
+            return '"' + id + '"'
 
         name = [table_name]
         if schema:
@@ -2323,7 +2328,11 @@ class Session:
                         "snowflake-connector-python to 3.4.0 or above.",
                         stacklevel=1,
                     )
-            if "modin" in str(type(df)):
+
+            modin_pandas, modin_is_imported = import_or_missing_modin_pandas()
+            if modin_is_imported and isinstance(
+                df, (modin_pandas.DataFrame, modin_pandas.Series)
+            ):
                 self._write_modin_pandas_helper(
                     df,
                     table_name,
