@@ -162,7 +162,7 @@ def test_join_with_multiple_conditions(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
 def test_join_with_ambiguous_column_in_condition(session):
@@ -308,7 +308,7 @@ def test_cross_join(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_basic(session):
@@ -338,7 +338,7 @@ def test_asof_join_basic(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_using_columns(session):
@@ -368,7 +368,7 @@ def test_asof_join_using_columns(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_on_condition(session):
@@ -403,7 +403,7 @@ def test_asof_join_on_condition(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_with_suffix(session):
@@ -440,7 +440,7 @@ def test_asof_join_with_suffix(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_with_df_alias(session):
@@ -492,7 +492,7 @@ def test_asof_join_with_df_alias(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359450: Suport ASOF join in Local Testing",
 )
 def test_asof_join_negative(session):
@@ -553,7 +553,7 @@ def test_join_ambiguous_columns_with_specified_sources(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
 def test_join_ambiguous_columns_without_specified_sources(session):
@@ -822,7 +822,7 @@ def test_aliases_multiple_levels_deep(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is a SQL test",
     run=False,
 )
@@ -1018,7 +1018,7 @@ def test_join_of_join(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
 def test_negative_test_join_of_join(session):
@@ -1041,7 +1041,7 @@ def test_negative_test_join_of_join(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_drop_on_join(
@@ -1065,7 +1065,7 @@ def test_drop_on_join(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_drop_on_self_join(session):  # TODO: Fix drop
@@ -1082,7 +1082,7 @@ def test_drop_on_self_join(session):  # TODO: Fix drop
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-978584: DataFrame.drop bug",
 )
 def test_with_column_on_join(session):  # TODO: Fix drop
@@ -1294,7 +1294,7 @@ def test_name_alias_on_multiple_join_unnormalized_name(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
 def test_report_error_when_refer_common_col(session):
@@ -1487,7 +1487,7 @@ def test_select_columns_on_join_result_with_conflict_name(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
 def test_nested_join_diamond_shape_error(
@@ -1521,7 +1521,7 @@ def test_nested_join_diamond_shape_workaround(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1373887: Support basic diamond shaped joins in Local Testing",
 )
 def test_dataframe_basic_diamond_shaped_join(session):

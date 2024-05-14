@@ -465,7 +465,13 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
     @property
     def empty():
         """
-        Indicate whether ``DataFrame`` is empty.
+        Indicator whether the DataFrame is empty.
+
+        True if the DataFrame is entirely empty (no items), meaning any of the axes are of length 0.
+
+        Returns
+        -------
+        bool
         """
 
     @property
@@ -2125,6 +2131,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
             * nearest: *i* or *j*, whichever is nearest.
             * midpoint: (*i* + *j*) / 2.
 
+            Snowpark pandas currently only supports "linear" and "nearest".
+
         method: {"single", "table"}, default "single"
             Whether to compute quantiles per-column ("single") or over all columns ("table").
             When "table", the only allowed interpolation methods are "nearest", "lower", and "higher".
@@ -2630,8 +2638,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         exclude : Optional[ListLike | type], default None
             A list of dtypes to exclude from the result.
 
-        Result
-        ------
+        Returns
+        -------
         DataFrame
             The subset of the frame including the dtypes in `include` and excluding the dtypes in
             `exclude`. If a column's dtype is a subtype of a type in both `include` and `exclude` (such

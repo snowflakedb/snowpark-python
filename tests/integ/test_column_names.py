@@ -84,7 +84,7 @@ def test_regexp(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1346957: Collation not supported in Local Testing",
 )
 def test_collate(session):
@@ -167,7 +167,7 @@ def test_scalar_subquery(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-982770: Rank is not supported in Local Testing",
 )
 def test_specified_window_frame(session):
@@ -205,7 +205,7 @@ def test_cast(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1355930: any_value is not supported in Local Testing",
 )
 def test_unspecified_frame(session):
@@ -226,7 +226,7 @@ def test_unspecified_frame(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-982770: Rank is not supported in Local Testing",
 )
 def test_special_frame_boundry(session):
@@ -305,7 +305,7 @@ def test_literal(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1358946: Interval is not supported in Local Testing",
 )
 def test_interval(session):
@@ -508,7 +508,7 @@ def test_udf(session, use_qualified_name, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1359104: Column alias creates incorrect column name.",
 )
 def test_unary_expression(session):
@@ -572,7 +572,7 @@ def test_unary_expression(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Window function WithinGroup is not supported",
 )
 def test_list_agg_within_group_sort_order(session):
