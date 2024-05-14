@@ -65,6 +65,7 @@ jobs:
                   - image_name: windows-latest
                     download_name: windows
                 python-version: ["3.9", "3.10", "3.11"]
+                # FINANCIAL__ECONOMIC_ESSENTIALS database unavailable in gcp, azure
                 cloud-provider: [aws]
         steps:
             - name: Checkout Code
