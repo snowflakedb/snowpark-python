@@ -44,9 +44,9 @@ def _integer_converter(
         return None
     try:
         return int(value)
-    except ValueError:
-        raise SnowparkLocalTestingException(
-            f"Numeric value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -57,8 +57,10 @@ def _fraction_converter(
         return None
     try:
         return float(value)
-    except ValueError:
-        SnowparkLocalTestingException(f"Numeric value '{value}' is not recognized.")
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
+        )
 
 
 def _decimal_converter(
@@ -84,9 +86,9 @@ def _decimal_converter(
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         return Decimal(str(round(float(value), remaining_decimal_len)))
-    except ValueError:
-        raise SnowparkLocalTestingException(
-            f"Numeric value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -102,9 +104,9 @@ def _bool_converter(
     try:
         float_value = float(value)
         return bool(float_value != 0)
-    except TypeError:
-        raise SnowparkLocalTestingException(
-            f"Boolean value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Boolean value '{value}' is not recognized."
         )
 
 
@@ -123,9 +125,9 @@ def _date_converter(
         return None
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
-    except Exception as e:
-        raise SnowparkLocalTestingException(
-            f"DATE value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"DATE value '{value}' is not recognized."
         )
 
 
@@ -136,9 +138,9 @@ def _timestamp_converter(
         return None
     try:
         return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
-    except Exception as e:
-        raise SnowparkLocalTestingException(
-            f"TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
         )
 
 
@@ -149,9 +151,9 @@ def _time_converter(
         return None
     try:
         return datetime.datetime.strptime(value, TIME_FORMAT).time()
-    except Exception as e:
-        raise SnowparkLocalTestingException(
-            f"TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
         )
 
 
