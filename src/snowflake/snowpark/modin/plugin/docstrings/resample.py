@@ -6,8 +6,6 @@
 
 from textwrap import dedent
 
-from pandas.util._decorators import doc
-
 
 class Resampler:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
     def __getitem__(self, key):  # pragma: no cover
@@ -109,20 +107,20 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
     >>> r = s.resample('2s')
 
-    >>> r.agg(np.sum)  # doctest: +SKIP
+    >>> r.agg(np.sum)
     2013-01-01 00:00:00    3
     2013-01-01 00:00:02    7
     2013-01-01 00:00:04    5
     Freq: None, dtype: int8
 
-    >>> r.agg(['sum', 'mean', 'max'])  # doctest: +SKIP
+    >>> r.agg(['sum', 'mean', 'max'])
                          sum  mean  max
     2013-01-01 00:00:00    3   1.5    2
     2013-01-01 00:00:02    7   3.5    4
     2013-01-01 00:00:04    5   5.0    5
 
     >>> r.agg({'result': lambda x: x.mean() / x.std(),
-    ...        'total': np.sum})  # doctest: +SKIP
+    ...        'total': np.sum})
                            result  total
     2013-01-01 00:00:00  2.121320      3
     2013-01-01 00:00:02  4.949747      7
@@ -131,23 +129,25 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
     """
     )
 
-    @doc(
-        _shared_docs,
-        see_also=_agg_see_also_doc,
-        examples=_agg_examples_doc,
-        klass="DataFrame",
-        axis="",
-    )
+    # TODO - SNOW-1420892 API not implemented, uncomment when done.
+    # @doc(
+    #     _shared_docs,
+    #     see_also=_agg_see_also_doc,
+    #     examples=_agg_examples_doc,
+    #     klass="DataFrame",
+    #     axis="",
+    # )
     def apply():
         pass
 
-    @doc(
-        _shared_docs,
-        see_also=_agg_see_also_doc,
-        examples=_agg_examples_doc,
-        klass="DataFrame",
-        axis="",
-    )
+    # TODO - SNOW-1420825 API not implemented, uncomment when done.
+    # @doc(
+    #     _shared_docs,
+    #     see_also=_agg_see_also_doc,
+    #     examples=_agg_examples_doc,
+    #     klass="DataFrame",
+    #     axis="",
+    # )
     def aggregate():
         pass
 

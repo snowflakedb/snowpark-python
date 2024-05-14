@@ -1664,7 +1664,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Essentially this is equivalent to
 
-        >>> self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))  # doctest: +SKIP
+        .. code-block:: python
+
+            self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
 
         Parameters
         ----------
