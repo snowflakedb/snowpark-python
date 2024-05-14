@@ -44,9 +44,9 @@ ARG_TRUNCATE_SIZE = 100
 
 @unique
 class PropertyMethodType(Enum):
-    FGET = auto()
-    FSET = auto()
-    FDEL = auto()
+    FGET = "get"
+    FSET = "set"
+    FDEL = "delete"
 
 
 @safe_telemetry
@@ -227,8 +227,9 @@ def _gen_func_name(
         func: the main function
         property_name: the property name if the function is used by a property, e.g., `index`, `name`, `iloc`, `loc`,
         `dtype`, etc
-        property_method_type: The property method that this function implements,
-        if this method is for a property, e.g. `FGET` to get a property.
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that 
+        this function implements, if this method is used by a property.
+        `property_name` must also be specified.
 
     Returns:
         The generated function name
@@ -269,8 +270,9 @@ def _telemetry_helper(
         in Python is a function defined outside a class or any other enclosing structure, callable directly without
         an instance of a class.
         property_name: the property name if the `func` is from a property.
-        property_method_type: The property method that this function implements,
-        if this method is for a property, e.g. `FGET` to get a property.
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that 
+        this function implements, if this method is used by a property.
+        `property_name` must also be specified.
 
     Returns:
         The return value of the API function.
