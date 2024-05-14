@@ -27,5 +27,5 @@ def test_exception():
         SnowparkLocalTestingException.raise_from_error(
             SnowparkLocalTestingException("exception message")
         )
-    assert "[Local Testing]" not in str(ex_info)
-    assert "exception message" in str(ex_info)
+        assert "[Local Testing]" not in str(ex_info)
+        assert "exception message" in str(ex_info)

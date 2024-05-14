@@ -166,9 +166,9 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
             try:
                 res += float(data)
             except ValueError as exc:
-                raise SnowparkLocalTestingException(
-                    f"Numeric value '{data}' is not recognized."
-                ) from exc
+                SnowparkLocalTestingException.raise_from_error(
+                    exc, error_message=f"Numeric value '{data}' is not recognized."
+                )
     if isinstance(column.sf_type.datatype, DecimalType):
         p, s = column.sf_type.datatype.precision, column.sf_type.datatype.scale
         new_type = DecimalType(min(38, p + 12), s)

@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from typing import Optional
+
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
@@ -9,7 +11,9 @@ class SnowparkLocalTestingException(SnowparkSQLException):
     """Exception for errors related to the local testing execution of the Mock Snowflake plan."""
 
     @classmethod
-    def raise_from_error(cls, error: BaseException, error_message: str = None):
+    def raise_from_error(
+        cls, error: BaseException, error_message: Optional[str] = None
+    ):
         if isinstance(error, (SnowparkLocalTestingException, NotImplementedError)):
             raise error
 
