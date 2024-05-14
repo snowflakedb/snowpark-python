@@ -88,6 +88,7 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         # pass "application" is a trick to bypass the logic in the constructor to check input params to
         # avoid rewrite the whole logic -- "application" is not used in any place.
         super().__init__(*args, **kwargs, application="localtesting")
+        self._password = None
 
     def connect(self, **kwargs) -> None:
         self._rest = Mock()
@@ -248,9 +249,9 @@ class MockServerConnection:
             return log_and_telemetry
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
-        # TODO: mock connector connection support SNOW-1331149
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
