@@ -847,7 +847,11 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
             ),
             [first_row],
         )
-        Utils.check_answer(df.filter(col("timestamp").isin([utcnow])), [second_row])
+        # it is possible that utcnow is equal to now, e.g., in the github CI windows machine is configured so
+        Utils.check_answer(
+            df.filter(col("timestamp").isin([utcnow])),
+            [second_row] if now != utcnow else [first_row, second_row],
+        )
     Utils.check_answer(df.filter(col("decimal").isin([Decimal("1.234")])), [first_row])
     Utils.check_answer(df.filter(col("id").isin([2])), [second_row])
     Utils.check_answer(df.filter(col("string").isin(["three"])), [])

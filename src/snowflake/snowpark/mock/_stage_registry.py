@@ -5,6 +5,7 @@ import csv
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import tempfile
@@ -114,6 +115,24 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
         prefix_start_idx = stage_name_end_idx + 1
     stage_name = normalized[stage_name_start_idx:stage_name_end_idx]
     dir_path = normalized[prefix_start_idx:-1]  # remove the first and last '/'
+
+    if platform.system() == "Windows":
+        # On Windows the separator is \\, we convert non-quoted '/' to '\\'
+        # so that dirs can be created on windows
+        def replace_dir_separator(input):
+            idx, in_quote, output = 0, False, ""
+            while idx < len(input):
+                to_append_char = input[idx]
+                if input[idx] == '"':
+                    in_quote = not in_quote
+                elif input[idx] == "/" and not in_quote:
+                    to_append_char = os.sep
+                output += to_append_char
+                idx += 1
+            return output
+
+        dir_path = replace_dir_separator(dir_path)
+
     return stage_name, dir_path
 
 
@@ -190,7 +209,15 @@ class StageEntity:
                 )
 
             if not os.path.exists(stage_target_dir_path):
-                os.makedirs(stage_target_dir_path)
+                try:
+                    os.makedirs(stage_target_dir_path)
+                except BaseException:
+                    self._conn.log_not_supported_error(
+                        error_message=f"Unable to created directory {stage_target_dir_path} on the local file system. This could be caused by system limitations",
+                        internal_feature_name="StageEntity.put_file",
+                        parameters_info={"platform": platform.system()},
+                        raise_error=NotImplementedError,
+                    )
 
             if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
