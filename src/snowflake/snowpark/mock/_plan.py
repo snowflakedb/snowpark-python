@@ -594,10 +594,13 @@ def execute_mock_plan(
         sf_types = []
         for exp in projection:
             if isinstance(exp, Star):
-                d, cols = from_df.items()
-                data += list(d)
-                columns += list(cols)
-                sf_types += list(from_df.sf_types_by_col_index.values())
+                data += [d for _, d in from_df.items()]
+                columns += list(from_df.columns)
+                sf_types += list(
+                    from_df.sf_types_by_col_index.values()
+                    if from_df.sf_types_by_col_index
+                    else from_df.sf_types.values()
+                )
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
@@ -633,11 +636,13 @@ def execute_mock_plan(
                         for k, v in expr_to_alias.items():
                             if v == exp.child.name:
                                 expr_to_alias[k] = quoted_name
+
+        df = pd.concat(data, axis=1)
         result_df = TableEmulator(
-            data=data,
+            data=df,
             sf_types={k: v for k, v in zip(columns, sf_types)},
             sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
-        ).T
+        )
         result_df.columns = columns
 
         if where:
