@@ -513,6 +513,41 @@ def test_telemetry_property_iloc(
     ]
 
 
+def _set_iloc(df: pd.DataFrame) -> None:
+    df.iloc = 3
+
+
+def _del_iloc(df: pd.DataFrame) -> None:
+    del df.iloc
+
+
+@pytest.mark.parametrize(
+    "method_type, name, method",
+    [("set", "iloc", _set_iloc), ("delete", "iloc", _del_iloc)],
+)
+def test_telemetry_property_missing_methods(method_type, name, method):
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    df._query_compiler.snowpark_pandas_api_calls.clear()
+    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
+    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
+    # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
+    # the telemetry log from the connector to validate
+    with SqlCounter(query_count=0), pytest.raises(
+        AttributeError, match=f"can't {method_type} attribute"
+    ):
+        method(df)
+    expected_func_name = f"DataFrame.property.{name}_{method_type}"
+    data = _extract_snowpark_pandas_telemetry_log_data(
+        expected_func_name=expected_func_name,
+        session=df._query_compiler._modin_frame.ordered_dataframe.session,
+    )
+    assert data["api_calls"] == [
+        {
+            "name": expected_func_name,
+        }
+    ]
+
+
 @sql_count_checker(query_count=1)
 def test_telemetry_repr():
     s = pd.Series([1, 2, 3, 4])
