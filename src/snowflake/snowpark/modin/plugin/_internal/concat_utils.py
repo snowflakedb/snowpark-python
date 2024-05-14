@@ -125,6 +125,10 @@ def convert_to_single_level_index(frame: InternalFrame, axis: int) -> InternalFr
         )
 
 
+def _dedupe_identifiers_without_reorder(t: tuple) -> tuple:
+    return tuple(item for index, item in enumerate(t) if item not in t[:index])
+
+
 def union_all(
     frame1: InternalFrame,
     frame2: InternalFrame,
@@ -180,7 +184,6 @@ def union_all(
     )
 
     # select data + index + ordering columns for union all
-    # it is guaranteed that the ordering columns does not overlap with index and data column
     # TODO SNOW-956072: remove the following code after removing convert_incompatible_types_to_variant
     frame1_identifiers_for_union_all = (
         frame1.index_column_snowflake_quoted_identifiers
@@ -193,14 +196,27 @@ def union_all(
         + frame2.ordering_column_snowflake_quoted_identifiers
     )
 
+    # ensure there is no overlap in column identifiers before the union, this occurs when there is an
+    # existing row_position column used for ordering and the index
+    frame1_identifiers_for_union_all = _dedupe_identifiers_without_reorder(
+        frame1_identifiers_for_union_all
+    )
+    frame2_identifiers_for_union_all = _dedupe_identifiers_without_reorder(
+        frame2_identifiers_for_union_all
+    )
+
     # In Snowflake UNION ALL operator, the names of the output columns are based on the
     # names of the columns of the first query. So here we copy identifiers from
     # first frame.
     # Reference: https://docs.snowflake.com/en/sql-reference/operators-query
-    ordered_dataframe = frame1.ordered_dataframe.select(
+    ordered_dataframe1 = frame1.ordered_dataframe.select(
         frame1_identifiers_for_union_all
-    ).union_all(frame2.ordered_dataframe.select(frame2_identifiers_for_union_all))
-    ordered_dataframe = ordered_dataframe.sort(frame1.ordering_columns)
+    )
+    ordered_dataframe2 = frame2.ordered_dataframe.select(
+        frame2_identifiers_for_union_all
+    )
+    ordered_unioned_dataframe = ordered_dataframe1.union_all(ordered_dataframe2)
+    ordered_dataframe = ordered_unioned_dataframe.sort(frame1.ordering_columns)
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
         data_column_pandas_labels=frame1.data_column_pandas_labels,

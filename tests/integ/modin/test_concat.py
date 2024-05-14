@@ -20,6 +20,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.utils import TestFiles
 
 
 @pytest.fixture(scope="function")
@@ -1036,6 +1037,23 @@ def test_concat_none_index_name(index1, index2):
     df1 = pd.DataFrame([11], columns=["A"], index=index1)
     df2 = pd.DataFrame([22], columns=["B"], index=index2)
     _concat_operation([df1, df2]),
+    eval_snowpark_pandas_result(
+        "pd",
+        "native_pd",
+        _concat_operation([df1, df2]),
+    )
+
+
+@sql_count_checker(
+    query_count=19,
+    union_count=1,
+    high_count_expected=True,
+    high_count_reason="Uploading file",
+)
+def test_concat_from_file(resources_path):
+    test_files = TestFiles(resources_path)
+    df1 = pd.read_csv(test_files.test_concat_file1_csv)
+    df2 = pd.read_csv(test_files.test_concat_file1_csv)
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
