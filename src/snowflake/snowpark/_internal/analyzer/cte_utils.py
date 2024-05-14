@@ -60,6 +60,11 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
+                # all subqueries under dynamic pivot node will not be optimized now
+                # due to a server side bug
+                # TODO: SNOW-1413967 Remove it when the bug is fixed
+                if is_dynamic_pivot_node(node):
+                    continue
                 node_count_map[node] += 1
                 for child in node.children_plan_nodes:
                     # converting non-SELECT child query to SELECT query here,
@@ -83,6 +88,21 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
                 if has_multi_parents:
                     return True
         return False
+
+    def is_dynamic_pivot_node(node: "TreeNode") -> bool:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectSnowflakePlan,
+        )
+        from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+        from snowflake.snowpark._internal.analyzer.unary_plan_node import Pivot
+
+        if isinstance(node, SelectSnowflakePlan):
+            source_plan = node.snowflake_plan.source_plan
+        elif isinstance(node, SnowflakePlan):
+            source_plan = node.source_plan
+        else:
+            return False
+        return isinstance(source_plan, Pivot) and source_plan.pivot_values is None
 
     traverse(root)
     return {node for node in node_count_map if is_duplicate_subtree(node)}
