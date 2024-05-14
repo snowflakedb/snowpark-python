@@ -219,7 +219,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def dropna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Remove missing values.
 
@@ -282,14 +281,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         >>> df.dropna()
              name        toy       born
         1  Batman  Batmobile 1940-04-25
-
-        Drop the columns where at least one element is missing.
-
-        >>> df.dropna(axis='columns')  # doctest: +SKIP
-               name
-        0    Alfred
-        1    Batman
-        2  Catwoman
 
         Drop the rows where all elements are missing.
 
@@ -645,15 +636,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
            0  1
         0  3  4
         1  5  5
-
-        Like Series.map, NA values can be ignored: (TODO SNOW-888095: re-enable the test once fallback solution is used)
-
-        >>> df_copy = df.copy()
-        >>> df_copy.iloc[0, 0] = pd.NA
-        >>> df_copy.applymap(lambda x: len(str(x)), na_action='ignore')  # doctest: +SKIP
-             0  1
-        0  NaN  4
-        1  5.0  5
 
         When you use the applymap function, a user-defined function (UDF) is generated and
         applied to each column. However, in many cases, you can achieve the same results
@@ -1180,7 +1162,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def fillna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Fill NA/NaN values using the specified method.
 
@@ -1268,15 +1249,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         1  3.0  4.0  2.0  1.0
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
-
-        Only replace the first NaN element.
-
-        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
-             A    B    C    D
-        0  0.0  2.0  2.0  0.0
-        1  3.0  4.0  NaN  1.0
-        2  NaN  1.0  NaN  3.0
-        3  NaN  3.0  NaN  4.0
 
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
@@ -2187,7 +2159,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def rename():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Rename columns or index labels.
 
@@ -2272,8 +2243,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         >>> df.index
         Index([0, 1, 2], dtype='int64')
-        >>> df.rename(index=str).index  # doctest: +SKIP
-        Index(['0', '1', '2'], dtype='object')
 
         >>> df.rename(columns={"A": "a", "B": "b", "C": "c"}, errors="raise")
         Traceback (most recent call last):
