@@ -575,7 +575,7 @@ def execute_mock_plan(
             sf_type = table.sf_types[column_name]
             table[column_name].sf_type = table.sf_types[column_name]
             if not isinstance(sf_type.datatype, _NumericType):
-                table[column_name].replace(np.nan, None, inplace=True)
+                table[column_name] = table[column_name].replace(np.nan, None)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
@@ -589,25 +589,27 @@ def execute_mock_plan(
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
-        result_df = TableEmulator()
-
+        columns = []
+        data = []
+        sf_types = []
         for exp in projection:
             if isinstance(exp, Star):
-                for i in range(len(from_df.columns)):
-                    result_df.insert(len(result_df.columns), str(i), from_df.iloc[:, i])
-                result_df.columns = from_df.columns
-                result_df.sf_types = from_df.sf_types
-                result_df.sf_types_by_col_index = from_df.sf_types_by_col_index
+                d, cols = from_df.items()
+                data += list(d)
+                columns += list(cols)
+                sf_types += list(from_df.sf_types_by_col_index.values())
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
                 and isinstance(exp.child, Star)
             ):
                 for e in exp.child.expressions:
-                    col_name = analyzer.analyze(e, expr_to_alias)
-                    result_df[col_name] = calculate_expression(
+                    columns.append(analyzer.analyze(e, expr_to_alias))
+                    column_series = calculate_expression(
                         e, from_df, analyzer, expr_to_alias
                     )
+                    data.append(column_series)
+                    sf_types.append(column_series.sf_type)
             else:
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
@@ -620,7 +622,9 @@ def execute_mock_plan(
                     exp, from_df, analyzer, expr_to_alias
                 )
 
-                result_df[column_name] = column_series
+                columns.append(column_name)
+                data.append(column_series)
+                sf_types.append(column_series.sf_type)
 
                 if isinstance(exp, (Alias)):
                     if isinstance(exp.child, Attribute):
@@ -629,6 +633,12 @@ def execute_mock_plan(
                         for k, v in expr_to_alias.items():
                             if v == exp.child.name:
                                 expr_to_alias[k] = quoted_name
+        result_df = TableEmulator(
+            data=data,
+            sf_types={k: v for k, v in zip(columns, sf_types)},
+            sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
+        ).T
+        result_df.columns = columns
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)

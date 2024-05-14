@@ -745,9 +745,9 @@ $$"""
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=res[column_name].sf_type,
+                datatype=column_data.sf_type,
             )
-            for column_name in res.columns.tolist()
+            for column_name, column_data in res.items()
         ]
 
         rows = [
