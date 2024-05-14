@@ -6,6 +6,7 @@
 - Fixed support for `display.max_rows` and `display.max_cols` being set to `None`.
 - Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
+- Fixed type hints for property methods, e.g. Series.empty.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
