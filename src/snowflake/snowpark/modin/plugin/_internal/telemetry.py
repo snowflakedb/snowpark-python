@@ -422,6 +422,8 @@ def snowpark_pandas_telemetry_method_decorator(
             property_method_type=property_method_type,
         )
 
+    # need cast to convince mypy that we are returning a function with the same
+    # signature as func.
     return cast(T, wrap)
 
 
@@ -453,6 +455,8 @@ def snowpark_pandas_telemetry_standalone_function_decorator(func: T) -> T:
             is_standalone_function=True,
         )
 
+    # need cast to convince mypy that we are returning a function with the same
+    # signature as func.
     return cast(T, wrap)
 
 
