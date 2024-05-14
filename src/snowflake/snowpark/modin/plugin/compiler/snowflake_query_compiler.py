@@ -4984,9 +4984,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
 
-        # If index columns differ in size, convert all multi-index row labels to
+        # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
-        if len({f.num_index_columns for f in frames}) > 1:
+        index_columns = self._modin_frame.index_column_snowflake_quoted_identifiers
+        index_columns_different = not all(
+            f.index_column_snowflake_quoted_identifiers == index_columns for f in frames
+        )
+        is_mixed_index_multiindex = len({f.num_index_columns for f in frames}) > 1
+        is_multiindex = any(f.num_index_columns > 1 for f in frames)
+
+        if is_mixed_index_multiindex or (not is_multiindex and index_columns_different):
             # If ignore_index is True on axis = 0 we fix index compatibility by doing
             # reset and drop all indices.
             if axis == 0 and ignore_index:
@@ -11771,8 +11778,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        if step == 0:
-            raise ValueError("slice step cannot be zero")
 
         def output_col(
             col_name: ColumnOrName,
@@ -11789,8 +11794,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # A negative start or stop position is relative to the end boundary of the string value.
             # Also, depending on the sign of step, we either go forward from start to stop (positive step),
             # or backwards from start to stop (negative step).
-            # This means that for the stop position to be exculded in the positive step scenario, we need to
-            # include the position immediately to the left of the stop poition, and then stop.
+            # This means that for the stop position to be excluded in the positive step scenario, we need to
+            # include the position immediately to the left of the stop position, and then stop.
             # Conversely, for the negative step scenario, we need to include the position immediately to the right
             # of the stop position, and then stop.
             # Also, the stop position is allowed to fall beyond string beginning and end boundaries.
