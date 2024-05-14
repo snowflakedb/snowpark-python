@@ -2201,6 +2201,12 @@ class Session:
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
         """
+        if isinstance(self._conn, MockServerConnection):
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.write_pandas",
+                raise_error=NotImplementedError,
+            )
+
         if create_temp_table:
             warning(
                 "write_pandas.create_temp_table",
