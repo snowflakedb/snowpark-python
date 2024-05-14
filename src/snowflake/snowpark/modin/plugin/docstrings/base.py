@@ -1947,24 +1947,18 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         >>> df.nunique()
         A    3
         B    2
-        dtype: int8
-
-        >>> df.nunique(axis=1)
-        0    1
-        1    2
-        2    2
-        dtype: int8
+        dtype: int64
 
         >>> df = pd.DataFrame({'A': [None, pd.NA, None], 'B': [1, 2, 1]})
         >>> df.nunique()
         A    0
         B    2
-        dtype: int8
+        dtype: int64
 
         >>> df.nunique(dropna=False)
         A    1
         B    2
-        dtype: int8
+        dtype: int64
         """
 
     def pct_change():
