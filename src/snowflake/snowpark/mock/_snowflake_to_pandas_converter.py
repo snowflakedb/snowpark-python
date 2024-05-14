@@ -15,7 +15,7 @@ import datetime
 from decimal import Decimal
 from typing import Optional, Union
 
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
@@ -45,8 +45,8 @@ def _integer_converter(
     try:
         return int(value)
     except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
+        raise SnowparkLocalTestingException(
+            f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -58,9 +58,7 @@ def _fraction_converter(
     try:
         return float(value)
     except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
-        )
+        SnowparkLocalTestingException(f"Numeric value '{value}' is not recognized.")
 
 
 def _decimal_converter(
@@ -79,14 +77,16 @@ def _decimal_converter(
             else len(integer_part_str)
         )
         if len_integer_part > precision:
-            raise SnowparkSQLException(f"Numeric value '{value}' is out of range")
+            raise SnowparkLocalTestingException(
+                f"Numeric value '{value}' is out of range"
+            )
         if scale == 0:
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         return Decimal(str(round(float(value), remaining_decimal_len)))
     except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
+        raise SnowparkLocalTestingException(
+            f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -103,8 +103,8 @@ def _bool_converter(
         float_value = float(value)
         return bool(float_value != 0)
     except TypeError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Boolean value '{value}' is not recognized."
+        raise SnowparkLocalTestingException(
+            f"Boolean value '{value}' is not recognized."
         )
 
 
@@ -124,8 +124,8 @@ def _date_converter(
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
     except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] DATE value '{value}' is not recognized due to error {e!r}."
+        raise SnowparkLocalTestingException(
+            f"DATE value '{value}' is not recognized due to error {e!r}."
         )
 
 
@@ -137,8 +137,8 @@ def _timestamp_converter(
     try:
         return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
     except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+        raise SnowparkLocalTestingException(
+            f"TIMESTAMP value '{value}' is not recognized due to error {e!r}."
         )
 
 
@@ -150,8 +150,8 @@ def _time_converter(
     try:
         return datetime.datetime.strptime(value, TIME_FORMAT).time()
     except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+        raise SnowparkLocalTestingException(
+            f"TIMESTAMP value '{value}' is not recognized due to error {e!r}."
         )
 
 
