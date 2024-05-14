@@ -17,6 +17,7 @@ from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Uni
 from unittest.mock import Mock
 
 import snowflake.snowpark.mock._constants
+from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -41,7 +42,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSessionException, SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
@@ -80,6 +81,31 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
         else f"/{dest_prefix}"
     )
     return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
+
+
+class MockedSnowflakeConnection(SnowflakeConnection):
+    def __init__(self, *args, **kwargs) -> None:
+        # pass "application" is a trick to bypass the logic in the constructor to check input params to
+        # avoid rewrite the whole logic -- "application" is not used in any place.
+        super().__init__(*args, **kwargs, application="localtesting")
+
+    def connect(self, **kwargs) -> None:
+        self._rest = Mock()
+
+    def close(self, retry: bool = True) -> None:
+        self._rest = None
+
+    def is_closed(self) -> bool:
+        """Checks whether the connection has been closed."""
+        return self.rest is None
+
+    @property
+    def telemetry_enabled(self) -> bool:
+        return False
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, _) -> None:
+        self._telemetry_enabled = False
 
 
 class MockServerConnection:
@@ -223,7 +249,7 @@ class MockServerConnection:
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         # TODO: mock connector connection support SNOW-1331149
-        self._conn = Mock(expired=False)
+        self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
@@ -546,6 +572,11 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if self._conn.is_closed():
+            raise SnowparkSessionException(
+                "Cannot perform this operation because the session has been closed.",
+                error_code="1404",
+            )
         if not block:
             self.log_not_supported_error(
                 external_feature_name="Async job",

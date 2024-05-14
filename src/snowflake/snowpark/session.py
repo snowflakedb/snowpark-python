@@ -111,7 +111,10 @@ from snowflake.snowpark.context import (
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.exceptions import (
+    SnowparkClientException,
+    SnowparkSessionException,
+)
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -634,7 +637,10 @@ class Session:
         """
         _logger.info("Canceling all running queries")
         self._last_canceled_id = self._last_action_id
-        self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
+        if not isinstance(self._conn, MockServerConnection):
+            self._conn.run_query(
+                f"select system$cancel_all_queries({self._session_id})"
+            )
 
     def get_imports(self) -> List[str]:
         """
@@ -2034,6 +2040,11 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
+            if self._conn.is_closed():
+                raise SnowparkSessionException(
+                    "Cannot perform this operation because the session has been closed.",
+                    error_code="1404",
+                )
             self._conn.log_not_supported_error(
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,

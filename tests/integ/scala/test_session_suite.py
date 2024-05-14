@@ -201,10 +201,6 @@ def test_create_dataframe_from_array(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1375271: match error behavior when session is closed",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
@@ -245,10 +241,6 @@ def test_session_info(session):
     assert "python.connector.version" in session_info
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1375271: match error behavior when session is closed",
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
