@@ -1328,7 +1328,8 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def infer_objects():
         """
-        Attempt to infer better dtypes for object columns.
+        Attempt to infer better dtypes for object columns. This is not currently supported
+        in Snowpark pandas.
         """
 
     def convert_dtypes():
@@ -1931,7 +1932,49 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def nunique():
         """
-        Return number of unique elements in the `BasePandasDataset`.
+        Count number of distinct elements in specified axis.
+
+        Return Series with number of distinct elements. Can ignore NaN values.
+        Snowpark pandas API does not distinguish between different NaN types like None,
+        pd.NA, and np.nan, and treats them as the same.
+
+        Parameters
+        ----------
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for
+            column-wise. Snowpark pandas currently only supports axis=0.
+        dropna : bool, default True
+            Don't include NaN in the counts.
+
+        Returns
+        -------
+        Series
+
+        Examples
+        --------
+        >>> import snowflake.snowpark.modin.pandas as pd
+        >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
+        >>> df.nunique()
+        A    3
+        B    2
+        dtype: int8
+
+        >>> df.nunique(axis=1)
+        0    1
+        1    2
+        2    2
+        dtype: int8
+
+        >>> df = pd.DataFrame({'A': [None, pd.NA, None], 'B': [1, 2, 1]})
+        >>> df.nunique()
+        A    0
+        B    2
+        dtype: int8
+
+        >>> df.nunique(dropna=False)
+        A    1
+        B    2
+        dtype: int8
         """
 
     def pct_change():

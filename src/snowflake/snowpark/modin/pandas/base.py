@@ -1986,6 +1986,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
+    @base_not_implemented()
     def infer_objects(
         self, copy: bool | None = None
     ) -> BasePandasDataset:  # pragma: no cover # noqa: RT01, D200
@@ -1993,8 +1994,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Attempt to infer better dtypes for object columns.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        # This method is currently overriden in dataframe_overrides.py and series_overrides.py
-        # and raises NotImplementedError
         new_query_compiler = self._query_compiler.infer_objects()
         return self._create_or_update_from_compiler(
             new_query_compiler, inplace=False if copy is None else not copy
