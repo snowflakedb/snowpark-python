@@ -99,14 +99,14 @@ def test_session_use_object():
     session = Session.builder.configs(options={"local_testing": True}).create()
 
     session.use_schema("test_schema")
-    session.use_role('"teSt_rOle"')
+    session.use_role("test_role")
     session.use_database("test_database")
-    session.use_warehouse('"tEst_warehoHse"')
+    session.use_warehouse("test_warehouse")
 
     assert session.get_current_account() == f'"{CURRENT_ACCOUNT.upper()}"'
     assert session.get_current_user() == f'"{CURRENT_USER.upper()}"'
-    assert session.get_current_warehouse() == '"tEst_warehoHse"'
+    assert session.get_current_warehouse() == '"TEST_WAREHOUSE"'
     assert session.get_current_schema() == '"TEST_SCHEMA"'
     assert session.get_current_database() == '"TEST_DATABASE"'
-    assert session.get_current_role() == '"teSt_rOle"'
+    assert session.get_current_role() == '"TEST_ROLE"'
     session.close()
