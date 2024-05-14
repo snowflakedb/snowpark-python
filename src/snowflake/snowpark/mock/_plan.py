@@ -1503,10 +1503,9 @@ def execute_mock_plan(
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
 
         # Update column index map
-        index_map = {}
-        for i, column in enumerate(result.columns):
-            index_map[i] = result[column].sf_type
-        result.sf_types_by_col_index = index_map
+        result.sf_types_by_col_index = {
+            i: result[column].sf_type for i, column in enumerate(result.columns)
+        }
 
         return result
 
