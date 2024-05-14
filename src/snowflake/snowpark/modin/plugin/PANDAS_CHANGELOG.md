@@ -8,6 +8,9 @@
 ### Improvements
 - Improved performance of `pd.qcut` by removing joins in generated sql query.
 
+### New Features
+- Added support for `Series.str.slice`.
+
 ## 1.15.0a1 (2024-07-05)
 
 ### Bug Fixes

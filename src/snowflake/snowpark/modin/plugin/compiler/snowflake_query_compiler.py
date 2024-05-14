@@ -11745,6 +11745,105 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.apply_snowpark_function_to_data_columns(length)
         )
 
+    def str_slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Slice substrings from each element in the Series or Index.
+
+        Parameters
+        ----------
+        start : int, optional
+            Start position for slice operation.
+        stop : int, optional
+            Stop position for slice operation.
+        step : int, optional
+            Step size for slice operation.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if step == 0:
+            raise ValueError("slice step cannot be zero")
+
+        def output_col(
+            col_name: ColumnOrName,
+            start: Optional[int],
+            stop: Optional[int],
+            step: Optional[int],
+        ) -> SnowparkColumn:
+            if step is None:
+                step = 1
+            col_len_exp = builtin("len")(col(col_name))
+
+            if start is None:
+                if step < 0:
+                    start_exp = col_len_exp
+                else:
+                    start_exp = pandas_lit(1)
+            elif start < 0:
+                if step < 0:
+                    start_exp = builtin("greatest")(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(0)
+                    )
+                else:
+                    start_exp = builtin("greatest")(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(1)
+                    )
+            else:
+                assert start >= 0
+                if step < 0:
+                    start_exp = builtin("least")(pandas_lit(start + 1), col_len_exp)
+                else:
+                    start_exp = builtin("least")(
+                        pandas_lit(start + 1), col_len_exp + pandas_lit(1)
+                    )
+
+            if stop is None:
+                if step < 0:
+                    stop_exp = pandas_lit(0)
+                else:
+                    stop_exp = col_len_exp + pandas_lit(1)
+            elif stop < 0:
+                stop_exp = builtin("greatest")(
+                    pandas_lit(stop + 1) + col_len_exp, pandas_lit(0)
+                )
+            else:
+                stop_exp = builtin("least")(
+                    pandas_lit(stop + 1), col_len_exp + pandas_lit(1)
+                )
+
+            if step < 0:
+                new_col = builtin("reverse")(col(col_name))
+                start_exp = col_len_exp - start_exp + pandas_lit(1)
+                stop_exp = col_len_exp - stop_exp + pandas_lit(1)
+                step = -1 * step
+            else:
+                new_col = col(col_name)
+
+            new_col = builtin("substr")(new_col, start_exp, stop_exp - start_exp)
+            col_len_exp = stop_exp - start_exp
+            if step > 1:
+                new_col = builtin("regexp_replace")(
+                    builtin("substr")(
+                        new_col,
+                        pandas_lit(1),
+                        col_len_exp - col_len_exp % pandas_lit(step) + pandas_lit(1),
+                    ),
+                    pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
+                    pandas_lit("\\2"),
+                )
+            return new_col
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            lambda col_name: output_col(col_name, start, stop, step)
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
     def str_split(
         self,
         pat: Optional[str] = None,
