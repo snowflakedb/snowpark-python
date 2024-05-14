@@ -92,13 +92,16 @@ Examples
 2  2.0
 3  NaN
 4  4.0
->>> df.rolling(2, min_periods=1).aggregate("mean")
+>>> result = df.rolling(2, min_periods=1).aggregate("mean")
+>>> result
      B
 0  0.0
 1  0.5
 2  1.5
 3  2.0
 4  4.0
+>>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
 >>> df.rolling(2, min_periods=1).aggregate(["min", "max"])
           B
    min  max
@@ -153,13 +156,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  3.0
         3  NaN
         4  NaN
-        >>> df.rolling(3, min_periods=1, center=True).sum()
+        >>> result = df.rolling(3, min_periods=1, center=True).sum()
+        >>> result
              B
         0  1.0
         1  3.0
         2  3.0
         3  6.0
-        4  4.0"""
+        4  4.0
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def sum():
@@ -200,13 +206,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  1.5
         3  NaN
         4  NaN
-        >>> df.rolling(3, min_periods=1, center=True).mean()
+        >>> result = df.rolling(3, min_periods=1, center=True).mean()
+        >>> result
              B
         0  0.5
         1  1.0
         2  1.5
         3  3.0
-        4  4.0"""
+        4  4.0
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def mean():
@@ -277,13 +286,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  0.25
         3  0.00
         4  0.00
-        >>> df.rolling(3, min_periods=1, center=True).var()
+        >>> result = df.rolling(3, min_periods=1, center=True).var()
+        >>> result
              B
         0  0.5
         1  1.0
         2  0.5
         3  2.0
-        4  NaN"""
+        4  NaN
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def var():
@@ -324,13 +336,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  0.5
         3  0.0
         4  0.0
-        >>> df.rolling(3, min_periods=1, center=True).std()
+        >>> result = df.rolling(3, min_periods=1, center=True).std()
+        >>> result
                   B
         0  0.707107
         1  1.000000
         2  0.707107
         3  1.414214
-        4       NaN"""
+        4       NaN
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def std():
@@ -357,13 +372,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        >>> df.rolling(2, min_periods=1).min()
+        >>> result = df.rolling(2, min_periods=1).min()
+        >>> result
              B
         0  0.0
         1  0.0
         2  1.0
         3  2.0
-        4  4.0"""
+        4  4.0
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def min():
@@ -390,13 +408,16 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        >>> df.rolling(2, min_periods=1).max()
+        >>> result = df.rolling(2, min_periods=1).max()
+        >>> result
              B
         0  0.0
         1  1.0
         2  2.0
         3  2.0
-        4  4.0"""
+        4  4.0
+        >>> type(result)
+        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>"""
         ),
     )
     def max():

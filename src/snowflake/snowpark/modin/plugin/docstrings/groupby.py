@@ -364,7 +364,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").min()
+        >>> df.groupby("a").min()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  2  2
@@ -1177,7 +1177,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").max()
+        >>> df.groupby("a").max()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  8  5
@@ -1333,7 +1333,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").sum()
+        >>> df.groupby("a").sum()  # doctest: +NORMALIZE_WHITESPACE
             b   c
         a
         1  10   7

@@ -107,7 +107,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
     2013-01-01 00:00:04    5
     Freq: None, dtype: int64
 
-    >>> r = s.resample('2s')  # doctest: +SKIP
+    >>> r = s.resample('2s')
 
     >>> r.agg(np.sum)  # doctest: +SKIP
     2013-01-01 00:00:00    3
