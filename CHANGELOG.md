@@ -17,6 +17,8 @@
     - to_varchar
   - snowflake.snowpark.DataFrame:
     - pivot
+  - snowflake.snowpark.Session:
+    - cancel_all
 
 #### Bug Fixes
 
@@ -29,6 +31,11 @@
 - Fixed a bug that when processing datetime format, fractional second part is not handled properly.
 - Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
+
+#### Improvements
+
+- Aligned error experience with reusing a closed session in non-local execution.
+
 
 ## 1.16.0 (TBD)
 
