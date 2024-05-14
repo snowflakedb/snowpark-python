@@ -46,6 +46,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-timeout",
     "pytest-xdist",
     "pre-commit",
+    "protoc-wheel-0",
 ]
 
 # read the version
@@ -86,6 +87,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
