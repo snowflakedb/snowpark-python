@@ -51,6 +51,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
+    "protoc-wheel-0",
 ]
 
 # read the version
@@ -92,6 +93,7 @@ setup(
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.compiler",
+        "snowflake.snowpark._internal.proto",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
