@@ -6,7 +6,7 @@ import functools
 import inspect
 import re
 from contextlib import nullcontext
-from enum import Enum, auto, unique
+from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from typing_extensions import ParamSpec
@@ -199,20 +199,6 @@ def error_to_telemetry_type(e: Exception) -> str:
     return telemetry_type
 
 
-def _property_method_name(method_type: PropertyMethodType) -> str:
-    if method_type is PropertyMethodType.FGET:
-        return "get"
-    elif method_type is PropertyMethodType.FSET:
-        return "set"
-    elif method_type is PropertyMethodType.FDEL:
-        return "delete"
-    # we shouldn't end up here, but it's better to report the method call and
-    # say we don't know the property method type than to raise an assertion. In
-    # Python 3.10+, we could use pattern matching on PropertyMethodType to make
-    # sure we know how to name the method.
-    return "unknown"  # pragma: no cover
-
-
 def _gen_func_name(
     class_prefix: str,
     func: Callable[_Args, Any],
@@ -227,7 +213,7 @@ def _gen_func_name(
         func: the main function
         property_name: the property name if the function is used by a property, e.g., `index`, `name`, `iloc`, `loc`,
         `dtype`, etc
-        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that 
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that
         this function implements, if this method is used by a property.
         `property_name` must also be specified.
 
@@ -237,9 +223,7 @@ def _gen_func_name(
     func_name = func.__qualname__
     if property_name:
         assert property_method_type is not None
-        func_name = (
-            f"property.{property_name}_{_property_method_name(property_method_type)}"
-        )
+        func_name = f"property.{property_name}_{property_method_type.value}"
     return f"{class_prefix}.{func_name}"
 
 
@@ -270,7 +254,7 @@ def _telemetry_helper(
         in Python is a function defined outside a class or any other enclosing structure, callable directly without
         an instance of a class.
         property_name: the property name if the `func` is from a property.
-        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that 
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that
         this function implements, if this method is used by a property.
         `property_name` must also be specified.
 
@@ -415,6 +399,11 @@ def snowpark_pandas_telemetry_method_decorator(
 
     @functools.wraps(func)
     def wrap(*args, **kwargs):  # type: ignore
+        # add a `type: ignore` for this function definition because the
+        # function should be of type `T`, but it's too much work to
+        # extract the input and output types from T in order to add type
+        # hints in-line here. We'll fix up the type with a `cast` before
+        # returning the function.
         return _telemetry_helper(
             func=func,
             args=args,
@@ -450,6 +439,11 @@ def snowpark_pandas_telemetry_standalone_function_decorator(func: T) -> T:
 
     @functools.wraps(func)
     def wrap(*args, **kwargs):  # type: ignore
+        # add a `type: ignore` for this function definition because the
+        # function should be of type `T`, but it's too much work to
+        # extract the input and output types from T in order to add type
+        # hints in-line here. We'll fix up the type with a `cast` before
+        # returning the function.
         return _telemetry_helper(
             func=func,
             args=args,

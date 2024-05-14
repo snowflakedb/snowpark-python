@@ -527,6 +527,7 @@ def _del_iloc(df: pd.DataFrame) -> None:
     [("set", "iloc", _set_iloc, "setter"), ("delete", "iloc", _del_iloc, "deleter")],
 )
 def test_telemetry_property_missing_methods(method_verb, name, method, method_noun):
+    """Test telemetry for property methods that don't exist, e.g. users can't assign a value to the `iloc` property."""
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
     # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
