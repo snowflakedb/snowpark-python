@@ -166,7 +166,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         Parameters
         ----------
         limit : int, optional
-            This parameter is not supported and will raise a NotImplementedError.
+            This parameter is not supported and will raise NotImplementedError.
 
         Returns
         -------
@@ -312,7 +312,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
     def count():
         """
-        Compute count of resample bins.
+        Compute count of resample bins, exclude missing values.
 
         Returns
         -------
@@ -735,7 +735,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**
@@ -810,7 +810,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` and non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**
@@ -889,7 +889,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**

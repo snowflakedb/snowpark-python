@@ -260,7 +260,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         2 3.0  1.0
           5.0  2.0
 
-        Groupby one column and return the mean of only particular column in
+        Groupby one column and return the mean of only one particular column in
         the group.
 
         >>> df.groupby('A')['B'].mean()
@@ -324,7 +324,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Notes
         -----
         Beware that the return value is a python dictionary, so evaluating this
-        property will trigger evaluation of the pandas dataframe and will
+        property will trigger eager evaluation of the pandas dataframe and will
         materialize data that could be as large as the size of the grouping
         columns plus the size of the index.
         """
@@ -376,7 +376,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmax():
         """
-        Return index of first occurrence of maximum over requested axis.
+        Return the index of the first occurrence of maximum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -467,7 +467,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmin():
         """
-        Return index of first occurrence of minimum over requested axis.
+        Return the index of the first occurrence of minimum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -573,7 +573,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def shift():
         """
-        Shift each group by periods observations.
+        Shift each group by `periods` observations.
 
         If freq is passed, the index will be increased using the periods and the freq.
 
@@ -583,7 +583,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             Number of periods to shift.
         freq : str, optional
             Frequency string.
-        axis : axis to shift, default 0, axis =1 currently not supported
+        axis : axis to shift, default 0, axis=1 currently not supported
             Shift direction.
         fill_value : optional
             The scalar value to use for newly introduced missing values.
@@ -802,7 +802,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         While ``apply`` is a very flexible method, its downside is that
         using it can be quite a bit slower than using more specific methods
-        like ``agg`` or ``transform``. Pandas offers a wide range of methods that will
+        like ``agg`` or ``transform``. pandas offers a wide range of methods that will
         be much faster than using ``apply`` for their specific purposes, so try to
         use them before reaching for ``apply``.
 
@@ -988,7 +988,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
             This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
             var)
@@ -1105,8 +1105,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         na_option: {"keep", "top", "bottom"}
             How to rank NaN values:
             - keep: assign NaN rank to NaN values
-            - top: assign lowest rank to NaN values
-            - bottom: assign highest rank to NaN values
+            - top: assign the lowest rank to NaN values
+            - bottom: assign the highest rank to NaN values
         pct: bool
             Whether to display the returned rankings in percentile form.
 
@@ -1200,7 +1200,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
             This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
             std)
@@ -1438,13 +1438,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from start of each group.
-            If negative: number of entries to exclude from end of each group.
+            If positive: number of entries to include from the start of each group.
+            If negative: number of entries to exclude from the end of each group.
 
         Returns
         -------
         Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
@@ -1726,13 +1726,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from end of each group.
-            If negative: number of entries to exclude from start of each group.
+            If positive: number of entries to include from the end of each group.
+            If negative: number of entries to exclude from the start of each group.
 
         Returns
         -------
         Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
