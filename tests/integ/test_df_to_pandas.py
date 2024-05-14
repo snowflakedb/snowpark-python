@@ -139,7 +139,7 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: dtype and value mismatch",
 )
 def test_to_pandas_precision_for_number_38_0(session):
@@ -173,7 +173,7 @@ def test_to_pandas_precision_for_number_38_0(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: div0 and round functions not supported",
 )
 def test_to_pandas_precision_for_non_zero_scale(session):
@@ -196,7 +196,7 @@ def test_to_pandas_precision_for_non_zero_scale(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )

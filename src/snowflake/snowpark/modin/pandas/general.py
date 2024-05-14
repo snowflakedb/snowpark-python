@@ -2158,7 +2158,6 @@ def date_range(
     return s
 
 
-@_inherit_docstrings(pandas.qcut, apilink="pandas.qcut")
 @snowpark_pandas_telemetry_standalone_function_decorator
 def qcut(
     x: np.ndarray | Series,
@@ -2167,12 +2166,46 @@ def qcut(
     retbins: bool = False,
     precision: int = 3,
     duplicates: Literal["raise"] | Literal["drop"] = "raise",
-):  # noqa: PR01, RT01, D200
+) -> Series:
     """
-    Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas API.
+    Quantile-based discretization function.
 
-    labels=False will run binning computation in Snowflake, other values are not supported in Snowpark pandas API.
+    Discretize variable into equal-sized buckets based on rank or based
+    on sample quantiles.
+
+    Parameters
+    ----------
+    x : 1-D ndarray or Series
+        The data across which to compute buckets. If a Snowpark pandas Series is passed, the computation
+        is distributed. Otherwise, if a numpy array or list is provided, the computation is performed
+        client-side instead.
+
+    q : int or list-like of float
+        Number of quantiles. 10 for deciles, 4 for quartiles, etc. Alternately array of quantiles,
+        e.g. [0, .25, .5, .75, 1.] for quartiles.
+
+    labels : array or False, default None
+        Used as labels for the resulting bin. Must be of the same length as the resulting bins. If False,
+        return only integer indicators of the bins. If True, raise an error.
+
+        ``labels=False`` will run binning computation in Snowflake; other values are not yet supported
+        in Snowpark pandas.
+
+    retbins : bool, default False
+        Whether to return the (bins, labels) or not. Can be useful if bins is given as a scalar.
+        ``retbins=True`` is not yet supported in Snowpark pandas.
+
+    precision : int, optional
+        The precision at which to store and display the bins labels.
+
+    duplicates : {default 'raise', 'drop'}, optional
+        If bin edges are not unique, raise ValueError or drop non-uniques.
+
+    Returns
+    -------
+    Series
+        Since Snowpark pandas does not yet support the ``pd.Categorical`` type, unlike native pandas, the
+        return value is always a Series.
     """
 
     kwargs = {

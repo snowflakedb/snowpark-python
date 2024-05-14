@@ -28,7 +28,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374069: fix RuntimeConfig for Local Testing",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
@@ -72,7 +72,7 @@ def test_runtime_config(db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -92,7 +92,7 @@ def test_update_query_tag(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -102,7 +102,7 @@ def test_select_1(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -172,7 +172,7 @@ def test_session_builder(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -227,7 +227,7 @@ def test_create_session_in_sp(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: Mock object is closed undefined",
 )
 def test_close_session_in_sp(session):
@@ -244,7 +244,7 @@ def test_close_session_in_sp(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -356,7 +356,7 @@ def test_create_session_from_connection(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing live connection feature",
     run=False,
 )
@@ -384,7 +384,7 @@ def test_create_session_from_connection_with_noise_parameters(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Query tag is a SQL feature",
     run=False,
 )
@@ -405,7 +405,7 @@ def test_session_builder_app_name(session, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
@@ -612,7 +612,7 @@ def test_get_current_schema(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )
