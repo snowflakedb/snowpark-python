@@ -83,6 +83,7 @@ from snowflake.snowpark.functions import (
     dayofmonth,
     dense_rank,
     first_value,
+    greatest,
     hour,
     iff,
     initcap,
@@ -90,6 +91,7 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    least,
     length,
     lower,
     max as max_,
@@ -102,9 +104,11 @@ from snowflake.snowpark.functions import (
     quarter,
     rank,
     regexp_replace,
+    reverse,
     round,
     row_number,
     second,
+    substring,
     sum as sum_,
     sum_distinct,
     timestamp_ntz_from_parts,
@@ -11778,8 +11782,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) -> SnowparkColumn:
             if step is None:
                 step = 1
-            col_len_exp = builtin("len")(col(col_name))
+            col_len_exp = length(col(col_name))
 
+            # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
+            # In general, the start position needs to be included and the stop position needs to be excluded from the slice.
+            # A negative start or stop position is relative to the end boundary of the string value.
+            # Also, depending on the sign of step, we either go forward from start to stop (positive step),
+            # or backwards from start to stop (negative step).
+            # This means that for the stop position to be exculded in the positive step scenario, we need to
+            # include the position immediately to the left of the stop poition, and then stop.
+            # Conversely, for the negative step scenario, we need to include the position immediately to the right
+            # of the stop position, and then stop.
+            # Also, the stop position is allowed to fall beyond string beginning and end boundaries.
+            # However, the start position cannot fall before the beginning boundary when step is positive,
+            # and similarly, it cannot fall beyond the end boundary when step is negative.
             if start is None:
                 if step < 0:
                     start_exp = col_len_exp
@@ -11787,19 +11803,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     start_exp = pandas_lit(1)
             elif start < 0:
                 if step < 0:
-                    start_exp = builtin("greatest")(
+                    start_exp = greatest(
                         pandas_lit(start + 1) + col_len_exp, pandas_lit(0)
                     )
                 else:
-                    start_exp = builtin("greatest")(
+                    start_exp = greatest(
                         pandas_lit(start + 1) + col_len_exp, pandas_lit(1)
                     )
             else:
                 assert start >= 0
                 if step < 0:
-                    start_exp = builtin("least")(pandas_lit(start + 1), col_len_exp)
+                    start_exp = least(pandas_lit(start + 1), col_len_exp)
                 else:
-                    start_exp = builtin("least")(
+                    start_exp = least(
                         pandas_lit(start + 1), col_len_exp + pandas_lit(1)
                     )
 
@@ -11809,27 +11825,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else:
                     stop_exp = col_len_exp + pandas_lit(1)
             elif stop < 0:
-                stop_exp = builtin("greatest")(
-                    pandas_lit(stop + 1) + col_len_exp, pandas_lit(0)
-                )
+                stop_exp = greatest(pandas_lit(stop + 1) + col_len_exp, pandas_lit(0))
             else:
-                stop_exp = builtin("least")(
-                    pandas_lit(stop + 1), col_len_exp + pandas_lit(1)
-                )
+                stop_exp = least(pandas_lit(stop + 1), col_len_exp + pandas_lit(1))
 
             if step < 0:
-                new_col = builtin("reverse")(col(col_name))
+                new_col = reverse(col(col_name))
                 start_exp = col_len_exp - start_exp + pandas_lit(1)
                 stop_exp = col_len_exp - stop_exp + pandas_lit(1)
                 step = -1 * step
             else:
                 new_col = col(col_name)
+            # End of evaluation for start and end positions.
 
-            new_col = builtin("substr")(new_col, start_exp, stop_exp - start_exp)
+            # If step is 1, then slicing is no different than a substring.
+            # Even when step is > 1, we also start by getting the substring with all
+            # the relevant characters we care about. Then we process them further below.
+            new_col = substring(new_col, start_exp, stop_exp - start_exp)
             col_len_exp = stop_exp - start_exp
             if step > 1:
-                new_col = builtin("regexp_replace")(
-                    builtin("substr")(
+                # This is where the actual slicing happens using a regular expression.
+                # The regex essentially identifies every consecutive substring of size (step),
+                # and replaces it with its first character.
+                # As preprocessing, the substring operation handles the case where the length of
+                # the input string is not divisible by (step). In this case, it ensures that only
+                # the first character from the residual (n % step) characters is kept. Then, when
+                # processed by the regex, since this residual character won't be matched, it gets
+                # output as is, which is identical to python/pandas slicing behavior.
+                new_col = regexp_replace(
+                    substring(
                         new_col,
                         pandas_lit(1),
                         col_len_exp - col_len_exp % pandas_lit(step) + pandas_lit(1),
