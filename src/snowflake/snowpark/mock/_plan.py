@@ -592,6 +592,7 @@ def execute_mock_plan(
         columns = []
         data = []
         sf_types = []
+        null_rows_idxs_map = {}
         for exp in projection:
             if isinstance(exp, Star):
                 data += [d for _, d in from_df.items()]
@@ -601,18 +602,21 @@ def execute_mock_plan(
                     if from_df.sf_types_by_col_index
                     else from_df.sf_types.values()
                 )
+                null_rows_idxs_map.update(from_df._null_rows_idxs_map)
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
                 and isinstance(exp.child, Star)
             ):
                 for e in exp.child.expressions:
-                    columns.append(analyzer.analyze(e, expr_to_alias))
+                    column_name = analyzer.analyze(e, expr_to_alias)
+                    columns.append(column_name)
                     column_series = calculate_expression(
                         e, from_df, analyzer, expr_to_alias
                     )
                     data.append(column_series)
                     sf_types.append(column_series.sf_type)
+                    null_rows_idxs_map[column_name] = column_series._null_rows_idxs
             else:
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
@@ -628,6 +632,7 @@ def execute_mock_plan(
                 columns.append(column_name)
                 data.append(column_series)
                 sf_types.append(column_series.sf_type)
+                null_rows_idxs_map[column_name] = column_series._null_rows_idxs
 
                 if isinstance(exp, (Alias)):
                     if isinstance(exp.child, Attribute):
@@ -644,6 +649,7 @@ def execute_mock_plan(
             sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
         )
         result_df.columns = columns
+        result_df._null_rows_idxs_map = null_rows_idxs_map
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
@@ -1495,6 +1501,13 @@ def execute_mock_plan(
             data = filled.replace({sentinel: None}).replace({None: default}).values
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
+
+        # Update column index map
+        index_map = {}
+        for i, column in enumerate(result.columns):
+            index_map[i] = result[column].sf_type
+        result.sf_types_by_col_index = index_map
+
         return result
 
     analyzer.session._conn.log_not_supported_error(
