@@ -17,6 +17,7 @@
     - to_varchar
   - snowflake.snowpark.DataFrame:
     - pivot
+- Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
 
 #### Bug Fixes
 
@@ -27,6 +28,10 @@
 - Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
 - Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
 - Fixed a bug that when processing datetime format, fractional second part is not handled properly.
+
+#### Improvement
+
+- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
 
 ## 1.16.0 (TBD)
 
