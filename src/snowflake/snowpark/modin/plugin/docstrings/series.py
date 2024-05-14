@@ -3059,7 +3059,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2    5
         3    7
         4    7
-        dtype: int8
+        dtype: int64
 
         >>> s.nunique()
         4
