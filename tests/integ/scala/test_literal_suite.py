@@ -26,7 +26,7 @@ from tests.utils import Utils
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_literal_basic_types(session):
@@ -83,7 +83,7 @@ def test_literal_basic_types(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_literal_timestamp_and_instant(session):
@@ -156,7 +156,7 @@ def test_date(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_special_literals(session):
@@ -197,7 +197,7 @@ def test_special_literals(session):
 
 # This test was originall party of scala-integ tests, but was removed.
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_special_decimal_literals(session):
@@ -220,7 +220,7 @@ def test_special_decimal_literals(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_array_object(session):
@@ -271,7 +271,7 @@ def test_array_object(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_literal_variant(session):

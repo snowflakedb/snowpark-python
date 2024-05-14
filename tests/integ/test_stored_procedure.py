@@ -81,7 +81,7 @@ def setup(session, resources_path, local_testing_mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
 )
@@ -129,7 +129,7 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
 )
@@ -350,7 +350,7 @@ def test_call_named_stored_procedure(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
 @pytest.mark.skipif(
@@ -971,7 +971,7 @@ def return_arr(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Database objects do not persist across sessions in Local Testing",
     run=False,
 )
@@ -1004,7 +1004,7 @@ def test_permanent_sp(session, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Database objects do not persist across sessions in Local Testing",
     run=False,
 )
@@ -1040,7 +1040,7 @@ def test_permanent_sp_negative(session, db_parameters):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370028",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
@@ -1171,7 +1171,7 @@ def test_sp_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table sproc is not supported in Local Testing",
 )
 @pytest.mark.parametrize("is_permanent", [True, False])
@@ -1290,7 +1290,7 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-952138 Table sproc is not supported in Local Testing",
 )
 def test_table_sproc_negative(session, caplog):
@@ -1334,7 +1334,7 @@ def test_table_sproc_negative(session, caplog):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-952138 Table sproc is not supported in Local Testing",
 )
 def test_table_sproc_with_type_none_argument(session):
@@ -1445,7 +1445,7 @@ def test_temp_sp_with_import_and_upload_stage(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374204: align error behavior on when imports has bad input value",
 )
 def test_add_import_negative(session, resources_path, local_testing_mode):
@@ -1537,7 +1537,7 @@ def test_sp_replace(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370044: Support if_not_exists in Local Testing",
 )
 @pytest.mark.skipif(
@@ -1598,7 +1598,7 @@ def test_sp_if_not_exists(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Local Testing doesn't PUT the files, so parallel is trivial",
     run=False,
 )
@@ -1631,7 +1631,7 @@ def test_sp_parallel():
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Comment is a SQL feature",
     run=False,
 )
@@ -1655,7 +1655,7 @@ def test_create_sproc_with_comment(session, prefix):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="StoredProcedure.describe is not supported in Local Testing",
 )
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])
@@ -1699,7 +1699,7 @@ def test_describe_sp(session, source_code_display):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL feature",
     run=False,
 )
@@ -1807,7 +1807,7 @@ def test_call_sproc_with_session_as_first_argument(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370044: support strict option for stored procedures in Local Testing",
 )
 def test_strict_stored_procedure(session):
@@ -1821,7 +1821,7 @@ def test_strict_stored_procedure(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
 )
 def test_anonymous_stored_procedure(session):
@@ -1836,7 +1836,7 @@ def test_anonymous_stored_procedure(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Query tag is a SQL only feature",
     run=False,
 )
@@ -1885,7 +1885,7 @@ def test_sp_external_access_integration(session, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is a SQL test",
     run=False,
 )

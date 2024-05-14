@@ -425,7 +425,7 @@ def test_drop_columns_by_column(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="this tests fully qualified column name which is not supported by col() function",
     run=False,
 )
@@ -518,7 +518,7 @@ def test_column_constructors_select(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL expr feature not supported",
     run=False,
 )
@@ -669,7 +669,7 @@ def test_regexp(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1346957 collate feature not supported",
 )
 @pytest.mark.parametrize("spec", ["en_US-trim", "'en_US-trim'"])
@@ -847,7 +847,11 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
             ),
             [first_row],
         )
-        Utils.check_answer(df.filter(col("timestamp").isin([utcnow])), [second_row])
+        # it is possible that utcnow is equal to now, e.g., in the github CI windows machine is configured so
+        Utils.check_answer(
+            df.filter(col("timestamp").isin([utcnow])),
+            [second_row] if now != utcnow else [first_row, second_row],
+        )
     Utils.check_answer(df.filter(col("decimal").isin([Decimal("1.234")])), [first_row])
     Utils.check_answer(df.filter(col("id").isin([2])), [second_row])
     Utils.check_answer(df.filter(col("string").isin(["three"])), [])
@@ -1002,7 +1006,7 @@ def test_in_expression_with_multiple_queries(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")

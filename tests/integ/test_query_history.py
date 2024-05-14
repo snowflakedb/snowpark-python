@@ -9,7 +9,7 @@ from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="Query history is a SQL feature",
         run=False,
     ),

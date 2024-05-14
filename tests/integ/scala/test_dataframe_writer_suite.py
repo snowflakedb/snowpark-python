@@ -21,7 +21,7 @@ from tests.utils import TestFiles, Utils
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: support truncate and column_order in save as table",
 )
 def test_write_with_target_column_name_order(session, local_testing_mode):
@@ -84,7 +84,7 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query feature AUTOINCREMENT not supported",
     run=False,
 )
@@ -106,7 +106,7 @@ def test_write_with_target_table_autoincrement(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Inserting data into table by matching columns is not supported",
 )
 def test_negative_write_with_target_column_name_order(session):
@@ -140,7 +140,7 @@ def test_negative_write_with_target_column_name_order(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Inserting data into table by matching columns is not supported",
 )
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
@@ -250,7 +250,7 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: session._table_exists not supported",
 )
 def test_write_table_names(session, db_parameters):
@@ -390,7 +390,7 @@ def test_write_table_names(session, db_parameters):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_writer_csv(session, tmpdir_factory):
@@ -453,7 +453,7 @@ def test_writer_csv(session, tmpdir_factory):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_json(session, tmpdir_factory):
@@ -509,7 +509,7 @@ def test_writer_json(session, tmpdir_factory):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_parquet(session, tmpdir_factory, local_testing_mode):

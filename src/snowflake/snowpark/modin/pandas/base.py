@@ -1529,6 +1529,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             return result
 
+    @base_not_implemented()
+    def map(self, func, na_action: str | None = None, **kwargs):
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        if not callable(func):
+            raise ValueError(f"'{type(func)}' object is not callable")
+        return self.__constructor__(
+            query_compiler=self._query_compiler.map(func, na_action=na_action, **kwargs)
+        )
+
     def mask(
         self,
         cond: BasePandasDataset | Callable | AnyArrayLike,

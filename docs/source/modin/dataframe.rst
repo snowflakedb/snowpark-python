@@ -77,7 +77,6 @@ DataFrame
     DataFrame.rfloordiv
     DataFrame.rmod
     DataFrame.rpow
-    DataFrame.round
     DataFrame.lt
     DataFrame.gt
     DataFrame.le

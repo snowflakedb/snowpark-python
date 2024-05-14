@@ -433,7 +433,7 @@ def test_register_udf_from_file(session, resources_path):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(
@@ -1128,7 +1128,7 @@ def return_arr(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Database objects are session scoped in Local Testing",
     run=False,
 )
@@ -1161,7 +1161,7 @@ def test_permanent_udf(session, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Database objects are session scoped in Local Testing",
     run=False,
 )
@@ -1197,7 +1197,7 @@ def test_permanent_udf_negative(session, db_parameters):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370028: align error behavior when UDF receives bad input",
 )
 def test_udf_negative(session, local_testing_mode):
@@ -1311,7 +1311,7 @@ def test_udf_negative(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1374204: Align error behavior when UDF/Sproc registration receives bad import",
 )
 def test_add_import_negative(session, resources_path):
@@ -1366,7 +1366,7 @@ def test_add_import_negative(session, resources_path):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370035: date time objects are received as str inside UDF",
 )
 def test_udf_variant_type(session):
@@ -1462,7 +1462,7 @@ def test_udf_variant_type(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-946829 Support Geography datatype in Local Testing",
 )
 def test_udf_geography_type(session):
@@ -1480,7 +1480,7 @@ def test_udf_geography_type(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-946829 Support Geometry datatype in Local Testing",
 )
 def test_udf_geometry_type(session):
@@ -1571,7 +1571,7 @@ def test_udf_replace(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370035: support if_not_exists in UDF registration and enable",
 )
 @pytest.mark.skipif(
@@ -1675,7 +1675,7 @@ def test_udf_parallel(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Comment is a SQL feature",
     run=False,
 )
@@ -1692,7 +1692,7 @@ def test_udf_comment(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Describe UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(
@@ -1735,7 +1735,7 @@ def test_udf_describe(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -1791,7 +1791,7 @@ def test_basic_pandas_udf(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -1849,7 +1849,7 @@ def test_pandas_udf_type_hints(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -1963,7 +1963,7 @@ def test_pandas_udf_input_types(session, _type, data, expected_types, expected_d
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -2011,7 +2011,7 @@ def test_pandas_udf_input_variant(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -2114,7 +2114,7 @@ def test_pandas_udf_return_types(session, _type, data, expected_types, expected_
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -2163,7 +2163,7 @@ def test_pandas_udf_return_variant(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -2196,7 +2196,7 @@ def test_pandas_udf_max_batch_size(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDF is not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -2233,7 +2233,7 @@ def test_pandas_udf_negative(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL feature",
     run=False,
 )
@@ -2328,7 +2328,7 @@ def test_udf_class_method(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Local Testing doesn't pickle",
     run=False,
 )
@@ -2347,7 +2347,7 @@ def test_udf_pickle_failure(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Comment is a SQL feature",
     run=False,
 )
@@ -2406,7 +2406,7 @@ def test_deprecate_call_udf_with_list(session, caplog):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370035: support strict UDF in Local Testing",
 )
 def test_strict_udf(session):
@@ -2423,7 +2423,7 @@ def test_strict_udf(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Secure UDF is a SQL feature",
     run=False,
 )
@@ -2457,7 +2457,7 @@ def test_numpy_udf(session, func):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1370447: mock_timestamp_ntz raises error",
 )
 @pytest.mark.skipif(
@@ -2521,7 +2521,7 @@ def test_udf_timestamp_type_hint(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Vectorized UDTF is not supported in Local Testing",
 )
 @pytest.mark.skipif(

@@ -39,7 +39,7 @@ tmp_stage_name1 = Utils.random_stage_name()
 
 pytestmark = [
     pytest.mark.xfail(
-        "config.getvalue('local_testing_mode')",
+        "config.getoption('local_testing_mode', default=False)",
         reason="Async Job is a SQL feature",
         run=False,
     )

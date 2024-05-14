@@ -32,7 +32,7 @@ def get_sample_dataframe(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
 )
 def test_moving_agg(session):
@@ -64,7 +64,7 @@ def test_moving_agg(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
 )
 def test_moving_agg_custom_formatting(session):
@@ -123,7 +123,7 @@ def test_moving_agg_custom_formatting(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
 )
 def test_moving_agg_invalid_inputs(session):
@@ -256,7 +256,7 @@ def test_moving_agg_invalid_inputs(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
 )
 def test_cumulative_agg_forward_direction(session):
@@ -296,7 +296,7 @@ def test_cumulative_agg_forward_direction(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1370204 improve error message windows function UnresolvedAttribute not supported",
 )
 def test_cumulative_agg_backward_direction(session):
@@ -336,7 +336,7 @@ def test_cumulative_agg_backward_direction(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: cast to float type not supported, should route reference to to_float to to_double",
 )
 def test_compute_lead(session):
@@ -374,7 +374,7 @@ def test_compute_lead(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: result data type snowpark LongType and LongType() do not match",
 )
 def test_compute_lag(session):
@@ -445,7 +445,7 @@ def test_lead_lag_invalid_inputs(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1375417: bug in calculate_type raises TypeError for Long division",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -495,7 +495,7 @@ def test_time_series_agg(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: add_month not supported",
 )
 def test_time_series_agg_month_sliding_window(session):
@@ -566,7 +566,7 @@ def test_time_series_agg_month_sliding_window(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: add_month function not supported",
 )
 def test_time_series_agg_year_sliding_window(session):
@@ -637,7 +637,7 @@ def test_time_series_agg_year_sliding_window(session):
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: result data type snowpark LongType and LongType() do not match",
 )
 def test_time_series_agg_invalid_inputs(session):
