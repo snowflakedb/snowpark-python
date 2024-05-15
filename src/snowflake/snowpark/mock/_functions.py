@@ -1186,8 +1186,10 @@ def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     res = [
-        x[y - 1 : y + z - 1] if y != 0 else x[y : y + z] if x is not None else None
-        for x, y, z in zip(base_expr, start_expr, length_expr)
+        None if string is None else string[start : start + length]
+        for string, start, length in zip(
+            base_expr, [max(0, s - 1) for s in start_expr], length_expr
+        )
     ]
     res = ColumnEmulator(
         res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object
