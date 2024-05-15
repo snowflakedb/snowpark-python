@@ -140,7 +140,13 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         expected_func_name="DataFrame.to_snowflake",
         session=df1._query_compiler._modin_frame.ordered_dataframe.session,
     )
-    assert set(data.keys()) == {"category", "api_calls", "sfqids", "func_name"}
+    assert set(data.keys()) == {
+        "category",
+        "api_calls",
+        "sfqids",
+        "func_name",
+        "error_msg",
+    }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
         {
@@ -183,7 +189,11 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "type": "test_send_type",
-            "data": {"func_name": "test_send_func", "category": "snowpark_pandas"},
+            "data": {
+                "func_name": "test_send_func",
+                "category": "snowpark_pandas",
+                "error_msg": None,
+            },
         }
     )
 
@@ -351,10 +361,11 @@ def test_telemetry_with_not_implemented_error():
 
     snowpark_pandas_error_test_helper(
         func=snowpark_pandas_telemetry_method_decorator,
-        error=NotImplementedError,
+        error=NotImplementedError("Method bfill is not implemented for Resampler!"),
         telemetry_type=error_to_telemetry_type(
             NotImplementedError("Method bfill is not implemented for Resampler!")
         ),
+        error_msg="Method bfill is not implemented for Resampler!",
         loc_pref="mock_class",
         mock_arg=mock_arg,
     )
