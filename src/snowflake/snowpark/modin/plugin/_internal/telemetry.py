@@ -330,7 +330,10 @@ def _telemetry_helper(
         _send_snowpark_pandas_telemetry_helper(
             session=session,
             telemetry_type=error_to_telemetry_type(e),
-            error_msg=e.args[0] if e.args else None,
+            # Only track error messages for NotImplementedError
+            error_msg=e.args[0]
+            if isinstance(e, NotImplementedError) and e.args
+            else None,
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],

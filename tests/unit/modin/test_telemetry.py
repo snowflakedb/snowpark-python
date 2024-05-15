@@ -114,7 +114,7 @@ def test_snowpark_pandas_telemetry_method_decorator(
         ],
         query_history=ANY,
         telemetry_type="snowpark_pandas_type_error",
-        error_msg="Mock Real Error",
+        error_msg=None,
     )
     assert len(mock_arg2._query_compiler.snowpark_pandas_api_calls) == 0
 
@@ -132,7 +132,7 @@ def test_snowpark_pandas_telemetry_method_decorator(
         ],
         query_history=ANY,
         telemetry_type="snowpark_pandas_type_error",
-        error_msg="Mock Real Error",
+        error_msg=None,
     )
 
 
@@ -162,7 +162,7 @@ def test_snowpark_pandas_telemetry_method_error(error):
         telemetry_type=error_to_telemetry_type(error),
         loc_pref="mock_class",
         mock_arg=mock_arg,
-        error_msg="test",
+        error_msg="test" if isinstance(error, NotImplementedError) else None,
     )
 
 
