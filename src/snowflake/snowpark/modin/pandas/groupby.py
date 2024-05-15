@@ -35,7 +35,7 @@ from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# following import are used in doctest
+# the following import is used in doctests
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 
 # Snowpark pandas API version
