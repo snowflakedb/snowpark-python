@@ -24,12 +24,10 @@ from tests.integ.modin.utils import assert_frame_equal
 from tests.utils import Utils
 
 
-@pytest.mark.parametrize("quote_identifiers", [True, False])
 @pytest.mark.parametrize("auto_create_table", [True, False])
 @pytest.mark.parametrize("overwrite", [True, False])
 def test_write_pandas_with_overwrite(
     session,
-    quote_identifiers: bool,
     auto_create_table: bool,
     overwrite: bool,
 ):
@@ -59,7 +57,6 @@ def test_write_pandas_with_overwrite(
             table1 = session.write_pandas(
                 pd1,
                 table_name,
-                quote_identifiers=quote_identifiers,
                 auto_create_table=True,
             )
 
@@ -70,7 +67,6 @@ def test_write_pandas_with_overwrite(
             table2 = session.write_pandas(
                 pd2,
                 table_name,
-                quote_identifiers=quote_identifiers,
                 overwrite=overwrite,
                 auto_create_table=auto_create_table,
             )
@@ -88,7 +84,6 @@ def test_write_pandas_with_overwrite(
                 table3 = session.write_pandas(
                     pd3,
                     table_name,
-                    quote_identifiers=quote_identifiers,
                     overwrite=overwrite,
                     auto_create_table=auto_create_table,
                 )
@@ -101,7 +96,6 @@ def test_write_pandas_with_overwrite(
                     session.write_pandas(
                         pd3,
                         table_name,
-                        quote_identifiers=quote_identifiers,
                         overwrite=overwrite,
                         auto_create_table=auto_create_table,
                     )
@@ -218,28 +212,27 @@ def test_write_to_different_schema(session):
     )
     original_schema_name = session.get_current_schema()
     test_schema_name = Utils.random_temp_schema()
-
+    quoted_test_schema_name = '"' + test_schema_name + '"'
     try:
-        Utils.create_schema(session, test_schema_name)
+        Utils.create_schema(session, quoted_test_schema_name)
         # For owner's rights stored proc test, current schema does not change after creating a new schema
         if not is_in_stored_procedure():
             session.use_schema(original_schema_name)
         assert session.get_current_schema() == original_schema_name
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
         with SqlCounter(query_count=4):
-            session.write_pandas(
+            table = session.write_pandas(
                 pd_df,
                 table_name,
-                quote_identifiers=False,
                 schema=test_schema_name,
                 auto_create_table=True,
             )
             Utils.check_answer(
-                session.table(f"{test_schema_name}.{table_name}").sort("id"),
+                table.sort("id"),
                 [Row(1, 4.5, "Nike"), Row(2, 7.5, "Adidas"), Row(3, 10.5, "Puma")],
             )
     finally:
-        Utils.drop_schema(session, test_schema_name)
+        Utils.drop_schema(session, quoted_test_schema_name)
 
 
 def test_write_series(session):
@@ -250,7 +243,6 @@ def test_write_series(session):
             table = session.write_pandas(
                 s,
                 table_name,
-                quote_identifiers=False,
                 auto_create_table=True,
             )
             assert_frame_equal(s.to_frame(), table.to_pandas(), check_dtype=False)
