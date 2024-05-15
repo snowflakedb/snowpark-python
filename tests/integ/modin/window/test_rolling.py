@@ -10,7 +10,7 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.window_utils import IMPLEMENTED_AGG_FUNCS
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_FUNCS)
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
@@ -239,3 +239,29 @@ def test_rolling_aggregation_unsupported(agg_func, agg_func_kwargs):
     snow_df = pd.DataFrame({"B": [0, 1, 2, np.nan, 4]})
     with pytest.raises(NotImplementedError):
         getattr(snow_df.rolling(window=2, min_periods=1), agg_func)(agg_func_kwargs),
+
+
+@pytest.mark.parametrize("func", ["sum", "mean", "var", "min", "max"])
+def test_rolling_documentation(func):
+    snow_df, native_df = create_test_dfs({"B": [0, 1, 2, np.nan, 4]})
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.rolling(2, min_periods=1), func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: getattr(df.rolling(2, min_periods=2), func)()
+        )
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: getattr(df.rolling(3, min_periods=1, center=True), func)(),
+        )
+    if func in ["var", "std"]:
+        with SqlCounter(query_count=1):
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                lambda df: getattr(df.rolling(2, min_periods=1), func)(ddof=0),
+            )
