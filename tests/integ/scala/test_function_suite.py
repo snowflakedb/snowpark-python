@@ -1259,19 +1259,14 @@ def test_date_trunc(part, expected, session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_date_trunc_negative(session, local_testing_mode):
-    if local_testing_mode:
-        err = ValueError
-    else:
-        err = SnowparkSQLException
-
     df = TestData.datetime_primitives1(session)
 
     # Invalid date part
-    with pytest.raises(err):
+    with pytest.raises(SnowparkSQLException):
         df.select(date_trunc("foobar", "date")).collect()
 
     # Unsupported date part
-    with pytest.raises(err):
+    with pytest.raises(SnowparkSQLException):
         df.select(date_trunc("dow", "date")).collect()
 
 
@@ -1413,7 +1408,7 @@ def test_to_time(session, local_testing_mode):
     # invalid input for string expr with format
     # TODO: local test error experience SNOW-1235716
     # currently local testing throws ValueError while live connection throws SQLException
-    with pytest.raises(ValueError if local_testing_mode else SnowparkSQLException):
+    with pytest.raises(SnowparkSQLException):
         df = session.create_dataframe([("asdfgh",), ("qwerty",)]).to_df("a")
         Utils.check_answer(
             df.select(to_time("A", "HH12.MI-SS PM")),
