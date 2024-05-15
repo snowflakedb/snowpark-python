@@ -40,6 +40,15 @@ class AstBatch:
     def flush(self) -> Tuple[str, str]:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
+
+        print(f"encoded {batch}")
+        d1 = base64.b64decode(batch)
+        print(f"{len(d1)} bytes")
+        p = proto.Request()
+        p.ParseFromString(d1)
+        print(f"parsed {p}")
+
+
         return (str(self._request_id), batch)
 
     def _init_batch(self):
@@ -48,5 +57,5 @@ class AstBatch:
         self._request.client_version.major = 42
         self._request.client_version.minor = 0
         (major, minor, micro, releaselevel, serial) = sys.version_info
-        self._request.client_language.python.version.major = major
-        self._request.client_language.python.version.minor = minor
+        self._request.client_language.python_language.version.major = major
+        self._request.client_language.python_language.version.minor = minor
