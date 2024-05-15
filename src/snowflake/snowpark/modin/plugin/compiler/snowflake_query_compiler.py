@@ -123,6 +123,7 @@ from snowflake.snowpark.modin.plugin._internal import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
     AggFuncInfo,
+    AggFuncWithLabel,
     AggregateColumnOpParameters,
     _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
@@ -2618,7 +2619,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
-        def convert_func_to_agg_func_info(func):
+        def convert_func_to_agg_func_info(
+            func: Union[AggFuncType, AggFuncWithLabel]
+        ) -> AggFuncInfo:
             nonlocal uses_named_aggs
             if is_named_tuple(func):
                 uses_named_aggs = True
