@@ -671,7 +671,8 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             The union of all indexes across the partitions.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._query_compiler.index
+        return pd.Index(data=self)
+        # return self._query_compiler.index
 
     index = property(_get_index, _set_index)
 

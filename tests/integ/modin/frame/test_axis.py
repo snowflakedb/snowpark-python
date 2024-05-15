@@ -131,7 +131,9 @@ def test_set_and_assign_index(test_df):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_df),
         test_df,
-        lambda df: assign_index(df, new_mi),
+        lambda df: assign_index(df, new_mi).to_pandas()
+        if isinstance(df, pd.DataFrame)
+        else assign_index(df, new_mi),
         comparator=assert_index_equal,
     )
 
@@ -157,10 +159,10 @@ def set_columns_func(df, labels):
     [
         ["a", "b"],
         [1.3, 2],
-        pd.Index([1.3, 2]),
+        native_pd.Index([1.3, 2]),
         [None, int],
         [(42, "test"), (1, 2, 3)],
-        pd.Index(["a", "b"]),
+        native_pd.Index(["a", "b"]),
         [("A",), ("B",)],
         [("A", "a", 1), ("B", "b", 1)],
         [["A", "a"], ["B", "b"]],
@@ -214,7 +216,7 @@ def test_set_columns_valid_names(col_name):
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
         ),
         (
-            pd.Index(["a"]),
+            native_pd.Index(["a"]),
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
         ),
@@ -232,6 +234,18 @@ def test_set_columns_valid_names(col_name):
 )
 @sql_count_checker(query_count=0)
 def test_set_columns_negative(columns, error_type, error_msg):
+    if isinstance(columns, native_pd.Index):
+        modin_index = pd.Index(columns)
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_dfs[0]),
+            test_dfs[0],
+            lambda df: set_columns_func(df, labels=modin_index),
+            comparator=assert_index_equal,
+            expect_exception=True,
+            expect_exception_type=error_type,
+            expect_exception_match=error_msg,
+        )
+
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dfs[0]),
         test_dfs[0],

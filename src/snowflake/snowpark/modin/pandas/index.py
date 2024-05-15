@@ -42,13 +42,13 @@ class Index:
 
     Examples
     --------
-    pd.Index([1, 2, 3])
+    >>> pd.Index([1, 2, 3])
     Index([1, 2, 3], dtype='int64')
 
-    pd.Index(list('abc'))
+    >>> pd.Index(list('abc'))
     Index(['a', 'b', 'c'], dtype='object')
 
-    pd.Index([1, 2, 3], dtype="uint8")
+    >>> pd.Index([1, 2, 3], dtype="uint8")
     Index([1, 2, 3], dtype='uint8')
     """
 
@@ -60,16 +60,18 @@ class Index:
         copy=False,
         name=None,
         tupleize_cols=True,
+        query_compiler=None,
     ) -> None:
+        self._index = None
 
         # TODO: SNOW-1359041: Switch to lazy index implementation
-        if isinstance(data, native_pd.Index):
-            self._index = data
-        elif isinstance(data, Index):
-            self._index = data.to_pandas()
-        elif isinstance(data, (pd.DataFrame, pd.Series)):
-            self._index = data.index.to_pandas()
-            self._qc = data._query_compiler
+        if isinstance(data, (pd.DataFrame, pd.Series)):
+            qc = data._query_compiler
+        elif isinstance(data, pd.Index):
+            self = data
+            return
+        elif query_compiler is not None:
+            qc = query_compiler
         else:
             self._index = native_pd.Index(
                 data=data,
@@ -78,18 +80,53 @@ class Index:
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
-        # pandas_df = native_pd.DataFrame(data=self.to_pandas())
-        # from snowflake.snowpark.modin.pandas import DataFrame
-        # snowpark_df = DataFrame(pandas_df)
-        self._pandas_df = self._index.to_frame()
-        # snow_df = pd.DataFrame(pandas_df)
-        # self._qc = snow_df._query_compiler
+            frame = self._index.to_frame()
+            from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+                SnowflakeQueryCompiler,
+            )
+
+            qc = SnowflakeQueryCompiler.from_pandas(frame)
+
+        self._query_compiler = qc if qc else None
+        if self._index is None:
+            self._index = self.to_pandas()
+
+    @property
+    def _column_names(self):
+        return self._query_compiler._modin_frame.index_column_pandas_labels
+
+    @property
+    def _ordered_dataframe(self):
+        return self._query_compiler._modin_frame.ordered_dataframe
+
+    @property
+    def _snowflake_quoted_identifiers(self):
+        return (
+            self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers
+        )
+
+    @property
+    def values(self):
+        from snowflake.snowpark.modin.plugin._internal.utils import (
+            snowpark_to_pandas_helper,
+        )
+
+        return snowpark_to_pandas_helper(
+            self._ordered_dataframe.select(self._snowflake_quoted_identifiers)
+        ).values.flatten()
+
+    @property
+    def names(self):
+        return self._column_names
+
+    @property
+    def name(self):
+        return self.names[0]
 
     def to_pandas(self):
+        if self._index is None:
+            self._index = self._query_compiler.index
         return self._index
-
-    def values(self):
-        raise NotImplementedError("Values not yet implemented")
 
     def __array__(self, dtype=None) -> np.ndarray:
         """
@@ -100,9 +137,6 @@ class Index:
     def __repr__(self):
         return self.to_pandas().__repr__()
 
-    # def __iter__(self):
-    #     return self.to_pandas().__iter__()
-    #
-    # @property
-    # def ndim(self):
-    #     return 1
+    def __iter__(self):
+        # TODO: SNOW-1359039: Do we need to update this in the next PR to not call to_pandas()
+        return self.to_pandas().__iter__()

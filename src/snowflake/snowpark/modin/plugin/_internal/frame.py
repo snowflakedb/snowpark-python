@@ -415,9 +415,8 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
-            from snowflake.snowpark.modin.pandas.index import Index
 
-            ret = Index(
+            ret = pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
@@ -430,9 +429,9 @@ class InternalFrame:
             # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
             # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
             # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
-            pandas_index = ret.to_pandas()
-            if is_object_dtype(pandas_index.dtype) and not is_object_dtype(index_type):
-                ret = Index(pandas_index.astype(index_type))
+
+            if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
+                ret = ret.astype(index_type)
             return ret
 
     def get_snowflake_quoted_identifiers_group_by_pandas_labels(
