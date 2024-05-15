@@ -118,7 +118,7 @@ def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
         np.ptp,  # Unsupported aggregation function
     ],
 )
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_agg_func_unsupported_named_agg(basic_snowpark_pandas_df, agg_func):
     by = "col1"
     with pytest.raises(NotImplementedError):
