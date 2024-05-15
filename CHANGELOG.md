@@ -17,6 +17,7 @@
     - to_varchar
   - snowflake.snowpark.DataFrame:
     - pivot
+- Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
 
 #### Bug Fixes
 
@@ -30,6 +31,10 @@
 - Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+
+#### Improvement
+
+- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
 
 ## 1.16.0 (TBD)
 

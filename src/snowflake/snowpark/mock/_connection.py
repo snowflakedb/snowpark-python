@@ -41,12 +41,12 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -115,7 +115,7 @@ class MockServerConnection:
             if qualified_name in self.table_registry:
                 return copy(self.table_registry[qualified_name])
             else:
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Object '{name}' does not exist or not authorized."
                 )
 
@@ -144,18 +144,18 @@ class MockServerConnection:
                 self.table_registry[name] = table
             elif mode == SaveMode.ERROR_IF_EXISTS:
                 if name in self.table_registry:
-                    raise SnowparkSQLException(f"Table {name} already exists")
+                    raise SnowparkLocalTestingException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
                     if table.columns != target_table.columns:
-                        raise SnowparkSQLException("Column mismatch detected")
+                        raise SnowparkLocalTestingException("Column mismatch detected")
 
                 self.table_registry[name] = table
             else:
-                raise ProgrammingError(f"Unrecognized mode: {mode}")
+                raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
             return [
                 Row(status=f"Table {name} successfully created.")
             ]  # TODO: match message
@@ -181,7 +181,7 @@ class MockServerConnection:
             name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.view_registry:
                 return self.view_registry[name]
-            raise SnowparkSQLException(f"View {name} does not exist")
+            raise SnowparkLocalTestingException(f"View {name} does not exist")
 
     class _Decorator:
         @classmethod
