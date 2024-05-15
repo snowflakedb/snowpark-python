@@ -2789,6 +2789,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + f"level={level}, and axis={axis}"
             )
 
+        if "include_groups" in agg_kwargs:
+            # exclude "include_groups" from the apply function kwargs
+            agg_kwargs.pop("include_groups")
+
+        # TODO: SNOW-1429855 support include_groups = False
+
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
