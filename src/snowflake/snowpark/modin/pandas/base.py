@@ -672,7 +672,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return pd.Index(data=self)
-        # return self._query_compiler.index
 
     index = property(_get_index, _set_index)
 
