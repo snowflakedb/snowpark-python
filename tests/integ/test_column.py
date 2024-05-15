@@ -59,9 +59,7 @@ def test_try_cast(session):
 @pytest.mark.localtest
 def test_try_cast_work_cast_not_work(session, local_testing_mode):
     df = session.create_dataframe([["aaa"]], schema=["a"])
-    with pytest.raises(
-        ValueError if local_testing_mode else SnowparkSQLException
-    ) as execinfo:
+    with pytest.raises(SnowparkSQLException) as execinfo:
         df.select(df["a"].cast("date")).collect()
     if not local_testing_mode:
         assert "Date 'aaa' is not recognized" in str(execinfo)
