@@ -1058,7 +1058,7 @@ def generate_column_agg_info(
         agg_col_labels = generate_pandas_labels_for_agg_result_columns(
             pandas_label_to_identifier.pandas_label,
             num_levels,
-            agg_func_list,
+            agg_func_list,  # type: ignore[arg-type]
             agg_func_level_included,
             pandas_label_level_included,
         )
