@@ -5365,6 +5365,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left = self
         join_index_on_index = left_index and right_index
+        # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
+        # https://github.com/pandas-dev/pandas/pull/54611/files
+        if how == "outer":
+            sort = True
 
         # Labels of indicator columns in input frames.  We use these columns to generate
         # final indicator column in merged frame.
