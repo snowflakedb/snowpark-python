@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
@@ -649,16 +650,19 @@ class DataFrameReader:
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         from snowflake.snowpark.mock._connection import MockServerConnection
 
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT
-        ):
-            self._session._conn.log_not_supported_error(
-                external_feature_name=f"Read semi structured {format} file",
-                internal_feature_name="DataFrameReader._read_semi_structured_file",
-                parameters_info={"format": str(format)},
-                raise_error=NotImplementedError,
-            )
+        if isinstance(self._session._conn, MockServerConnection):
+            if self._session._conn.is_closed():
+                raise SnowparkSessionException(
+                    "Cannot perform this operation because the session has been closed.",
+                    error_code="1404",
+                )
+            if format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT:
+                self._session._conn.log_not_supported_error(
+                    external_feature_name=f"Read semi structured {format} file",
+                    internal_feature_name="DataFrameReader._read_semi_structured_file",
+                    parameters_info={"format": str(format)},
+                    raise_error=NotImplementedError,
+                )
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")

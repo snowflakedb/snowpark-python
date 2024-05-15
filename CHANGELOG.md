@@ -17,6 +17,8 @@
     - to_varchar
   - snowflake.snowpark.DataFrame:
     - pivot
+  - snowflake.snowpark.Session:
+    - cancel_all
 - Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
 
 #### Bug Fixes
@@ -32,13 +34,11 @@
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
 
-#### Improvement
-
-- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
-
 #### Improvements
 
+- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
 - Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
+- Aligned error experience with reusing a closed session in non-local execution.
 
 ## 1.16.0 (TBD)
 
