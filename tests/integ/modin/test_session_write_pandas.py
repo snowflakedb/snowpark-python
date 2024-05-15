@@ -272,13 +272,14 @@ def test_write_pandas_with_quote_identifiers(
             pd1 = pd1.to_pandas()
 
         if is_modin_dataframe and not quote_identifiers:
-            with pytest.raises(NotImplementedError):
-                table1 = session.write_pandas(
-                    pd1,
-                    table_name,
-                    quote_identifiers=quote_identifiers,
-                    auto_create_table=True,
-                )
+            with SqlCounter(query_count=0):
+                with pytest.raises(NotImplementedError):
+                    session.write_pandas(
+                        pd1,
+                        table_name,
+                        quote_identifiers=quote_identifiers,
+                        auto_create_table=True,
+                    )
         else:
             with SqlCounter(query_count=3 if is_modin_dataframe else 0):
                 # Create initial table and insert 3 rows
