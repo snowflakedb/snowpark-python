@@ -829,6 +829,9 @@ def get_valid_col_positions_from_col_labels(
         internal_frame: the main frame
         col_loc: the column labels in different types
 
+    Raises:
+        KeyError: when values are missing from `internal_frame` columns
+
     Returns:
         Column position list
     """
@@ -925,10 +928,14 @@ def get_valid_col_positions_from_col_labels(
         elif isinstance(col_loc, tuple):
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
         # Throw a KeyError in case there are any missing column labels
-        if any(label not in columns for label in col_loc):
+        if len(col_loc) > 0 and all(label not in columns for label in col_loc):
             raise KeyError(
-                "None of {} are in the [columns]".format(
-                    pandas.Index([k for k in col_loc if k not in columns])
+                "None of {} are in the [columns]".format(pandas.Index(col_loc))
+            )
+        elif any(label not in columns for label in col_loc):
+            raise KeyError(
+                "{} not found in index".format(
+                    [k for k in col_loc if k not in columns]
                 )
             )
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to

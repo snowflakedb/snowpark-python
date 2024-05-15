@@ -126,10 +126,13 @@ def test_df_getitem_with_string_labels(key):
 @sql_count_checker(query_count=0)
 def test_df_getitem_with_string_labels_throws_keyerror(key):
     data = {"A": [1, 2, None], "B": [3.1, 5, 6], "C": [None, "abc", "xyz"]}
-    with pytest.raises(KeyError):
+    with pytest.raises(
+            KeyError,
+            match=r"None of .* are in the \[columns\]",
+    ):
         eval_snowpark_pandas_result(
             *create_test_dfs(data),
-            lambda df: df[key]
+            lambda df: df[key],
         )
 
 
@@ -239,17 +242,25 @@ def test_df_getitem_with_series(key_data):
 
 @pytest.mark.parametrize("key", [["a", "b", "c"], ["A", "a"], ["a", "a", "a"]])
 @sql_count_checker(query_count=0)
-def test_df_getitem_deviates_from_pandas(key):
+def test_df_getitem_throws_key_error(key):
     columns = ["A", "B", "C"]
     data = np.random.normal(size=(3, 3))
     snow_df = pd.DataFrame(data, columns=columns)
     native_df = native_pd.DataFrame(data, columns=columns)
 
-    with pytest.raises(KeyError):
+    if all(k not in columns for k in key):
+        match_str = r"None of .* are in the \[columns\]"
+    else:
+        match_str = r".* not in index"
+
+    with pytest.raises(
+            KeyError,
+            match=match_str,
+    ):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
-            lambda df: df[key]
+            lambda df: df[key],
         )
 
 
