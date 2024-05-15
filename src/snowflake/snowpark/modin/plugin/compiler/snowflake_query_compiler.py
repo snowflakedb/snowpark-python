@@ -11760,7 +11760,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         start: Optional[int] = None,
         stop: Optional[int] = None,
-        step: Optional[int] = None,
+        step: int = 1,
     ) -> "SnowflakeQueryCompiler":
         """
         Slice substrings from each element in the Series or Index.
@@ -11783,10 +11783,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_name: ColumnOrName,
             start: Optional[int],
             stop: Optional[int],
-            step: Optional[int],
+            step: int = 1,
         ) -> SnowparkColumn:
-            if step is None:
-                step = 1
             col_len_exp = length(col(col_name))
 
             # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
@@ -11803,47 +11801,65 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # and similarly, it cannot fall beyond the end boundary when step is negative.
             if start is None:
                 if step < 0:
+                    # Start position is at the end boundary.
                     start_exp = col_len_exp
                 else:
+                    # Start position is at the beginning boundary.
                     start_exp = pandas_lit(1)
             elif start < 0:
                 if step < 0:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is the position immediately to the left of the beginning boundary.
                     start_exp = greatest(
                         pandas_lit(start + 1) + col_len_exp, pandas_lit(0)
                     )
                 else:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is position representing the beginning boundary.
                     start_exp = greatest(
                         pandas_lit(start + 1) + col_len_exp, pandas_lit(1)
                     )
             else:
                 assert start >= 0
                 if step < 0:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position representing the end boundary.
                     start_exp = least(pandas_lit(start + 1), col_len_exp)
                 else:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position immediately to the right of the end boundary.
                     start_exp = least(
                         pandas_lit(start + 1), col_len_exp + pandas_lit(1)
                     )
 
             if stop is None:
                 if step < 0:
+                    # Stop position is immediately to the left of the beginning boundary.
                     stop_exp = pandas_lit(0)
                 else:
+                    # Stop position is immediately to the right of the end boundary.
                     stop_exp = col_len_exp + pandas_lit(1)
             elif stop < 0:
+                # Stop position is relative to the end boundary, and the leftmost it can
+                # get is the position immediately to the left of the beginning boundary.
                 stop_exp = greatest(pandas_lit(stop + 1) + col_len_exp, pandas_lit(0))
             else:
+                # Stop position is relative to the beginning boundary, and the rightmost it can
+                # get is the position immediately to the right of the end boundary.
                 stop_exp = least(pandas_lit(stop + 1), col_len_exp + pandas_lit(1))
 
             if step < 0:
+                # When step is negative, we flip the column string value along with the start and
+                # stop positions. Step can be considered positive now.
                 new_col = reverse(col(col_name))
                 start_exp = col_len_exp - start_exp + pandas_lit(1)
                 stop_exp = col_len_exp - stop_exp + pandas_lit(1)
-                step = -1 * step
+                step = -step
             else:
                 new_col = col(col_name)
             # End of evaluation for start and end positions.
 
-            # If step is 1, then slicing is no different than a substring.
+            # If step is 1, then slicing is no different than getting a substring.
             # Even when step is > 1, we also start by getting the substring with all
             # the relevant characters we care about. Then we process them further below.
             new_col = substring(new_col, start_exp, stop_exp - start_exp)
