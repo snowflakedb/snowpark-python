@@ -683,6 +683,7 @@ class IndexJoinInfo(NamedTuple):
 def _get_index_columns_to_join(
     left: InternalFrame,
     right: InternalFrame,
+    how: Union[JoinTypeLit, AlignTypeLit],
 ) -> IndexJoinInfo:
     """
     Decide the index columns that need to participate in join. Depends on single or multiindex situation
@@ -744,6 +745,7 @@ def _get_index_columns_to_join(
     Args:
         left: Dataframe on left side of join.
         right: Dataframe on right side of join.
+        how: Join or align type.
 
     Returns:
         Tuple contains:
@@ -805,9 +807,8 @@ def _get_index_columns_to_join(
         if is_left_multiindex and is_right_multiindex:
             # Case 3
             # Order of index columns in output frame =
-            #     common index columns (value are coalesced)
-            #       + remaining left index columns
-            #       + remaining right index columns
+            # right index columns + remaining left index columns (if how != right)
+            # left index columns + remaining right index columns otherwise (otherwise)
             left_remaining_labels = [
                 label
                 for label in left.index_column_pandas_labels
@@ -818,9 +819,14 @@ def _get_index_columns_to_join(
                 for label in right.index_column_pandas_labels
                 if label not in common_labels
             ]
-            expected_index_labels = (
-                common_labels + left_remaining_labels + right_remaining_labels
-            )
+            if how == "right":
+                expected_index_labels = (
+                    right.index_column_pandas_labels + left_remaining_labels
+                )
+            else:
+                expected_index_labels = (
+                    left.index_column_pandas_labels + right_remaining_labels
+                )
         else:
             # Case 4
             expected_index_labels = (
@@ -908,7 +914,7 @@ def join_on_index_columns(
             include mapping for index + data columns, ordering columns and row position column
             if exists.
     """
-    index_join_info = _get_index_columns_to_join(left, right)
+    index_join_info = _get_index_columns_to_join(left, right, how)
 
     joined_frame, result_column_mapper = join(
         left,
@@ -1102,7 +1108,7 @@ def align_on_index(
             if exists.
     """
 
-    index_join_info = _get_index_columns_to_join(left, right)
+    index_join_info = _get_index_columns_to_join(left, right, how)
     # Re-project the active columns to make sure all active columns of the internal frame participate in
     # the align operation, and unnecessary columns are dropped from the projection.
     left = left.select_active_columns()
