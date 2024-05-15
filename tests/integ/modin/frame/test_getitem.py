@@ -127,8 +127,8 @@ def test_df_getitem_with_string_labels(key):
 def test_df_getitem_with_string_labels_throws_keyerror(key):
     data = {"A": [1, 2, None], "B": [3.1, 5, 6], "C": [None, "abc", "xyz"]}
     with pytest.raises(
-            KeyError,
-            match=r"None of .* are in the \[columns\]",
+        KeyError,
+        match=r"None of .* are in the \[columns\]",
     ):
         eval_snowpark_pandas_result(
             *create_test_dfs(data),
@@ -254,8 +254,8 @@ def test_df_getitem_throws_key_error(key):
         match_str = r".* not in index"
 
     with pytest.raises(
-            KeyError,
-            match=match_str,
+        KeyError,
+        match=match_str,
     ):
         eval_snowpark_pandas_result(
             snow_df,
@@ -388,7 +388,7 @@ def test_df_getitem_boolean_df_comparator():
         *create_test_dfs(
             [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]
         ),
-        lambda df: df[df > 7]
+        lambda df: df[df > 7],
     )
 
 

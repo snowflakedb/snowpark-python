@@ -929,14 +929,10 @@ def get_valid_col_positions_from_col_labels(
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
         # Throw a KeyError in case there are any missing column labels
         if len(col_loc) > 0 and all(label not in columns for label in col_loc):
-            raise KeyError(
-                "None of {} are in the [columns]".format(pandas.Index(col_loc))
-            )
+            raise KeyError(f"None of {pandas.Index(col_loc)} are in the [columns]")
         elif any(label not in columns for label in col_loc):
             raise KeyError(
-                "{} not found in index".format(
-                    [k for k in col_loc if k not in columns]
-                )
+                f"{[k for k in col_loc if k not in columns]} not found in index"
             )
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
