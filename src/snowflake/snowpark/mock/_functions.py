@@ -8,6 +8,7 @@ import json
 import math
 import numbers
 import operator
+import re
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -47,7 +48,7 @@ from snowflake.snowpark.types import (
 
 from ._telemetry import LocalTestOOBTelemetryService
 from ._util import (
-    convert_integer_value_to_seconds,
+    convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
     unalias_datetime_part,
@@ -56,6 +57,13 @@ from ._util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+
+
+_DEFAULT_OUTPUT_FORMAT = {
+    DateType: "YYYY-MM-DD",
+    TimeType: "HH24:MI:SS",
+    TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
+}
 
 
 class LocalTimezone:
@@ -78,7 +86,7 @@ class LocalTimezone:
 
     @classmethod
     def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
-        """Replaces any existing tz info with the local tz info without adjucting the time."""
+        """Replaces any existing tz info with the local tz info without adjusting the time."""
         return d.replace(tzinfo=cls.LOCAL_TZ)
 
 
@@ -149,7 +157,9 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
         if data is not None:
             try:
                 if math.isnan(data):
-                    continue
+                    res = math.nan
+                    all_item_is_none = False
+                    break
             except TypeError:
                 pass
             all_item_is_none = False
@@ -250,6 +260,13 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
     for x, y in zip(column1, column2):
+        if (x is not None and math.isnan(x)) or (y is not None and math.isnan(y)):
+            return ColumnEmulator(
+                data=math.nan,
+                sf_type=ColumnType(
+                    DoubleType(), column1.sf_type.nullable or column2.sf_type.nullable
+                ),
+            )
         if x is not None and y is not None and not math.isnan(x) and not math.isnan(y):
             non_nan_cnt += 1
             x_times_y_sum += x * y
@@ -315,19 +332,17 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
-    if not isinstance(fmt, ColumnEmulator):
-        fmt = [fmt] * len(column)
+    import dateutil.parser
+
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
     def convert_date(row):
         _fmt = fmt[row.name]
         data = row[0]
-
         auto_detect = _fmt is None or _fmt.lower() == "auto"
-
-        date_format, _, _ = convert_snowflake_datetime_format(
+        date_format, _ = convert_snowflake_datetime_format(
             _fmt, default_format="%Y-%m-%d"
         )
-        import dateutil.parser
 
         if data is None:
             return None
@@ -337,7 +352,7 @@ def mock_to_date(
             elif isinstance(column.sf_type.datatype, StringType):
                 if data.isdigit():
                     return datetime.datetime.utcfromtimestamp(
-                        convert_integer_value_to_seconds(data)
+                        convert_numeric_string_value_to_float_seconds(data)
                     ).date()
                 else:
                     if auto_detect:
@@ -352,7 +367,7 @@ def mock_to_date(
                 if isinstance(data, str):
                     if data.isdigit():
                         return datetime.datetime.utcfromtimestamp(
-                            convert_integer_value_to_seconds(data)
+                            convert_numeric_string_value_to_float_seconds(data)
                         ).date()
                     else:
                         # for variant type with string value, snowflake auto-detects the format
@@ -513,12 +528,10 @@ def mock_to_time(
 
     def convert_int_string_to_time(d: str):
         return datetime.datetime.utcfromtimestamp(
-            convert_integer_value_to_seconds(d) % 86400
+            convert_numeric_string_value_to_float_seconds(d) % 86400
         ).time()
 
-    def convert_string_to_time(
-        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
-    ):
+    def convert_string_to_time(_data: str, _time_format: str, _fractional_seconds: int):
         data_parts = _data.split(".")
         if len(data_parts) == 2:
             # there is a part of seconds
@@ -537,10 +550,7 @@ def mock_to_time(
             process_string_time_with_fractional_seconds(_data, _fractional_seconds),
             _time_format,
         )
-        # there is a special case that if the time is 12 p.m noon, then no need to adjust
-        if _hour_delta == 12 and target_datetime.time().hour == 12:
-            _hour_delta = 0
-        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+        return target_datetime.time()
 
     res = []
 
@@ -555,7 +565,6 @@ def mock_to_time(
         try:
             (
                 time_fmt,
-                hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
 
@@ -564,9 +573,7 @@ def mock_to_time(
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
-                        convert_string_to_time(
-                            data, time_fmt, hour_delta, fractional_seconds
-                        )
+                        convert_string_to_time(data, time_fmt, fractional_seconds)
                     )
             elif isinstance(datatype, TimestampType):
                 res.append(data.time())
@@ -576,9 +583,7 @@ def mock_to_time(
                         res.append(convert_int_string_to_time(data))
                     else:
                         res.append(
-                            convert_string_to_time(
-                                data, time_fmt, hour_delta, fractional_seconds
-                            )
+                            convert_string_to_time(data, time_fmt, fractional_seconds)
                         )
                 elif isinstance(data, datetime.time):
                     res.append(data)
@@ -609,120 +614,166 @@ def _to_timestamp(
     fmt: Optional[ColumnEmulator],
     try_cast: bool = False,
     add_timezone: bool = False,
+    enforce_ltz=False,
 ):
     """
+     https://docs.snowflake.com/en/sql-reference/functions/to_timestamp
+
     [x] For NULL input, the result will be NULL.
 
-    [ ] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
+    [x] For string_expr: timestamp represented by a given string. If the string does not have a time component, midnight will be used.
 
-    [ ] For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
+    [x] For date_expr: timestamp representing midnight of a given day will be used, according to the specific timestamp flavor (NTZ/LTZ/TZ) semantics.
 
-    [ ] For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
+    [x] For timestamp_expr: a timestamp with possibly different flavor than the source timestamp.
 
-    [ ] For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
+    [x] For numeric_expr: a timestamp representing the number of seconds (or fractions of a second) provided by the user. Note, that UTC time is always used to build the result.
 
     For variant_expr:
 
-        [ ] If the variant contains JSON null value, the result will be NULL.
+        [x] If the variant contains JSON null value, the result will be NULL.
 
-        [ ] If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
+        [x] If the variant contains a timestamp value of the same kind as the result, this value will be preserved as is.
 
-        [ ] If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
+        [x] If the variant contains a timestamp value of the different kind, the conversion will be done in the same way as from timestamp_expr.
 
-        [ ] If the variant contains a string, conversion from a string value will be performed (using automatic format).
+        [x] If the variant contains a string, conversion from a string value will be performed (using automatic format).
 
-        [ ] If the variant contains a number, conversion as if from numeric_expr will be performed.
+        [x] If the variant contains a number, conversion as if from numeric_expr will be performed.
 
-    [ ] If conversion is not possible, an error is returned.
+    [x] If conversion is not possible, an error is returned.
 
     If the format of the input parameter is a string that contains an integer:
 
         After the string is converted to an integer, the integer is treated as a number of seconds, milliseconds, microseconds, or nanoseconds after the start of the Unix epoch (1970-01-01 00:00:00.000000000 UTC).
 
-        [ ] If the integer is less than 31536000000 (the number of milliseconds in a year), then the value is treated as a number of seconds.
+        [x] If the integer is less than 31536000000 (the number of milliseconds in a year), then the value is treated as a number of seconds.
 
-        [ ] If the value is greater than or equal to 31536000000 and less than 31536000000000, then the value is treated as milliseconds.
+        [x] If the value is greater than or equal to 31536000000 and less than 31536000000000, then the value is treated as milliseconds.
 
-        [ ] If the value is greater than or equal to 31536000000000 and less than 31536000000000000, then the value is treated as microseconds.
+        [x] If the value is greater than or equal to 31536000000000 and less than 31536000000000000, then the value is treated as microseconds.
 
-        [ ] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
+        [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
-    res = []
-    fmt_column = fmt if fmt is not None else [None] * len(column)
+    import dateutil.parser
 
-    for data, format in zip(column, fmt_column):
-        auto_detect = bool(not format)
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+
+    def convert_timestamp(row):
+        _fmt = fmt[row.name]
+        data = row[0]
+        auto_detect = _fmt is None or str(_fmt).lower() == "auto"
         default_format = "%Y-%m-%d %H:%M:%S.%f"
-        (
-            timestamp_format,
-            hour_delta,
-            fractional_seconds,
-        ) = convert_snowflake_datetime_format(format, default_format=default_format)
 
+        if not isinstance(_fmt, numbers.Number):
+            (
+                timestamp_format,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+        else:
+            # if _fmt is a number, then snowflake expects <numeric_expr> + <scale>, format doesn't apply here
+            timestamp_format, fractional_seconds = None, 0
+
+        if data is None:
+            return None
         try:
-            if data is None:
-                res.append(None)
-                continue
 
-            if auto_detect:
-                if isinstance(data, numbers.Number) or (
-                    isinstance(data, str) and data.isnumeric()
-                ):
+            datatype = column.sf_type.datatype
+            if isinstance(datatype, TimestampType):
+                # data is datetime.datetime type
+                parsed = data
+            elif isinstance(datatype, DateType):
+                # data is datetime.date type
+                parsed = datetime.datetime.combine(data, datetime.datetime.min.time())
+            elif isinstance(datatype, StringType):
+                # data is string type
+                if data.isdigit() and auto_detect:
                     parsed = datetime.datetime.utcfromtimestamp(
-                        convert_integer_value_to_seconds(data)
+                        convert_numeric_string_value_to_float_seconds(data)
                     )
                     # utc timestamps should be in utc timezone
                     if add_timezone:
                         parsed = parsed.replace(tzinfo=pytz.utc)
-                elif isinstance(data, datetime.datetime):
-                    parsed = data
-                elif isinstance(data, datetime.date):
-                    parsed = datetime.datetime.combine(data, datetime.time(0, 0, 0))
-                elif isinstance(data, str):
-                    # dateutil is a pandas dependency
-                    import dateutil.parser
-
-                    try:
-                        parsed = dateutil.parser.parse(data)
-                    except ValueError:
-                        parsed = None
                 else:
-                    parsed = None
-            else:
-                # handle seconds fraction
-                try:
-                    datetime_data = datetime.datetime.strptime(
-                        process_string_time_with_fractional_seconds(
-                            data, fractional_seconds
-                        ),
-                        timestamp_format,
-                    )
-                except ValueError:
-                    # when creating df from pandas df, datetime doesn't come with microseconds
-                    # leading to ValueError when using the default format
-                    # but it's still a valid format to snowflake, so we use format code without microsecond to parse
-                    if timestamp_format == default_format:
-                        datetime_data = datetime.datetime.strptime(
+                    if auto_detect:
+                        parsed = dateutil.parser.parse(data)
+                    else:
+                        parsed = datetime.datetime.strptime(
                             process_string_time_with_fractional_seconds(
                                 data, fractional_seconds
                             ),
-                            "%Y-%m-%d %H:%M:%S",
+                            timestamp_format,
                         )
+            elif isinstance(datatype, _NumericType):
+                # handle scale
+                scale = int(_fmt) if _fmt else 0
+                data = data / 10**scale
+                parsed = datetime.datetime.utcfromtimestamp(
+                    convert_numeric_string_value_to_float_seconds(data)
+                )
+                # utc timestamps should be in utc timezone
+                if add_timezone:
+                    parsed = parsed.replace(tzinfo=pytz.utc)
+            elif isinstance(datatype, VariantType):
+                # An integer number of seconds or milliseconds.
+                if isinstance(data, numbers.Number):
+                    # check https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
+                    # "When an INTEGER value is cast directly to TIMESTAMP_NTZ ...
+                    # However, if the INTEGER value is stored inside a VARIANT value,
+                    # for example as shown below, then the conversion is indirect,
+                    # and is affected by the local time zone, even though the final result is TIMESTAMP_NTZ:"
+                    if enforce_ltz:
+                        # local timestamp
+                        local_now = datetime.datetime.now(LocalTimezone.LOCAL_TZ)
+                        parsed = datetime.datetime.utcfromtimestamp(
+                            data
+                        ) + datetime.timedelta(
+                            seconds=local_now.utcoffset().total_seconds()
+                        )
+                        return parsed
                     else:
-                        raise
-                parsed = datetime_data + datetime.timedelta(hours=hour_delta)
-
+                        parsed = datetime.datetime.utcfromtimestamp(data)
+                    # utc timestamps should be in utc timezone
+                    if add_timezone:
+                        parsed = parsed.replace(tzinfo=pytz.utc)
+                elif isinstance(data, str):
+                    # A string containing an integer number of seconds or milliseconds.
+                    if data.isdigit():
+                        parsed = datetime.datetime.utcfromtimestamp(
+                            convert_numeric_string_value_to_float_seconds(data)
+                        )
+                        # utc timestamps should be in utc timezone
+                        if add_timezone:
+                            parsed = parsed.replace(tzinfo=pytz.utc)
+                    # A string from which to extract a timestamp.
+                    else:
+                        parsed = dateutil.parser.parse(data)
+                # A timestamp.
+                elif isinstance(data, datetime.datetime):
+                    parsed = data
+                else:
+                    raise TypeError(
+                        f"[Local Testing] Unsupported conversion to_timestamp* of value {data} of VariantType"
+                    )
+            else:
+                raise TypeError(
+                    f"[Local Testing] Unsupported conversion to_timestamp* of data type {type(column.sf_type.datatype).__name__}"
+                )
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
-
-            res.append(parsed)
+            return parsed
         except BaseException:
             if try_cast:
-                res.append(None)
+                return None
             else:
                 raise
-    return res
+
+    res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
+    return [
+        x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
+        for x in res
+    ]
 
 
 @patch("to_timestamp")
@@ -744,7 +795,7 @@ def mock_timestamp_ntz(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = _to_timestamp(column, fmt, try_cast)
+    result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
         data=[x.replace(tzinfo=None) for x in result],
@@ -787,7 +838,7 @@ def mock_to_timestamp_tz(
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
-        dtype=column.dtype,
+        dtype=object,
     )
 
 
@@ -808,59 +859,148 @@ def mock_to_char(
     column: ColumnEmulator,
     fmt: Optional[str] = None,
     try_cast: bool = False,
-) -> ColumnEmulator:  # TODO: support more input types
+) -> ColumnEmulator:
+    """
+    https://docs.snowflake.com/en/sql-reference/functions/to_char
+    [x] expr: An expression of any data type.
+    [x] numeric_expr: A numeric expression.
+        [ ] numeric_expr with format: not supported, check SNOW-1372863
+    [x] date_or_time_expr: An expression of type DATE, TIME, or TIMESTAMP.
+    [x] binary_expr: An expression of type BINARY or VARBINARY.
+
+    """
     source_datatype = column.sf_type.datatype
 
-    if isinstance(source_datatype, DateType):
-        date_format, _, _ = convert_snowflake_datetime_format(
-            fmt, default_format="%Y-%m-%d"
-        )
-        func = partial(
-            try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
-        )
-    elif isinstance(source_datatype, TimeType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Time data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Timestamp data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, _NumericType):
-        if fmt:
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+
+    def convert_char(row):
+        _fmt = fmt[row.name]
+        data = row[0]
+
+        if isinstance(source_datatype, _NumericType):
+            if _fmt:
+                # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                    internal_feature_name="mock_to_char",
+                    parameters_info={
+                        "source_datatype": type(source_datatype).__name__,
+                        "fmt": str(_fmt),
+                    },
+                    raise_error=NotImplementedError,
+                )
+            convert_numeric_to_str = (
+                lambda x: "{:.{}f}".format(data, source_datatype.scale)
+                if isinstance(source_datatype, DecimalType)
+                else str(x)
+            )
+            return try_convert(convert_numeric_to_str, try_cast, data)
+        elif isinstance(source_datatype, (DateType, TimeType)):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
+            (
+                format,
+                _,
+            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            convert_date_time_to_str = (
+                datetime.datetime.strftime
+                if isinstance(source_datatype, DateType)
+                else datetime.time.strftime
+            )
+            return try_convert(
+                lambda x: convert_date_time_to_str(x, format), try_cast, data
+            )
+        elif isinstance(source_datatype, TimestampType):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
+            (
+                format,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            # handle 3f, can use str index
+            time_str = try_convert(
+                lambda x: datetime.date.strftime(x, format), try_cast, data
+            ).strip()
+            # python doesn't offer a way to control digits in microseconds
+            # when converting datatime into string using format %f, hence here we manually control the output fractional
+            # microsecond parts
+            # we find the beginning of 6 consecutive digits and manipulate the string
+            # CAVEAT: this solution can not handle format like 'yyyymmddhhmmssff' in which case there are multiple
+            # 6 digits occurrences, we cannot distinguish
+            # whether the 6 digits are the part of fractional seconds or other parts of datetime
+            if "%f" in format:
+                pattern = r"\d{6}"
+                if len(re.findall(pattern, time_str)) > 1:
+                    # if we detect multiple consecutive 6 digits, it's a format we can't handle
+                    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                        external_feature_name=f"Use format string {_fmt} with TimestampType in TO_CHAR",
+                        internal_feature_name="mock_to_char",
+                        parameters_info={
+                            "source_datatype": type(source_datatype).__name__,
+                            "fmt": str(_fmt),
+                        },
+                        raise_error=NotImplementedError,
+                    )
+                start_idx = re.search(r"\d{6}", time_str).start()
+                end_idx = start_idx + 6
+                # truncate the microsecond string
+                fractional_seconds_str = time_str[start_idx:end_idx][
+                    0 : min(6, fractional_seconds)
+                ]
+                # concatenate the whole string
+                time_str = (
+                    time_str[:start_idx] + fractional_seconds_str + time_str[end_idx:]
+                )
+            return time_str
+        elif isinstance(source_datatype, BinaryType):
+            _fmt = (_fmt or "HEX").upper()
+            fmt_decoder = {
+                "HEX": binascii.hexlify,
+                "BASE64": base64.b64encode,
+                "UTF-8": lambda x: x,
+            }.get(_fmt)
+
+            if fmt_decoder is None:
+                raise SnowparkSQLException(f"Invalid binary format {fmt}")
+            return try_convert(fmt_decoder, try_cast, data).decode()
+        elif isinstance(source_datatype, BooleanType):
+            return try_convert(lambda x: str(x).lower(), try_cast, data)
+        elif isinstance(source_datatype, (VariantType, ArrayType, MapType)):
+            from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+            # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string
+            # when handling string object, e.g., json.dumps("123"), by default json dumps added
+            # double quotes to the output which we do not need in output, we strip the beginning and ending
+            # double quote by calling strip('"'), this has no side effect to other input types.
+            return try_convert(
+                lambda x: json.dumps(
+                    x,
+                    cls=CUSTOM_JSON_ENCODER,
+                    separators=(",", ":"),  # remove trailing space after the separators
+                ).strip('"'),
+                try_cast,
+                data,
+            )
+        elif isinstance(source_datatype, (StringType, NullType)):
+            return data
+        else:
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                external_feature_name=f"Data type {type(source_datatype).__name__} in TO_CHAR",
                 internal_feature_name="mock_to_char",
                 parameters_info={
                     "source_datatype": type(source_datatype).__name__,
-                    "fmt": str(fmt),
+                    "fmt": str(_fmt),
                 },
                 raise_error=NotImplementedError,
             )
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    elif isinstance(source_datatype, BooleanType):
-        func = partial(try_convert, lambda x: str(x).lower(), try_cast)
-    elif isinstance(source_datatype, VariantType):
-        from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-        # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
-        # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
-        func = partial(
-            try_convert,
-            lambda x: json.dumps(x, cls=CUSTOM_JSON_ENCODER).strip('"'),
-            try_cast,
-        )
-    else:
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    new_col = column.apply(func)
-    new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
-    return new_col
+    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
+    res = column.to_frame().apply(convert_char, axis=1)
+    res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
+    return res
+
+
+@patch("to_varchar")
+def mock_to_varchar(*args, **kwargs) -> ColumnEmulator:
+    return mock_to_char(*args, **kwargs)
 
 
 @patch("to_double")
@@ -1046,8 +1186,10 @@ def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     res = [
-        x[y - 1 : y + z - 1] if x is not None else None
-        for x, y, z in zip(base_expr, start_expr, length_expr)
+        None if string is None else string[start : start + length]
+        for string, start, length in zip(
+            base_expr, [max(0, s - 1) for s in start_expr], length_expr
+        )
     ]
     res = ColumnEmulator(
         res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object

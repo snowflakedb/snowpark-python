@@ -1,9 +1,11 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import csv
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 import tempfile
@@ -113,7 +115,32 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
         prefix_start_idx = stage_name_end_idx + 1
     stage_name = normalized[stage_name_start_idx:stage_name_end_idx]
     dir_path = normalized[prefix_start_idx:-1]  # remove the first and last '/'
+
+    if platform.system() == "Windows":
+        # On Windows the separator is \\, we convert non-quoted '/' to '\\'
+        # so that dirs can be created on windows
+        def replace_dir_separator(input):
+            idx, in_quote, output = 0, False, ""
+            while idx < len(input):
+                to_append_char = input[idx]
+                if input[idx] == '"':
+                    in_quote = not in_quote
+                elif input[idx] == "/" and not in_quote:
+                    to_append_char = os.sep
+                output += to_append_char
+                idx += 1
+            return output
+
+        dir_path = replace_dir_separator(dir_path)
+
     return stage_name, dir_path
+
+
+def copy_files_and_dirs(src, dst):
+    if os.path.isdir(src):
+        shutil.copytree(src, dst)
+    else:
+        shutil.copy(src, dst)
 
 
 class StageEntity:
@@ -182,12 +209,20 @@ class StageEntity:
                 )
 
             if not os.path.exists(stage_target_dir_path):
-                os.makedirs(stage_target_dir_path)
+                try:
+                    os.makedirs(stage_target_dir_path)
+                except BaseException:
+                    self._conn.log_not_supported_error(
+                        error_message=f"Unable to created directory {stage_target_dir_path} on the local file system. This could be caused by system limitations",
+                        internal_feature_name="StageEntity.put_file",
+                        parameters_info={"platform": platform.system()},
+                        raise_error=NotImplementedError,
+                    )
 
             if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
             else:
-                shutil.copy(local_file_name, target_local_file_path)
+                copy_files_and_dirs(local_file_name, target_local_file_path)
                 status = "UPLOADED"
 
             file_size = os.path.getsize(local_file_name)
@@ -301,7 +336,7 @@ class StageEntity:
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
             stage_file = file
-            shutil.copy(stage_file, os.path.join(target_directory, file_name))
+            copy_files_and_dirs(stage_file, os.path.join(target_directory, file_name))
             file_size = os.path.getsize(stage_file)
             result_df.loc[len(result_df)] = dict(
                 zip(
@@ -364,12 +399,17 @@ class StageEntity:
                     )
 
         if file_format == "csv":
+            # check SNOW-1355487 for improvements
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
+                raise SnowparkSQLException(
+                    f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
+                )
             if (
                 field_delimiter[0]
                 and field_delimiter[-1] == "'"
@@ -445,7 +485,13 @@ class StageEntity:
                     delimiter=field_delimiter,
                     dtype=object,
                     converters=converters_dict,
-                    quoting=3,  # QUOTE_NONE
+                    # check definition here: https://docs.python.org/3/library/csv.html#csv.QUOTE_MINIMAL
+                    # csv.QUOTE_MINIMAL, the engine will parse the value for us using the quote value/field_optionally_enclosed_by
+                    # csv.QUOTE_NONE, by default snowflake FIELD_OPTIONALLY_ENCLOSED_BY is None
+                    quoting=csv.QUOTE_MINIMAL
+                    if field_optionally_enclosed_by
+                    else csv.QUOTE_NONE,
+                    quotechar=field_optionally_enclosed_by,
                 )
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns

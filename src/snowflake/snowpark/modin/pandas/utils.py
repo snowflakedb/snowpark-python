@@ -27,6 +27,7 @@ from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas
+from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
 from pandas._typing import (
     AggFuncType,
     AggFuncTypeBase,
@@ -47,7 +48,6 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AggFuncWithLabel,
     get_pandas_aggr_func_name,
 )
-from snowflake.snowpark.modin.plugin.compiler import BaseQueryCompiler
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.utils import hashable
 

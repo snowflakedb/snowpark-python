@@ -1,10 +1,42 @@
 # Release History
 
+## 1.17.0 (TBD)
+
+### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+
+### Local Testing Updates
+
+#### New Features
+
+- Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
+- Added support for DecimalType, BinaryType, ArrayType, MapType, TimestampType, DateType and TimeType data conversion in the mocked function `to_char`.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions:
+    - to_varchar
+  - snowflake.snowpark.DataFrame:
+    - pivot
+
+#### Bug Fixes
+
+- Fixed a bug in DataFrameReader.csv unable to handle quoted values containing delimiter.
+- Fixed a bug that when there is `None` value in arithmetic calculation, the output should remain `None` instead of `math.nan`.
+- Fixed a bug in function `sum` and `covar_pop` that when there is `math.nan` in the data, the output should also be `math.nan`.
+- Fixed a bug that stage operation can not handle directories.
+- Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
+- Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
+- Fixed a bug that when processing datetime format, fractional second part is not handled properly.
+- Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
+- Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
+- Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+
 ## 1.16.0 (TBD)
 
 ### New Features
 
 - Support stored procedure register with packages given as Python modules.
+- Added snowflake.snowpark.Session.lineage.trace to explore data lineage of snowfake objects.
 - Added support for structured type schema parsing.
 
 ### Local Testing Updates
@@ -22,7 +54,6 @@
 
 - Fixed a bug that caused NaT and NaN values to not be recognized.
 - Fixed a bug when inferring schema, single quotes are added to stage files already have single quotes.
-
 
 ## 1.15.0 (2024-04-24)
 

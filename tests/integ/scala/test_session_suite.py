@@ -26,6 +26,11 @@ from snowflake.snowpark.types import IntegerType, StringType, StructField, Struc
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is testing logging into Snowflake",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -116,13 +121,18 @@ def test_get_schema_database_works_after_use_role(session):
     try:
         db = session.get_current_database()
         schema = session.get_current_schema()
-        session._run_query("use role public")
+        session.use_role("public")
         assert session.get_current_database() == db
         assert session.get_current_schema() == schema
     finally:
-        session._run_query(f"use role {current_role}")
+        session.use_role(current_role)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="_remove_config is an internal API and local testing has default schema name",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -139,6 +149,11 @@ def test_negative_test_for_missing_required_parameter_schema(
         assert "The SCHEMA is not set for the current session." in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql function call not supported by local testing.",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
 def test_select_current_client(session):
     current_client = session.sql("select current_client()")._show_string(10)
@@ -168,7 +183,7 @@ def test_create_dataframe_from_seq_none(session, local_testing_mode):
 
 
 # should be enabled after emulating snowflake types
-def test_create_dataframe_from_array(session):
+def test_create_dataframe_from_array(session, local_testing_mode):
     data = [Row(1, "a"), Row(2, "b")]
     schema = StructType(
         [StructField("num", IntegerType()), StructField("str", StringType())]
@@ -176,13 +191,19 @@ def test_create_dataframe_from_array(session):
     df = session.create_dataframe(data, schema)
     assert df.collect() == data
 
-    # negative
-    data1 = [Row("a", 1), Row(2, "b")]
-    with pytest.raises(TypeError) as ex_info:
-        session.create_dataframe(data1, schema)
-    assert "Unsupported datatype" in str(ex_info)
+    # local testing mode does not have strict type checking
+    if not local_testing_mode:
+        # negative
+        data1 = [Row("a", 1), Row(2, "b")]
+        with pytest.raises(TypeError) as ex_info:
+            session.create_dataframe(data1, schema)
+        assert "Unsupported datatype" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1375271: match error behavior when session is closed",
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
@@ -225,6 +246,10 @@ def test_session_info(session):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1375271: match error behavior when session is closed",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_close_session(session, db_parameters):
@@ -245,6 +270,11 @@ def test_dataframe_close_session(session, db_parameters):
     assert ex_info.value.error_code == "1404"
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="transactions not supported by local testing.",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
 def test_create_temp_table_no_commit(session):
     # test large local relation

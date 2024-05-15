@@ -32,6 +32,12 @@ repos:
     rev: v4.1.0
     hooks:
     -   id: trailing-whitespace
+        # Indentend, multiline markdown comments require leading whitespace to
+        # preserve indentation for subsequent lines.
+        exclude: >
+            (?x)^(
+                .*\.md
+            )$
     -   id: end-of-file-fixer
         exclude: >
             (?x)^(
@@ -75,3 +81,28 @@ repos:
           - flake8-print
         args:
           - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+    # Use mypy for static type checking.
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v0.991'
+    hooks:
+      - id: mypy
+        files: >
+          (?x)^(
+            src/snowflake/snowpark/modin/pandas/indexing.py|
+            src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
+            src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
+            src/snowflake/snowpark/modin/plugin/compiler/snowflake_query_compiler.py|
+            src/snowflake/snowpark/modin/plugin/utils/.*\.py|
+          )$
+        args:
+          - --disallow-untyped-calls
+          - --disallow-untyped-defs
+          - --disallow-incomplete-defs
+        additional_dependencies:
+          - types-requests
+          - types-urllib3
+          - types-setuptools
+          - types-pyOpenSSL
+          - types-setuptools
+          - pytest
+          - numpy

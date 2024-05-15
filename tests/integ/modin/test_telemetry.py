@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import json
+import sys
 from typing import Any, Optional
 from unittest.mock import ANY, MagicMock, patch
 
@@ -23,7 +24,6 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     error_to_telemetry_type,
     snowpark_pandas_telemetry_method_decorator,
 )
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import BASIC_TYPE_DATA1, BASIC_TYPE_DATA2
 from tests.unit.modin.test_telemetry import snowpark_pandas_error_test_helper
@@ -100,54 +100,31 @@ def test_standalone_api_telemetry():
     ]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     """
     Test one of two telemetry decorators: snowpark_pandas_telemetry_method_decorator
     """
-    cond = pd.DataFrame([[True, False], [False, True]], columns=[1, 0])
-    other = pd.DataFrame([[5, 6], [7, 8]], columns=[1, 0])
-    df1 = pd.DataFrame([[1, 2], [3, 4]], index=[1, 0])
+    df1 = pd.DataFrame([[1, np.nan], [3, 4]], index=[1, 0])
     # Test in place lazy API: df1 api_call_list should contain lazy.
     df1._query_compiler.snowpark_pandas_api_calls.clear()
     df1._query_compiler.snowpark_pandas_api_calls = [{"name": "TestClass.test_func"}]
-    with SqlCounter(query_count=11, fallback_count=1, sproc_count=1):
-        # This is a fallback and inplace case
-        df1.where(cond, other, axis=1, inplace=True)
+    with SqlCounter(query_count=0):
+        df1.dropna(inplace=True)
 
     df1_expected_api_calls = [
         {"name": "TestClass.test_func"},
-        {"is_fallback": True, "name": "DataFrame.where"},
-        {
-            "name": "DataFrame.BasePandasDataset.where",
-            "argument": ["other", "inplace", "axis"],
-        },
-        {
-            "name": "DataFrame.DataFrame.where",
-            "argument": ["other", "inplace", "axis"],
-        },
+        {"name": "DataFrame.DataFrame.dropna", "argument": ["inplace"]},
     ]
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
 
     # Test lazy APIs that are not in place: df1 api_call_list should not contain lazy but df2 should.
     # And both should contain previous APIs
-    with SqlCounter(query_count=11, fallback_count=1, sproc_count=1):
-        df2 = df1.where(cond, other, axis=1)
+    with SqlCounter(query_count=0):
+        df2 = df1.dropna(inplace=False)
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
     df2_expected_api_calls = df1_expected_api_calls + [
-        {"is_fallback": True, "name": "DataFrame.where"},
         {
-            "name": "DataFrame.BasePandasDataset.where",
-            "argument": ["other", "axis"],
-        },
-        {
-            "name": "DataFrame.DataFrame.where",
-            "argument": ["other", "axis"],
+            "name": "DataFrame.DataFrame.dropna",
         },
     ]
     assert df2._query_compiler.snowpark_pandas_api_calls == df2_expected_api_calls
@@ -163,7 +140,13 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         expected_func_name="DataFrame.to_snowflake",
         session=df1._query_compiler._modin_frame.ordered_dataframe.session,
     )
-    assert set(data.keys()) == {"category", "api_calls", "sfqids", "func_name"}
+    assert set(data.keys()) == {
+        "category",
+        "api_calls",
+        "sfqids",
+        "func_name",
+        "error_msg",
+    }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
         {
@@ -188,45 +171,6 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
     _ = json.dumps(body)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-def test_snowpark_pandas_telemetry_fallback(test_table_name):
-    df = pd.DataFrame({"a": [1, 2, 3, 4, 5]})
-    fn = pandas.DataFrame.mod
-    method_name = fn.__name__
-    # This is coming from Modin's encoding scheme in default.py:build_default_to_pandas
-    # encoded as f"<function {cls.OBJECT_TYPE}.{fn_name}>".
-    # Not following this format will cause exception.
-    fn.__name__ = f"<function DataFrame.{method_name}>"
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        new_query_compiler = df._query_compiler.default_to_pandas(fn, 2)
-    assert new_query_compiler.snowpark_pandas_api_calls == [
-        {"is_fallback": True, "name": "DataFrame.mod"}
-    ]
-
-    # Test NotImplementedError
-    fn.__name__ = f"<function Series.{method_name}>"
-    df._query_compiler.snowpark_pandas_api_calls.clear()
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        new_query_compiler = df._query_compiler.default_to_pandas(fn, 2)
-    assert df._query_compiler.snowpark_pandas_api_calls == []
-    assert new_query_compiler.snowpark_pandas_api_calls == [
-        {"is_fallback": True, "name": "Series.mod"}
-    ]
-
-    # another fallback example
-    with SqlCounter(query_count=7, fallback_count=1, sproc_count=1):
-        df2 = df.dropna(axis=1)
-    assert df2._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.dropna", "is_fallback": True},
-        {"name": "DataFrame.DataFrame.dropna", "argument": ["axis"]},
-    ]
-
-
 @patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=0)
 def test_send_snowpark_pandas_telemetry_helper(send_mock):
@@ -245,7 +189,11 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "type": "test_send_type",
-            "data": {"func_name": "test_send_func", "category": "snowpark_pandas"},
+            "data": {
+                "func_name": "test_send_func",
+                "category": "snowpark_pandas",
+                "error_msg": None,
+            },
         }
     )
 
@@ -413,10 +361,11 @@ def test_telemetry_with_not_implemented_error():
 
     snowpark_pandas_error_test_helper(
         func=snowpark_pandas_telemetry_method_decorator,
-        error=NotImplementedError,
+        error=NotImplementedError("Method bfill is not implemented for Resampler!"),
         telemetry_type=error_to_telemetry_type(
             NotImplementedError("Method bfill is not implemented for Resampler!")
         ),
+        error_msg="Method bfill is not implemented for Resampler!",
         loc_pref="mock_class",
         mock_arg=mock_arg,
     )
@@ -573,6 +522,45 @@ def test_telemetry_property_iloc(
     )
     assert data["api_calls"] == [
         {"name": f"DataFrame.property.{name}_get"},
+    ]
+
+
+def _set_iloc(df: pd.DataFrame) -> None:
+    df.iloc = 3
+
+
+def _del_iloc(df: pd.DataFrame) -> None:
+    del df.iloc
+
+
+@pytest.mark.parametrize(
+    "method_verb, name, method, method_noun",
+    [("set", "iloc", _set_iloc, "setter"), ("delete", "iloc", _del_iloc, "deleter")],
+)
+def test_telemetry_property_missing_methods(method_verb, name, method, method_noun):
+    """Test telemetry for property methods that don't exist, e.g. users can't assign a value to the `iloc` property."""
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    df._query_compiler.snowpark_pandas_api_calls.clear()
+    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
+    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
+    # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
+    # the telemetry log from the connector to validate
+    with SqlCounter(query_count=0), pytest.raises(
+        AttributeError,
+        match=f"can't {method_verb} attribute"
+        if sys.version_info < (3, 11)
+        else f"property of 'DataFrame' object has no {method_noun}",
+    ):
+        method(df)
+    expected_func_name = f"DataFrame.property.{name}_{method_verb}"
+    data = _extract_snowpark_pandas_telemetry_log_data(
+        expected_func_name=expected_func_name,
+        session=df._query_compiler._modin_frame.ordered_dataframe.session,
+    )
+    assert data["api_calls"] == [
+        {
+            "name": expected_func_name,
+        }
     ]
 
 

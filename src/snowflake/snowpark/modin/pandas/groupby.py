@@ -35,7 +35,7 @@ from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# following import are used in doctest
+# the following import is used in doctests
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 
 # Snowpark pandas API version
@@ -393,6 +393,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 groupby_kwargs=self._kwargs,
                 agg_args=args,
                 agg_kwargs=kwargs,
+                series_groupby=False,
             )
         )
         if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
@@ -1179,9 +1180,28 @@ class SeriesGroupBy(DataFrameGroupBy):
         ErrorMessage.method_not_implemented_error(name="unique", class_="GroupBy")
 
     def apply(self, func, *args, **kwargs):
-        """Not implemented yet"""
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        ErrorMessage.not_implemented("apply is not implemented for SeriesGroupBy")
+        if not callable(func):
+            raise NotImplementedError("No support for non-callable `func`")
+        dataframe_result = pd.DataFrame(
+            query_compiler=self._query_compiler.groupby_apply(
+                self._by,
+                agg_func=func,
+                axis=self._axis,
+                groupby_kwargs=self._kwargs,
+                agg_args=args,
+                agg_kwargs=kwargs,
+                # TODO(https://github.com/modin-project/modin/issues/7096):
+                # upstream the series_groupby param to Modin
+                series_groupby=True,
+            )
+        )
+        if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
+            # rename to the last column of self._df
+            # note that upstream modin does not do this yet due to
+            # https://github.com/modin-project/modin/issues/7097
+            return dataframe_result.squeeze(axis=1).rename(self._df.columns[-1])
+        return dataframe_result
 
 
 def validate_groupby_args(

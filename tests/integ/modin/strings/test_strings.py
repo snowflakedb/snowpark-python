@@ -136,10 +136,8 @@ def test_empty_str_self_cat():
         (lambda ser: ser.str.replace("a", "b")),
     ],
 )
-def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
-    with SqlCounter(
-        query_count=query_count, fallback_count=fallback_count, sproc_count=sproc_count
-    ):
+def test_empty_str_methods(fn, query_count=1, sproc_count=0):
+    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
         eval_snowpark_pandas_result(
             pd.Series(dtype=object),
             native_pd.Series(dtype=object),
@@ -149,13 +147,12 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
 
 
 @pytest.mark.parametrize(
-    "method, expected, query_count, fallback_count, sproc_count",
+    "method, expected, query_count, sproc_count",
     [
         pytest.param(
             "isalnum",
             [True, True, True, True, True, False, True, True, False, False],
             9,
-            1,
             1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
@@ -168,7 +165,6 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [True, True, True, False, False, False, True, False, False, False],
             9,
             1,
-            1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
@@ -180,13 +176,11 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, False, False, True, False, False, False, True, False, False],
             2,
             0,
-            0,
         ),
         pytest.param(
             "isnumeric",
             [False, False, False, True, False, False, False, True, False, False],
             9,
-            1,
             1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
@@ -199,7 +193,6 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, False, False, False, False, False, False, False, False, True],
             9,
             1,
-            1,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
@@ -211,13 +204,11 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [False, True, False, False, False, False, False, False, False, False],
             2,
             0,
-            0,
         ),
         (
             "isupper",
             [True, False, False, False, True, False, True, False, False, False],
             2,
-            0,
             0,
         ),
         (
@@ -225,19 +216,16 @@ def test_empty_str_methods(fn, query_count=1, fallback_count=0, sproc_count=0):
             [True, False, True, False, True, False, False, False, False, False],
             2,
             0,
-            0,
         ),
     ],
 )
-def test_ismethods(method, expected, query_count, fallback_count, sproc_count):
+def test_ismethods(method, expected, query_count, sproc_count):
     data = ["A", "b", "Xy", "4", "3A", "", "TT", "55", "-", "  "]
     native_ser = native_pd.Series(data, dtype=object)
     ser = pd.Series(data, dtype=object)
 
     expected = native_pd.Series(expected, dtype=bool)
-    with SqlCounter(
-        query_count=query_count, fallback_count=fallback_count, sproc_count=sproc_count
-    ):
+    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
         result = getattr(ser.str, method)()
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 
@@ -366,11 +354,11 @@ def test_index_not_found_raises():
 
 @pytest.mark.parametrize("method", ["index", "rindex"])
 @sql_count_checker(query_count=0)
-def test_index_wrong_type_raises(method):
+def test_index_raises_not_implemented_error(method):
     obj = pd.Series([], dtype=object)
-    msg = "expected a string object, not int"
+    msg = f"{method} is not yet implemented for Series.str"
 
-    with pytest.raises(TypeError, match=msg):
+    with pytest.raises(NotImplementedError, match=msg):
         getattr(obj.str, method)(0)
 
 

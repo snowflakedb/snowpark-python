@@ -117,7 +117,9 @@ def _extract_schema_and_data_from_pandas_df(
                 def convert_to_python_obj(obj):
                     if isinstance(obj, numpy.float_):
                         return float(obj)
-                    elif isinstance(obj, numpy.int_):
+                    elif isinstance(obj, numpy.int64):
+                        # on Windows, numpy.int64 and numpy.int_ are different
+                        # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
                         return int(obj.value / 1000)
@@ -138,6 +140,8 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Period):
                 # snowflake returns the ordinal of a period object
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].ordinal
+            elif isinstance(plain_data[row_idx][col_idx], type(pd.NaT)):
+                plain_data[row_idx][col_idx] = None
             else:
                 previous_inferred_type = inferred_type_dict.get(col_idx)
                 data_type = infer_type(plain_data[row_idx][col_idx])

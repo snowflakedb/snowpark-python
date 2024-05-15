@@ -73,11 +73,13 @@ from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     VALID_TO_DATETIME_UNIT,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike, ListLikeOfFloats
-from snowflake.snowpark.modin.plugin.compiler import BaseQueryCompiler
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    pandas_module_level_function_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
@@ -86,6 +88,8 @@ if TYPE_CHECKING:
     # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
     # qualify return types in this file with `snowflake.snowpark.modin.pandas.DataFrame`.
     # SNOW-1233342: investigate how to fix these links without using absolute paths
+    from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+
     import snowflake  # pragma: no cover
 
 _logger = getLogger(__name__)
@@ -351,6 +355,7 @@ def merge(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_ordered, apilink="pandas.merge_ordered")
 def merge_ordered(
     left,
@@ -368,8 +373,6 @@ def merge_ordered(
     Perform a merge for ordered data with optional filling/interpolation.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(left, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
     if isinstance(right, DataFrame):
@@ -391,6 +394,7 @@ def merge_ordered(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_asof, apilink="pandas.merge_asof")
 def merge_asof(
     left,
@@ -412,8 +416,6 @@ def merge_asof(
     Perform a merge by key distance.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(left, DataFrame):
         raise ValueError(f"can not merge DataFrame with instance of type {type(right)}")
 
@@ -638,14 +640,13 @@ def pivot_table(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.pivot, apilink="pandas.pivot")
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     """
     Return reshaped DataFrame organized by given index / column values.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(data, DataFrame):
         raise ValueError(f"can not pivot with instance of type {type(data)}")
     return data.pivot(index=index, columns=columns, values=values)
@@ -824,6 +825,7 @@ def unique(values) -> np.ndarray:
 
 # Adding docstring since pandas docs don't have web section for this function.
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def value_counts(
     values, sort=True, ascending=False, normalize=False, bins=None, dropna=True
 ):
@@ -851,8 +853,6 @@ def value_counts(
     Series
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     return Series(values).value_counts(
         sort=sort,
         ascending=ascending,
@@ -1076,7 +1076,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1193,7 +1192,17 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1215,6 +1224,10 @@ def concat(
             argument="copy",
             message="copy parameter has been ignored with Snowflake execution engine",
         )
+
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
 
     result = objs[0]._query_compiler.concat(
         axis,
@@ -1761,6 +1774,7 @@ def melt(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.crosstab, apilink="pandas.crosstab")
 def crosstab(
     index,
@@ -1778,8 +1792,6 @@ def crosstab(
     Compute a simple cross tabulation of two (or more) factors.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     pandas_crosstab = pandas.crosstab(
         index,
         columns,
@@ -1797,6 +1809,7 @@ def crosstab(
 
 # Adding docstring since pandas docs don't have web section for this function.
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def lreshape(data: DataFrame, groups, dropna=True, label=None):
     """
     Reshape wide-format data to long. Generalized inverse of ``DataFrame.pivot``.
@@ -1822,8 +1835,6 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
         Reshaped DataFrame.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(data, DataFrame):
         raise ValueError(f"can not lreshape with instance of type {type(data)}")
     return DataFrame(
@@ -1833,6 +1844,7 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
 
 @_inherit_docstrings(pandas.wide_to_long, apilink="pandas.wide_to_long")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def wide_to_long(
     df: DataFrame, stubnames, i, j, sep: str = "", suffix: str = r"\d+"
 ) -> DataFrame:  # noqa: PR01, RT01, D200
@@ -1840,8 +1852,6 @@ def wide_to_long(
     Unpivot a DataFrame from wide to long format.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if not isinstance(df, DataFrame):
         raise ValueError(f"can not wide_to_long with instance of type {type(df)}")
     # ErrorMessage.default_to_pandas("`wide_to_long`")
@@ -1884,6 +1894,7 @@ def _determine_name(objs: Iterable[BaseQueryCompiler], axis: int | str):
 
 @_inherit_docstrings(pandas.to_datetime, apilink="pandas.to_timedelta")
 @snowpark_pandas_telemetry_standalone_function_decorator
+@pandas_module_level_function_not_implemented()
 def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
     """
     Convert argument to timedelta.
@@ -1892,8 +1903,6 @@ def to_timedelta(arg, unit=None, errors="raise"):  # noqa: PR01, RT01, D200
     Returns a Series if and only if arg is provided as a Series.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    ErrorMessage.not_implemented()
-
     if isinstance(arg, Series):
         query_compiler = arg._query_compiler.to_timedelta(unit=unit, errors=errors)
         return Series(query_compiler=query_compiler)
@@ -2149,7 +2158,6 @@ def date_range(
     return s
 
 
-@_inherit_docstrings(pandas.qcut, apilink="pandas.qcut")
 @snowpark_pandas_telemetry_standalone_function_decorator
 def qcut(
     x: np.ndarray | Series,
@@ -2158,14 +2166,46 @@ def qcut(
     retbins: bool = False,
     precision: int = 3,
     duplicates: Literal["raise"] | Literal["drop"] = "raise",
-):  # noqa: PR01, RT01, D200
+) -> Series:
     """
-    Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas.
+    Quantile-based discretization function.
 
-    labels=False will run binning computation in Snowflake, whereas if labels is an array
-    the data will be fetched to the client and the binning run client-side, as Snowpark pandas API does
-    not yet support pd.Categorical in its ORM mapper.
+    Discretize variable into equal-sized buckets based on rank or based
+    on sample quantiles.
+
+    Parameters
+    ----------
+    x : 1-D ndarray or Series
+        The data across which to compute buckets. If a Snowpark pandas Series is passed, the computation
+        is distributed. Otherwise, if a numpy array or list is provided, the computation is performed
+        client-side instead.
+
+    q : int or list-like of float
+        Number of quantiles. 10 for deciles, 4 for quartiles, etc. Alternately array of quantiles,
+        e.g. [0, .25, .5, .75, 1.] for quartiles.
+
+    labels : array or False, default None
+        Used as labels for the resulting bin. Must be of the same length as the resulting bins. If False,
+        return only integer indicators of the bins. If True, raise an error.
+
+        ``labels=False`` will run binning computation in Snowflake; other values are not yet supported
+        in Snowpark pandas.
+
+    retbins : bool, default False
+        Whether to return the (bins, labels) or not. Can be useful if bins is given as a scalar.
+        ``retbins=True`` is not yet supported in Snowpark pandas.
+
+    precision : int, optional
+        The precision at which to store and display the bins labels.
+
+    duplicates : {default 'raise', 'drop'}, optional
+        If bin edges are not unique, raise ValueError or drop non-uniques.
+
+    Returns
+    -------
+    Series
+        Since Snowpark pandas does not yet support the ``pd.Categorical`` type, unlike native pandas, the
+        return value is always a Series.
     """
 
     kwargs = {
@@ -2196,27 +2236,29 @@ def qcut(
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
-        return pandas.qcut(x.to_pandas(), q, **kwargs)
+        ErrorMessage.not_implemented(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        )
 
     ans = x._qcut(q, retbins, duplicates)
 
-    # Within Snowpark Pandas, we avoid issuing a count query. However, for qcut if q !=1 and x is a Series/list-like containing
-    # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
-    #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-    # With q qcut being an API that requires conversion, we can mimick this behavior here.
-    ret = ans.to_pandas().to_numpy()
-
-    if len(ret) == 1 and isinstance(q, int) and q != 1:
+    if isinstance(q, int) and q != 1 and len(ans) == 1:
         if duplicates == "raise":
+            # We issue a count query since if q !=1 and x is a Series/list-like containing
+            # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
+            #                You can drop duplicate edges by setting the 'duplicates' kwarg.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
+
             # Produce raising error.
             raise ValueError(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            # The result will always be NaN because no unique bin could be found.
+            return pd.Series([np.nan])
 
-    return ret
+    return ans
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

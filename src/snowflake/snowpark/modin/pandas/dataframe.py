@@ -96,7 +96,10 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    dataframe_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     SET_DATAFRAME_ATTRIBUTE_WARNING,
     WarningMessage,
@@ -251,9 +254,9 @@ class DataFrame(BasePandasDataset):
         str
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        num_rows = pandas.get_option("display.max_rows") or 10
+        num_rows = pandas.get_option("display.max_rows") or len(self)
         # see _repr_html_ for comment, allow here also all column behavior
-        num_cols = pandas.get_option("display.max_columns")
+        num_cols = pandas.get_option("display.max_columns") or len(self.columns)
 
         (
             row_count,
@@ -653,12 +656,12 @@ class DataFrame(BasePandasDataset):
             fill_value=fill_value,
         )
 
+    @dataframe_not_implemented()
     def assign(self, **kwargs):  # noqa: PR01, RT01, D200
         """
         Assign new columns to a ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
 
         df = self.copy()
         for k, v in kwargs.items():
@@ -668,6 +671,7 @@ class DataFrame(BasePandasDataset):
                 df[k] = v
         return df
 
+    @dataframe_not_implemented()
     def boxplot(
         self,
         column=None,
@@ -686,7 +690,6 @@ class DataFrame(BasePandasDataset):
         Make a box plot from ``DataFrame`` columns.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return to_pandas(self).boxplot(
             column=column,
             by=by,
@@ -701,6 +704,7 @@ class DataFrame(BasePandasDataset):
             **kwargs,
         )
 
+    @dataframe_not_implemented()
     def combine(
         self, other, func, fill_value=None, overwrite=True
     ):  # noqa: PR01, RT01, D200
@@ -708,9 +712,9 @@ class DataFrame(BasePandasDataset):
         Perform column-wise combine with another ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return super().combine(other, func, fill_value=fill_value, overwrite=overwrite)
 
+    @dataframe_not_implemented()
     def compare(
         self,
         other,
@@ -723,7 +727,6 @@ class DataFrame(BasePandasDataset):
         Compare to another ``DataFrame`` and show the differences.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         if not isinstance(other, DataFrame):
             raise TypeError(f"Cannot compare DataFrame to {type(other)}")
         other = self._validate_other(other, 0, compare_index=True)
@@ -737,6 +740,7 @@ class DataFrame(BasePandasDataset):
             )
         )
 
+    @dataframe_not_implemented()
     def corr(
         self, method="pearson", min_periods=1, numeric_only=False
     ):  # noqa: PR01, RT01, D200
@@ -744,7 +748,6 @@ class DataFrame(BasePandasDataset):
         Compute pairwise correlation of columns, excluding NA/null values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         if not numeric_only:
             return self._default_to_pandas(
                 pandas.DataFrame.corr,
@@ -759,6 +762,7 @@ class DataFrame(BasePandasDataset):
             )
         )
 
+    @dataframe_not_implemented()
     def corrwith(
         self, other, axis=0, drop=False, method="pearson", numeric_only=False
     ):  # noqa: PR01, RT01, D200
@@ -766,7 +770,6 @@ class DataFrame(BasePandasDataset):
         Compute pairwise correlation.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         if isinstance(other, DataFrame):
             other = other._query_compiler.to_pandas()
         return self._default_to_pandas(
@@ -778,6 +781,7 @@ class DataFrame(BasePandasDataset):
             numeric_only=numeric_only,
         )
 
+    @dataframe_not_implemented()
     def cov(
         self,
         min_periods: int | None = None,
@@ -788,7 +792,6 @@ class DataFrame(BasePandasDataset):
         Compute pairwise covariance of columns, excluding NA/null values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.cov(
                 min_periods=min_periods,
@@ -797,14 +800,12 @@ class DataFrame(BasePandasDataset):
             )
         )
 
+    @dataframe_not_implemented()
     def dot(self, other):  # noqa: PR01, RT01, D200
         """
         Compute the matrix multiplication between the ``DataFrame`` and `other`.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support 'dot' binary operation"
-        )
 
         if isinstance(other, BasePandasDataset):
             common = self.columns.union(other.index)
@@ -848,12 +849,12 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("eq", other, axis=axis, level=level)
 
+    @dataframe_not_implemented()
     def equals(self, other):  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
 
         if isinstance(other, pandas.DataFrame):
             # Copy into a Modin DataFrame to simplify logic below
@@ -902,12 +903,12 @@ class DataFrame(BasePandasDataset):
             global_dict.update(kwargs.get("global_dict") or {})
             kwargs["global_dict"] = global_dict
 
+    @dataframe_not_implemented()
     def eval(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
         """
         Evaluate a string describing operations on ``DataFrame`` columns.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         self._validate_eval_query(expr, **kwargs)
         inplace = validate_bool_kwarg(inplace, "inplace")
         self._update_var_dicts_in_kwargs(expr, kwargs)
@@ -963,6 +964,7 @@ class DataFrame(BasePandasDataset):
         )
 
     @classmethod
+    @dataframe_not_implemented()
     def from_dict(
         cls, data, orient="columns", dtype=None, columns=None
     ):  # pragma: no cover # noqa: PR01, RT01, D200
@@ -970,7 +972,6 @@ class DataFrame(BasePandasDataset):
         Construct ``DataFrame`` from dict of array-like or dicts.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return from_pandas(
             pandas.DataFrame.from_dict(
                 data, orient=orient, dtype=dtype, columns=columns
@@ -978,6 +979,7 @@ class DataFrame(BasePandasDataset):
         )
 
     @classmethod
+    @dataframe_not_implemented()
     def from_records(
         cls,
         data,
@@ -991,7 +993,6 @@ class DataFrame(BasePandasDataset):
         Convert structured or record ndarray to ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return from_pandas(
             pandas.DataFrame.from_records(
                 data,
@@ -1017,6 +1018,7 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("gt", other, axis=axis, level=level)
 
+    @dataframe_not_implemented()
     def hist(
         self,
         column=None,
@@ -1038,7 +1040,6 @@ class DataFrame(BasePandasDataset):
         Make a histogram of the ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.hist,
             column=column,
@@ -1287,6 +1288,7 @@ class DataFrame(BasePandasDataset):
         # In pandas, 'insert' operation is always inplace.
         self._update_inplace(new_query_compiler=new_query_compiler)
 
+    @dataframe_not_implemented()
     def interpolate(
         self,
         method="linear",
@@ -1302,7 +1304,6 @@ class DataFrame(BasePandasDataset):
         Fill NaN values using an interpolation method.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.interpolate,
             method=method,
@@ -1332,13 +1333,12 @@ class DataFrame(BasePandasDataset):
         partition_iterator = SnowparkPandasRowPartitionIterator(self, iterrow_builder)
         yield from partition_iterator
 
+    @dataframe_not_implemented()
     def items(self):  # noqa: D200
         """
         Iterate over (column name, ``Series``) pairs.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
-
         def items_builder(s):
             """Return tuple of the given `s` parameter name and the parameter themselves."""
             return s.name, s
@@ -1346,12 +1346,12 @@ class DataFrame(BasePandasDataset):
         partition_iterator = PartitionIterator(self, 1, items_builder)
         yield from partition_iterator
 
+    @dataframe_not_implemented()
     def iteritems(self):  # noqa: RT01, D200
         """
         Iterate over (column name, ``Series``) pairs.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.items()
 
     def itertuples(
@@ -1529,9 +1529,9 @@ class DataFrame(BasePandasDataset):
     def isnull(self):
         return super().isnull()
 
+    @dataframe_not_implemented()
     def isetitem(self, loc, value):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.isetitem,
             loc=loc,
@@ -1589,12 +1589,12 @@ class DataFrame(BasePandasDataset):
             )
         )
 
+    @dataframe_not_implemented()
     def memory_usage(self, index=True, deep=False):  # noqa: PR01, RT01, D200
         """
         Return the memory usage of each column in bytes.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
 
         if index:
             result = self._reduce_dimension(
@@ -1765,34 +1765,34 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("ne", other, axis=axis, level=level)
 
+    @dataframe_not_implemented()
     def nlargest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in descending order.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.nlargest(n, columns, keep)
         )
 
+    @dataframe_not_implemented()
     def nsmallest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in ascending order.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.nsmallest(
                 n=n, columns=columns, keep=keep
             )
         )
 
+    @dataframe_not_implemented()
     def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
         """
         Pivot a level of the (necessarily hierarchical) index labels.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         if not isinstance(self.index, pandas.MultiIndex) or (
             isinstance(self.index, pandas.MultiIndex)
             and is_list_like(level)
@@ -1806,12 +1806,12 @@ class DataFrame(BasePandasDataset):
                 query_compiler=self._query_compiler.unstack(level, fill_value)
             )
 
+    @dataframe_not_implemented()
     def pivot(self, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
         """
         Return reshaped ``DataFrame`` organized by given index / column values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.pivot(
                 index=index, columns=columns, values=values
@@ -1851,6 +1851,7 @@ class DataFrame(BasePandasDataset):
         )
         return result
 
+    @dataframe_not_implemented()
     @property
     def plot(
         self,
@@ -1889,7 +1890,6 @@ class DataFrame(BasePandasDataset):
         Make plots of ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._to_pandas().plot
 
     def pow(
@@ -1907,6 +1907,7 @@ class DataFrame(BasePandasDataset):
             fill_value=fill_value,
         )
 
+    @dataframe_not_implemented()
     def prod(
         self,
         axis=None,
@@ -1919,7 +1920,6 @@ class DataFrame(BasePandasDataset):
         Return the product of the values over the requested axis.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         validate_bool_kwarg(skipna, "skipna", none_allowed=False)
         axis = self._get_axis_number(axis)
         axis_to_apply = self.columns if axis else self.index
@@ -1975,12 +1975,12 @@ class DataFrame(BasePandasDataset):
             method=method,
         )
 
+    @dataframe_not_implemented()
     def query(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
         """
         Query the columns of a ``DataFrame`` with a boolean expression.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         self._update_var_dicts_in_kwargs(expr, kwargs)
         self._validate_eval_query(expr, **kwargs)
         inplace = validate_bool_kwarg(inplace, "inplace")
@@ -2040,6 +2040,7 @@ class DataFrame(BasePandasDataset):
             new_query_compiler=new_qc, inplace=inplace
         )
 
+    @dataframe_not_implemented()
     def reindex(
         self,
         labels=None,
@@ -2054,7 +2055,6 @@ class DataFrame(BasePandasDataset):
         tolerance=None,
     ):  # noqa: PR01, RT01, D200
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
 
         axis = self._get_axis_number(axis)
         if axis == 0 and labels is not None:
@@ -2346,12 +2346,12 @@ class DataFrame(BasePandasDataset):
         else:
             return self.copy()
 
+    @dataframe_not_implemented()
     def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
         """
         Stack the prescribed level(s) from columns to index.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         if not isinstance(self.columns, pandas.MultiIndex) or (
             isinstance(self.columns, pandas.MultiIndex)
             and is_list_like(level)
@@ -2382,14 +2382,15 @@ class DataFrame(BasePandasDataset):
 
     subtract = sub
 
+    @dataframe_not_implemented()
     def to_feather(self, path, **kwargs):  # pragma: no cover # noqa: PR01, RT01, D200
         """
         Write a ``DataFrame`` to the binary Feather format.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(pandas.DataFrame.to_feather, path, **kwargs)
 
+    @dataframe_not_implemented()
     def to_gbq(
         self,
         destination_table,
@@ -2407,7 +2408,6 @@ class DataFrame(BasePandasDataset):
         Write a ``DataFrame`` to a Google BigQuery table.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functionsf
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.to_gbq,
             destination_table,
@@ -2422,9 +2422,9 @@ class DataFrame(BasePandasDataset):
             credentials=credentials,
         )
 
+    @dataframe_not_implemented()
     def to_orc(self, path=None, *, engine="pyarrow", index=None, engine_kwargs=None):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.to_orc,
             path=path,
@@ -2433,6 +2433,7 @@ class DataFrame(BasePandasDataset):
             engine_kwargs=engine_kwargs,
         )
 
+    @dataframe_not_implemented()
     def to_html(
         self,
         buf=None,
@@ -2463,7 +2464,6 @@ class DataFrame(BasePandasDataset):
         Render a ``DataFrame`` as an HTML table.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.to_html,
             buf=buf,
@@ -2491,6 +2491,7 @@ class DataFrame(BasePandasDataset):
             encoding=None,
         )
 
+    @dataframe_not_implemented()
     def to_parquet(
         self,
         path=None,
@@ -2502,7 +2503,6 @@ class DataFrame(BasePandasDataset):
         **kwargs,
     ):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         from snowflake.snowpark.modin.pandas.dispatching.factories.dispatcher import (
             FactoryDispatcher,
         )
@@ -2518,6 +2518,7 @@ class DataFrame(BasePandasDataset):
             **kwargs,
         )
 
+    @dataframe_not_implemented()
     def to_period(
         self, freq=None, axis=0, copy=True
     ):  # pragma: no cover # noqa: PR01, RT01, D200
@@ -2525,9 +2526,9 @@ class DataFrame(BasePandasDataset):
         Convert ``DataFrame`` from ``DatetimeIndex`` to ``PeriodIndex``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return super().to_period(freq=freq, axis=axis, copy=copy)
 
+    @dataframe_not_implemented()
     def to_records(
         self, index=True, column_dtypes=None, index_dtypes=None
     ):  # noqa: PR01, RT01, D200
@@ -2535,7 +2536,6 @@ class DataFrame(BasePandasDataset):
         Convert ``DataFrame`` to a NumPy record array.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.to_records,
             index=index,
@@ -2543,6 +2543,7 @@ class DataFrame(BasePandasDataset):
             index_dtypes=index_dtypes,
         )
 
+    @dataframe_not_implemented()
     def to_stata(
         self,
         path: FilePath | WriteBuffer[bytes],
@@ -2560,7 +2561,6 @@ class DataFrame(BasePandasDataset):
         value_labels: dict[Hashable, dict[float | int, str]] | None = None,
     ):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.to_stata,
             path,
@@ -2577,6 +2577,7 @@ class DataFrame(BasePandasDataset):
             value_labels=value_labels,
         )
 
+    @dataframe_not_implemented()
     def to_xml(
         self,
         path_or_buffer=None,
@@ -2597,7 +2598,6 @@ class DataFrame(BasePandasDataset):
         storage_options=None,
     ):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self.__constructor__(
             query_compiler=self._query_compiler.default_to_pandas(
                 pandas.DataFrame.to_xml,
@@ -2637,7 +2637,6 @@ class DataFrame(BasePandasDataset):
         Cast to DatetimeIndex of timestamps, at *beginning* of period.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return super().to_timestamp(freq=freq, how=how, axis=axis, copy=copy)
 
     def truediv(
@@ -2776,12 +2775,12 @@ class DataFrame(BasePandasDataset):
             level=level,
         )
 
+    @dataframe_not_implemented()
     def xs(self, key, axis=0, level=None, drop_level=True):  # noqa: PR01, RT01, D200
         """
         Return cross-section from the ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
         return self._default_to_pandas(
             pandas.DataFrame.xs, key, axis=axis, level=level, drop_level=drop_level
         )
@@ -3060,6 +3059,7 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return super().round(decimals)
 
+    @dataframe_not_implemented()
     def __delitem__(self, key):
         """
         Delete item identified by `key` label.
@@ -3070,8 +3070,6 @@ class DataFrame(BasePandasDataset):
             Key to delete.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         if key not in self:
             raise KeyError(key)
         self._update_inplace(new_query_compiler=self._query_compiler.delitem(key))
@@ -3125,33 +3123,37 @@ class DataFrame(BasePandasDataset):
             A dataframe object following the dataframe protocol specification.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
+        ErrorMessage.not_implemented(
+            "Snowpark pandas does not support the DataFrame interchange "
+            + "protocol method `__dataframe__`. To use Snowpark pandas "
+            + "DataFrames with third-party libraries that try to call the "
+            + "`__dataframe__` method, please convert this Snowpark pandas "
+            + "DataFrame to pandas with `to_pandas()`."
+        )
 
         return self._query_compiler.to_dataframe(
             nan_as_null=nan_as_null, allow_copy=allow_copy
         )
 
+    @dataframe_not_implemented()
     @property
     def attrs(self):  # noqa: RT01, D200
         """
         Return dictionary of global attributes of this dataset.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         def attrs(df):
             return df.attrs
 
         return self._default_to_pandas(attrs)
 
+    @dataframe_not_implemented()
     @property
     def style(self):  # noqa: RT01, D200
         """
         Return a Styler object.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()
-
         def style(df):
             """Define __name__ attr because properties do not have it."""
             return df.style
@@ -3348,7 +3350,11 @@ class DataFrame(BasePandasDataset):
 
         if isinstance(expr, str) and "not" in expr:
             if "parser" in kwargs and kwargs["parser"] == "python":
-                ErrorMessage.not_implemented()  # pragma: no cover
+                ErrorMessage.not_implemented(  # pragma: no cover
+                    "Snowpark pandas does not yet support 'not' in the "
+                    + "expression for the methods `DataFrame.eval` or "
+                    + "`DataFrame.query`"
+                )
 
     def _reduce_dimension(self, query_compiler):
         """
@@ -3435,10 +3441,9 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return cls(data=from_pandas(pandas_df))
 
+    @dataframe_not_implemented()
     def __reduce__(self):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        ErrorMessage.not_implemented()  # pragma: no cover
-
         self._query_compiler.finalize()
         # if PersistentPickle.get():
         #    return self._inflate_full, (self._to_pandas(),)

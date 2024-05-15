@@ -156,7 +156,6 @@ def test_axis_1_index_passed_as_name(df, row_label):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
     "data, func, expected_result",
     [
@@ -166,7 +165,9 @@ def test_axis_1_index_passed_as_name(df, row_label):
                 [datetime.date(2022, 12, 31), datetime.date(2021, 1, 9)],
             ],
             lambda x: x.dt.day,
-            native_pd.DataFrame([[1, np.nan], [31, 9.0]]),
+            native_pd.DataFrame(
+                [[1.0, np.nan], [31.0, 9.0]]
+            ),  # expected dtypes become float64 since None cannot be presented in int.
         ],
         [
             [
@@ -182,7 +183,9 @@ def test_axis_1_index_passed_as_name(df, row_label):
                 [datetime.time(1, 2, 3, 1), datetime.time(1)],
             ],
             lambda x: x.dt.seconds,
-            native_pd.DataFrame([[3723, np.nan], [3723, 3600]]),
+            native_pd.DataFrame(
+                [[3723.0, np.nan], [3723.0, 3600]]
+            ),  # expected dtypes become float64 since None cannot be presented in int.
         ],
         [
             [
@@ -307,7 +310,6 @@ def test_axis_1_raw():
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=6)
 def test_axis_1_return_not_json_serializable_label():
     snow_df = pd.DataFrame([1])
@@ -320,7 +322,7 @@ def test_axis_1_return_not_json_serializable_label():
         ).to_pandas()
 
     with pytest.raises(
-        SnowparkSQLException, match="Object of type DataFrame is not JSON serializable"
+        SnowparkSQLException, match="Object of type DataFrame is not serializable"
     ):
         # return value
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()
@@ -544,7 +546,6 @@ def test_axis_1_multi_index_column_labels_different_levels_negative():
     )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 def test_apply_variant_json_null():
     # series -> scalar
     def f(v):
@@ -849,7 +850,8 @@ import scipy.stats  # noqa: E402
     [
         (["scipy", "numpy"], 7),
         (["scipy>1.1", "numpy<2.0"], 7),
-        ([scipy, np], 9),
+        # TODO: SNOW-1428607 Re-enable quarantined tests for 8.20
+        # [scipy, np], 9),
     ],
 )
 def test_apply_axis1_with_3rd_party_libraries_and_decorator(

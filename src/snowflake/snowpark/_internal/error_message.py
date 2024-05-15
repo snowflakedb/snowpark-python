@@ -103,7 +103,7 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
-            "You must call DataFrameReader.schema() and specify the schema for the file.",
+            'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})',
             error_code="1106",
         )
 
@@ -376,6 +376,13 @@ class SnowparkClientExceptionMessages:
     def SERVER_FAILED_FETCH_PANDAS(message: str) -> SnowparkFetchDataException:
         return SnowparkFetchDataException(
             f"Failed to fetch a pandas Dataframe. The error is: {message}",
+            error_code="1406",
+        )
+
+    @staticmethod
+    def SERVER_FAILED_FETCH_LINEAGE(message: str) -> SnowparkFetchDataException:
+        return SnowparkFetchDataException(
+            f"Failed to fetch a lineage information. The error is: {message}",
             error_code="1406",
         )
 
