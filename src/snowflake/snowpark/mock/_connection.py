@@ -17,6 +17,7 @@ from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Uni
 from unittest.mock import Mock
 
 import snowflake.snowpark.mock._constants
+from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
@@ -41,12 +42,13 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -82,6 +84,32 @@ def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
     return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
 
 
+class MockedSnowflakeConnection(SnowflakeConnection):
+    def __init__(self, *args, **kwargs) -> None:
+        # pass "application" is a trick to bypass the logic in the constructor to check input params to
+        # avoid rewrite the whole logic -- "application" is not used in any place.
+        super().__init__(*args, **kwargs, application="localtesting")
+        self._password = None
+
+    def connect(self, **kwargs) -> None:
+        self._rest = Mock()
+
+    def close(self, retry: bool = True) -> None:
+        self._rest = None
+
+    def is_closed(self) -> bool:
+        """Checks whether the connection has been closed."""
+        return self.rest is None
+
+    @property
+    def telemetry_enabled(self) -> bool:
+        return False
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, _) -> None:
+        self._telemetry_enabled = False
+
+
 class MockServerConnection:
     class TabularEntityRegistry:
         # Registry to store tables and views.
@@ -115,7 +143,7 @@ class MockServerConnection:
             if qualified_name in self.table_registry:
                 return copy(self.table_registry[qualified_name])
             else:
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Object '{name}' does not exist or not authorized."
                 )
 
@@ -144,18 +172,18 @@ class MockServerConnection:
                 self.table_registry[name] = table
             elif mode == SaveMode.ERROR_IF_EXISTS:
                 if name in self.table_registry:
-                    raise SnowparkSQLException(f"Table {name} already exists")
+                    raise SnowparkLocalTestingException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
                     if table.columns != target_table.columns:
-                        raise SnowparkSQLException("Column mismatch detected")
+                        raise SnowparkLocalTestingException("Column mismatch detected")
 
                 self.table_registry[name] = table
             else:
-                raise ProgrammingError(f"Unrecognized mode: {mode}")
+                raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
             return [
                 Row(status=f"Table {name} successfully created.")
             ]  # TODO: match message
@@ -181,7 +209,7 @@ class MockServerConnection:
             name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.view_registry:
                 return self.view_registry[name]
-            raise SnowparkSQLException(f"View {name} does not exist")
+            raise SnowparkLocalTestingException(f"View {name} does not exist")
 
     class _Decorator:
         @classmethod
@@ -222,9 +250,9 @@ class MockServerConnection:
             return log_and_telemetry
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
-        # TODO: mock connector connection support SNOW-1331149
-        self._conn = Mock(expired=False)
+        self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
@@ -549,6 +577,11 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if self._conn.is_closed():
+            raise SnowparkSessionException(
+                "Cannot perform this operation because the session has been closed.",
+                error_code="1404",
+            )
         if not block:
             self.log_not_supported_error(
                 external_feature_name="Async job",

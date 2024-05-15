@@ -5,7 +5,6 @@
 
 import os
 from functools import partial
-from unittest.mock import Mock
 
 import pytest
 
@@ -316,9 +315,7 @@ def test_list_files_in_stage(session, resources_path):
 
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_parameters(
-    db_parameters, sql_simplifier_enabled, local_testing_mode
-):
+def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
     new_session.sql_simplifier_enabled = sql_simplifier_enabled
@@ -326,11 +323,8 @@ def test_create_session_from_parameters(
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
         assert session_builder._options.get("password") is None
-        if not local_testing_mode:
-            assert new_session._conn._lower_case_parameters.get("password") is None
-            assert new_session._conn._conn._password is None
-        else:
-            assert isinstance(new_session._conn._conn._password, Mock)
+        assert new_session._conn._lower_case_parameters.get("password") is None
+        assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
