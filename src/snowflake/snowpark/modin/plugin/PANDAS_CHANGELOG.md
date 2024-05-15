@@ -17,6 +17,7 @@
 - Improved performance for `Series.quantile` and `Series.describe`. 
 - Improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
 - Improved performance of `pd.qcut` by removing joins in generated sql query.
+- Allow `session.write_pandas` to write Snowpark pandas DataFrame or Series to a table.
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
