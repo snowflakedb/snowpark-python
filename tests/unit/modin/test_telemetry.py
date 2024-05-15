@@ -36,10 +36,11 @@ def snowpark_pandas_error_test_helper(
     telemetry_type: str,
     loc_pref: Optional[str] = "SnowflakeQueryCompiler",
     mock_arg: Optional[MagicMock] = None,
+    error_msg: Optional[str] = None,
 ):
     decorated_func = MagicMock(side_effect=error)
     decorated_func.__qualname__ = "magic_mock"
-    with pytest.raises(error):
+    with pytest.raises(type(error)):
         wrap_func = func(decorated_func)
         wrap_func(mock_arg)
     send_telemetry_helper_mock.assert_called_with(
@@ -52,6 +53,7 @@ def snowpark_pandas_error_test_helper(
         ],
         query_history=ANY,
         telemetry_type=telemetry_type,
+        error_msg=error_msg,
     )
 
 
@@ -112,6 +114,7 @@ def test_snowpark_pandas_telemetry_method_decorator(
         ],
         query_history=ANY,
         telemetry_type="snowpark_pandas_type_error",
+        error_msg="Mock Real Error",
     )
     assert len(mock_arg2._query_compiler.snowpark_pandas_api_calls) == 0
 
@@ -129,23 +132,24 @@ def test_snowpark_pandas_telemetry_method_decorator(
         ],
         query_history=ANY,
         telemetry_type="snowpark_pandas_type_error",
+        error_msg="Mock Real Error",
     )
 
 
 @pytest.mark.parametrize(
     "error",
     [
-        NotImplementedError,
-        TypeError,
-        ValueError,
-        KeyError,
-        AttributeError,
-        ZeroDivisionError,
-        IndexError,
-        AssertionError,
-        IndexingError,
-        SpecificationError,
-        DatabaseError,
+        NotImplementedError("test"),
+        TypeError("test"),
+        ValueError("test"),
+        KeyError("test"),
+        AttributeError("test"),
+        ZeroDivisionError("test"),
+        IndexError("test"),
+        AssertionError("test"),
+        IndexingError("test"),
+        SpecificationError("test"),
+        DatabaseError("test"),
     ],
 )
 def test_snowpark_pandas_telemetry_method_error(error):
@@ -155,9 +159,10 @@ def test_snowpark_pandas_telemetry_method_error(error):
     snowpark_pandas_error_test_helper(
         func=snowpark_pandas_telemetry_method_decorator,
         error=error,
-        telemetry_type=error_to_telemetry_type(error("error_msg")),
+        telemetry_type=error_to_telemetry_type(error),
         loc_pref="mock_class",
         mock_arg=mock_arg,
+        error_msg="test",
     )
 
 

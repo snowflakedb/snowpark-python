@@ -54,6 +54,7 @@ def _send_snowpark_pandas_telemetry_helper(
     *,
     session: Session,
     telemetry_type: str,
+    error_msg: Optional[str] = None,
     func_name: str,
     query_history: Optional[QueryHistory],
     api_calls: Union[str, list[dict[str, Any]]],
@@ -65,6 +66,7 @@ def _send_snowpark_pandas_telemetry_helper(
     Args:
         session: The Snowpark session.
         telemetry_type: telemetry type. e.g. TYPE_SNOWPARK_PANDAS_FUNCTION_USAGE.value
+        error_msg: Optional error message if telemetry_type is a Snowpark pandas error
         func_name: The name of the function being tracked.
         query_history: The query history context manager to record queries that are pushed down to the Snowflake
         database in the session.
@@ -73,9 +75,10 @@ def _send_snowpark_pandas_telemetry_helper(
     Returns:
         None
     """
-    data: dict[str, Union[str, list[dict[str, Any]], list[str]]] = {
+    data: dict[str, Union[str, list[dict[str, Any]], list[str], Optional[str]]] = {
         TelemetryField.KEY_FUNC_NAME.value: func_name,
         TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_SNOWPARK_PANDAS.value,
+        TelemetryField.KEY_ERROR_MSG.value: error_msg,
     }
     if len(api_calls) > 0:
         data[TelemetryField.KEY_API_CALLS.value] = api_calls
@@ -327,6 +330,7 @@ def _telemetry_helper(
         _send_snowpark_pandas_telemetry_helper(
             session=session,
             telemetry_type=error_to_telemetry_type(e),
+            error_msg=e.args[0] if e.args else None,
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
