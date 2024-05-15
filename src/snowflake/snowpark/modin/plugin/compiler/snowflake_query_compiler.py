@@ -823,6 +823,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
             )
         )
+    @classmethod
+    def from_local_csv_file(
+        cls,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        kwargs['on_bad_lines'] = 'error'
+        kwargs['skipfooter'] = 0
+        kwargs['skiprows'] = None 
+        kwargs['memory_map'] = False
+        kwargs['keep_default_na'] = True
+        kwargs['na_filter'] = True
+        kwargs['verbose'] = no_default
+        kwargs['skip_blank_lines'] = True
+        kwargs['infer_datetime_format'] = no_default
+        kwargs['keep_date_col'] = no_default
+        kwargs['date_parser'] = no_default
+        kwargs['dayfirst'] = False
+        kwargs['cache_dates'] = True
+        kwargs['iterator'] = False
+        kwargs['decimal'] = '.'
+        kwargs['quoting'] = 0
+        kwargs['doublequote'] = True
+        kwargs['encoding_errors'] = 'strict'
+        kwargs['delim_whitespace'] = no_default
+        kwargs['low_memory'] = True
+        kwargs['memory_map'] = False
+
+        df = native_pd.read_csv(**kwargs)
+        session = pd.session
+        temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        session.write_pandas(df = df, table_name=temporary_table_name, auto_create_table=True, table_type='temporary')
+        return cls.from_snowflake(temporary_table_name)
+
 
     @classmethod
     def from_file(

@@ -30,6 +30,7 @@ from pandas._typing import (
 from pandas.core.dtypes.common import is_list_like
 
 from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import BaseIO
+from snowflake.snowpark.modin.plugin._internal.io_utils import is_local_filepath
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -253,6 +254,10 @@ class PandasOnSnowflakeIO(BaseIO):
         }
         _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
         kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_csv_signature}
+
+        if is_local_filepath(filepath_or_buffer):
+            return cls.query_compiler_cls.from_local_csv_file(**kwargs)
+
         _validate_read_csv_and_read_table_args("pd.read_csv", **kwargs)
 
         if not isinstance(filepath_or_buffer, str):
