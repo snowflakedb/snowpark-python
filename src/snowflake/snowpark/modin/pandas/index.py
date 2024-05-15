@@ -73,19 +73,18 @@ class Index:
         elif query_compiler is not None:
             qc = query_compiler
         else:
-            self._index = native_pd.Index(
+            index_as_native_df = native_pd.Index(
                 data=data,
                 dtype=dtype,
                 copy=copy,
                 name=name,
                 tupleize_cols=tupleize_cols,
-            )
-            frame = self._index.to_frame()
+            ).to_frame()
             from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
                 SnowflakeQueryCompiler,
             )
 
-            qc = SnowflakeQueryCompiler.from_pandas(frame)
+            qc = SnowflakeQueryCompiler.from_pandas(index_as_native_df)
 
         self._query_compiler = qc if qc else None
 
@@ -138,9 +137,7 @@ class Index:
         return self.names[0]
 
     def to_pandas(self):
-        if self._index is None:
-            self._index = self._query_compiler.index
-        return self._index
+        return self._query_compiler.index
 
     def __array__(self, dtype=None) -> np.ndarray:
         """
