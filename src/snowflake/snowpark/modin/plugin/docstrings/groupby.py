@@ -103,15 +103,15 @@ Examples
 2    2
 1    3
 2    4
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg('min')
 1    1
 2    2
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg(['min', 'max'])
-    min  max
+   min  max
 1    1    3
 2    2    4
 """
@@ -130,7 +130,7 @@ Examples
 ... )
 
 >>> df
-    A  B         C
+   A  B         C
 0  1  1  0.362838
 1  1  2  0.227877
 2  2  3  1.267767
@@ -253,14 +253,14 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Groupby two columns and return the mean of the remaining column.
 
         >>> df.groupby(['A', 'B']).mean()   # doctest: +NORMALIZE_WHITESPACE
-               C
+                 C
         A B
-        1 2.0  2.000000
-          4.0  1.000000
-        2 3.0  1.000000
-          5.0  2.000000
+        1 2.0  2.0
+          4.0  1.0
+        2 3.0  1.0
+          5.0  2.0
 
-        Groupby one column and return the mean of only particular column in
+        Groupby one column and return the mean of only one particular column in
         the group.
 
         >>> df.groupby('A')['B'].mean()
@@ -324,7 +324,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Notes
         -----
         Beware that the return value is a python dictionary, so evaluating this
-        property will trigger evaluation of the pandas dataframe and will
+        property will trigger eager evaluation of the pandas dataframe and will
         materialize data that could be as large as the size of the grouping
         columns plus the size of the index.
         """
@@ -347,11 +347,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).min()
         a    1
         b    3
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -364,7 +364,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").min()
+        >>> df.groupby("a").min()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  2  2
@@ -376,7 +376,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmax():
         """
-        Return index of first occurrence of maximum over requested axis.
+        Return the index of the first occurrence of maximum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -467,7 +467,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmin():
         """
-        Return index of first occurrence of minimum over requested axis.
+        Return the index of the first occurrence of minimum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -573,7 +573,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def shift():
         """
-        Shift each group by periods observations.
+        Shift each group by `periods` observations.
 
         If freq is passed, the index will be increased using the periods and the freq.
 
@@ -583,7 +583,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             Number of periods to shift.
         freq : str, optional
             Frequency string.
-        axis : axis to shift, default 0, axis =1 currently not supported
+        axis : axis to shift, default 0, axis=1 currently not supported
             Shift direction.
         fill_value : optional
             The scalar value to use for newly introduced missing values.
@@ -622,18 +622,18 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ...                   index=["tuna", "salmon", "catfish", "goldfish"])
 
         >>> df
-                   a  b  c
-            tuna   1  2  3
-          salmon   1  5  6
-         catfish   2  5  8
-        goldfish   2  6  9
+                  a  b  c
+        tuna      1  2  3
+        salmon    1  5  6
+        catfish   2  5  8
+        goldfish  2  6  9
 
         >>> df.groupby("a").shift(1)
-                      b    c
-            tuna    NaN  NaN
-          salmon    2.0  3.0
-         catfish    NaN  NaN
-        goldfish    5.0  8.0
+                    b    c
+        tuna      NaN  NaN
+        salmon    2.0  3.0
+        catfish   NaN  NaN
+        goldfish  5.0  8.0
         """
 
     def nth():
@@ -678,19 +678,19 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["fox", "gorilla", "lion"])
         >>> df
-                  a   b   c
-        fox       1   8   2
-        gorilla   1   2   5
-        lion      2   6   9
+                 a  b  c
+        fox      1  8  2
+        gorilla  1  2  5
+        lion     2  6  9
 
         >>> df.groupby("a").groups
         {1: ['fox', 'gorilla'], 2: ['lion']}
 
         >>> df.groupby("a").cumsum()
-                  b   c
-        fox       8   2
-        gorilla  10   7
-        lion      6   9
+                  b  c
+        fox       8  2
+        gorilla  10  7
+        lion      6  9
         """
 
     def indices():
@@ -777,17 +777,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["cow", "horse", "bull"])
         >>> df
-                a   b   c
-        cow     1   8   2
-        horse   1   1   0
-        bull    2   6   9
+               a  b  c
+        cow    1  8  2
+        horse  1  1  0
+        bull   2  6  9
         >>> df.groupby("a").groups
         {1: ['cow', 'horse'], 2: ['bull']}
         >>> df.groupby("a").cummax()
-                b   c
-        cow     8   2
-        horse   8   2
-        bull    6   9
+               b  c
+        cow    8  2
+        horse  8  2
+        bull   6  9
         """
 
     def apply():
@@ -802,7 +802,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         While ``apply`` is a very flexible method, its downside is that
         using it can be quite a bit slower than using more specific methods
-        like ``agg`` or ``transform``. Pandas offers a wide range of methods that will
+        like ``agg`` or ``transform``. pandas offers a wide range of methods that will
         be much faster than using ``apply`` for their specific purposes, so try to
         use them before reaching for ``apply``.
 
@@ -855,10 +855,10 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         each group together into a new DataFrame:
 
         >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
-                  B    C
-        0  0.333333  0.4
-        1  0.666667  0.6
-        2  1.000000  1.0
+                    B    C
+        0.0  0.333333  0.4
+        1.0  0.666667  0.6
+        2.0  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
@@ -866,9 +866,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
                     B    C
         A
-        a 0  0.333333  0.4
-          1  0.666667  0.6
-        b 2  1.000000  1.0
+        a 0.0  0.333333  0.4
+          1.0  0.666667  0.6
+        b 2.0  1.000000  1.0
         """
 
     @property
@@ -956,17 +956,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["snake", "rabbit", "turtle"])
         >>> df
-                a   b   c
-        snake   1   0   2
-        rabbit  1   1   5
-        turtle  6   6   9
+                a  b  c
+        snake   1  0  2
+        rabbit  1  1  5
+        turtle  6  6  9
         >>> df.groupby("a").groups
         {1: ['snake', 'rabbit'], 6: ['turtle']}
         >>> df.groupby("a").cummin()
-                b   c
-        snake   0   2
-        rabbit  0   2
-        turtle  6   9
+                b  c
+        snake   0  2
+        rabbit  0  2
+        turtle  6  9
         """
 
     def bfill():
@@ -988,7 +988,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
             This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
             var)
@@ -1018,7 +1018,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).std()
         a    3.21455
         b    0.57735
@@ -1105,8 +1105,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         na_option: {"keep", "top", "bottom"}
             How to rank NaN values:
             - keep: assign NaN rank to NaN values
-            - top: assign lowest rank to NaN values
-            - bottom: assign highest rank to NaN values
+            - top: assign the lowest rank to NaN values
+            - bottom: assign the highest rank to NaN values
         pct: bool
             Whether to display the returned rankings in percentile form.
 
@@ -1118,24 +1118,24 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame({"group": ["a", "a", "a", "b", "b", "b", "b"], "value": [2, 4, 2, 3, 5, 1, 2]})
         >>> df
-            group   value
-        0	    a	    2
-        1	    a	    4
-        2	    a	    2
-        3       b       3
-        4       b       5
-        5       b       1
-        6       b       2
+          group  value
+        0     a      2
+        1     a      4
+        2     a      2
+        3     b      3
+        4     b      5
+        5     b      1
+        6     b      2
         >>> df = df.groupby("group").rank(method='min')
         >>> df
-            value
-        0   1.0
-        1	3.0
-        2	1.0
-        3   3.0
-        4   4.0
-        5   1.0
-        6   2.0
+           value
+        0      1
+        1      3
+        2      1
+        3      3
+        4      4
+        5      1
+        6      2
         """
 
     @property
@@ -1160,11 +1160,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).max()
         a    2
         b    4
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1177,7 +1177,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").max()
+        >>> df.groupby("a").max()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  8  5
@@ -1200,7 +1200,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
             This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
             std)
@@ -1230,17 +1230,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).var()
         a    10.333333
         b     0.333333
-        c         None
-        dtype: object
+        c          NaN
+        dtype: float64
         >>> ser.groupby(level=0).var(ddof=0)
         a    6.888889
         b    0.222222
         c    0.000000
-        dtype: object
+        dtype: float64
 
         Note that if the number of elements in a group is less or equal to the ddof, the result for the
         group will be NaN/None. For example, the value for group c is NaN when we call ser.groupby(level=0).var(),
@@ -1316,11 +1316,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).sum()
         a    3
         b    7
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1333,7 +1333,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").sum()
+        >>> df.groupby("a").sum()  # doctest: +NORMALIZE_WHITESPACE
             b   c
         a
         1  10   7
@@ -1401,11 +1401,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    4
         b    3
         b    3
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).median()
-        a    7.000
-        b    3.000
-        dtype: object
+        a    7.0
+        b    3.0
+        dtype: float64
 
         For DataFrameGroupBy:
 
@@ -1422,9 +1422,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         mouse  8  2
         mouse  3  1
         >>> df.groupby(level=0).median()
-                   a      b
-        dog    3.000  4.000
-        mouse  7.000  3.000
+                 a    b
+        dog    3.0  4.0
+        mouse  7.0  3.0
         """
 
     def head():
@@ -1438,13 +1438,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from start of each group.
-            If negative: number of entries to exclude from end of each group.
+            If positive: number of entries to include from the start of each group.
+            If negative: number of entries to exclude from the end of each group.
 
         Returns
         -------
         Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
@@ -1497,11 +1497,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         h  None     8    80    -8
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).head(-2)
-           col1  col2  col3  col4
-        a     Z     1    40    -1
-        b  None     2    50    -2
-        c     X     3    60    -3
-        e     Y     5    20    -5
+          col1  col2  col3  col4
+        c    X     3    60    -3
+        f    X     6    30    -6
         """
 
     def cumprod():
@@ -1666,7 +1664,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Essentially this is equivalent to
 
-        >>> self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
+        .. code-block:: python
+
+            self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
 
         Parameters
         ----------
@@ -1687,8 +1687,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame([['a'], ['a'], ['a'], ['b'], ['b'], ['a']],
         ...                   columns=['A'])
-        df
-        A
+        >>> df
+           A
         0  a
         1  a
         2  a
@@ -1726,13 +1726,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from end of each group.
-            If negative: number of entries to exclude from start of each group.
+            If positive: number of entries to include from the end of each group.
+            If negative: number of entries to exclude from the start of each group.
 
         Returns
         -------
         Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
@@ -1788,9 +1788,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         i     X     9    90    -9
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).tail(-2)
-           col1  col2  col3  col4
-        g     X     7    40    -7
-        i     X     9    90    -9
+          col1  col2  col3  col4
+        g    X     7    40    -7
+        i    X     9    90    -9
         """
 
     def expanding():
@@ -1829,6 +1829,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def take():
+        pass
+
+    def pipe():
         pass
 
 
@@ -1881,6 +1884,9 @@ class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we
         -------
         Series
         """
+
+    def unique(self):
+        pass
 
     def apply():
         pass
