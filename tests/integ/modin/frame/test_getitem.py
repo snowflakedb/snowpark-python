@@ -129,7 +129,7 @@ def test_df_getitem_with_string_labels_throws_keyerror(key):
     with pytest.raises(KeyError):
         eval_snowpark_pandas_result(
             *create_test_dfs(data),
-            lambda df: df[key] if isinstance(df, pd.DataFrame) else df.loc[:, []]
+            lambda df: df[key]
         )
 
 
@@ -250,8 +250,6 @@ def test_df_getitem_deviates_from_pandas(key):
             snow_df,
             native_df,
             lambda df: df[key]
-            if isinstance(df, pd.DataFrame)
-            else df[[k for k in key if k in columns]],
         )
 
 
