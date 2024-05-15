@@ -42,6 +42,7 @@ class TelemetryField(Enum):
     KEY_DURATION = "duration"
     KEY_FUNC_NAME = "func_name"
     KEY_MSG = "msg"
+    KEY_ERROR_MSG = "error_msg"
     KEY_VERSION = "version"
     KEY_PYTHON_VERSION = "python_version"
     KEY_CLIENT_LANGUAGE = "client_language"
