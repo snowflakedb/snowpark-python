@@ -2073,8 +2073,7 @@ def test_to_double(session, local_testing_mode):
         [[False], [True]], schema=StructType([StructField("bool_col", BooleanType())])
     )
 
-    expected_error = TypeError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_double(c) for c in df.columns]).collect()
 
     # Test variant conversion
@@ -2096,7 +2095,7 @@ def test_to_double(session, local_testing_mode):
         [Row(56.78, 90.12, 6.78e-10, 1.0, 0.0, None)],
     )
 
-    # Test speicifying fmt, TODO: not supported in Local Testing
+    # Test specifying fmt, TODO: not supported in Local Testing
     if not local_testing_mode:
         # Local testing only covers partial implementation of to_double
         df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
@@ -2178,11 +2177,9 @@ def test_to_decimal(session, local_testing_mode):
     )
 
     # Test when input type is not supported
-    expected_error = TypeError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_decimal(df.date_col, 38, 0)]).collect()
 
     # Test when input value is not supported
-    expected_error = ValueError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_decimal(df.float_col, 38, 0)]).collect()

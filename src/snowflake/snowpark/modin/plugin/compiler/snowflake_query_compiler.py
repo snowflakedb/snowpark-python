@@ -4980,9 +4980,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
 
-        # If index columns differ in size, convert all multi-index row labels to
+        # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
-        if len({f.num_index_columns for f in frames}) > 1:
+        index_columns = self._modin_frame.index_column_snowflake_quoted_identifiers
+        index_columns_different = not all(
+            f.index_column_snowflake_quoted_identifiers == index_columns for f in frames
+        )
+        is_mixed_index_multiindex = len({f.num_index_columns for f in frames}) > 1
+        is_multiindex = any(f.num_index_columns > 1 for f in frames)
+
+        if is_mixed_index_multiindex or (not is_multiindex and index_columns_different):
             # If ignore_index is True on axis = 0 we fix index compatibility by doing
             # reset and drop all indices.
             if axis == 0 and ignore_index:
@@ -5358,6 +5365,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left = self
         join_index_on_index = left_index and right_index
+        # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
+        # https://github.com/pandas-dev/pandas/pull/54611/files
+        if how == "outer":
+            sort = True
 
         # Labels of indicator columns in input frames.  We use these columns to generate
         # final indicator column in merged frame.
