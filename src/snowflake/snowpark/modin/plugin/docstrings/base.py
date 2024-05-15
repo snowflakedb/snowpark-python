@@ -1202,17 +1202,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2014-02-13    high
         Freq: None, Name: windspeed, dtype: object
 
-        Snowpark pandas indexing won't raise KeyError if any key is not found;
-        instead, it will return the results from the found keys
-        or return an empty series if no key is found.
-
-        >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
-                    temp_celsius
-        2014-02-12          24.3
-        2014-02-13          31.0
-        2014-02-14          22.0
-        2014-02-15          35.0
-
         >>> ser.get('2014-02-10', '[unknown]')
         Series([], Freq: None, Name: windspeed, dtype: object)
 
