@@ -769,9 +769,11 @@ def _extract_loc_set_col_info(
             union_data_columns
         ):
             raise ValueError(CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE)
+        # split labels into existing and new
         new_column_pandas_labels = [
             label for label in columns if label not in frame_data_columns
         ]
+        columns = [label for label in columns if label in frame_data_columns]
         before = frame_data_columns.value_counts()
         after = union_data_columns.value_counts()
         frame_data_col_labels = frame_data_columns.tolist()

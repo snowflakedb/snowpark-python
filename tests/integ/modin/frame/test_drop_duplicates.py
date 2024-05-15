@@ -62,9 +62,9 @@ def test_drop_duplicates(subset, keep, ignore_index):
         )
 
 
-@pytest.mark.parametrize("subset", ["A", ["A"], ["B"], ["A", "B"]])
+@pytest.mark.parametrize("subset", ["a", ["a"], ["b"], ["a", "b"]])
 @pytest.mark.parametrize("keep", ["first", "last", False])
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_drop_duplicates_on_empty_frame(subset, keep):
     pandas_df = native_pd.DataFrame(columns=["a", "b"])
     snow_df = pd.DataFrame(pandas_df)
