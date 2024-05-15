@@ -21,6 +21,7 @@
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
+- Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 
 ## 1.15.0a1 (2024-05-03)
 
@@ -66,9 +67,6 @@
   - A new row and column are used in the row and column keys (https://github.com/pandas-dev/pandas/issues/58316).
   Snowpark pandas deviates from this behavior and will maintain the same behavior as pandas from versions 1.5.x.
 - Changed the import path of Snowpark pandas package to use Modin 0.28.1 instead. The new recommended import statement is `import modin.pandas as pd; import snowflake.snowpark.modin.plugin`.
-
-### New Features
-- Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 
 ## 1.14.0a2 (2024-04-18)
 
