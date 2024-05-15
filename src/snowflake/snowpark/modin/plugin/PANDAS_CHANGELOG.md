@@ -21,6 +21,7 @@
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
+- Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 
 ## 1.15.0a1 (2024-05-03)
 

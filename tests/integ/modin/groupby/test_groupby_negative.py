@@ -296,6 +296,20 @@ def test_groupby_agg_dict_like_input_invalid_column_raises(basic_snowpark_pandas
 
 
 @sql_count_checker(query_count=1)
+def test_groupby_named_agg_like_input_invalid_column_raises(basic_snowpark_pandas_df):
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        basic_snowpark_pandas_df.to_pandas(),
+        lambda df: df.groupby(by="col1").aggregate(
+            new_col=("col2", max), new_col1=("col_invalid", "min")
+        ),
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        expect_exception_match=re.escape("Column(s) ['col_invalid'] do not exist"),
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_groupby_as_index_false_with_dup(basic_snowpark_pandas_df) -> None:
     by = ["col1", "col1"]
     eval_snowpark_pandas_result(
