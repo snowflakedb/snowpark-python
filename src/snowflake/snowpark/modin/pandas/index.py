@@ -88,12 +88,10 @@ class Index:
             qc = SnowflakeQueryCompiler.from_pandas(frame)
 
         self._query_compiler = qc if qc else None
-        if self._index is None:
-            self._index = self.to_pandas()
 
     @property
     def _column_names(self):
-        return self._query_compiler._modin_frame.index_column_pandas_labels
+        return self._query_compiler.get_index_names()
 
     @property
     def _ordered_dataframe(self):
@@ -106,10 +104,26 @@ class Index:
         )
 
     @property
+    def is_multi_index(self, axis=0):
+        return self._query_compiler.is_multiindex(axis=axis)
+
+    @property
     def values(self):
         from snowflake.snowpark.modin.plugin._internal.utils import (
             snowpark_to_pandas_helper,
         )
+
+        values = snowpark_to_pandas_helper(
+            self._ordered_dataframe.select(self._snowflake_quoted_identifiers)
+        ).values
+
+        if self.is_multi_index:
+            tuples = [tuple(v) for v in values]
+            values = np.empty(len(tuples), dtype=object)
+            values[:] = tuples
+        else:
+            values = values.flatten()
+        return values
 
         return snowpark_to_pandas_helper(
             self._ordered_dataframe.select(self._snowflake_quoted_identifiers)
@@ -138,5 +152,5 @@ class Index:
         return self.to_pandas().__repr__()
 
     def __iter__(self):
-        # TODO: SNOW-1359039: Do we need to update this in the next PR to not call to_pandas()
+        # TODO: SNOW-1359041: Do we need to update this in the next PR to not call to_pandas()
         return self.to_pandas().__iter__()
