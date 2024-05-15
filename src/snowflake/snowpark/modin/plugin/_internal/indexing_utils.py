@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
+import pandas
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -911,21 +912,25 @@ def get_valid_col_positions_from_col_labels(
         indexer = []
         for col_loc_item in col_loc:
             # for each locator, we perform prefix matching for multiindex
-            try:
-                if is_scalar(col_loc_item):
-                    col_loc_item = (col_loc_item,)
-                item_indexer = columns.get_locs(col_loc_item)
-            except KeyError:
-                # Note Snowpark pandas will ignore out-of-bound labels
-                item_indexer = []
+            if is_scalar(col_loc_item):
+                col_loc_item = (col_loc_item,)
+            # May throw KeyError if any labels are not found in columns
+            item_indexer = columns.get_locs(col_loc_item)
             indexer.extend(item_indexer)
     else:
         if is_scalar(col_loc):
+            if col_loc not in columns:
+                raise KeyError(f"{col_loc}")
             col_loc = [col_loc]
         elif isinstance(col_loc, tuple):
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
-
-        # Note Snowpark pandas will ignore out-of-bound labels
+        # Throw a KeyError in case there is no
+        if any(label not in columns for label in col_loc):
+            raise KeyError(
+                "None of {} are in the [columns]".format(
+                    pandas.Index([k for k in col_loc if k not in columns])
+                )
+            )
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].

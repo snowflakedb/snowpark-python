@@ -123,15 +123,14 @@ def test_df_getitem_with_string_labels(key):
 @pytest.mark.parametrize(
     "key", list(filter(lambda key: len(key) > 0, _powerset(["X", "Y", "Z"])))
 )
-@sql_count_checker(query_count=1)
-def test_df_getitem_with_string_labels_deviates_from_pandas(key):
+@sql_count_checker(query_count=0)
+def test_df_getitem_with_string_labels_throws_keyerror(key):
     data = {"A": [1, 2, None], "B": [3.1, 5, 6], "C": [None, "abc", "xyz"]}
-    # pandas produces KeyError of the form KeyError("None of [Index(['X', 'Y', 'Z'], dtype='object')] are in the
-    # [columns]") whereas Snowpark pandas does not error and returns an empty result.
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df[key] if isinstance(df, pd.DataFrame) else df.loc[:, []]
-    )
+    with pytest.raises(KeyError):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(data),
+            lambda df: df[key] if isinstance(df, pd.DataFrame) else df.loc[:, []]
+        )
 
 
 LABEL_COLLECTION = ["A", None, 12, 4.56, ("a", "b"), (1, 2), np.nan]
@@ -239,23 +238,21 @@ def test_df_getitem_with_series(key_data):
 
 
 @pytest.mark.parametrize("key", [["a", "b", "c"], ["A", "a"], ["a", "a", "a"]])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_getitem_deviates_from_pandas(key):
     columns = ["A", "B", "C"]
     data = np.random.normal(size=(3, 3))
     snow_df = pd.DataFrame(data, columns=columns)
     native_df = native_pd.DataFrame(data, columns=columns)
 
-    # pandas produces KeyError("None of [Index(['a', 'b', 'c'], dtype='object')] are in the [columns]")
-    # Snowpark pandas API will return whatever columns exist in the key.
-
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df[key]
-        if isinstance(df, pd.DataFrame)
-        else df[[k for k in key if k in columns]],
-    )
+    with pytest.raises(KeyError):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df[key]
+            if isinstance(df, pd.DataFrame)
+            else df[[k for k in key if k in columns]],
+        )
 
 
 @sql_count_checker(query_count=2)
