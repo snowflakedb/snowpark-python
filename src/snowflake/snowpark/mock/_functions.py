@@ -1186,7 +1186,7 @@ def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     res = [
-        x[y - 1 : y + z - 1] if x is not None else None
+        x[y - 1 : y + z - 1] if y != 0 else x[y : y + z] if x is not None else None
         for x, y, z in zip(base_expr, start_expr, length_expr)
     ]
     res = ColumnEmulator(

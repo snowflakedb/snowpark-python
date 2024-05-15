@@ -132,6 +132,14 @@ def test_substring(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.string4(session).select(
+            col("a").substring(0, 3), col("a").substr(1, 3)
+        ),
+        [Row("app", "app"), Row("ban", "ban"), Row("pea", "pea")],
+        sort=False,
+    )
+
 
 @pytest.mark.localtest
 def test_contains(session):
