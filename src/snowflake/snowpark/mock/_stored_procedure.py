@@ -21,12 +21,12 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
 from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
@@ -93,8 +93,10 @@ class MockStoredProcedure(StoredProcedure):
                 if expr.datatype and not sproc_types_are_compatible(
                     expr.datatype, expected_type
                 ):
-                    raise ValueError(
-                        f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
+                    SnowparkLocalTestingException.raise_from_error(
+                        ValueError(
+                            f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
+                        )
                     )
 
                 # Expression may be a nested expression. Expression should not need any input data
@@ -110,8 +112,10 @@ class MockStoredProcedure(StoredProcedure):
 
                 # If the length of the resolved expression is not a single value we cannot pass it as a literal.
                 if len(resolved_expr) != 1:
-                    raise ValueError(
-                        "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
+                    SnowparkLocalTestingException.raise_from_error(
+                        ValueError(
+                            "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
+                        )
                     )
                 parsed_args.append(resolved_expr[0])
             else:
@@ -276,7 +280,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         check_python_runtime_version(self._session._runtime_version_from_requirement)
 
         if sproc_name in self._registry and not replace:
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"002002 (42710): SQL compilation error: \nObject '{sproc_name}' already exists.",
                 error_code="1304",
             )
@@ -336,9 +340,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         if sproc_name not in self._registry:
-            raise SnowparkSQLException(
-                f"[Local Testing] sproc {sproc_name} does not exist."
-            )
+            raise SnowparkLocalTestingException(f"sproc {sproc_name} does not exist.")
 
         return self._registry[sproc_name](
             *args, session=session, statement_params=statement_params

@@ -45,6 +45,7 @@ from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
     is_integer_dtype,
+    is_named_tuple,
     is_numeric_dtype,
     is_re_compilable,
     is_scalar,
@@ -126,6 +127,7 @@ from snowflake.snowpark.modin.plugin._internal import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
     AggFuncInfo,
+    AggFuncWithLabel,
     AggregateColumnOpParameters,
     _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
@@ -2570,6 +2572,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=agg_kwargs.get("dropna", True),
                 )
             else:
+                # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
+                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
+                if isinstance(agg_func, dict) and all(
+                    is_named_tuple(func) and len(func) == 2
+                    for func in agg_func.values()
+                ):
+                    agg_func = ", ".join(
+                        [f"{key}={value}" for key, value in agg_kwargs.items()]
+                    )
+                    agg_func = f"agg({agg_func})"
+
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
                 )
@@ -2577,6 +2590,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
+        uses_named_aggs = False
 
         original_index_column_labels = self._modin_frame.index_column_pandas_labels
 
@@ -2609,11 +2623,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
+        def convert_func_to_agg_func_info(
+            func: Union[AggFuncType, AggFuncWithLabel]
+        ) -> AggFuncInfo:
+            nonlocal uses_named_aggs
+            if is_named_tuple(func):
+                uses_named_aggs = True
+                return AggFuncInfo(
+                    func=func.func,
+                    is_dummy_agg=False,
+                    post_agg_pandas_label=func.pandas_label,
+                )
+            else:
+                return AggFuncInfo(
+                    func=func, is_dummy_agg=False, post_agg_pandas_label=None
+                )
+
         column_to_agg_func = {
             agg_col: (
-                [AggFuncInfo(func=fn, is_dummy_agg=False) for fn in func]
-                if is_list_like(func)
-                else AggFuncInfo(func=func, is_dummy_agg=False)
+                [convert_func_to_agg_func_info(fn) for fn in func]
+                if is_list_like(func) and not is_named_tuple(func)
+                else convert_func_to_agg_func_info(func)
             )
             for (agg_col, func) in column_to_agg_func.items()
         }
@@ -2688,7 +2718,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
         drop = False
-        if not as_index:
+        if not as_index and not uses_named_aggs:
             # drop off the index columns that are from the original index columns and also the index
             # columns that are from data column with aggregation function applied.
             # For example: with the following dataframe, which has data column ['A', 'B', 'C', 'D', 'E']
@@ -5369,6 +5399,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left = self
         join_index_on_index = left_index and right_index
+        # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
+        # https://github.com/pandas-dev/pandas/pull/54611/files
+        if how == "outer":
+            sort = True
 
         # Labels of indicator columns in input frames.  We use these columns to generate
         # final indicator column in merged frame.
@@ -11760,7 +11794,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         start: Optional[int] = None,
         stop: Optional[int] = None,
-        step: int = 1,
+        step: Optional[int] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Slice substrings from each element in the Series or Index.
@@ -11783,8 +11817,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_name: ColumnOrName,
             start: Optional[int],
             stop: Optional[int],
-            step: int = 1,
+            step: Optional[int],
         ) -> SnowparkColumn:
+            if step is None:
+                step = 1
             col_len_exp = length(col(col_name))
 
             # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
