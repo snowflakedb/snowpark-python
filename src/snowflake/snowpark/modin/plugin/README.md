@@ -24,23 +24,21 @@ pip install matplotlib seaborn
 ```
 
 ## Folder structure
-Following tree diagram shows the high-level structure of the SnowPandas module within Snowpark.
+Following tree diagram shows the high-level structure of the Snowpark pandas.
 ```bash
 snowflake
 └── snowpark
     └── modin
-        └── pandas
-            ├── frontend          ← pandas API frontend layer
-            │   └── dispatching   ← additional patching for I/O
-            ├── translation       ← folder containing abstraction
-            │                       frontend to DF-algebra and query
-            │                       compiler
-            │   ├── _internal     ← Snowflake specific internals
-            │   ├── default2pandas← SnowPandas fallback to default pandas implementation
-            │   └── compiler      ← query compiler, Modin -> Snowpark
-            │                       DF/SnowSQL compilation logic.
+        └── pandas                ← pandas API frontend layer
+        └── core          
+            ├── dataframe         ← folder containing abstraction
+            │                       for Modin frontend to DF-algebra
+            │── execution         ← additional patching for I/O
+        └── plugin                          
+            ├── _interal          ← Snowflake specific internals
+            ├── io                ← Snowpark pandas IO functions
+            ├── compiler          ← query compiler, Modin -> Snowpark pandas DF
             └── utils             ← util classes from Modin, logging, …
-
 ```
 
 ## Doctests for Modin

@@ -16,7 +16,27 @@ CONNECTION_PARAMETERS = {
     'warehouse': '<warehouse>',
 }
 ```
-Note that this file will be ignored by git, so you do not need to worry about check in your secret.
+Snowpark pandas API also offers the convenience of implicit session creation from a configuration file.
+This eliminates the need to explicitly create a Snowpark session in your code, allowing you to write your pandas code just as you would normally.
+To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`. The contents of this configuration file should be as follows (following [TOML](https://toml.io/en/) file format):
+
+```python
+default_connection_name = "default"
+
+[default]
+account = "<myaccount>"
+user = "<myuser>"
+password = "<mypassword>"
+role="<myrole>"
+database = "<mydatabase>"
+schema = "<myschema>"
+warehouse = "<mywarehouse>"
+```
+
+The value of `default_connection_name` points to a configuration inside the TOML file, which will be used as the default configuration.
+Note that keys of a configuration (`account`, `user`) are the same as keys of connection parameters we use in `tests/parameters.py` and values of a configuration should be double quoted.
+
+Note that these files will be ignored by git, so you do not need to worry about check in your secret.
 
 ## Running Tests
 
@@ -54,7 +74,16 @@ To just run the all Snowpark tests, run the following command:
 python -m tox -e py38
 ```
 ### Running doctests
+
+#### Snowpark Python Doctests
 In order to run doctests contained within a file that make use of shared objects, use:
 ```bash
 pytest -rP src/snowflake/snowpark/functions.py --log-cli-level=INFO
+```
+
+#### Snowpark pandas Doctests
+In order to run Snowpark pandas doctests, use:
+
+```bash
+pytest -rP src/snowflake/snowpark/modin/pandas --log-cli-level=INFO
 ```

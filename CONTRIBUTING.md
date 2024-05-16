@@ -1,6 +1,6 @@
 # Contributing to snowflake-snowpark-python
 
-Hi, thank you for taking the time to improve Snowflake's Snowpark Python API!
+Hi, thank you for taking the time to improve Snowflake's Snowpark Python or Snowpark pandas APIs!
 
 ## I have a feature request, or a bug report to submit
 
@@ -33,12 +33,14 @@ cd snowpark-python
 
 #### Install the library in edit mode and install its dependencies
 
-- Create a new Python virtual environment with any Python version that we support. Currently supported version is **Python 3.8, Python 3.9, Python 3.10**. Support for Python 3.11 is available as a preview feature to all accounts. For example,
+- Create a new Python virtual environment with any Python version that we support.
+  - Currently supported version for Snowpark Python API is **Python 3.8, Python 3.9, Python 3.10, Python 3.11**. 
+  - Currently supported version for Snowpark pandas API is **Python 3.9, Python 3.10, Python 3.11**. Additionally, **Modin 0.28.1** and **pandas 2.2.1** are required.
 
-  ```bash
-  conda create --name snowpark-dev python=3.8
-  ```
-
+    ```bash
+    conda create --name snowpark-dev python=3.9
+    ```
+    
 - Activate the new Python virtual environment. For example,
 
   ```bash
@@ -46,11 +48,15 @@ cd snowpark-python
   ```
 
 - Go to the cloned repository root folder.
-- Install the Snowpark API in edit/development mode.
+  - To install the Snowpark Python API in edit/development mode, use:
 
-    ```bash
-    python -m pip install -e ".[development, pandas]"
-    ```
+      ```bash
+      python -m pip install -e ".[development, pandas]"
+      ```
+  - To install the Snowpark pandas API in edit/development mode, use:
+      ```bash
+      python -m pip install -e ".[modin-development]"
+      ```
 
   The `-e` tells `pip` to install the library in [edit, or development mode](https://pip.pypa.io/en/stable/cli/pip_install/#editable-installs).
 
@@ -66,7 +72,7 @@ and follow the [installation instructions](https://www.jetbrains.com/help/pychar
 
 ##### Download and install VS Code
 
-Downlaod and install the latest version of [VS Code](https://code.visualstudio.com/download)
+Download and install the latest version of [VS Code](https://code.visualstudio.com/download)
 
 ##### Setup project
 
@@ -86,7 +92,26 @@ The [README under tests folder](tests/README.md) tells you how to set up to run 
 If this happens to you do not panic! Any PRs originating from a fork will fail some automated tests. This is because
 forks do not have access to our repository's secrets. A maintainer will manually review your changes then kick off
 the rest of our testing suite. Feel free to tag [@snowflakedb/snowpark-python-api](https://github.com/orgs/snowflakedb/teams/snowpark-python-api)
+or [@snowflakedb/snowpark-pandas-api](https://github.com/orgs/snowflakedb/teams/snowpark-pandas-api)
 if you feel like we are taking too long to get to your PR.
 
 [config pycharm interpreter]: https://www.jetbrains.com/help/pycharm/configuring-python-interpreter.html
 [config vscode interpreter]: https://code.visualstudio.com/docs/python/environments#_manually-specify-an-interpreter
+
+## Snowpark pandas Folder structure
+Following tree diagram shows the high-level structure of the Snowpark pandas.
+```bash
+snowflake
+└── snowpark
+    └── modin
+        └── pandas                ← pandas API frontend layer
+        └── core          
+            ├── dataframe         ← folder containing abstraction
+            │                       for Modin frontend to DF-algebra
+            │── execution         ← additional patching for I/O
+        └── plugin                          
+            ├── _interal          ← Snowflake specific internals
+            ├── io                ← Snowpark pandas IO functions
+            ├── compiler          ← query compiler, Modin -> Snowpark pandas DF
+            └── utils             ← util classes from Modin, logging, …
+```
