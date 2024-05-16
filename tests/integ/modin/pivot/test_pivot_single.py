@@ -17,9 +17,6 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
-@pytest.mark.skip(
-    "SNOW-959913: Support no index configuration with columns and margins configuration"
-)
 @sql_count_checker(query_count=1)
 def test_pivot_table_no_index_single_column_single_value(df_data):
     pivot_table_test_helper(

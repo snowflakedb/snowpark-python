@@ -299,7 +299,7 @@ def test_pivot_table_multiple_index_multiple_columns_null_values(df_data, values
 
 # TODO (SNOW-854301): Needs support for MultiIndex.levels, fails because result.columns.levels[N] don't equal
 # We use xfail to run so we can help code coverage
-@pytest.mark.xfail
+@pytest.mark.xfail(strict=True)
 @pytest.mark.parametrize("values", [None, []])
 @sql_count_checker(query_count=0)
 def test_pivot_table_no_values_by_default(df_data, values):
