@@ -226,7 +226,7 @@ class PandasOnSnowflakeIO(BaseIO):
             "infer", "gzip", "bz2", "brotli", "zstd", "deflate", "raw_deflate", "none"
         ] = "infer",
         thousands: Optional[str] = None,
-        decimal: Optional[str] = '.',
+        decimal: Optional[str] = ".",
         lineterminator: Optional[str] = None,
         quotechar: str = '"',
         quoting: Optional[int] = 0,
@@ -234,11 +234,13 @@ class PandasOnSnowflakeIO(BaseIO):
         escapechar: Optional[str] = None,
         comment: Optional[str] = None,
         encoding: Optional[str] = None,
-        encoding_errors: Optional[str] = 'strict',
+        encoding_errors: Optional[str] = "strict",
         dialect: Optional[Union[str, "csv.Dialect"]] = None,
         on_bad_lines: str = "error",
         delim_whitespace: Optional[bool] = no_default,
-        low_memory: Optional[bool] = False,  # Different from default because we want better dtype detection
+        low_memory: Optional[
+            bool
+        ] = False,  # Different from default because we want better dtype detection
         memory_map: Optional[bool] = False,
         float_precision: Optional[Literal["high", "legacy"]] = None,
         storage_options: StorageOptions = None,
@@ -256,7 +258,7 @@ class PandasOnSnowflakeIO(BaseIO):
         kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_csv_signature}
 
         if is_local_filepath(filepath_or_buffer):
-            return cls.query_compiler_cls.from_file_with_pandas('csv', **kwargs)
+            return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
 
         _validate_read_csv_and_read_table_args("pd.read_csv", **kwargs)
 

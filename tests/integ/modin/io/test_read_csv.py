@@ -714,7 +714,7 @@ def test_read_csv_index_col_name(resources_path):
         got = pd.read_csv(
             test_files.test_file_csv_header, names=["c1", "c2", "c3"], index_col=["c3"]
         )
-        #breakpoint()
+        # breakpoint()
         assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
     test_files = TestFiles(resources_path)
