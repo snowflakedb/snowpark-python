@@ -190,6 +190,7 @@ def test_pivot_table_unsupported_dropna_with_expanded_aggregation_margins_unsupp
     "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
 )
 class TestPivotTableMarginsNoIndex:
+    @sql_count_checker(query_count=1, join_count=1)
     def test_single_value_single_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
             df_data,
@@ -202,6 +203,7 @@ class TestPivotTableMarginsNoIndex:
             },
         )
 
+    @sql_count_checker(query_count=1, join_count=1, union_count=2)
     def test_multiple_value_single_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
             df_data,
@@ -214,6 +216,7 @@ class TestPivotTableMarginsNoIndex:
             },
         )
 
+    @sql_count_checker(query_count=1, join_count=3)
     def test_single_value_multiple_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
             df_data,
@@ -226,6 +229,7 @@ class TestPivotTableMarginsNoIndex:
             },
         )
 
+    @sql_count_checker(query_count=1, join_count=5, union_count=2)
     def test_multiple_value_multiple_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
             df_data,
