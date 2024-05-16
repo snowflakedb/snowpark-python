@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -117,7 +116,9 @@ def _extract_schema_and_data_from_pandas_df(
                 def convert_to_python_obj(obj):
                     if isinstance(obj, numpy.float_):
                         return float(obj)
-                    elif isinstance(obj, numpy.int_):
+                    elif isinstance(obj, numpy.int64):
+                        # on Windows, numpy.int64 and numpy.int_ are different
+                        # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
                         return int(obj.value / 1000)
@@ -138,6 +139,8 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Period):
                 # snowflake returns the ordinal of a period object
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].ordinal
+            elif isinstance(plain_data[row_idx][col_idx], type(pd.NaT)):
+                plain_data[row_idx][col_idx] = None
             else:
                 previous_inferred_type = inferred_type_dict.get(col_idx)
                 data_type = infer_type(plain_data[row_idx][col_idx])
@@ -164,7 +167,7 @@ def _extract_schema_and_data_from_pandas_df(
                                 "scale": str(scale),
                                 "data_type": type(data_type).__name__,
                             },
-                            raise_error=SnowparkClientException,
+                            raise_error=NotImplementedError,
                         )
                     # handle integer and float separately
                     data_type = DecimalType(precision=precision, scale=scale)
@@ -183,7 +186,7 @@ def _extract_schema_and_data_from_pandas_df(
                                     type(previous_inferred_type).__name__
                                 ),
                             },
-                            raise_error=SnowparkClientException,
+                            raise_error=NotImplementedError,
                         )
                     if isinstance(inferred_type_dict[col_idx], DecimalType):
                         inferred_type_dict[col_idx] = DecimalType(

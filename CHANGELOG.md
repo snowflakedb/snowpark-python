@@ -2,7 +2,24 @@
 
 ## 1.17.0 (TBD)
 
+### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+
 ### Local Testing Updates
+
+#### New Features
+
+- Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
+- Added support for DecimalType, BinaryType, ArrayType, MapType, TimestampType, DateType and TimeType data conversion in the mocked function `to_char`.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions:
+    - to_varchar
+  - snowflake.snowpark.DataFrame:
+    - pivot
+  - snowflake.snowpark.Session:
+    - cancel_all
+- Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
 
 #### Bug Fixes
 
@@ -12,6 +29,17 @@
 - Fixed a bug that stage operation can not handle directories.
 - Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
 - Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
+- Fixed a bug that when processing datetime format, fractional second part is not handled properly.
+- Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
+- Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
+- Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
+- Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+
+#### Improvements
+
+- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
+- Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
+- Aligned error experience with reusing a closed session in non-local execution.
 
 ## 1.16.0 (TBD)
 

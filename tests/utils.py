@@ -29,10 +29,12 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
 )
 from snowflake.snowpark.functions import (
+    array_construct,
     col,
     lit,
     object_construct,
     parse_json,
+    parse_xml,
     to_array,
     to_binary,
     to_date,
@@ -40,6 +42,7 @@ from snowflake.snowpark.functions import (
     to_double,
     to_object,
     to_time,
+    to_timestamp,
     to_timestamp_ltz,
     to_timestamp_ntz,
     to_timestamp_tz,
@@ -139,12 +142,18 @@ class Utils:
 
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
     def drop_stage(session: "Session", name: str):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
@@ -578,8 +587,8 @@ class TestData:
 
     @classmethod
     def nan_data1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.2),('NaN'::Double),(null),(2.3) as T(a)"
+        return session.create_dataframe(
+            [(1.2,), (math.nan,), (None,), (2.3,)], schema=["a"]
         )
 
     @classmethod
@@ -588,7 +597,16 @@ class TestData:
 
     @classmethod
     def duplicated_numbers(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
+        return session.create_dataframe(
+            [
+                (3,),
+                (2,),
+                (1,),
+                (3,),
+                (2,),
+            ],
+            schema=["a"],
+        )
 
     @classmethod
     def approx_numbers(cls, session: "Session") -> DataFrame:
@@ -658,9 +676,16 @@ class TestData:
 
     @classmethod
     def array1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
-            "from values(1,2,3,3,4,5),(6,7,8,9,0,1) as T(a,b,c,d,e,f)"
+        df = session.create_dataframe(
+            [
+                (1, 2, 3, 3, 4, 5),
+                (6, 7, 8, 9, 0, 1),
+            ],
+            schema=["a", "b", "c", "d", "e", "f"],
+        )
+        return df.select(
+            array_construct("a", "b", "c").alias("arr1"),
+            array_construct("d", "e", "f").alias("arr2"),
         )
 
     @classmethod
@@ -730,7 +755,7 @@ class TestData:
 
     @classmethod
     def zero1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(0) as T(a)")
+        return session.create_dataframe([(0,)], schema=["a"])
 
     @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
@@ -791,6 +816,7 @@ class TestData:
                 1706774400,
                 "2024-02-01 00:00:00.000000",
                 "Thu, 01 Feb 2024 00:00:00 -0600",
+                "1706774400",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -808,6 +834,7 @@ class TestData:
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
                 StructField("str_w_tz", StringType()),
+                StructField("str_ts", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
@@ -1000,10 +1027,15 @@ class TestData:
 
     @classmethod
     def valid_json1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
-            "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
-        )
+        return session.create_dataframe(
+            [
+                ('{"a": null}', "a"),
+                ('{"a": "foo"}', "a"),
+                ('{"a": "foo"}', "b"),
+                (None, "a"),
+            ],
+            schema=["v", "k"],
+        ).select(parse_json("v").alias("v"), "k")
 
     @classmethod
     def invalid_json1(cls, session: "Session") -> DataFrame:
@@ -1013,17 +1045,30 @@ class TestData:
 
     @classmethod
     def null_xml1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
-            "('<t1></t1>'), (null), ('')"
+        return session.create_dataframe(
+            [
+                ("<t1>foo<t2>bar</t2><t3></t3></t1>",),
+                ("<t1></t1>",),
+                (None,),
+                ("",),
+            ],
+            schema=["v"],
         )
 
     @classmethod
     def valid_xml1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
-            + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
-            + "('<t1><t2>foo</t2><t2>bar</t2></t1>','t2','t3',1) as T(a,b,c,d)"
+        return session.create_dataframe(
+            [
+                ("<t1>foo<t2>bar</t2><t3></t3></t1>", "t2", "t3", 0),
+                ("<t1></t1>", "t2", "t3", 0),
+                ("<t1><t2>foo</t2><t2>bar</t2></t1>", "t2", "t3", 1),
+            ],
+            schema=["a", "b", "c", "d"],
+        ).select(
+            parse_xml("a").alias("v"),
+            col("b").alias("t2"),
+            col("c").alias("t3"),
+            col("d").alias("instance"),
         )
 
     @classmethod
@@ -1071,10 +1116,9 @@ class TestData:
 
     @classmethod
     def timestamp1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
-            "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
-        )
+        return session.create_dataframe(
+            [("2020-05-01 13:11:20.000",), ("2020-08-21 01:30:05.000",)], schema=["a"]
+        ).select(to_timestamp("a").alias("a"))
 
     @classmethod
     def xyz(cls, session: "Session") -> DataFrame:
@@ -1334,6 +1378,14 @@ class TestFiles:
     @property
     def test_conda_environment_file(self):
         return os.path.join(self.resources_path, "test_environment.yml")
+
+    @property
+    def test_concat_file1_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file1.csv")
+
+    @property
+    def test_concat_file2_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file2.csv")
 
 
 class TypeMap(NamedTuple):

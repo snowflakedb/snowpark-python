@@ -658,7 +658,6 @@ def to_numeric(
     errors: Literal["ignore", "raise", "coerce"] = "raise",
     downcast: Literal["integer", "signed", "unsigned", "float"] | None = None,
 ) -> Series | Scalar | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to a numeric type.
 
@@ -719,12 +718,6 @@ def to_numeric(
     2   -3.0
     dtype: float64
     >>> s = pd.Series(['apple', '1.0', '2', -3])
-    >>> pd.to_numeric(s, errors='ignore')  # doctest: +SKIP
-    0    apple
-    1      1.0
-    2        2
-    3       -3
-    dtype: object
     >>> pd.to_numeric(s, errors='coerce')
     0    NaN
     1    1.0
@@ -1076,7 +1069,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1193,7 +1185,17 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1215,6 +1217,10 @@ def concat(
             argument="copy",
             message="copy parameter has been ignored with Snowflake execution engine",
         )
+
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
 
     result = objs[0]._query_compiler.concat(
         axis,
@@ -1250,7 +1256,6 @@ def to_datetime(
     origin: Any = "unix",
     cache: bool = True,
 ) -> Series | DatetimeScalar | NaTType | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to datetime.
 
@@ -1485,11 +1490,6 @@ def to_datetime(
 
     Passing ``errors='coerce'`` will force an out-of-bounds date to :const:`NaT`,
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
-
-    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')  # doctest: +SKIP
-    0    13000101
-    1         abc
-    dtype: object
 
     >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='coerce')
     0   NaT
@@ -2058,14 +2058,6 @@ def date_range(
     4   2019-01-31
     dtype: datetime64[ns]
 
-    Specify `tz` to set the timezone.
-
-    >>> pd.date_range(start='1/1/2018', periods=5, tz='Asia/Tokyo')  # doctest: +SKIP
-    DatetimeIndex(['2018-01-01 00:00:00+09:00', '2018-01-02 00:00:00+09:00',
-                   '2018-01-03 00:00:00+09:00', '2018-01-04 00:00:00+09:00',
-                   '2018-01-05 00:00:00+09:00'],
-                  dtype='datetime64[ns, Asia/Tokyo]', freq='D')
-
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
 
@@ -2145,7 +2137,6 @@ def date_range(
     return s
 
 
-@_inherit_docstrings(pandas.qcut, apilink="pandas.qcut")
 @snowpark_pandas_telemetry_standalone_function_decorator
 def qcut(
     x: np.ndarray | Series,
@@ -2154,14 +2145,46 @@ def qcut(
     retbins: bool = False,
     precision: int = 3,
     duplicates: Literal["raise"] | Literal["drop"] = "raise",
-):  # noqa: PR01, RT01, D200
+) -> Series:
     """
-    Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas.
+    Quantile-based discretization function.
 
-    labels=False will run binning computation in Snowflake, whereas if labels is an array
-    the data will be fetched to the client and the binning run client-side, as Snowpark pandas API does
-    not yet support pd.Categorical in its ORM mapper.
+    Discretize variable into equal-sized buckets based on rank or based
+    on sample quantiles.
+
+    Parameters
+    ----------
+    x : 1-D ndarray or Series
+        The data across which to compute buckets. If a Snowpark pandas Series is passed, the computation
+        is distributed. Otherwise, if a numpy array or list is provided, the computation is performed
+        client-side instead.
+
+    q : int or list-like of float
+        Number of quantiles. 10 for deciles, 4 for quartiles, etc. Alternately array of quantiles,
+        e.g. [0, .25, .5, .75, 1.] for quartiles.
+
+    labels : array or False, default None
+        Used as labels for the resulting bin. Must be of the same length as the resulting bins. If False,
+        return only integer indicators of the bins. If True, raise an error.
+
+        ``labels=False`` will run binning computation in Snowflake; other values are not yet supported
+        in Snowpark pandas.
+
+    retbins : bool, default False
+        Whether to return the (bins, labels) or not. Can be useful if bins is given as a scalar.
+        ``retbins=True`` is not yet supported in Snowpark pandas.
+
+    precision : int, optional
+        The precision at which to store and display the bins labels.
+
+    duplicates : {default 'raise', 'drop'}, optional
+        If bin edges are not unique, raise ValueError or drop non-uniques.
+
+    Returns
+    -------
+    Series
+        Since Snowpark pandas does not yet support the ``pd.Categorical`` type, unlike native pandas, the
+        return value is always a Series.
     """
 
     kwargs = {
@@ -2192,27 +2215,29 @@ def qcut(
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
-        return pandas.qcut(x.to_pandas(), q, **kwargs)
+        ErrorMessage.not_implemented(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        )
 
     ans = x._qcut(q, retbins, duplicates)
 
-    # Within Snowpark Pandas, we avoid issuing a count query. However, for qcut if q !=1 and x is a Series/list-like containing
-    # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
-    #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-    # With q qcut being an API that requires conversion, we can mimick this behavior here.
-    ret = ans.to_pandas().to_numpy()
-
-    if len(ret) == 1 and isinstance(q, int) and q != 1:
+    if isinstance(q, int) and q != 1 and len(ans) == 1:
         if duplicates == "raise":
+            # We issue a count query since if q !=1 and x is a Series/list-like containing
+            # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
+            #                You can drop duplicate edges by setting the 'duplicates' kwarg.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
+
             # Produce raising error.
             raise ValueError(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            # The result will always be NaN because no unique bin could be found.
+            return pd.Series([np.nan])
 
-    return ret
+    return ans
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
