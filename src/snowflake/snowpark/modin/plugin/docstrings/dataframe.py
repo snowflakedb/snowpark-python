@@ -719,7 +719,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         is inferred from the return type of the applied function. Otherwise,
         it depends on the `result_type` argument.
 
-        Snowpark pandas currently only supports ``apply`` with ``axis=`` and callable ``func``.
+        Snowpark pandas currently only supports ``apply`` with ``axis=1`` and callable ``func``.
 
         Parameters
         ----------
