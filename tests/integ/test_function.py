@@ -593,9 +593,7 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # TODO: SNOW-1235716 error experience
-    with pytest.raises(
-        SnowparkSQLException if not local_testing_mode else ValueError
-    ) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sqrt(lit(-1))).collect()
     if not local_testing_mode:
         assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
