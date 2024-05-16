@@ -848,7 +848,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         dtype: float64
 
         or annotate the function
-        to with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
+        with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
 
         >>> from snowflake.snowpark.functions import udf
         >>> from snowflake.snowpark.types import DoubleType
