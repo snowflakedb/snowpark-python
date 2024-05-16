@@ -48,3 +48,23 @@ def test_series_negative_axis_1():
 
 
 # TODO: SNOW-1023324 add tests for freq != None
+
+
+@pytest.mark.parametrize(
+    "params, match",
+    [
+        (
+            {"periods": [1, 2, 3]},
+            "does not yet support non-int scalar values of `periods`",
+        ),
+        (
+            {"periods": [1], "suffix": "_suffix"},
+            "does not yet support the `suffix` parameter",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_shift_unsupported_args(params, match):
+    df = pd.Series(TEST_SERIES[2])
+    with pytest.raises(NotImplementedError, match):
+        df.shift(**params).to_pandas()

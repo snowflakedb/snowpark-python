@@ -2254,13 +2254,14 @@ class DataFrame(BasePandasDataset):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ) -> DataFrame:
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        return super().shift(periods, freq, axis, fill_value)
+        return super().shift(periods, freq, axis, fill_value, suffix)
 
     def set_index(
         self,
