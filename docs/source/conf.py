@@ -65,9 +65,9 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-# html_theme = 'alabaster'
+html_theme = 'alabaster'
 # html_theme = 'sphinx_rtd_theme'
-html_theme = "empty"
+# html_theme = "empty"
 
 html_theme_path = [
     "_themes",
