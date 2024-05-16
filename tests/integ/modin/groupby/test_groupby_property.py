@@ -262,6 +262,7 @@ def test_groups_grouping_by_single_index_column_with_sort_false(
     # the original dataframe, that is in basic_snowpark_pandas_df_with_missing_values.
     # see PANDAS_SORT_BUG_REASON for why we test this case separately and cannot use pandas
     # to create the expected output.
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     assert_dicts_equal(
         basic_snowpark_pandas_df_with_missing_values.set_index(["col3", "col4"])
         .groupby(by="col3", sort=False, dropna=False)
@@ -269,22 +270,40 @@ def test_groups_grouping_by_single_index_column_with_sort_false(
         PrettyDict(
             {
                 3.1: pd.MultiIndex.from_arrays(
-                    [pd.Index([3.1], name="col3"), pd.Index([17.0], name="col4")]
+                    [
+                        pd.Index([3.1], name="col3").to_pandas(),
+                        pd.Index([17.0], name="col4").to_pandas(),
+                    ]
                 ),
                 8.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([8.0], name="col3"), pd.Index([3.0], name="col4")]
+                    [
+                        pd.Index([8.0], name="col3").to_pandas(),
+                        pd.Index([3.0], name="col4").to_pandas(),
+                    ]
                 ),
                 12.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([12.0], name="col3"), pd.Index([16.0], name="col4")]
+                    [
+                        pd.Index([12.0], name="col3").to_pandas(),
+                        pd.Index([16.0], name="col4").to_pandas(),
+                    ]
                 ),
                 10.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([10.0], name="col3"), pd.Index([15.0], name="col4")]
+                    [
+                        pd.Index([10.0], name="col3").to_pandas(),
+                        pd.Index([15.0], name="col4").to_pandas(),
+                    ]
                 ),
                 4.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([4.0], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        pd.Index([4.0], name="col3").to_pandas(),
+                        pd.Index([np.nan], name="col4").to_pandas(),
+                    ]
                 ),
                 np.nan: pd.MultiIndex.from_arrays(
-                    [pd.Index([np.nan], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        pd.Index([np.nan], name="col3").to_pandas(),
+                        pd.Index([np.nan], name="col4").to_pandas(),
+                    ]
                 ),
             }
         ),

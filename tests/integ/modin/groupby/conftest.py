@@ -153,8 +153,7 @@ def series_multi_numeric():
 
 @pytest.fixture(scope="function")
 def series_str():
-    index = pd.Index(["a", "b", "b", "a", "c"])
-    index.names = ["grp_col"]
+    index = pd.Index(["a", "b", "b", "a", "c"], name="grp_col")
     return pd.Series(["ac", "ea", "be", "ce", "dc"], index=index)
 
 

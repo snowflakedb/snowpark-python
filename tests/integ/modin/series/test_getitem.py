@@ -35,10 +35,16 @@ def test_series_getitem_with_boolean_list_like(
         # Native pandas can only handle boolean list-likes objects of length = num(rows).
         if isinstance(ser, native_pd.Series):
             # If native pandas Series, truncate the series and key.
-            _ser = ser[: len(key)]
-            _key = key[: len(_ser)]
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            _ser = ser[: len(key.to_pandas() if isinstance(key, pd.Index) else key)]
+            _key = (
+                key.to_pandas()[: len(_ser)]
+                if isinstance(key, pd.Index)
+                else key[: len(_ser)]
+            )
         else:
-            _key, _ser = key, ser
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            _key, _ser = key.to_pandas() if isinstance(key, pd.Index) else key, ser
         return _ser[_key]
 
     eval_snowpark_pandas_result(
@@ -141,7 +147,8 @@ def test_series_getitem_with_empty_keys(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_series,
         default_index_native_series,
-        lambda ser: ser[key],
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        lambda ser: ser[key.to_pandas() if isinstance(key, pd.Index) else key],
     )
 
 

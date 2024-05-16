@@ -76,7 +76,10 @@ def test_isin_integer_data(values, expected_query_count):
         eval_snowpark_pandas_result(
             snow_series,
             native_series,
-            lambda s: _test_isin_with_snowflake_logic(s, values),
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            lambda s: _test_isin_with_snowflake_logic(
+                s, values.to_pandas() if isinstance(values, pd.Index) else values
+            ),
         )
 
 

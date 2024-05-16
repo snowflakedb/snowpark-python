@@ -605,8 +605,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 pd.Series(index.get_level_values(level))
                 for level in range(index.nlevels)
             ]
-        elif isinstance(index, pd.Index):
+        elif isinstance(index, (pd.Index, pandas.Index)):
             return [pd.Series(index)]
+        else:
+            raise TypeError("Index must be pd.Index or pd.MultiIndex object")
 
     def _set_index(self, new_index: Axes) -> None:
         """
@@ -669,7 +671,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             The union of all indexes across the partitions.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._query_compiler.index
+        return pd.Index(data=self)
 
     index = property(_get_index, _set_index)
 
@@ -1468,7 +1470,8 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             raise ValueError("invalid how option: %s" % how)
         if subset is not None:
             if axis == 1:
-                indices = self.index.get_indexer_for(subset)
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                indices = self.index.to_pandas().get_indexer_for(subset)
                 check = indices == -1
                 if check.any():
                     raise KeyError(list(np.compress(check, subset)))

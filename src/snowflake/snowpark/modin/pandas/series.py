@@ -130,7 +130,8 @@ class Series(BasePandasDataset):
         if isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
             if index is not None:
-                if any(i not in data.index for i in index):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                if any(i not in data.index.to_pandas() for i in index):
                     ErrorMessage.not_implemented(
                         "Passing non-existent columns or index values to constructor "
                         + "not yet implemented."
@@ -149,8 +150,11 @@ class Series(BasePandasDataset):
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
-                        data=data,
-                        index=index,
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        data=data.to_pandas() if isinstance(data, pd.Index) else data,
+                        index=index.to_pandas()
+                        if isinstance(index, pd.Index)
+                        else index,
                         dtype=dtype,
                         name=name,
                         copy=copy,
@@ -244,7 +248,9 @@ class Series(BasePandasDataset):
         bool
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return key in self.index
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        index = self.index
+        return key in index.to_pandas() if isinstance(index, pd.Index) else key in index
 
     def __copy__(self, deep=True):
         """
@@ -641,6 +647,10 @@ class Series(BasePandasDataset):
             # With __setitem__, the length of the value must match length of the key. Currently, loc setitem can
             # handle this with boolean keys.
 
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(key, pd.Index):
+                key = key.to_pandas()
+
             # Convert list-like keys to Series.
             if not isinstance(key, pd.Series) and is_list_like(key):
                 key = pd.Series(key)
@@ -663,6 +673,9 @@ class Series(BasePandasDataset):
             self._update_inplace(new_query_compiler=new_qc)
 
         else:
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(key, pd.Index):
+                key = key.to_pandas()
             self.loc[key] = value
 
     def __sub__(self, right):

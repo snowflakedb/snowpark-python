@@ -415,6 +415,7 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
+
             ret = pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
@@ -427,6 +428,8 @@ class InternalFrame:
             # example, an empty dataframe will be object dtype by default, or a variant, or a timestamp column with
             # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
             # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
             if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
                 ret = ret.astype(index_type)
             return ret

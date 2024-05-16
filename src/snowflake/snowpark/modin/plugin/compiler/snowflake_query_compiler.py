@@ -1767,13 +1767,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # -------------------------
             return self._binary_op_scalar_rhs(op, other, fill_value)
 
-        if not isinstance(other, (Series, DataFrame)) and is_list_like(other):
+        if not isinstance(other, (Series, DataFrame)):
             # (Case 2): other is list-like
             # ----------------------------
-            if axis == 0:
-                return self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
-            else:  # axis=1
-                return self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(other, pd.Index):
+                other = other.to_pandas()
+            if is_list_like(other):
+                if axis == 0:
+                    return self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
+                else:  # axis=1
+                    return self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
 
         if squeeze_self and isinstance(other, Series):
             # (Case 3): Series/Series
@@ -3585,7 +3589,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             #
             # into {2: pd.Index([0, 4]), 9: pd.Index([0])}
             aggregated_as_pandas.iloc[:, 0].map(
-                lambda v: pd.Index(
+                lambda v: native_pd.Index(
                     v,
                     # note that the index dtype has to match the original
                     # index's dtype, even if we could use a more restrictive
@@ -3611,7 +3615,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         # note that the index dtype has to match the original
                         # index's dtype, even if we could use a more restrictive
                         # type for this portion of the index.
-                        pd.Index(
+                        native_pd.Index(
                             row.iloc[i],
                             name=original_index_name,
                             dtype=index_dtype,
@@ -4698,7 +4702,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         ).result_frame
                         if not label_join_result.num_rows:
                             raise KeyError(
-                                f"{index_renamer.index.values.tolist()} not found in axis"
+                                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                                f"{index_renamer.index.to_pandas().values.tolist()} not found in axis"
                             )
 
                     # Left join index_renamer_internal_frame.

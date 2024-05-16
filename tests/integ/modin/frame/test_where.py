@@ -639,7 +639,7 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names_2():
     snow_other_df = pd.DataFrame(other, columns=["B"])
 
     native_df = native_pd.DataFrame(
-        data, columns=["A"], index=pd.Index([1, 2, 3], name="B")
+        data, columns=["A"], index=native_pd.Index([1, 2, 3], name="B")
     )
     native_cond_df = native_pd.DataFrame(cond, columns=["A"])
     native_other_df = native_pd.DataFrame(other, columns=["B"])
@@ -674,16 +674,17 @@ def test_dataframe_where_with_duplicated_index_aligned(cond_frame, other):
     data = [3, 4, 5, 2]
     # index with duplicated value 2
     index = pd.Index([2, 1, 2, 3], name="index")
+    native_index = native_pd.Index([2, 1, 2, 3], name="index")
     snow_df = pd.DataFrame({"A": data}, index=index)
-    native_df = native_pd.DataFrame({"A": data}, index=index)
+    native_df = native_pd.DataFrame({"A": data}, index=native_index)
 
     native_cond = cond_frame
-    native_cond.index = index
+    native_cond.index = native_index
     snow_cond = pd.DataFrame(native_cond)
 
     if isinstance(other, native_pd.DataFrame):
         native_other = other
-        native_other.index = index
+        native_other.index = native_index
         snow_other = pd.DataFrame(native_other)
     else:
         native_other = other
@@ -720,7 +721,7 @@ def test_dataframe_where_with_duplicated_index_unaligned():
     # requires eager evaluation.
     expected_pandas = native_pd.DataFrame(
         {"A": [3, 3, 5, 6, 4, 5, 5, 5, 6, 2]},
-        index=pd.Index([2, 2, 2, 2, 1, 2, 2, 2, 2, 3], name="index"),
+        index=native_pd.Index([2, 2, 2, 2, 1, 2, 2, 2, 2, 3], name="index"),
     )
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_res, expected_pandas

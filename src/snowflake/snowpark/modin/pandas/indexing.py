@@ -552,7 +552,7 @@ class _LocationIndexerBase:
 
         if not (
             is_scalar(key)
-            or isinstance(key, (pd.Series, slice))
+            or isinstance(key, (pd.Series, slice, pd.Index))
             or is_list_like(key)
             or is_range_like(key)
         ):
@@ -805,8 +805,12 @@ class _LocIndexer(_LocationIndexerBase):
             locator=row_loc, axis=0
         ), self._should_squeeze(locator=col_loc, axis=1)
 
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         qc_view = self.qc.take_2d_labels(
-            self._locator_type_convert(row_loc), self._locator_type_convert(col_loc)
+            self._locator_type_convert(row_loc.to_pandas())
+            if isinstance(row_loc, pd.Index)
+            else self._locator_type_convert(row_loc),
+            self._locator_type_convert(col_loc),
         )
 
         result = self._get_pandas_object_from_qc_view(
@@ -875,9 +879,14 @@ class _LocIndexer(_LocationIndexerBase):
                 "loc set for multiindex is not yet implemented"
             )
 
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        if isinstance(item, pd.Index):
+            item = item.to_pandas()
+        if isinstance(row_loc, pd.Index):
+            row_loc = row_loc.to_pandas()
         self._validate_item_type(item, row_loc)
-
         # If the row key is list-like (Index, list, np.ndarray, etc.), convert it to Series.
+
         if not isinstance(row_loc, pd.Series) and is_list_like(row_loc):
             row_loc = pd.Series(row_loc)
 
@@ -904,6 +913,9 @@ class _LocIndexer(_LocationIndexerBase):
         if item_is_2d_array:
             item = pd.DataFrame(item)
         item = item._query_compiler if isinstance(item, BasePandasDataset) else item
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        if isinstance(columns, pd.Index):
+            columns = columns.to_pandas()
         new_qc = self.qc.set_2d_labels(
             index,
             columns,
@@ -1044,6 +1056,9 @@ class _iLocIndexer(_LocationIndexerBase):
         """
         # TODO: SNOW-1063355: Modin upgrade - modin.pandas.indexing._iLocIndexer
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        if isinstance(row_loc, pd.Index):
+            row_loc = row_loc.to_pandas()
         squeeze_row = self._should_squeeze(locator=row_loc, axis=0)
         squeeze_col = self._should_squeeze(locator=col_loc, axis=1)
 
@@ -1175,6 +1190,9 @@ class _iLocIndexer(_LocationIndexerBase):
 
             if isinstance(item, pandas.Index):
                 item = np.array(item.tolist()).transpose()
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            elif isinstance(item, pd.Index):
+                item = np.array(item.to_pandas().tolist()).transpose()
             else:
                 item = np.array(item)
 

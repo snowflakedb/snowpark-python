@@ -159,7 +159,10 @@ class DataFrame(BasePandasDataset):
         # Engine.subscribe(_update_engine)
         if isinstance(data, (DataFrame, Series)):
             self._query_compiler = data._query_compiler.copy()
-            if index is not None and any(i not in data.index for i in index):
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if index is not None and any(
+                i not in data.index.to_pandas() for i in index
+            ):
                 ErrorMessage.not_implemented(
                     "Passing non-existant columns or index values to constructor not"
                     + " yet implemented."
@@ -227,9 +230,21 @@ class DataFrame(BasePandasDataset):
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
-                        new_qc = new_qc.reindex(axis=0, labels=index)
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        new_qc = new_qc.reindex(
+                            axis=0,
+                            labels=index.to_pandas()
+                            if isinstance(index, pd.Index)
+                            else index,
+                        )
                     if columns is not None:
-                        new_qc = new_qc.reindex(axis=1, labels=columns)
+                        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                        new_qc = new_qc.reindex(
+                            axis=1,
+                            labels=columns.to_pandas()
+                            if isinstance(columns, pd.Index)
+                            else columns,
+                        )
 
                     self._query_compiler = new_qc
                     return
@@ -238,8 +253,15 @@ class DataFrame(BasePandasDataset):
                     k: v._to_pandas() if isinstance(v, Series) else v
                     for k, v in data.items()
                 }
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
             pandas_df = pandas.DataFrame(
-                data=data, index=index, columns=columns, dtype=dtype, copy=copy
+                data=data.to_pandas() if isinstance(data, pd.Index) else data,
+                index=index.to_pandas() if isinstance(index, pd.Index) else index,
+                columns=columns.to_pandas()
+                if isinstance(columns, pd.Index)
+                else columns,
+                dtype=dtype,
+                copy=copy,
             )
             self._query_compiler = from_pandas(pandas_df)._query_compiler
         else:
@@ -576,7 +598,6 @@ class DataFrame(BasePandasDataset):
                         external_by.append(current_by)
 
                 by = internal_by + external_by
-
         return DataFrameGroupBy(
             self,
             by,
@@ -2265,7 +2286,15 @@ class DataFrame(BasePandasDataset):
     def set_index(
         self,
         keys: IndexLabel
-        | list[IndexLabel | pd.Index | pd.Series | list | np.ndarray | Iterable],
+        | list[
+            IndexLabel
+            | pd.Index
+            | pandas.Index
+            | pd.Series
+            | list
+            | np.ndarray
+            | Iterable
+        ],
         drop: bool = True,
         append: bool = False,
         inplace: bool = False,
@@ -2291,6 +2320,11 @@ class DataFrame(BasePandasDataset):
             elif isinstance(key, (np.ndarray, list, Iterator)):
                 label_or_series.append(pd.Series(key)._query_compiler)
             elif isinstance(key, pd.Index):
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                label_or_series += [
+                    s._query_compiler for s in self._to_series_list(key.to_pandas())
+                ]
+            elif isinstance(key, pandas.Index):
                 label_or_series += [
                     s._query_compiler for s in self._to_series_list(key)
                 ]
@@ -2316,12 +2350,13 @@ class DataFrame(BasePandasDataset):
         )
 
         # TODO: SNOW-782633 improve this code once duplicate is supported
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         # this needs to pull all index which is inefficient
-        if verify_integrity and not new_query_compiler.index.is_unique:
-            duplicates = new_query_compiler.index[
-                new_query_compiler.index.duplicated()
-            ].unique()
-            raise ValueError(f"Index has duplicate keys: {duplicates}")
+        if verify_integrity:
+            pandas_index = new_query_compiler.index.to_pandas()
+            if not pandas_index.is_unique:
+                duplicates = pandas_index[pandas_index.duplicated()].unique()
+                raise ValueError(f"Index has duplicate keys: {duplicates}")
 
         return self._create_or_update_from_compiler(new_query_compiler, inplace=inplace)
 
@@ -3377,8 +3412,10 @@ class DataFrame(BasePandasDataset):
         axis = self._get_axis_number(axis)
         renamed = self if inplace else self.copy()
         if axis == 0:
-            renamed.index = renamed.index.set_names(name)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            renamed.index = pd.Index(renamed.index.to_pandas().set_names(name))
         else:
+            # TODO: SNOW-1372242: Do we want columns here to be a pandas index or a modin index
             renamed.columns = renamed.columns.set_names(name)
         if not inplace:
             return renamed

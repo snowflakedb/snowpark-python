@@ -416,7 +416,11 @@ def list_like_rhs_params(values):
 def test_binary_logic_operations_between_series_and_list_like(op, rhs):
     lhs = [True, True, False, False, True, False]
     eval_snowpark_pandas_result(
-        *create_test_series(lhs), lambda df: getattr(df, op)(rhs)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        *create_test_series(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs
+        ),
     )
 
 
@@ -426,7 +430,13 @@ def test_binary_logic_operations_between_series_and_list_like(op, rhs):
 def test_binary_logic_operations_between_df_and_list_like(op, rhs):
     # These operations are performed only on axis=1 for dataframes. There is no axis parameter for the op.
     lhs = [[True, True, False], [False, False, True]]
-    eval_snowpark_pandas_result(*create_test_dfs(lhs), lambda df: getattr(df, op)(rhs))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    eval_snowpark_pandas_result(
+        *create_test_dfs(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs
+        ),
+    )
 
 
 @pytest.mark.parametrize(
@@ -485,7 +495,11 @@ def test_binary_comparison_between_df_and_list_like_on_axis_0(op, rhs):
 def test_binary_comparison_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[1, 2, 2], [3, 1, 3]]
     eval_snowpark_pandas_result(
-        *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=1)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        *create_test_dfs(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
     )
 
 
@@ -782,10 +796,17 @@ class TestFillValue:
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         def op_helper(ser):
             other = rhs
-            if isinstance(other, pd.Index) and isinstance(ser, native_pd.Series):
+            if (isinstance(other, (pd.Index, native_pd.Index))) and isinstance(
+                ser, native_pd.Series
+            ):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
-                index_as_list = other.tolist()
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                index_as_list = (
+                    other.to_pandas().tolist()
+                    if isinstance(other, pd.Index)
+                    else other.to_list()
+                )
                 # Since the behavior of all list-like objects is supposed to be the same, convert index to a list
                 # for native pandas and compare it with the index version for Snowpark pandas.
                 # The issue is that native pandas calls isna() directly on other and errors with:
@@ -811,7 +832,12 @@ class TestFillValue:
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         eval_snowpark_pandas_result(
             *create_test_dfs(lhs),
-            lambda df: getattr(df, op)(other=rhs, fill_value=fill_value, axis=0),
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            lambda df: getattr(df, op)(
+                other=rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs,
+                fill_value=fill_value,
+                axis=0,
+            ),
         )
 
     @pytest.mark.parametrize("rhs", list_like_rhs_params([-55, -2, np.nan, np.nan]))
@@ -826,7 +852,12 @@ class TestFillValue:
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         eval_snowpark_pandas_result(
             *create_test_dfs(lhs),
-            lambda df: getattr(df, op)(other=rhs, fill_value=fill_value, axis=1),
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            lambda df: getattr(df, op)(
+                other=rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs,
+                fill_value=fill_value,
+                axis=1,
+            ),
         )
 
     @pytest.mark.parametrize("fill_value", [native_pd.Series([1, 2, 3]), []])
@@ -897,7 +928,8 @@ class TestFillValue:
         def op_helper(df):
             other = rhs
             if isinstance(df, native_pd.DataFrame):
-                other = rhs[:3]
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                other = rhs.to_pandas()[:3] if isinstance(rhs, pd.Index) else rhs[:3]
                 if len(other) < 3:
                     other = [55, np.nan, np.nan]
             return getattr(df, op)(other=other, fill_value=fill_value, axis=1)
@@ -920,7 +952,8 @@ class TestFillValue:
         def op_helper(df):
             other = rhs
             if isinstance(df, native_pd.DataFrame):
-                other = rhs[:3]
+                # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+                other = rhs.to_pandas()[:3] if isinstance(rhs, pd.Index) else rhs[:3]
                 if len(other) < 3:
                     other = [-55, np.nan, np.nan]
             return getattr(df, op)(other=other, fill_value=fill_value, axis=0)
@@ -998,7 +1031,11 @@ def test_binary_arithmetic_ops_between_df_and_list_like_on_axis_0(op, rhs):
 def test_binary_arithmetic_ops_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[-0.32, 6.555, 1.34], [10, 0, 1000]]
     eval_snowpark_pandas_result(
-        *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=1)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        *create_test_dfs(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
     )
 
 
@@ -1028,7 +1065,12 @@ def test_binary_div_between_df_and_list_like_on_axis_0(op, rhs):
 def test_binary_div_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[25, 2.5, 0.677], [-3.33, -12, 7.777]]
     eval_snowpark_pandas_result(
-        *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=1), atol=0.001
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        *create_test_dfs(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
+        atol=0.001,
     )
 
 
@@ -1593,7 +1635,11 @@ def test_binary_mod_between_df_and_list_like_on_axis_0(op, rhs):
 def test_binary_mod_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[-73, 18, 7287], [-159, 158, 267]]
     eval_snowpark_pandas_result(
-        *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=1)
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        *create_test_dfs(lhs),
+        lambda df: getattr(df, op)(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
     )
 
 
@@ -1630,7 +1676,11 @@ def test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior(op, rh
     # The error message points out the values at respective indices that are different.
     with pytest.raises(AssertionError, match="are different"):
         eval_snowpark_pandas_result(
-            *create_test_dfs(lhs), lambda df: getattr(df, op)(rhs, axis=1)
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            *create_test_dfs(lhs),
+            lambda df: getattr(df, op)(
+                rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+            ),
         )
 
 
@@ -1803,7 +1853,13 @@ def test_binary_pow_between_df_and_list_like_on_axis_0(rhs):
 @sql_count_checker(query_count=1)
 def test_binary_pow_between_df_and_list_like_on_axis_1(rhs):
     lhs = [[12, -36, 2], [-8, 21, -78]]
-    eval_snowpark_pandas_result(*create_test_dfs(lhs), lambda df: df.pow(rhs, axis=1))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    eval_snowpark_pandas_result(
+        *create_test_dfs(lhs),
+        lambda df: df.pow(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
+    )
 
 
 @pytest.mark.parametrize("rhs", list_like_rhs_params([72, -15, -62]))
@@ -1817,7 +1873,13 @@ def test_binary_rpow_between_df_and_list_like_on_axis_0(rhs):
 @sql_count_checker(query_count=1)
 def test_binary_rpow_between_df_and_list_like_on_axis_1(rhs):
     lhs = [[1, 2, 3], [4, 5, 6]]
-    eval_snowpark_pandas_result(*create_test_dfs(lhs), lambda df: df.rpow(rhs, axis=1))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    eval_snowpark_pandas_result(
+        *create_test_dfs(lhs),
+        lambda df: df.rpow(
+            rhs.to_pandas() if isinstance(rhs, pd.Index) else rhs, axis=1
+        ),
+    )
 
 
 @pytest.mark.parametrize(

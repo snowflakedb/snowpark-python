@@ -180,7 +180,15 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         the second element is a native pandas dataframe created by forwarding
         the arguments to the pandas dataframe constructor.
     """
-    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **kwargs))
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    native_kw_args = kwargs.copy()
+    if "index" in native_kw_args:
+        if isinstance(native_kw_args["index"], pd.Index):
+            native_kw_args["index"] = native_kw_args["index"].to_pandas()
+    if "columns" in native_kw_args:
+        if isinstance(native_kw_args["columns"], pd.Index):
+            native_kw_args["columns"] = native_kw_args["columns"].to_pandas()
+    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
 def create_test_series(*args, **kwargs) -> tuple[pd.Series, native_pd.Series]:
@@ -424,12 +432,14 @@ def eval_snowpark_pandas_result(
                 == snow_err_msg[: snow_err_msg.index("dtype")]
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        if isinstance(snow_pandas, pd.Index):
+            snow_pandas = snow_pandas.to_pandas()
         pd_result = operation(native_pandas)
         snow_result = operation(snow_pandas)
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 
@@ -467,6 +477,12 @@ def assert_values_equal(
     Returns:
         bool telling whether the values are equal.
     """
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(expected, pd.Index):
+        expected = expected.to_pandas()
+    if isinstance(actual, pd.Index):
+        actual = actual.to_pandas()
+
     if isinstance(expected, native_pd.DataFrame):
         assert isinstance(
             actual, native_pd.DataFrame

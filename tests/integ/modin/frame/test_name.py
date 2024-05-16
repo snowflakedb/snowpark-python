@@ -43,4 +43,4 @@ def test_create_dataframe_from_object_with_name(sample):
 def test_create_dataframe_from_snowpark_pandas_series():
     df = pd.DataFrame([[2, 3, 4], [5, 6, 7]], columns=["X", "Y", "Z"])
     df = pd.DataFrame([df.X, df.iloc[:, 2]])
-    assert_index_equal(df.index, pd.Index(["X", "Z"]))
+    assert_index_equal(df.index.to_pandas(), native_pd.Index(["X", "Z"]))

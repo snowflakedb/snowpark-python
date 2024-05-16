@@ -133,7 +133,8 @@ def test_isin_with_Series(values, data, columns, index):
     snow_df = pd.DataFrame(data, columns=columns, index=index)
 
     # skip when index types are different ( type coercion in Snowpark pandas )
-    if snow_df.index.dtype != values.dtype:
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if snow_df.index.to_pandas().dtype != values.dtype:
         pytest.skip("Snowpark pandas does not support different index types")
 
     # SQL count checker found within _test_isin_with_snowflake_logic as additional queries are run

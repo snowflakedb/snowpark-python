@@ -286,7 +286,9 @@ def test_read_snowflake_duplicate_columns(session):
     assert df.index.names == ["X", "X"]
 
     df = pd.read_snowflake(table_name, index_col="X", columns=["X", "Y"])
-    assert df.index.names == ["X"]
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+
+    assert df.index.to_pandas().names == ["X"]
     assert df.columns.tolist() == ["X", "Y"]
 
     df = pd.read_snowflake(table_name, index_col=["X", "Y"], columns=["X", "Y"])

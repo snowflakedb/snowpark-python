@@ -355,14 +355,12 @@ def test_df_setitem_replace_column_with_single_column(column, key):
                 column = pd.Index(column)
             elif isinstance(column, native_pd.Series):
                 column = try_cast_to_snowpark_pandas_series(column)
-
-        df[key] = column
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        df[key] = column.to_pandas() if isinstance(column, pd.Index) else column
 
     expected_join_count = 2
     if isinstance(column, native_pd.Series):
         expected_join_count = 1
-    elif isinstance(column, native_pd.Index):
-        expected_join_count = 4
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
@@ -446,8 +444,8 @@ def test_df_setitem_with_unique_and_duplicate_index_values(
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index)
-    native_df2 = native_pd.DataFrame(data2, index=other_index)
+    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
+    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
 
     def setitem_op(df):
         df["foo2"] = (

@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
+import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -866,6 +867,9 @@ def get_valid_col_positions_from_col_labels(
             )
             col_loc = col_loc.index
             # get the position of the selected labels
+            # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+            if isinstance(col_loc, pd.Index):
+                col_loc = col_loc.to_pandas()
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
             # for other series, convert to list and process later
@@ -2244,6 +2248,9 @@ def set_frame_2d_labels(
     #   new_data_column_pandas_labels_to_append = ["E", 1, "X", 2]
     col_info = _extract_loc_set_col_info(internal_frame, columns)
 
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(item, pd.Index):
+        item = item.to_pandas()
     # Some variables shared in this method
     index_is_scalar = is_scalar(index)
     index_is_frame = isinstance(index, InternalFrame)
@@ -2310,8 +2317,14 @@ def set_frame_2d_labels(
         #       'x' | 97 | 96 | ...
         #       'y' | 97 | 96 | ...
         #       ... | .. | .. | ...
+
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
         item_values = (
-            item.tolist() if isinstance(item, (pd.Index, np.ndarray)) else item
+            item.tolist()
+            if isinstance(item, (native_pd.Index, np.ndarray))
+            else item.to_pandas().to_list()
+            if isinstance(item, pd.Index)
+            else item
         )
 
         item_data_column_pandas_labels = col_info.column_pandas_labels

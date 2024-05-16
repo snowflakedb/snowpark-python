@@ -174,11 +174,19 @@ def test_series_iloc_get_key_bool(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=bool)
+            _key = (
+                pd.Index(_key, dtype=bool)
+                if isinstance(_ser, pd.Series)
+                else native_pd.Index(_key, dtype=bool)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name", dtype=bool)
+            _key = (
+                pd.Index(_key, name="some name", dtype=bool)
+                if isinstance(_ser, pd.Series)
+                else native_pd.Index(_key, name="some name", dtype=bool)
+            )
         elif key_type == "series" and isinstance(_ser, pd.Series):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
@@ -251,11 +259,17 @@ def test_series_iloc_get_key_numeric(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key)
+            _key = (
+                pd.Index(_key) if isinstance(ser, pd.Series) else native_pd.Index(_key)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name")
+            _key = (
+                pd.Index(_key, name="some name")
+                if isinstance(ser, pd.Series)
+                else native_pd.Index(_key, name="some name")
+            )
         elif key_type == "series" and isinstance(ser, pd.Series):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)

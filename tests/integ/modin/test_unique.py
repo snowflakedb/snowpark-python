@@ -126,6 +126,7 @@ def test_unique_timestamp_index(timestamp_index):
     # https://github.com/pandas-dev/pandas/issues/57043
     # TODO(SNOW-1019312): Make snowpark_pandas.unique(index) always
     # return an index.
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
     assert_values_equal(
         native_unique,
         pd.Index(
@@ -134,7 +135,7 @@ def test_unique_timestamp_index(timestamp_index):
                 native_pd.Timestamp("20160201", tz="US/Eastern"),
                 native_pd.Timestamp("20990101", tz="US/Eastern"),
             ]
-        ),
+        ).to_pandas(),
     )
 
     assert_values_equal(snowpark_unique, np.array(native_unique))

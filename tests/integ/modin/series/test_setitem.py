@@ -997,8 +997,12 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     snowpark_ser = pd.Series(native_ser)
 
     # Assign item.
-    native_ser[key] = item
+    native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
     snowpark_ser[key] = item
+
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    if isinstance(key, pd.Index):
+        key = key.to_pandas()
 
     err_msg = "Series are different"
     if not isinstance(key, slice) and any(x == 1 for x in key):
@@ -1007,7 +1011,7 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
         with pytest.raises(AssertionError, match=err_msg):
             assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
-    elif (isinstance(key, pd.Index) and item == "xyz") or (
+    elif (isinstance(key, (native_pd.Index, pd.Index)) and item == "xyz") or (
         isinstance(key, slice) and (item is None or item == "xyz")
     ):
         # In these three cases, Snowpark pandas works and the values are logically correct. However, Snowpark pandas
@@ -1550,7 +1554,8 @@ def test_series_setitem_with_empty_key_and_empty_item_negative(
 
     err_msg = "The length of the value/item to set is empty"
     with pytest.raises(ValueError, match=err_msg):
-        native_ser[key] = item
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
         snowpark_ser[
             pd.Series(key) if isinstance(key, native_pd.Series) else key
         ] = item
@@ -1580,8 +1585,10 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     native_ser = default_index_native_series.copy()
     snowpark_ser = pd.Series(native_ser)
     item = native_pd.Series([])
-
-    native_ser[key] = item
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    # if isinstance(key, pd.Index):
+    #     key = key.to_pandas()
+    native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
     snowpark_ser[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = pd.Series(item)
@@ -1621,8 +1628,8 @@ def test_series_setitem_with_empty_key_and_scalar_item(
     native_ser = default_index_native_series.copy()
     snowpark_ser = pd.Series(native_ser)
     item = 32
-
-    native_ser[key] = item
+    # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+    native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
     snowpark_ser[pd.Series(key) if isinstance(key, native_pd.Series) else key] = item
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snowpark_ser, native_ser)
 
@@ -1657,7 +1664,8 @@ def test_series_setitem_with_empty_key_and_series_and_list_like_item_negative(
         "cannot set using a list-like indexer with a different length than the value"
     )
     with pytest.raises(ValueError, match=err_msg):
-        native_ser[key] = item
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
+        native_ser[key.to_pandas() if isinstance(key, pd.Index) else key] = item
         snowpark_ser[pd.Series(key) if isinstance(key, native_pd.Series) else key] = (
             pd.Series(item) if isinstance(item, native_pd.Series) else item
         )
