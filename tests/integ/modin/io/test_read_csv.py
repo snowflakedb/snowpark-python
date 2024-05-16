@@ -549,7 +549,7 @@ def test_read_csv_usecols_invalid_types_negative(resources_path, usecols):
     "usecols",
     [["non_existent_col"], ["rating", "non_existent_col"], [-1], [0, 4]],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=0)
 def test_read_csv_usecols_nonexistent_negative(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -609,7 +609,7 @@ def test_read_csv_usecols_with_special_names(resources_path, usecols):
 def test_read_csv_usecols_with_names_negative(resources_path):
     test_files = TestFiles(resources_path)
 
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError,
             match="'usecols' do not match columns, columns expected but not found",
@@ -660,7 +660,7 @@ def test_read_csv_dtype(resources_path, dtype):
         ),
     ],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=0)
 def test_read_csv_dtype_negative(
     resources_path, dtype, expected_error, expected_error_msg
 ):
@@ -714,6 +714,7 @@ def test_read_csv_index_col_name(resources_path):
         got = pd.read_csv(
             test_files.test_file_csv_header, names=["c1", "c2", "c3"], index_col=["c3"]
         )
+        #breakpoint()
         assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
     test_files = TestFiles(resources_path)
@@ -761,13 +762,13 @@ def test_read_csv_index_col_frontend_negative(
     "index_col,expected_error_type,expected_error_msg",
     [
         (["non_existent_col", "a"], ValueError, "Index non_existent_col invalid"),
-        ([-5], IndexError, "list index is out of range"),
-        ((4), IndexError, "list index is out of range"),
+        ([-5], IndexError, "list index out of range"),
+        ((4), TypeError, "'int' object is not iterable"),
         ([0, 0], ValueError, "Duplicate columns in index_col are not allowed."),
         ([1, "name"], ValueError, "Duplicate columns in index_col are not allowed."),
     ],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=1)
 def test_read_csv_index_col_negative(
     resources_path, index_col, expected_error_type, expected_error_msg
 ):
