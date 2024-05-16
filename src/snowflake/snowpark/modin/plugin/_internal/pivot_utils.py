@@ -61,7 +61,7 @@ PivotAggrGrouping = namedtuple(
 )
 
 
-class PivottedOrderedDataFrameResult(NamedTuple):
+class PivotedOrderedDataFrameResult(NamedTuple):
     # The OrderedDataFrame representation for the join or align result
     ordered_dataframe: OrderedDataFrame
     # The data column pandas labels of the new frame.
@@ -76,7 +76,17 @@ def perform_pivot_and_concatenate(
     groupby_snowflake_quoted_identifiers: list[str],
     pivot_snowflake_quoted_identifiers: list[str],
     should_join_along_columns: bool,
-) -> tuple[OrderedDataFrame, list[Hashable], list[str]]:
+) -> PivotedOrderedDataFrameResult:
+    """
+    Helper functio to perform a full pivot (including joining in the case of multiple aggrs or values) on an OrderedDataFrame.
+
+    Args:
+        ordered_dataframe: The ordered dataframe to perform pivot on.
+        pivot_aggr_groupings: A list of PivotAggrGroupings that define the aggregations to apply.
+        groupby_snowflake_quoted_identifiers: Group by identifiers
+        pivot_snowflake_quoted_identifiers: Pivot identifiers
+        should_join_along_columns: Whether to join along columns, or use union to join along rows instead.
+    """
     last_ordered_dataframe = None
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
@@ -132,7 +142,7 @@ def perform_pivot_and_concatenate(
                 new_data_column_snowflake_quoted_identifiers
             )
             data_column_pandas_labels.extend(new_data_column_pandas_labels)
-    return PivottedOrderedDataFrameResult(
+    return PivotedOrderedDataFrameResult(
         last_ordered_dataframe,
         data_column_pandas_labels,
         data_column_snowflake_quoted_identifiers,
@@ -162,8 +172,8 @@ def pivot_helper(
         columns: The columns argument passed to `pivot_table`. Will become the pandas labels for the data column index.
         groupby_snowflake_quoted_identifiers: Group by identifiers
         pivot_snowflake_quoted_identifiers: Pivot identifiers
-        multiple_aggr_funcs: Whether or not multiple aggregation functions have been passed in.
-        multiple_values: Whether or not multiple values columns have been passed in.
+        multiple_aggr_funcs: Whether multiple aggregation functions have been passed in.
+        multiple_values: Whether multiple values columns have been passed in.
         index: The index argument passed to `pivot_table` if specified. Will become the pandas labels for the index column.
     Returns:
         InternalFrame
@@ -243,10 +253,23 @@ def pivot_helper(
         and multiple_aggr_funcs
         and multiple_values
     ):
+        # When there are multiple aggregation functions, values, and `index=None`, we need
+        # to handle pivot a little differently. Rather than just joining horizontally or vertically,
+        # we need to join both horizontally and vertically - each value column gets its own row, so
+        # for every resulting OrderedDataFrame corresponding to the result of an aggregation on a single
+        # value, we need to join (concatenate horizontally) to get one row. For every value column,
+        # we then need to union (concatenate vertically) the resulting rows from the previous step.
+        # In order to handle this, we first group the aggregations by the column they act on, and run
+        # one pivot per group of aggregations. We then have multiple one row OrderedDataFrames, where each
+        # OrderedDataFrame is the result of pivot on a single value column, which we can union in order to
+        # get our final result.
+        # Step 1: Determine the values columns.
         values_pandas_labels = {
             pair.aggr_label_identifier_pair.pandas_label
             for pair in pivot_aggr_groupings
         }
+        # Step 2: Group aggregations by the values column they are on.
+        # Result: {"val_col1": [aggr1, aggr2], "val_col2}": [aggr3, aggr4]}
         grouped_pivot_aggr_groupings = {
             v: list(
                 filter(
@@ -256,6 +279,7 @@ def pivot_helper(
             )
             for v in values_pandas_labels
         }
+        # Step 5: Perform pivot for every value column, and union together.
         last_ordered_dataframe = None
         for value_column in values_pandas_labels:
             (
@@ -284,6 +308,9 @@ def pivot_helper(
                 ), "Labels should match when doing multiple values and multiple aggregation functions and no index."
         ordered_dataframe = last_ordered_dataframe
     else:
+        # If there are no index columns (groupby_snowflake_quoted_identifiers) and
+        # a single aggregation function or a single value, we should join vertically
+        # instead of horizontally.
         should_join_along_columns = len(groupby_snowflake_quoted_identifiers) > 0 or (
             multiple_aggr_funcs and not multiple_values
         )
@@ -1209,6 +1236,10 @@ def expand_pivot_result_with_pivot_table_margins(
     #        14      9
     margin_columns_aggregations = []
 
+    # breakpoint()
+    # # When there are no `groupby_snowflake_quoted_identifiers`, the values column is not in the prefix labels, and is instead
+    # # in the index column. This codepath expects that the values columns are included in the prefixes of the data column pandas labels.
+    # if len(groupby_snowflake_quoted_identifiers) > 0:
     # Step 1) Generate mapping of prefix to data columns aligned with each grouping.  In this example would generate:
     # (count, D) -> [(count, D, foo, red), (count, D, bar, blue)]
     # (sum, E) -> [(sum, E, foo, red), (sum, E, bar, blue)]
@@ -1348,6 +1379,33 @@ def expand_pivot_result_with_pivot_table_margins(
         updated_data_column_snowflake_quoted_identifiers.append(
             margin_column_aggr_snowflake_quoted_identifier
         )
+        # # Step 1: When there are no groupby columns, the data column pandas label's format changes depending on how
+        # # many pivot columns there are. For a single pivot column, the resulting DataFrame has labels with only 1 level;
+        # # but when there are multiple pivot columns, the margin column takes the first pivot column's values as a prefix.
+        # # For each subsequent pivot column, an additional empty post-fix is added.
+        # if len(pivot_snowflake_quoted_identifiers) == 1:
+        #     # If there is only a single pivot column, then we just add 1 column with the name of the margin column per pivot
+        #     # value, which should be equal to the number of columns in the pivoted dataframe.
+        #     new_data_column_pandas_labels = [margins_name] * len(pivoted_qc.columns)
+        # else:
+        #     new_data_column_pandas_labels = []
+        #     num_levels_to_pad = pivoted_qc.index.nlevels - 2
+        #     for prefix in pivoted_qc.index.get_level_values(0).unique():
+        #         new_data_column_pandas_labels.append((prefix, margins_name) + tuple('' for _ in range(num_levels_to_pad)))
+        # values_snowflake_quoted_identifiers = {pair.aggr_label_identifier_pair.snowflake_quoted_identifier for pair in pivot_aggr_groupings}
+        # value_to_aggr_func = {v: [pair.aggfunc for pair in filter(lambda pair: pair.aggr_label_identifier_pair.snowflake_quoted_identifier == v, pivot_aggr_groupings)] for v in values_snowflake_quoted_identifiers}
+        # for value_snowflake_quoted_identifier, aggfunc in values_snowflake_quoted_identifiers:
+        #     margin_columns_aggregations.append(
+        #         apply_fill_value_to_snowpark_column(
+        #             get_margin_aggregation(
+        #                 aggfunc,
+        #                 col(value_snowflake_quoted_identifier)
+        #             ),
+        #             fill_value,
+        #         ).as_(original_ordered_dataframe)
+        #     )
+
+        # pass
 
     # Step 3)
     # To generate the margin column aggregations we need to group by the groupby_snowflake_quoted_identifiers and join

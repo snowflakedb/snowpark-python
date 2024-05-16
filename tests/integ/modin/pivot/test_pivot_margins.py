@@ -184,3 +184,56 @@ def test_pivot_table_unsupported_dropna_with_expanded_aggregation_margins_unsupp
             aggfunc={"E": ["min"], "F": "max"},
             margins=True,
         )
+
+
+@pytest.mark.parametrize(
+    "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
+)
+class TestPivotTableMarginsNoIndex:
+    def test_single_value_single_aggfunc(self, columns, df_data):
+        pivot_table_test_helper(
+            df_data,
+            {
+                "columns": columns,
+                "values": ["D"],
+                "aggfunc": "sum",
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    def test_multiple_value_single_aggfunc(self, columns, df_data):
+        pivot_table_test_helper(
+            df_data,
+            {
+                "columns": columns,
+                "values": ["D", "E"],
+                "aggfunc": "sum",
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    def test_single_value_multiple_aggfunc(self, columns, df_data):
+        pivot_table_test_helper(
+            df_data,
+            {
+                "columns": columns,
+                "values": ["D"],
+                "aggfunc": ["sum", "min"],
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    def test_multiple_value_multiple_aggfunc(self, columns, df_data):
+        pivot_table_test_helper(
+            df_data,
+            {
+                "columns": columns,
+                "values": ["D", "E"],
+                "aggfunc": ["sum", "min"],
+                "dropna": True,
+                "margins": True,
+            },
+        )
