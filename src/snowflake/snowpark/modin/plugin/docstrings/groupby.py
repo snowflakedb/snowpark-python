@@ -582,14 +582,30 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Parameters
         ----------
-        periods : int, default 1
-            Number of periods to shift.
-        freq : str, optional
-            Frequency string.
+        periods : int | Sequence[int], default 1
+            Number of periods to shift. Can be positive or negative. If an iterable of ints,
+            the data will be shifted once by each int. This is equivalent to shifting by one
+            value at a time and concatenating all resulting frames. The resulting columns
+            will have the shift suffixed to their column names. For multiple periods, axis must not be 1.
+
+            Snowpark pandas does not currently support sequences of int for `periods`.
+
+        freq : DateOffset, tseries.offsets, timedelta, or str, optional
+            Offset to use from the tseries module or time rule (e.g. ‘EOM’).
+
+            Snowpark pandas does not yet support this parameter.
+
         axis : axis to shift, default 0
             Shift direction. Snowpark pandas does not yet support axis=1.
+
         fill_value : optional
             The scalar value to use for newly introduced missing values.
+
+        suffix : str, optional
+            If str is specified and periods is an iterable, this is added after the column name
+            and before the shift value for each shifted column name.
+
+            Snowpark pandas does not yet support this parameter.
 
         Returns
         -------

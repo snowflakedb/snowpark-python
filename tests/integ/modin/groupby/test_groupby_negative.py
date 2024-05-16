@@ -489,6 +489,33 @@ def test_groupby_shift_with_by_index_negative(by):
 
 
 @pytest.mark.parametrize(
+    "params",
+    [
+        {"periods": [1, 2, 3]},  # sequence periods is unsupported
+        {"periods": [1], "suffix": "_suffix"},  # suffix is unsupported
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_groupby_shift_unsupported_args_negative(params):
+    pandas_df = native_pd.DataFrame(
+        data=[
+            ["Lois", 42],
+            ["Lois", 42],
+            ["Lana", 76],
+            ["Lana", 76],
+            ["Lima", 888],
+        ],
+        columns=["LEXLUTHOR", "RATING"],
+        index=["tuna", "salmon", "catfish", "goldfish", "shark"],
+    )
+    snow_df = pd.DataFrame(pandas_df)
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            snow_df, pandas_df, lambda df: df.groupby("RATING").shift(**params)
+        )
+
+
+@pytest.mark.parametrize(
     "agg_method_name", ["min", "max", "std", "var", "sum", "mean", "median"]
 )
 @pytest.mark.parametrize("numeric_only", ["TEST", 5])
