@@ -68,6 +68,7 @@ SUPPORT_READ_OPTIONS = {
         "PURGE",
         "COMPRESSION",
         "PATTERN",
+        "ENCODING",
     ),
     "json": (
         "INFER_SCHEMA",
@@ -75,7 +76,13 @@ SUPPORT_READ_OPTIONS = {
         "PURGE",
         "COMPRESSION",
         "PATTERN",
+        "ENCODING",
     ),
+}
+
+SUPPORTED_OPTION_VALUES = {
+    "ENCODING": ("UTF8", "UTF-8"),
+    "COMPRESSION": ("AUTO", "NONE"),
 }
 
 RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
@@ -393,11 +400,20 @@ class StageEntity:
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
-                if option not in SUPPORT_READ_OPTIONS[file_format]:
+                if (option not in SUPPORT_READ_OPTIONS[file_format]) or (
+                    option in SUPPORTED_OPTION_VALUES
+                    and options[option]
+                    and options[option].upper() not in SUPPORTED_OPTION_VALUES[option]
+                ):
+                    # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
-                        external_feature_name=f"Read option {option} for file format {file_format}",
+                        external_feature_name=f"Read option {option} with value {str(options[option])} for file format {file_format}",
                         internal_feature_name="StageEntity.read_file",
-                        parameters_info={"format": format, "option": option},
+                        parameters_info={
+                            "format": format,
+                            "option": option,
+                            "option_value": str(options[option]),
+                        },
                         raise_error=NotImplementedError
                         if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
                         else None,
@@ -406,21 +422,6 @@ class StageEntity:
 
         # process options
         purge = options.get("PURGE", False)
-        compression = options.get("COMPRESSION", None)
-        if compression and compression.lower() != "auto":
-            self._conn.log_not_supported_error(
-                external_feature_name=f"Read option COMPRESSION={compression} for file format {file_format}",
-                internal_feature_name="StageEntity.read_file",
-                parameters_info={
-                    "format": format,
-                    "option": "COMPRESSION",
-                    "option_value": str(compression),
-                },
-                raise_error=NotImplementedError
-                if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
-                else None,
-                warning_logger=_logger,
-            )
 
         # TODO: SNOW-1253672, there is a bug in the non-local testing code that
         #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
