@@ -750,6 +750,7 @@ def _extract_loc_set_col_info(
         elif not is_bool_indexer(columns):
             enlargement_may_happen = True
 
+    original_columns = columns
     if enlargement_may_happen:
         frame_data_columns = internal_frame.data_columns_index
         # This list contains the columns after loc set
@@ -796,7 +797,7 @@ def _extract_loc_set_col_info(
     # When column enlargement may happen, get the list of pandas labels corresponding column key; otherwise, i.e., when
     # it is slice or boolean indexer, use the corresponding column position to get the labels
     column_pandas_labels = (
-        new_column_pandas_labels + columns
+        original_columns
         if enlargement_may_happen
         else [
             internal_frame.data_column_pandas_labels[pos]
