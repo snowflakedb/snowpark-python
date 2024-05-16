@@ -59,9 +59,7 @@ def test_try_cast(session):
 @pytest.mark.localtest
 def test_try_cast_work_cast_not_work(session, local_testing_mode):
     df = session.create_dataframe([["aaa"]], schema=["a"])
-    with pytest.raises(
-        ValueError if local_testing_mode else SnowparkSQLException
-    ) as execinfo:
+    with pytest.raises(SnowparkSQLException) as execinfo:
         df.select(df["a"].cast("date")).collect()
     if not local_testing_mode:
         assert "Date 'aaa' is not recognized" in str(execinfo)
@@ -132,6 +130,14 @@ def test_substring(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.string4(session).select(
+            col("a").substring(0, 3), col("a").substr(1, 3)
+        ),
+        [Row("app", "app"), Row("ban", "ban"), Row("pea", "pea")],
+        sort=False,
+    )
+
 
 @pytest.mark.localtest
 def test_contains(session):
@@ -165,6 +171,11 @@ def test_logical_operator_raise_error(session):
     assert "Cannot convert a Column object into bool" in str(execinfo)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL expr is not supported in Local Testing",
+    run=False,
+)
 def test_when_accept_sql_expr(session):
     assert TestData.null_data1(session).select(
         when("a is NULL", 5).when("a = 1", 6).otherwise(7).as_("a")
@@ -179,6 +190,10 @@ def test_when_accept_sql_expr(session):
     ).collect() == [Row(5), Row(None), Row(6), Row(None), Row(5)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358930 TODO: Decimal should not be casted to int64",
+)
 def test_column_with_builtins_that_shadow_functions(session):
     conversion_error_msg_text = "Cannot convert a Column object into bool"
     iter_error_msg_text = "Column is not iterable. This error can occur when you use the Python built-ins for sum, min and max. Please make sure you use the corresponding function from snowflake.snowpark.functions."

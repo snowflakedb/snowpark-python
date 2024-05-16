@@ -186,16 +186,14 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing:
-    name: Test Local Testing Module py-${{ matrix.os.download_name }}-${{ matrix.python-version }}
+    name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
-    runs-on: ${{ matrix.os.image_name }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - image_name: macos-latest
-            download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        python-version: [ "3.8", "3.9", "3.10", "3.11" ]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -240,7 +238,7 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-local-testing
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
           path: |
             .tox/.coverage
             .tox/coverage.xml

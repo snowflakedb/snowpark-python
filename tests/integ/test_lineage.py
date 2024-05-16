@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+
 import json
 import uuid
 
@@ -17,6 +18,15 @@ try:
     is_pandas_available = True
 except ImportError:
     is_pandas_available = False
+
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Lineage is a SQL feature",
+        run=False,
+    )
+]
 
 
 def create_objects_for_test(session, db, schema) -> None:

@@ -13,13 +13,9 @@ from snowflake.snowpark._internal.utils import warning_dict
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
-# TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
 excluded_frontend_files = [
     "accessor.py",
-    "groupby.py",
-    "resample.py",
     "series_utils.py",
-    "window.py",
 ]
 
 
