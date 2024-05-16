@@ -376,17 +376,19 @@ def test_df_loc_get_negative_row_diff2native(
 def test_df_loc_get_out_of_bound_col(
     key, str_index_native_df, str_index_snowpark_pandas_df
 ):
-    with SqlCounter(query_count=2 if is_scalar(key) else 1):
-        eval_snowpark_pandas_result(
-            str_index_snowpark_pandas_df,
-            str_index_native_df,
-            lambda df: df.loc[
-                :,
-                key
-                if isinstance(df, pd.DataFrame)
-                else [k for k in key if k in str_index_native_df.columns],
-            ],
-        )
+    match_str = r".* not found in index" if not is_scalar(key) else f"{key}"
+    with pytest.raises(KeyError, match=match_str):
+        with SqlCounter(query_count=2 if is_scalar(key) else 1):
+            eval_snowpark_pandas_result(
+                str_index_snowpark_pandas_df,
+                str_index_native_df,
+                lambda df: df.loc[
+                    :,
+                    key
+                    if isinstance(df, pd.DataFrame)
+                    else [k for k in key if k in str_index_native_df.columns],
+                ],
+            )
 
 
 @pytest.mark.parametrize(
@@ -464,7 +466,7 @@ def test_mi_df_loc_get_non_boolean_list_col_key(mi_table_df, key, native_error):
         if native_error:
             with pytest.raises(native_error):
                 _ = mi_table_df.loc[:, key]
-            assert df.loc[:, key].empty
+                assert df.loc[:, key].empty
         else:
             eval_snowpark_pandas_result(
                 df,
