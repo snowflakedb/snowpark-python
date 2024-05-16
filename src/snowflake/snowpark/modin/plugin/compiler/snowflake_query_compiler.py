@@ -6398,7 +6398,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         multiple_agg_funcs_single_values = (
             isinstance(aggfunc, list) and len(aggfunc) > 1
-        ) and not (isinstance(values, list) and len(values) > 1)
+        ) and not isinstance(values, list)
         include_aggr_func_in_label = (
             len(groupby_snowflake_quoted_identifiers) != 0
             or multiple_agg_funcs_single_values
@@ -6409,7 +6409,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 aggfunc,
                 len(pivot_snowflake_quoted_identifiers) > 0,
                 isinstance(values, list)
-                and len(values) > 1
+                and (not margins or len(values) > 1)
                 and include_aggr_func_in_label,
                 sort,
             )
@@ -6443,7 +6443,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
-        if margins and pivot_aggr_groupings and pivot_snowflake_quoted_identifiers:
+        # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins, since the result
+        # will still be an empty DataFrame (but we will have increased the join and union count) for no reason.
+        if (
+            margins
+            and pivot_aggr_groupings
+            and pivot_snowflake_quoted_identifiers
+            and len(pivot_qc.columns) != 0
+        ):
             if len(groupby_snowflake_quoted_identifiers) > 0:
                 pivot_qc = expand_pivot_result_with_pivot_table_margins(
                     pivot_aggr_groupings,
@@ -6469,11 +6477,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     index,
                 )
                 if len(columns) > 1:
-                    # If there are multiple pivot columns, we need to add the margin_name to the margins frame's data column
+                    # If there is a multiindex on the pivot result, we need to add the margin_name to the margins frame's data column
                     # pandas labels, as well as any empty postfixes for the remaining pivot columns if there are more than 2.
                     new_data_column_pandas_labels = []
                     for label in margins_frame.data_column_pandas_labels:
-                        if isinstance(aggfunc, list) and len(aggfunc) > 1:
+                        if isinstance(aggfunc, list):
                             new_label = label + (margins_name,)
                         else:
                             new_label = (label, margins_name) + tuple(
@@ -6551,7 +6559,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # tw"o  2
                     # If there are multiple columns and multiple aggregation functions, we need to groupby the first two columns instead of just the first one -
                     # as the first column will be the name of the aggregation function, and the second column will be the values from the first pivot column.
-                    if isinstance(aggfunc, list) and len(aggfunc) > 1:
+                    if isinstance(aggfunc, list):
                         groupby_columns = mi_as_frame.columns[:2].tolist()
                         value_column_index = 2
                     else:

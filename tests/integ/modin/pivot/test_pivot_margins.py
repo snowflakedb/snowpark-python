@@ -210,7 +210,7 @@ class TestPivotTableMarginsNoIndexFewerPivotValues:
             {
                 "columns": columns,
                 "values": ["D", "E"],
-                "aggfunc": "sum",
+                "aggfunc": ["sum"],
                 "dropna": True,
                 "margins": True,
             },
@@ -243,6 +243,31 @@ class TestPivotTableMarginsNoIndexFewerPivotValues:
         )
 
 
+@sql_count_checker(query_count=1)
+def test_pivot_table_empty_table_with_index_margins():
+    # Cannot use pivot_table_test_helper since that checks the inferred types
+    # on the resulting DataFrames' columns (which are empty), and the inferred type
+    # on our DataFrame's columns is empty, while pandas has type floating.
+    import pandas as native_pd
+
+    native_df = native_pd.DataFrame({"A": [], "B": [], "C": [], "D": []})
+    snow_df = pd.DataFrame(native_df)
+    pivot_kwargs = {
+        "index": ["A", "B"],
+        "columns": "C",
+        "values": "D",
+        "aggfunc": "count",
+        "margins": True,
+    }
+
+    snow_result = snow_df.pivot_table(**pivot_kwargs).to_pandas()
+    native_result = native_df.pivot_table(**pivot_kwargs)
+
+    assert native_result.empty == snow_result.empty and (native_result.empty is True)
+    assert list(native_result.columns) == list(snow_result.columns)
+    assert list(native_result.index) == list(snow_result.index)
+
+
 @pytest.mark.parametrize(
     "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
 )
@@ -254,7 +279,7 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
             {
                 "columns": columns,
                 "values": ["D"],
-                "aggfunc": "sum",
+                "aggfunc": ["sum"],
                 "dropna": True,
                 "margins": True,
             },

@@ -243,8 +243,8 @@ def test_pivot_on_inline_data_using_temp_table():
     assert row_count == 25
 
 
-@pytest.mark.xfail(strict=True, raises=SnowparkSQLException, reason="SNOW-1233895")
-def test_pivot_empty_frame_snow_1233895():
+@pytest.mark.xfail(strict=True, raises=SnowparkSQLException, reason="SNOW-1013918")
+def test_pivot_empty_frame_snow_1013918():
     eval_snowpark_pandas_result(
         *create_test_dfs(columns=["a", "b", "c"]),
         lambda df: df.pivot_table(index="a", columns="b")

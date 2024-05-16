@@ -60,40 +60,47 @@ def test_pivot_table_no_index_single_column_single_values_multiple_aggr_func(df_
     )
 
 
-@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
+@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean", ["count"]])
+@pytest.mark.parametrize("values", ["D", ["D"]])
 @sql_count_checker(query_count=1)
-def test_pivot_table_single_index_multiple_column_single_value(df_data, aggfunc):
+def test_pivot_table_single_index_multiple_column_single_value(
+    df_data, aggfunc, values
+):
     pivot_table_test_helper(
         df_data,
         {
             "index": "A",
             "columns": ["B", "C"],
-            "values": "D",
+            "values": values,
             "aggfunc": aggfunc,
         },
     )
 
 
 @pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
+@pytest.mark.parametrize("values", ["D", ["D"]])
 @sql_count_checker(query_count=1)
-def test_pivot_table_no_index_multiple_column_single_value(df_data, aggfunc):
+def test_pivot_table_no_index_multiple_column_single_value(df_data, aggfunc, values):
     pivot_table_test_helper(
         df_data,
         {
             "columns": ["B", "C"],
-            "values": "D",
+            "values": values,
             "aggfunc": aggfunc,
         },
     )
 
 
+@pytest.mark.parametrize("values", ["D", ["D"]])
 @sql_count_checker(query_count=1, join_count=1)
-def test_pivot_table_no_index_multiple_column_single_value_multiple_aggr_func(df_data):
+def test_pivot_table_no_index_multiple_column_single_value_multiple_aggr_func(
+    df_data, values
+):
     pivot_table_test_helper(
         df_data,
         {
             "columns": ["B", "C"],
-            "values": "D",
+            "values": values,
             "aggfunc": ["mean", "max"],
         },
     )
@@ -146,25 +153,29 @@ def test_pivot_table_single_index_single_column_multiple_encoded_values_with_sor
     )
 
 
+@pytest.mark.parametrize("aggfunc", ["count", ["count"]])
 @sql_count_checker(query_count=1, join_count=1)
-def test_pivot_table_single_index_multiple_columns_multiple_values(df_data):
+def test_pivot_table_single_index_multiple_columns_multiple_values(df_data, aggfunc):
     pivot_table_test_helper(
         df_data,
         {
             "index": "A",
             "columns": ["B", "C"],
             "values": ["D", "E"],
+            "aggfunc": aggfunc,
         },
     )
 
 
+@pytest.mark.parametrize("aggfunc", ["count", ["count"]])
 @sql_count_checker(query_count=1, union_count=1)
-def test_pivot_table_no_index_multiple_columns_multiple_values(df_data):
+def test_pivot_table_no_index_multiple_columns_multiple_values(df_data, aggfunc):
     pivot_table_test_helper(
         df_data,
         {
             "columns": ["B", "C"],
             "values": ["D", "E"],
+            "aggfunc": aggfunc,
         },
     )
 
