@@ -558,6 +558,7 @@ def mock_to_time(
             )
             _data = f"{data_parts[0]}.{seconds_part}"
 
+        # %f is optional if fractional seconds part doesn't show up in the input which means it is 0 nanoseconds
         if len(data_parts) == 1 and ".%f" in _time_format:
             _time_format = _time_format.replace(".%f", "")
 
@@ -599,7 +600,7 @@ def mock_to_time(
                     if data.isdigit():
                         res.append(convert_int_string_to_time(data))
                     else:
-                        # variant type does not support format
+                        # variant type does not support format input
                         res.append(dateutil.parser.parse(data).time())
                 elif isinstance(data, datetime.time):
                     res.append(data)
