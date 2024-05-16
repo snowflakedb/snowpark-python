@@ -400,14 +400,17 @@ class StageEntity:
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
+                if str(options[option]).upper() == "NONE":
+                    # ignore if option value is None, or string of "None"
+                    continue
                 if (option not in SUPPORT_READ_OPTIONS[file_format]) or (
                     option in SUPPORTED_OPTION_VALUES
-                    and options[option]
-                    and options[option].upper() not in SUPPORTED_OPTION_VALUES[option]
+                    and str(options[option]).upper()
+                    not in SUPPORTED_OPTION_VALUES[option]
                 ):
                     # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
-                        external_feature_name=f"Read option {option} with value {str(options[option])} for file format {file_format}",
+                        external_feature_name=f"Read option '{option}' of value '{str(options[option])}' for file format '{file_format}'",
                         internal_feature_name="StageEntity.read_file",
                         parameters_info={
                             "format": format,
