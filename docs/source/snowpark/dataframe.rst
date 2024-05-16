@@ -84,6 +84,7 @@ DataFrame
     DataFrame.to_local_iterator
     DataFrame.to_pandas
     DataFrame.to_pandas_batches
+    DataFrame.to_snowpark_pandas
     DataFrame.union
     DataFrame.unionAll
     DataFrame.unionAllByName

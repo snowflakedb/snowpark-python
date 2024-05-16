@@ -88,7 +88,12 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def name():
-        pass
+        """
+        Return the name of the Series.
+
+        The name of a Series becomes its index or column name if it is used to form a DataFrame.
+        It is also used whenever displaying the Series using the interpreter.
+        """
 
     @_doc_binary_op(operation="addition", bin_op="add")
     def __add__():
@@ -201,7 +206,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         First try to use `__getattribute__` method. If it fails
         try to get `key` from `Series` fields.
         """
-        pass
 
     def abs():
         """
@@ -748,7 +752,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         >>> s.count()
         2
         """
-        pass
 
     def cov():
         """
@@ -1104,8 +1107,12 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         Encode the object as an enumerated type or categorical variable.
         """
 
+    def case_when():
+        """
+        Replace values where the conditions are True.
+        """
+
     def fillna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Fill NA/NaN values using the specified method.
 
@@ -1194,15 +1201,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
 
-        Only replace the first NaN element.
-
-        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
-             A    B    C    D
-        0  0.0  2.0  2.0  0.0
-        1  3.0  4.0  NaN  1.0
-        2  NaN  1.0  NaN  3.0
-        3  NaN  3.0  NaN  4.0
-
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
 
@@ -1228,7 +1226,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         pass
 
     def groupby():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Group Series using a mapper or by a Series of columns.
 
@@ -1283,10 +1280,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Parrot     30.0
             Parrot     20.0
             Name: Max Speed, dtype: float64
-            >>> ser.groupby(["a", "b", "a", "b"]).mean()  # doctest: +SKIP
-            a    210.0
-            b    185.0
-            Name: Max Speed, dtype: float64
             >>> ser.groupby(level=0).mean()
             Falcon    370.0
             Parrot     25.0
@@ -1318,21 +1311,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Captive    210.0
             Wild       185.0
             Name: Max Speed, dtype: float64
-
-            We can also choose to include `NA` in group keys or not by defining
-            `dropna` parameter, the default setting is `True`.
-
-            >>> ser = pd.Series([1, 2, 3, 3], index=["a", 'a', 'b', np.nan])
-            >>> ser.groupby(level=0).sum()      # doctest: +SKIP
-            a    3
-            b    3
-            dtype: int64
-
-            >>> ser.groupby(level=0, dropna=False).sum()        # doctest: +SKIP
-            a    3
-            b    3
-            NaN  3
-            dtype: int64
         """
 
     @_create_operator_docstring(pandas.core.series.Series.gt, overwrite_existing=True)
@@ -1684,8 +1662,36 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
     def reindex():
         pass
 
+    def rename_axis():
+        """
+        Set the name of the axis for the index or columns.
+
+        Parameters
+        ----------
+        mapper : scalar, list-like, optional
+            Value to set the axis name attribute.
+
+        index : scalar, list-like, dict-like or function, optional
+            A scalar, list-like, dict-like or functions transformations to apply to that axis' values.
+
+            Use either ``mapper`` and ``axis`` to specify the axis to target with ``mapper``, or ``index``.
+
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to rename. For Series this parameter is unused and defaults to 0.
+
+        copy : bool, default None
+            Also copy underlying data. This parameter is ignored in Snowpark pandas.
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new Series.
+
+        Returns
+        -------
+        Series or None
+            Series, or None if ``inplace=True``.
+        """
+
     def rename():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Alter Series index labels or name.
 
@@ -1738,11 +1744,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         1    2
         2    3
         Name: my_name, dtype: int64
-        >>> s.rename(lambda x: x ** 2)  # function, changes labels  # doctest: +SKIP
-        0    1
-        1    2
-        4    3
-        dtype: int8
         >>> s.rename({1: 3, 2: 5})  # mapping, changes labels
         0    1
         3    2
@@ -1949,6 +1950,8 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             * higher: *j*.
             * nearest: *i* or *j*, whichever is nearest.
             * midpoint: (*i* + *j*) / 2.
+
+            Snowpark pandas currently only supports "linear" and "nearest".
 
         Returns
         -------
@@ -2203,7 +2206,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def sort_values():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values.
 
@@ -2332,36 +2334,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2    c
         4    e
         dtype: object
-        >>> s.sort_values(key=lambda x: x.str.lower())  # doctest: +SKIP
-        0    a
-        1    B
-        2    c
-        3    D
-        4    e
-        dtype: object
-
-        NumPy ufuncs work well here. For example, we can
-        sort by the ``sin`` of the value
-
-        >>> s = pd.Series([-4, -2, 0, 2, 4])
-        >>> s.sort_values(key=np.sin)  # doctest: +SKIP
-        1   -2
-        4    4
-        2    0
-        0   -4
-        3    2
-        dtype: int8
-
-        More complicated user-defined functions can be used,
-        as long as they expect a Series and return an array-like
-
-        >>> s.sort_values(key=lambda x: (np.tan(x.cumsum())))  # doctest: +SKIP
-        0   -4
-        3    2
-        4    4
-        1   -2
-        2    0
-        dtype: int8
         """
 
     def squeeze():
@@ -2890,11 +2862,17 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def empty():
-        pass
+        """
+        Indicator whether the Series is empty.
+
+        True if the Series is entirely empty (no items), meaning it is of length 0.
+        """
 
     @property
     def hasnans():
-        pass
+        """
+        Return True if there are any NaNs.
+        """
 
     def isna():
         """
@@ -2982,7 +2960,9 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def ndim(self) -> int:
-        pass
+        """
+        Number of dimensions of the underlying data, by definition 1.
+        """
 
     def nunique():
         """
@@ -2991,7 +2971,15 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     @property
     def shape():
-        pass
+        """
+        Return a tuple of the shape of the underlying data.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.shape
+        (3,)
+        """
 
     def shift():
         """

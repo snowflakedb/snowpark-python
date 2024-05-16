@@ -22,7 +22,7 @@ def test_util():
     assert extract_stage_name_and_prefix('@"stage.abc"/dir') == ("stage.abc", "dir")
     assert extract_stage_name_and_prefix('@"st123a/ge.abc"/dir/subdir') == (
         "st123a/ge.abc",
-        "dir/subdir",
+        f"dir{os.sep}subdir",
     )
 
 

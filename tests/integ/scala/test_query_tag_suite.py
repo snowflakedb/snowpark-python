@@ -13,6 +13,14 @@ from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Query tag is a SQL feature",
+        run=False,
+    )
+]
+
 
 @pytest.mark.parametrize(
     "query_tag",

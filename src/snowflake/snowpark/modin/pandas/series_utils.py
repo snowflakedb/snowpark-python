@@ -554,8 +554,75 @@ class StringMethods:
             raise ValueError(f"invalid width {width} (must be > 0)")
         return Series(query_compiler=self._query_compiler.str_wrap(width, **kwargs))
 
-    def slice(self, start=None, stop=None, step=None):
-        ErrorMessage.method_not_implemented_error("slice", "Series.str")
+    def slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ):
+        """
+        Slice substrings from each element in the Series or Index.
+
+        Parameters
+        ----------
+        start : int, optional
+            Start position for slice operation.
+        stop : int, optional
+            Stop position for slice operation.
+        step : int, optional
+            Step size for slice operation.
+
+        Returns
+        -------
+        Series or Index of object
+            Series or Index from sliced substring from original string object.
+
+        See also
+        --------
+        Series.str.slice_replace
+            Replace a slice with a string.
+        Series.str.get
+            Return element at position. Equivalent to Series.str.slice(start=i, stop=i+1) with i being the position.
+
+        Examples
+        --------
+        >>> s = pd.Series(["koala", "dog", "chameleon"])
+        >>> s
+        0        koala
+        1          dog
+        2    chameleon
+        dtype: object
+
+        >>> s.str.slice(start=1)
+        0        oala
+        1          og
+        2    hameleon
+        dtype: object
+
+        >>> s.str.slice(start=-1)
+        0           a
+        1           g
+        2           n
+        dtype: object
+
+        >>> s.str.slice(stop=2)
+        0    ko
+        1    do
+        2    ch
+        dtype: object
+
+        >>> s.str.slice(step=2)
+        0      kaa
+        1       dg
+        2    caeen
+        dtype: object
+
+        >>> s.str.slice(start=0, stop=5, step=3)
+        0    kl
+        1     d
+        2    cm
+        dtype: object
+        """
         if step == 0:
             raise ValueError("slice step cannot be zero")
         return Series(
@@ -771,6 +838,16 @@ class StringMethods:
             raise TypeError("first argument must be string or compiled pattern")
         return Series(
             query_compiler=self._query_compiler.str_findall(pat, flags=flags, **kwargs)
+        )
+
+    def fullmatch(self, pat, case=True, flags=0, na=None):
+        ErrorMessage.method_not_implemented_error("fullmatch", "Series.str")
+        if not isinstance(pat, (str, re.Pattern)):
+            raise TypeError("first argument must be string or compiled pattern")
+        return self._Series(
+            query_compiler=self._query_compiler.str_fullmatch(
+                pat, case=case, flags=flags, na=na
+            )
         )
 
     def match(self, pat, case=True, flags=0, na=np.NaN):

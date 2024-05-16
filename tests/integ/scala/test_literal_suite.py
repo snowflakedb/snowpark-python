@@ -6,6 +6,8 @@ import datetime
 import json
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import Column, Row
 from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
@@ -23,6 +25,10 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_literal_basic_types(session):
     df = (
         session.range(2)
@@ -76,6 +82,10 @@ def test_literal_basic_types(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_literal_timestamp_and_instant(session):
     since_epoch = 1539259994.123  # equivalent to "2018-10-11 12:13:14.123"
     naive_datetime = datetime.datetime.utcfromtimestamp(since_epoch)
@@ -145,6 +155,10 @@ def test_date(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_special_literals(session):
     source_literal = lit(123)
     df = (
@@ -182,6 +196,10 @@ def test_special_literals(session):
 
 
 # This test was originall party of scala-integ tests, but was removed.
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_special_decimal_literals(session):
     normal_scale = lit(Decimal("0.1"))
     small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
@@ -201,6 +219,10 @@ def test_special_decimal_literals(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_array_object(session):
     df = (
         session.range(1)
@@ -248,6 +270,10 @@ def test_array_object(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
+)
 def test_literal_variant(session):
     LITERAL_VALUES = [
         None,

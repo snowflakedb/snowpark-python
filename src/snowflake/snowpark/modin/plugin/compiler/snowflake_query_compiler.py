@@ -3,6 +3,7 @@
 #
 import functools
 import itertools
+import json
 import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -44,6 +45,7 @@ from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
     is_integer_dtype,
+    is_named_tuple,
     is_numeric_dtype,
     is_re_compilable,
     is_scalar,
@@ -69,6 +71,7 @@ from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.functions import (
     abs as abs_,
+    array_construct,
     builtin,
     cast,
     coalesce,
@@ -81,6 +84,7 @@ from snowflake.snowpark.functions import (
     dayofmonth,
     dense_rank,
     first_value,
+    greatest,
     hour,
     iff,
     initcap,
@@ -88,6 +92,7 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    least,
     length,
     lower,
     max as max_,
@@ -100,9 +105,11 @@ from snowflake.snowpark.functions import (
     quarter,
     rank,
     regexp_replace,
+    reverse,
     round,
     row_number,
     second,
+    substring,
     sum as sum_,
     sum_distinct,
     timestamp_ntz_from_parts,
@@ -120,6 +127,7 @@ from snowflake.snowpark.modin.plugin._internal import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
     AggFuncInfo,
+    AggFuncWithLabel,
     AggregateColumnOpParameters,
     _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
@@ -208,7 +216,6 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinKeyCoalesceConfig,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
     OrderedDataFrame,
     OrderingColumn,
 )
@@ -249,6 +256,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
     is_compatible_snowpark_types,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
+    UNPIVOT_NULL_REPLACE_VALUE,
     unpivot,
     unpivot_empty_df,
 )
@@ -307,6 +315,8 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    DoubleType,
+    FloatType,
     IntegerType,
     MapType,
     PandasDataFrameType,
@@ -324,7 +334,7 @@ from snowflake.snowpark.window import Window
 _logger = logging.getLogger(__name__)
 
 # TODO: SNOW-1229442 remove this restriction once bug in quantile is fixed.
-# For now, limit number of quantiles supported in pd.qcut, df.quantiles to avoid producing recursion limit failure in Snowpark.
+# For now, limit number of quantiles supported df.quantiles to avoid producing recursion limit failure in Snowpark.
 MAX_QUANTILES_SUPPORTED: int = 16
 
 
@@ -2568,6 +2578,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=agg_kwargs.get("dropna", True),
                 )
             else:
+                # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
+                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
+                if isinstance(agg_func, dict) and all(
+                    is_named_tuple(func) and len(func) == 2
+                    for func in agg_func.values()
+                ):
+                    agg_func = ", ".join(
+                        [f"{key}={value}" for key, value in agg_kwargs.items()]
+                    )
+                    agg_func = f"agg({agg_func})"
+
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
                 )
@@ -2575,6 +2596,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
+        uses_named_aggs = False
 
         original_index_column_labels = self._modin_frame.index_column_pandas_labels
 
@@ -2607,11 +2629,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
+        def convert_func_to_agg_func_info(
+            func: Union[AggFuncType, AggFuncWithLabel]
+        ) -> AggFuncInfo:
+            nonlocal uses_named_aggs
+            if is_named_tuple(func):
+                uses_named_aggs = True
+                return AggFuncInfo(
+                    func=func.func,
+                    is_dummy_agg=False,
+                    post_agg_pandas_label=func.pandas_label,
+                )
+            else:
+                return AggFuncInfo(
+                    func=func, is_dummy_agg=False, post_agg_pandas_label=None
+                )
+
         column_to_agg_func = {
             agg_col: (
-                [AggFuncInfo(func=fn, is_dummy_agg=False) for fn in func]
-                if is_list_like(func)
-                else AggFuncInfo(func=func, is_dummy_agg=False)
+                [convert_func_to_agg_func_info(fn) for fn in func]
+                if is_list_like(func) and not is_named_tuple(func)
+                else convert_func_to_agg_func_info(func)
             )
             for (agg_col, func) in column_to_agg_func.items()
         }
@@ -2686,7 +2724,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
         drop = False
-        if not as_index:
+        if not as_index and not uses_named_aggs:
             # drop off the index columns that are from the original index columns and also the index
             # columns that are from data column with aggregation function applied.
             # For example: with the following dataframe, which has data column ['A', 'B', 'C', 'D', 'E']
@@ -2791,6 +2829,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + f"level={level}, and axis={axis}"
             )
 
+        if "include_groups" in agg_kwargs:
+            # exclude "include_groups" from the apply function kwargs
+            agg_kwargs.pop("include_groups")
+
+        # TODO: SNOW-1429855 support include_groups = False
+
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
@@ -2842,6 +2886,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 snowflake_type_map[quoted_identifier]
                 for quoted_identifier in by_snowflake_quoted_identifiers_list
             ],
+            existing_identifiers=self._modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
@@ -4981,9 +5026,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
 
-        # If index columns differ in size, convert all multi-index row labels to
+        # If index columns differ in size or name, convert all multi-index row labels to
         # tuples with single level index.
-        if len({f.num_index_columns for f in frames}) > 1:
+        index_columns = self._modin_frame.index_column_snowflake_quoted_identifiers
+        index_columns_different = not all(
+            f.index_column_snowflake_quoted_identifiers == index_columns for f in frames
+        )
+        is_mixed_index_multiindex = len({f.num_index_columns for f in frames}) > 1
+        is_multiindex = any(f.num_index_columns > 1 for f in frames)
+
+        if is_mixed_index_multiindex or (not is_multiindex and index_columns_different):
             # If ignore_index is True on axis = 0 we fix index compatibility by doing
             # reset and drop all indices.
             if axis == 0 and ignore_index:
@@ -5359,6 +5411,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left = self
         join_index_on_index = left_index and right_index
+        # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
+        # https://github.com/pandas-dev/pandas/pull/54611/files
+        if how == "outer":
+            sort = True
 
         # Labels of indicator columns in input frames.  We use these columns to generate
         # final indicator column in merged frame.
@@ -9160,6 +9216,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ] = "linear",
         method: Literal["single", "table"] = "single",
         index: Optional[Union[list[str], list[float]]] = None,
+        index_dtype: npt.DTypeLike = float,
     ) -> "SnowflakeQueryCompiler":
         """
         Returns values at the given quantiles for each column.
@@ -9178,10 +9235,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: {"single", "table"}
             When "single", computes percentiles against values within the column; when "table", computes
             against values in the whole table. Currently, only "single" is supported.
-        index: Optional[List[str]], default None
+        index: Optional[List[str]], default: None
             When specified, sets the index column of the result to be this list. This is not part of
             the pandas API for quantile, and only used to implement df.describe().
             When unspecified, the index is the float values of the quantiles.
+        index_dtype: npt.DTypeLike, default: float
+            When specified along with ``index``, determines the type of the index column. This is only used
+            for the single-column case, where index values must be coerced to strings to support an UNPIVOT,
+            and otherwise is inferred. As with ``index``, this is not part of the public API, and only specified
+            by ``describe``.
 
         Returns
         -------
@@ -9207,6 +9269,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "quantile is not supported for datetime columns"
             )
+        assert index is None or len(index) == len(
+            q
+        ), f"length of index {index} did not match quantiles {q}"
+        # If the index is unspecified, then use the quantiles as the index
+        index_values = q if index is None else index
+        if len(query_compiler._modin_frame.data_column_pandas_labels) == 1 and all(
+            q[i] < q[i + 1] for i in range(len(q) - 1)
+        ):
+            # Use helper method without UNION ALL operations if the query compiler has only a single column
+            # and the list of quantiles is sorted. _quantiles_single_col internally uses an UNPIVOT
+            # where we cannot preserve order without adding an extra JOIN.
+            #
+            # The dtype of the resulting index column should always be float unless explicitly specified,
+            # such as with `df.describe`, where the column should be strings.
+            return query_compiler._quantiles_single_col(
+                q, interpolation, index=index_values, index_dtype=index_dtype
+            )
         original_frame = query_compiler._modin_frame
         data_column_pandas_labels = original_frame.data_column_pandas_labels
         if len(q) == 0:
@@ -9229,10 +9308,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels=[concat_utils.CONCAT_POSITION_COLUMN_LABEL],
             )[0]
         )
-        assert index is None or len(index) == len(
-            q
-        ), f"length of index {index} did not match quantiles {q}"
-        index_values = q if index is None else index
         # For each quantile and an N-column dataframe, create a 1x(N+2) frame with a column
         # for that quantile of the original column, one column with the quantile to use as the
         # index later, and one column for global ordering. Each frame is union_all'd together.
@@ -9282,6 +9357,172 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ],
             )
         )
+
+    def _quantiles_single_col(
+        self,
+        q: list[float],
+        interpolation: Literal["linear", "lower", "higher", "midpoint", "nearest"],
+        index: Optional[Union[list[str], list[float]]] = None,
+        index_dtype: npt.DTypeLike = float,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper method for ``qcut`` and ``quantile`` to compute quantiles over frames with a single column.
+        ``q`` must be sorted in ascending order (see Notes section).
+
+        Normally, we compute single row for every given quantile, with each column corresponding to
+        a column to the input frame.
+        These rows are all UNION ALL'd together at the end in order to avoid costly JOIN or
+        transpose (PIVOT/UNPIVOT) operations, as in the below diagram.
+
+        >>> pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75])
+        +-------+------+------+
+        | index |    a |    b |
+        +-------+------+------+                    +-------+------+------+
+        |  0.25 | 0.25 | 1.25 |                    | index |    a |    b |
+        +-------+------+------+                    +-------+------+------+
+                                 -- UNION ALL -->  |  0.25 | 0.25 | 1.25 |
+        +-------+------+------+                    +-------+------+------+
+        | index |    a |    b |                    |  0.75 | 0.75 | 1.75 |
+        +-------+------+------+                    +-------+------+------+
+        |  0.75 | 0.75 | 1.75 |
+        +-------+------+------+
+
+        When the list ``q`` has many elements (as is the case for most uses of qcut), the number of
+        UNION operations increases dramatically, and may cause Snowpark to create temporary tables.
+        This greatly increases latency.
+
+        When the input frame has a single column, we can eliminate UNION ALL operations
+        by producing a single row where the columns are the different quantiles. Since there is
+        only a single row, we can do a relatively cheap UNPIVOT to make the result a single column.
+
+        >>> pd.Series([0, 1], name="b").quantile([0.25, 0.75])
+        +------+------+                                              +-------+------+
+        |   q1 |   q2 |                                              | index |    b |
+        +------+------+  -- UNPIVOT(b FOR quantile IN (q1, q2)) -->  +-------+------+
+        | 1.25 | 1.75 |                                              |    q1 | 1.25 |
+        +------+------+                                              +-------+------+
+                                                                     |    q2 | 1.75 |
+                                                                     +-------+------+
+
+        ``qcut`` can drop the index column afterwards, but ``quantile`` and ``describe`` keep it.
+
+        Parameters
+        ----------
+        q : list[float]
+            A list of floats representing the quantiles to compute, sorted in ascending order.
+            In ``qcut`` and ``describe``, ``q`` is guaranteed to be sorted in the output.
+            In ``quantile``, this is not guaranteed, and must be verified by the caller.
+        interpolation : {"linear", "lower", "higher", "midpoint", "nearest"}
+            See documentation for ``quantile``.
+        index : list[str] | list[float], optional
+            The labels for the resulting index column, allowing us to avoid a JOIN query by directly
+            setting the correct column names before UNPIVOT. This is used primarily for ``describe``,
+            where the resulting row labels are percentiles like "25%" rather than decimals like "0.25".
+        index_dtype : npt.DtypeLike, default: float
+            The type to which to coerce the resulting index column. Since UNPIVOT requires string column
+            names, the resulting index column must be explicitly casted after the operation.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            A 1-column SnowflakeQueryCompiler with `index` as its index and the computed
+            quantiles as its data column.
+
+        Notes
+        -----
+        ``q`` must be sorted in ascending order, as OrderedFrame.unpivot will use the value column
+        (``b`` in the above example table) as its ordering column. Although the underlying Snowpark
+        DataFrame.unpivot operation nominally preserves the order of columns_list in the rows of
+        the resulting output, we cannot use the ROW_POSITION operator without first providing an
+        existing ordering column. Using transpose_single_row, or using a dummy index as the ordering
+        column would allow us to create an accurate row position column, but would require a
+        potentially expensive JOIN operator afterwards to apply the correct index labels.
+        """
+        assert len(self._modin_frame.data_column_pandas_labels) == 1
+
+        if index is not None:
+            # Snowpark UNPIVOT requires these to be strings
+            index = list(map(str, index))
+        original_frame = self._modin_frame
+        col_label = original_frame.data_column_pandas_labels[0]
+        col_identifier = original_frame.data_column_snowflake_quoted_identifiers[0]
+        new_labels = [str(quantile) for quantile in q]
+        new_identifiers = (
+            original_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=new_labels
+            )
+        )
+        ordered_dataframe = original_frame.ordered_dataframe.agg(
+            *[
+                # Replace NULL values so they are preserved through the UNPIVOT
+                coalesce(
+                    to_variant(
+                        column_quantile(col(col_identifier), interpolation, quantile)
+                    ),
+                    to_variant(pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)),
+                ).as_(new_ident)
+                for new_ident, quantile in zip(new_identifiers, q)
+            ]
+        )
+        index_identifier = ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=[None]
+        )[0]
+        # In order to set index labels without a JOIN, we call unpivot directly instead of using
+        # transpose_single_row. This also lets us avoid JSON serialization/deserialization.
+        ordered_dataframe = ordered_dataframe.unpivot(
+            col_identifier,
+            index_identifier,
+            new_identifiers,
+            col_mapper=dict(zip(new_identifiers, index))
+            if index is not None
+            else dict(zip(new_identifiers, new_labels)),
+        )
+        col_after_null_replace_identifier = (
+            ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=[col_label]
+            )[0]
+        )
+        # Restore NULL values in the data column and cast back to float
+        ordered_dataframe = ordered_dataframe.select(
+            index_identifier,
+            when(
+                col(col_identifier) == pandas_lit(UNPIVOT_NULL_REPLACE_VALUE),
+                pandas_lit(None),
+            )
+            .otherwise(col(col_identifier))
+            .cast(FloatType())
+            .as_(col_after_null_replace_identifier),
+        ).ensure_row_position_column()
+        internal_frame = InternalFrame.create(
+            ordered_dataframe=ordered_dataframe,
+            data_column_pandas_labels=[col_label],
+            data_column_pandas_index_names=[None],
+            data_column_snowflake_quoted_identifiers=[
+                col_after_null_replace_identifier
+            ],
+            index_column_pandas_labels=[None],
+            index_column_snowflake_quoted_identifiers=[index_identifier],
+        )
+        # We cannot call astype() directly to convert an index column, so we replicate
+        # the logic here so we don't have to mess with set_index.
+        internal_frame = (
+            internal_frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    index_identifier: column_astype(
+                        index_identifier,
+                        TypeMapper.to_pandas(
+                            internal_frame.quoted_identifier_to_snowflake_type()[
+                                index_identifier
+                            ]
+                        ),
+                        index_dtype,
+                        TypeMapper.to_snowflake(index_dtype),
+                    )
+                }
+            )[0]
+        )
+
+        return SnowflakeQueryCompiler(internal_frame)
 
     def skew(
         self,
@@ -9624,6 +9865,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             sorted_percentiles,
                             numeric_only=True,
                             index=format_percentiles(sorted_percentiles),
+                            index_dtype=str,
                         ),
                         datetime_as_epoch_qc.agg(
                             ["max"],
@@ -9667,6 +9909,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         sorted_percentiles,
                         numeric_only=True,
                         index=format_percentiles(sorted_percentiles),
+                        index_dtype=str,
                     ),
                     numeric_qc.agg(
                         ["max"],
@@ -11559,6 +11802,141 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.apply_snowpark_function_to_data_columns(length)
         )
 
+    def str_slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Slice substrings from each element in the Series or Index.
+
+        Parameters
+        ----------
+        start : int, optional
+            Start position for slice operation.
+        stop : int, optional
+            Stop position for slice operation.
+        step : int, optional
+            Step size for slice operation.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+
+        def output_col(
+            col_name: ColumnOrName,
+            start: Optional[int],
+            stop: Optional[int],
+            step: Optional[int],
+        ) -> SnowparkColumn:
+            if step is None:
+                step = 1
+            col_len_exp = length(col(col_name))
+
+            # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
+            # In general, the start position needs to be included and the stop position needs to be excluded from the slice.
+            # A negative start or stop position is relative to the end boundary of the string value.
+            # Also, depending on the sign of step, we either go forward from start to stop (positive step),
+            # or backwards from start to stop (negative step).
+            # This means that for the stop position to be excluded in the positive step scenario, we need to
+            # include the position immediately to the left of the stop position, and then stop.
+            # Conversely, for the negative step scenario, we need to include the position immediately to the right
+            # of the stop position, and then stop.
+            # Also, the stop position is allowed to fall beyond string beginning and end boundaries.
+            # However, the start position cannot fall before the beginning boundary when step is positive,
+            # and similarly, it cannot fall beyond the end boundary when step is negative.
+            if start is None:
+                if step < 0:
+                    # Start position is at the end boundary.
+                    start_exp = col_len_exp
+                else:
+                    # Start position is at the beginning boundary.
+                    start_exp = pandas_lit(1)
+            elif start < 0:
+                if step < 0:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is the position immediately to the left of the beginning boundary.
+                    start_exp = greatest(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(0)
+                    )
+                else:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is position representing the beginning boundary.
+                    start_exp = greatest(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(1)
+                    )
+            else:
+                assert start >= 0
+                if step < 0:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position representing the end boundary.
+                    start_exp = least(pandas_lit(start + 1), col_len_exp)
+                else:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position immediately to the right of the end boundary.
+                    start_exp = least(
+                        pandas_lit(start + 1), col_len_exp + pandas_lit(1)
+                    )
+
+            if stop is None:
+                if step < 0:
+                    # Stop position is immediately to the left of the beginning boundary.
+                    stop_exp = pandas_lit(0)
+                else:
+                    # Stop position is immediately to the right of the end boundary.
+                    stop_exp = col_len_exp + pandas_lit(1)
+            elif stop < 0:
+                # Stop position is relative to the end boundary, and the leftmost it can
+                # get is the position immediately to the left of the beginning boundary.
+                stop_exp = greatest(pandas_lit(stop + 1) + col_len_exp, pandas_lit(0))
+            else:
+                # Stop position is relative to the beginning boundary, and the rightmost it can
+                # get is the position immediately to the right of the end boundary.
+                stop_exp = least(pandas_lit(stop + 1), col_len_exp + pandas_lit(1))
+
+            if step < 0:
+                # When step is negative, we flip the column string value along with the start and
+                # stop positions. Step can be considered positive now.
+                new_col = reverse(col(col_name))
+                start_exp = col_len_exp - start_exp + pandas_lit(1)
+                stop_exp = col_len_exp - stop_exp + pandas_lit(1)
+                step = -step
+            else:
+                new_col = col(col_name)
+            # End of evaluation for start and end positions.
+
+            # If step is 1, then slicing is no different than getting a substring.
+            # Even when step is > 1, we also start by getting the substring with all
+            # the relevant characters we care about. Then we process them further below.
+            new_col = substring(new_col, start_exp, stop_exp - start_exp)
+            col_len_exp = stop_exp - start_exp
+            if step > 1:
+                # This is where the actual slicing happens using a regular expression.
+                # The regex essentially identifies every consecutive substring of size (step),
+                # and replaces it with its first character.
+                # As preprocessing, the substring operation handles the case where the length of
+                # the input string is not divisible by (step). In this case, it ensures that only
+                # the first character from the residual (n % step) characters is kept. Then, when
+                # processed by the regex, since this residual character won't be matched, it gets
+                # output as is, which is identical to python/pandas slicing behavior.
+                new_col = regexp_replace(
+                    substring(
+                        new_col,
+                        pandas_lit(1),
+                        col_len_exp - col_len_exp % pandas_lit(step) + pandas_lit(1),
+                    ),
+                    pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
+                    pandas_lit("\\2"),
+                )
+            return new_col
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            lambda col_name: output_col(col_name, start, stop, step)
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
     def str_split(
         self,
         pat: Optional[str] = None,
@@ -11882,129 +12260,81 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Construct bins from quantiles.
         # First step is to transform the quantiles given as a list of float values in q to values according to the data.
-        qc_quantiles = self.quantiles_along_axis0(q, True, "linear", "single", None)
+        # We add a new ARRAY column 'quantiles' with quantile values.
+        data_column = col(self._modin_frame.data_column_snowflake_quoted_identifiers[0])
+        frame = self._modin_frame.append_column(
+            "quantiles",
+            array_construct(
+                *[
+                    builtin("percentile_cont")(pandas_lit(quantile))
+                    .within_group(data_column)
+                    .over()
+                    .cast(DoubleType())
+                    for quantile in q
+                ]
+            ),
+        )
+        quantile_column_snowlake_identifier = (
+            frame.data_column_snowflake_quoted_identifiers[-1]
+        )
         # There are two behaviors here:
         # - If duplicates = 'raise', check if there are duplicates and raise an error.
         # - If drop, ignore and continue with distinct quantile values.
 
+        # Note: This eager query can be avoided for case duplicates = 'drop' by using a
+        # combination of higher-order function FILTER and ARRAY_POSITION. But FILTER
+        # is not yet supported in snowpark.
+        # TODO SNOW-1375054: perform this eager query only when dupliates = 'raise'
+        # For duplicates = 'drop' calcuate qcut lazily using ARRAY_POSITION(FILTER(...))
+
+        # Try to fetch 2 rows from the dataframe. We use number of rows returned here
+        # to determine if the frame has single element or is empty.
+        first_two_rows = (
+            frame.ordered_dataframe.select(quantile_column_snowlake_identifier)
+            .limit(2)
+            .collect()
+        )
+        # Array is returned as serialied json. Create list from serialized string.
+        quantiles = json.loads(first_two_rows[0][0])
+
         if duplicates == "raise":
-            # Check if there are duplicates by issuing an extra query, and raise if so.
+            # Check if there are duplicates, and raise if so.
             # If not, proceed and assume quantiles to be duplicate free.
-
-            # Note: This could be done with one query, same logic should be reused for Series.is_unique().
-            n_unique = qc_quantiles.nunique(dropna=False, axis=0).to_numpy().ravel()[0]
-
+            n_unique = len(set(quantiles))
             if n_unique != len(q):
-
                 # if self has a single element or is empty, duplicates are ok - even for 'raise'.
-                if self.get_axis_len(0) > 1:
-                    arr = qc_quantiles.to_numpy().ravel()
+                if len(first_two_rows) > 1:
                     # throw Pandas compatible error message
                     raise ValueError(
-                        f"Bin edges must be unique: {repr(arr)}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg"
+                        f"Bin edges must be unique: {quantiles}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg"
                     )
 
         # other duplicates case ('drop') is handled here.
-        qc_unique_quantiles = qc_quantiles.unique()
+        unique_quantiles = list(dict.fromkeys(quantiles))
 
-        # There will be 0, ..., len(qc_unique_quantiles) - 1 cuts, result will be thus in this range.
-        # We can find for values the cut they belong to by performing a left <= join. As this feature is not supported
-        # within OrderedDataFrame yet, we use the Snowpark layer directly. This should have no negative
-        # consequences when it comes to building lazy graphs, as qcut is a materializing operation.
-
-        quantile_frame = qc_unique_quantiles._modin_frame.ensure_row_position_column()
-        value_frame = self._modin_frame.ensure_row_position_column()
-
-        (
-            quantile_data_identifier,
-            quantile_row_position_identifier,
-            value_data_identifier,
-            value_row_position_identifier,
-        ) = value_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=["q_data", "q_row_pos", "v_data", "v_row_pos"]
-        )
-
-        value_index_identifiers = value_frame.index_column_snowflake_quoted_identifiers
-
-        quantile_snowpark_frame = (
-            quantile_frame.ordered_dataframe.to_projected_snowpark_dataframe(
-                True, True, True
+        # There will be 0, ..., len(unique_quantiles) - 1 cuts, result will be thus in this range.
+        # We can find for values the cut they belong to by comparing against quantiled values.
+        case_expr: Optional[CaseExpr] = None
+        for index, quantile in enumerate(unique_quantiles):
+            bin = max(index - 1, 0)
+            cond = data_column <= quantile
+            case_expr = (
+                when(cond, bin) if case_expr is None else case_expr.when(cond, bin)
             )
-        )
-        value_snowpark_frame = (
-            value_frame.ordered_dataframe.to_projected_snowpark_dataframe(
-                True, True, True
-            )
+        case_expr = (
+            case_expr.otherwise(None) if case_expr is not None else pandas_lit(None)
         )
 
-        # relabel to new identifiers to reference within range join below.
-        quantile_snowpark_frame = quantile_snowpark_frame.select(
-            col(quantile_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-                quantile_data_identifier
-            ),
-            col(quantile_frame.row_position_snowflake_quoted_identifier).as_(
-                quantile_row_position_identifier
-            ),
-        )
-
-        value_snowpark_frame = value_snowpark_frame.select(
-            *tuple(value_index_identifiers),
-            col(value_frame.data_column_snowflake_quoted_identifiers[0]).as_(
-                value_data_identifier
-            ),
-            col(value_frame.row_position_snowflake_quoted_identifier).as_(
-                value_row_position_identifier
-            ),
-        )
-
-        # Perform a left join. The idea is to find all values which fall into an interval defined by the quantiles
-        # in quantile. The closest can be then identified using the row position. An alternative to this
-        # was to use an ASOF join with a proper matching condition.
-        ans = value_snowpark_frame.join(
-            quantile_snowpark_frame,
-            value_snowpark_frame[value_data_identifier]
-            <= quantile_snowpark_frame[quantile_data_identifier],
-            how="left",
-            lsuffix="_L",
-            rsuffix="_R",
-        )
-
-        # Result will be v_row_pos and min(q_row_pos) - 1. However, to deal with the edge cases we need to correct
-        # for the case when the result is in the left-most interval. Therefore, floor it with 0.
-        ans = ans.group_by(
-            value_index_identifiers
-            + [value_data_identifier, value_row_position_identifier]
-        ).min(quantile_row_position_identifier)
-        column_names = ans.columns
-        ans = ans.select(
-            *tuple(value_index_identifiers),
-            col(value_row_position_identifier),
-            iff(  # floor result here to 0.
-                col(column_names[-1]) != pandas_lit(0),
-                col(column_names[-1]) - pandas_lit(1),
-                col(column_names[-1]),
-            ),
-        )
-        column_names = ans.columns
-        new_data_identifier = column_names[-1]
-
-        # Create OrderedDataFrame and InternalFrame and QC out of this.
-        # Need to restore index as well which has been passed through.
-        new_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(ans),
-            projected_column_snowflake_quoted_identifiers=value_index_identifiers
-            + [new_data_identifier],
-            ordering_columns=[OrderingColumn(value_row_position_identifier)],
-            row_position_snowflake_quoted_identifier=value_row_position_identifier,
-        )
+        frame = frame.append_column("qcut_bin", case_expr)
+        new_data_identifier = frame.data_column_snowflake_quoted_identifiers[-1]
 
         new_frame = InternalFrame.create(
-            ordered_dataframe=new_ordered_dataframe,
+            ordered_dataframe=frame.ordered_dataframe,
             data_column_pandas_labels=self._modin_frame.data_column_pandas_labels,
             data_column_pandas_index_names=self._modin_frame.data_column_index_names,
             data_column_snowflake_quoted_identifiers=[new_data_identifier],
             index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=value_index_identifiers,
+            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
         )
 
         return SnowflakeQueryCompiler(new_frame)
