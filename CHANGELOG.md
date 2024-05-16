@@ -34,6 +34,9 @@
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
 - Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+- Fixed a bug that caused function calls on `*` to fail.
+- Fixed a bug that prevented creation of map and struct type objects.
+- Fixed a bug that function `date_add` was unable to handle some numeric types.
 
 #### Improvements
 
