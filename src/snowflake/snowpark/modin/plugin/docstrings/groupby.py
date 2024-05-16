@@ -232,7 +232,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         Examples
         --------
@@ -593,7 +593,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Object shifted within each group.
 
         Examples
@@ -648,7 +648,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-            Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -743,7 +743,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -821,7 +821,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See Also
         --------
@@ -920,7 +920,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -1006,7 +1006,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Standard deviation of values within each group.
 
         Examples
@@ -1127,7 +1127,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame with ranking of values within each group
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame` with ranking of values within each group
 
         Examples
         --------
@@ -1229,7 +1229,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Variance of values within each group.
 
         Examples
@@ -1401,7 +1401,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Median of values within each group.
 
         Examples
@@ -1459,7 +1459,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -1643,7 +1643,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Count of values within each group.
 
         Examples
@@ -1752,7 +1752,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Subset of the original Series or DataFrame as determined by n.
 
         See also
@@ -1842,7 +1842,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Return type determined by caller of GroupBy object.
         """
 
