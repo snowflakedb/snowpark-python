@@ -831,7 +831,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         local_kwargs = {k: v for k, v in kwargs.items() if k not in ["index_col"]}
-        if filetype == 'csv':
+        if filetype == "csv":
             df = native_pd.read_csv(**local_kwargs)
         temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         pd.session.write_pandas(
@@ -958,9 +958,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             qc = qc.astype(dtype_)
         return cls._post_process_file(qc=qc, **kwargs)
-    
+
     @classmethod
-    def _post_process_file(cls, qc:"SnowflakeQueryCompiler", **kwargs: Any) -> "SnowflakeQueryCompiler":
+    def _post_process_file(
+        cls, qc: "SnowflakeQueryCompiler", **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
         index_col = kwargs.get("index_col", None)
         if index_col:
             pandas_labeled_index_cols = []
