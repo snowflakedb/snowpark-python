@@ -1592,6 +1592,9 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         -----
         To meet the nature of lazy evaluation:
 
+        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for row indexers (while pandas ``.loc``
+          may raise KeyError). If all values are out-of-bound, an empty result will be returned.
+        - Out-of-bounds indexing for columns will still raise a KeyError the same way pandas does.
         - In Snowpark pandas ``.loc``, unalignable boolean Series provided as indexer will perform a join on the index
           of the main dataframe or series. (while pandas will raise an IndexingError)
         - When there is a slice key, Snowpark pandas ``.loc`` performs the same as native pandas when both the start and
