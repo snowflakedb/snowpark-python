@@ -28,7 +28,11 @@ To have the best experience when using it with UDFs, [creating a local conda env
 ```bash
 pip install snowflake-snowpark-python
 ```
-Optionally, you need to install pandas and Modin in the same environment if you want to use Snowpark pandas features:
+Optionally, you need to install pandas in the same environment if you want to use pandas-related features:
+```bash
+pip install "snowflake-snowpark-python[pandas]"
+```
+Optionally, you need to install Modin in the same environment if you want to use Snowpark pandas features:
 ```bash
 pip install "snowflake-snowpark-python[modin]"
 ```
@@ -51,6 +55,7 @@ session = Session.builder.configs(connection_parameters).create()
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]) # Snowpark Python dataframe
 df = df.filter(df.a > 1)
 df.show()
+pandas_df = df.to_pandas()  # this requires pandas installed in the Python environment
 result = df.collect()
 ```
 
@@ -71,7 +76,7 @@ CONNECTION_PARAMETERS = {
 }
 session = Session.builder.configs(CONNECTION_PARAMETERS).create()
 
-# Create a dataframe out of a Snowflake table.
+# Create a Snowpark pandas dataframe out of a Snowflake table.
 df = pd.read_snowflake('pandas_test')
 
 df
