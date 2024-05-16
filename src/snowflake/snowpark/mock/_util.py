@@ -146,7 +146,10 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]
             ff_index = str(time_fmt).index("FF")
             # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
             if str(time_fmt[ff_index + 2 : ff_index + 3]).isdigit():
-                fractional_seconds = int(time_fmt[ff_index + 2 : ff_index + 3])
+                # fractional seconds does not come into effect when parsing input, see follow sql
+                #   alter session set TIME_OUTPUT_FORMAT = 'HH:MI:SS.FF9';
+                #   select to_time('11:22:44.333333', 'HH:MI:SS.FF1');
+                # it still returns '11:22:44.333333' not '11:22:44.3'
                 # replace FF[0-9] with %f
                 time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 3 :]
             else:
@@ -189,8 +192,10 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
         idx = 0
         while idx < len(seconds_part) and seconds_part[idx].isdigit():
             idx += 1
-        # truncate to precision
-        seconds_part = seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+        # truncate to precision, python can only handle microsecond which is 6 digits
+        seconds_part = (
+            seconds_part[: min(idx, fractional_seconds, 6)] + seconds_part[idx:]
+        )
         ret = f"{time_parts[0]}.{seconds_part}"
     return ret
 
