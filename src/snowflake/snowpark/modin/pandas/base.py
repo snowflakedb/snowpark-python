@@ -1529,6 +1529,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             return result
 
+    @base_not_implemented()
+    def map(self, func, na_action: str | None = None, **kwargs):
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        if not callable(func):
+            raise ValueError(f"'{type(func)}' object is not callable")
+        return self.__constructor__(
+            query_compiler=self._query_compiler.map(func, na_action=na_action, **kwargs)
+        )
+
     def mask(
         self,
         cond: BasePandasDataset | Callable | AnyArrayLike,
@@ -3772,6 +3781,12 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             NumPy representation of Modin object.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        WarningMessage.single_warning(
+            "Calling __array__ on a modin object materializes all data into local memory.\n"
+            + "Since this can be called by 3rd party libraries silently, it can lead to \n"
+            + "unexpected delays or high memory usage. Use to_pandas() or to_numpy() to do \n"
+            + "this once explicitly.",
+        )
         arr = self.to_numpy(dtype)
         return arr
 

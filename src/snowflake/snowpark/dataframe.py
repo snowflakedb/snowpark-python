@@ -970,8 +970,8 @@ class DataFrame:
             incorrectly, an error will be raised when `to_snowpark_pandas` is called.
 
             For Python version support information, please refer to:
-            - the prerequisites section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#prerequisites
-            - the installation section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#installing-the-snowpark-pandas-api
+            - the prerequisites section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#prerequisites
+            - the installation section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#installing-the-snowpark-pandas-api
 
         See also:
             - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`

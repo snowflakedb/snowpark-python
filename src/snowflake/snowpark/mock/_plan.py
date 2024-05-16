@@ -8,10 +8,12 @@ import math
 import os
 import re
 import shutil
+import statistics
 import sys
 import tempfile
 import typing
 import uuid
+from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
@@ -43,6 +45,7 @@ from snowflake.snowpark.mock._window_utils import (
     RowFrameIndexer,
     is_rank_related_window_function,
 )
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -124,6 +127,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateViewCommand,
+    Pivot,
     Sample,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
@@ -132,7 +136,6 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
@@ -215,6 +218,13 @@ class MockExecutionPlan(LogicalPlan):
     def num_duplicate_nodes(self) -> int:
         # dummy return
         return -1
+
+    def replace_repeated_subquery_with_cte(self):
+        return self
+
+    @property
+    def post_actions(self):
+        return []
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -444,7 +454,7 @@ def handle_udf_expression(
     udf_name = exp.udf_name
 
     if udf_name not in udf_registry:
-        raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
+        raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
 
     # Initialize import directory
     temporary_import_path = tempfile.TemporaryDirectory()
@@ -652,7 +662,7 @@ def execute_mock_plan(
                 expr_to_alias,
             )
             if len(res_df.columns) != len(cur_df.columns):
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
                 )
             cur_df.columns = res_df.columns
@@ -711,7 +721,7 @@ def execute_mock_plan(
         else:
             db_schme_table = parse_table_name(entity_name)
             table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Object '{table}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
@@ -785,8 +795,8 @@ def execute_mock_plan(
                         child_rf[column_name],
                     )
                 except KeyError:
-                    raise SnowparkSQLException(
-                        f"[Local Testing] invalid identifier {column_name}"
+                    raise SnowparkLocalTestingException(
+                        f"invalid identifier {column_name}"
                     )
             else:
                 analyzer.session._conn.log_not_supported_error(
@@ -830,7 +840,7 @@ def execute_mock_plan(
                         child_rf[plan.session._analyzer.analyze(exp)]
                     )
         except KeyError as e:
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"This is not a valid group by expression due to exception {e!r}"
             )
 
@@ -1087,7 +1097,7 @@ def execute_mock_plan(
             return res_df
         else:
             db_schme_table = parse_table_name(entity_name)
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
@@ -1096,7 +1106,7 @@ def execute_mock_plan(
         if source_plan.row_count and (
             source_plan.row_count < 0 or source_plan.row_count > 100000
         ):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 "parameter value out of range: size of fixed sample. Must be between 0 and 1,000,000."
             )
 
@@ -1326,8 +1336,8 @@ def execute_mock_plan(
                     for k, v in zip(clause.keys, clause.values):
                         column_name = analyzer.analyze(k, expr_to_alias)
                         if column_name not in rows_to_insert.columns:
-                            raise SnowparkSQLException(
-                                f"Error: invalid identifier '{column_name}'"
+                            raise SnowparkLocalTestingException(
+                                f"invalid identifier '{column_name}'"
                             )
                         inserted_columns.add(column_name)
                         new_val = calculate_expression(
@@ -1345,7 +1355,7 @@ def execute_mock_plan(
 
                 else:
                     if len(clause.values) != len(rows_to_insert.columns):
-                        raise SnowparkSQLException(
+                        raise SnowparkLocalTestingException(
                             f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
                         )
                     for col, v in zip(rows_to_insert.columns, clause.values):
@@ -1379,6 +1389,100 @@ def execute_mock_plan(
             res.append(len(deleted_row_idx))
 
         return [Row(*res)]
+    elif isinstance(source_plan, Pivot):
+        child_rf = execute_mock_plan(source_plan.child)
+
+        assert (
+            len(source_plan.aggregates) == 1
+        ), "Dataframe plan should fail before this if one aggregate isn't supplied."
+        agg = source_plan.aggregates[0]
+        assert (
+            len(agg.children) == 1
+        ), "Aggregate functions should take exactly one parameter."
+        agg_column = plan.session._analyzer.analyze(agg.children[0])
+
+        agg_function_name = agg.name.lower()
+        agg_functions = {
+            "avg": statistics.mean,
+            "count": len,
+            "max": max,
+            "min": min,
+            "sum": sum,
+        }
+
+        if agg_function_name not in agg_functions:
+            SnowparkLocalTestingException.raise_from_error(
+                ValueError(
+                    f"Unsupported pivot aggregation function {agg_function_name}."
+                )
+            )
+
+        pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
+
+        if isinstance(source_plan.pivot_values, Iterable):
+            pivot_values = [exp.value for exp in source_plan.pivot_values]
+        elif source_plan.pivot_values is None:
+            pivot_values = []
+        else:
+            analyzer.session._conn.log_not_supported_error(
+                external_feature_name=f"Pivot values from {source_plan.pivot_values}",
+                internal_feature_name=type(source_plan).__name__,
+                raise_error=NotImplementedError,
+            )
+
+        # source_plan.grouping_columns contains columns specified in the groupby clause.
+        # If that clause is omitted then the default behavior is to use all columns that are not
+        # being used as either the agg column or the pivot column.
+        # See here for more details: https://community.snowflake.com/s/article/Pivot-returns-more-rows-than-expected
+        grouping_columns = [
+            plan.session._analyzer.analyze(c) for c in source_plan.grouping_columns
+        ]
+        indices = grouping_columns or [
+            col for col in child_rf.keys() if col not in {agg_column, pivot_column}
+        ]
+
+        # Missing values are filled with a sentinel object that can later be replaced with Nones
+        sentinel = object()
+
+        # Snowflake treats an empty aggregation as None, whereas pandas treats it as 0.
+        # This requires us to wrap the aggregation function with extract logic to handle this special case.
+        def agg_function(column):
+            return (
+                agg_functions[agg_function_name](column.dropna())
+                if column.any()
+                else sentinel
+            )
+
+        default = (
+            source_plan.default_on_null.value if source_plan.default_on_null else None
+        )
+
+        # Count defaults to 0 rather than None
+        if agg_function_name == "count":
+            default = default or 0
+
+        result = child_rf.pivot_table(
+            columns=pivot_column,
+            values=agg_column,
+            aggfunc=agg_function,
+            index=indices,
+        )
+        result.reset_index(inplace=True)
+
+        # Select down to indices and provided values if specific values were requested
+        if pivot_values:
+            result = result[list(indices) + pivot_values]
+
+        # Non-indice columns lack an sf_type, add them back in.
+        for res_col in set(result.columns) - set(indices):
+            # fill_na will not fill na like values with None, but it can replace them with a sentinel value
+            filled = result[res_col].fillna(sentinel)
+
+            # Sentinel values are replaced with None, then all Nones are replaced with the default if provided
+            data = filled.replace({sentinel: None}).replace({None: default}).values
+            # Column Emulator has to be reconctructed with sf_type in this case
+            result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
+        return result
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
@@ -1461,7 +1565,7 @@ def calculate_expression(
         try:
             return input_data[exp.name]
         except KeyError:
-            raise SnowparkSQLException(f"[Local Testing] invalid identifier {exp.name}")
+            raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
@@ -1623,7 +1727,9 @@ def calculate_expression(
             try:
                 re.compile(_pattern)
             except re.error:
-                raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
+                raise SnowparkLocalTestingException(
+                    f"Invalid regular expression {raw_pattern}"
+                )
 
             return bool(re.match(_pattern, input_str))
 
@@ -1746,7 +1852,7 @@ def calculate_expression(
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type != value.sf_type
                 ):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
                     )
             else:
@@ -1762,7 +1868,7 @@ def calculate_expression(
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type.datatype != value.sf_type.datatype
                 ):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
             else:
@@ -1778,7 +1884,7 @@ def calculate_expression(
                 window_spec.order_spec, input_data, analyzer, expr_to_alias
             )
         elif is_rank_related_window_function(window_function):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
@@ -1837,7 +1943,7 @@ def calculate_expression(
                         "upper": type(upper).__name__,
                         "lower": type(lower).__name__,
                     },
-                    raise_error=SnowparkSQLException,
+                    raise_error=SnowparkLocalTestingException,
                 )
 
             windows = handle_range_frame_indexing(
@@ -1906,7 +2012,7 @@ def calculate_expression(
                                         type(calculated_sf_type.datatype).__name__
                                     ),
                                 },
-                                raise_error=SnowparkSQLException,
+                                raise_error=SnowparkLocalTestingException,
                             )
                     res_cols.append(sub_window_res.iloc[0])
                 elif not ignore_nulls or offset == 0:
@@ -1950,7 +2056,7 @@ def calculate_expression(
                                         calculated_sf_type.datatype
                                     ).__name__,
                                 },
-                                raise_error=SnowparkSQLException,
+                                raise_error=SnowparkLocalTestingException,
                             )
                     res_cols.append(sub_window_res.iloc[0])
                 else:
