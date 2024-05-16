@@ -384,18 +384,33 @@ def handle_function_expression(
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:
-            to_pass_args.extend(
-                [
-                    calculate_expression(
-                        c,
-                        input_data,
-                        analyzer,
-                        expr_to_alias,
-                        keep_literal=keep_literal,
+            # TODO is this really the best place for this?
+            args = []
+            for c in exp.children[idx:]:
+                if isinstance(c, Star):
+                    args.extend(
+                        [
+                            calculate_expression(
+                                cc,
+                                input_data,
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=keep_literal,
+                            )
+                            for cc in c.expressions
+                        ]
                     )
-                    for c in exp.children[idx:]
-                ]
-            )
+                else:
+                    args.append(
+                        calculate_expression(
+                            c,
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                    )
+            to_pass_args.extend(args)
         else:
             try:
                 to_pass_args.append(
@@ -424,7 +439,13 @@ def handle_function_expression(
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
 
-    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    try:
+        result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    except Exception as err:
+        SnowparkLocalTestingException.raise_from_error(
+            err,
+            error_message=f"Error executing mocked function '{func_name}'. See error traceback for detailed information.",
+        )
 
     # If none of the args are column emulators and the function result only has one item
     # assume that the single value should be repeated instead of Null filled. This allows
