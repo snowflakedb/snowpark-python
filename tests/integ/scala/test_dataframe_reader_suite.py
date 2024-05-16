@@ -1303,16 +1303,13 @@ def test_read_xml_with_no_schema(session, mode):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370138 AssertionError; FEAT: on_error support",
-)
 def test_copy(session, local_testing_mode):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
+    # SNOW-1432856 on_error support
     df = (
         session.read.schema(user_schema)
-        .option("on_error", "continue")
+        .option("on_error", "continue" if not local_testing_mode else None)
         .option("COMPRESSION", "none")
         .csv(test_file_on_stage)
     )
@@ -1340,18 +1337,21 @@ def test_copy(session, local_testing_mode):
     # fail to read since the file is not compressed.
     # return empty result since enable on_error = continue
 
-    df2 = (
-        session.read.schema(user_schema)
-        .option("on_error", "continue")
-        .option("COMPRESSION", "gzip")
-        .csv(test_file_on_stage)
-    )
-    assert df2.collect() == []
+    if not local_testing_mode:
+        # SNOW-1432856 on_error support
+        # SNOW-1432857 compression support
+        df2 = (
+            session.read.schema(user_schema)
+            .option("on_error", "continue")
+            .option("COMPRESSION", "gzip")
+            .csv(test_file_on_stage)
+        )
+        assert df2.collect() == []
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370138 unsupported force option should raise error",
+    reason="SNOW-1433016 force option is not supported",
 )
 def test_copy_option_force(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -1398,7 +1398,7 @@ def test_copy_option_force(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370138 on_error option should raise error",
+    reason="SNOW-1432856 on_error option is not supported",
 )
 def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_path):
     broken_file = f"@{tmp_stage_name1}/{test_broken_csv}"
@@ -1417,7 +1417,7 @@ def test_read_file_on_error_continue_on_csv(session, db_parameters, resources_pa
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: option on_error not supported",
+    reason="SNOW-1432856 option on_error is not supported",
 )
 def test_read_file_on_error_continue_on_avro(session):
     broken_file = f"@{tmp_stage_name1}/{test_file_avro}"
