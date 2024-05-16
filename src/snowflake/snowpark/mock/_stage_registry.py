@@ -71,7 +71,7 @@ SUPPORT_READ_OPTIONS = {
     ),
 }
 
-RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
