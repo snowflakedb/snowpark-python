@@ -9,6 +9,7 @@ import inspect
 import os
 import sys
 import time
+import uuid
 from logging import getLogger
 from typing import (
     IO,
@@ -693,6 +694,12 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
+
+    def create_coprocessor(self) -> None:
+        id = str(uuid.uuid4())
+        print(f"create cp start {id}")
+        self._conn._rest.request(f"/queries/v1/query-request?requestId={id}", { 'dataframeAst': 'new-session' })
+        print("create cp complete")
 
     def ast_query(self, request_id__ast) -> Any:
         (request_id, ast) = request_id__ast
