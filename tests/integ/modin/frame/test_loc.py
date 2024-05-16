@@ -382,11 +382,7 @@ def test_df_loc_get_out_of_bound_col(
             eval_snowpark_pandas_result(
                 str_index_snowpark_pandas_df,
                 str_index_native_df,
-                lambda df: df.loc[
-                    :,
-                    key
-                    if isinstance(df, pd.DataFrame)
-                    else [k for k in key if k in str_index_native_df.columns],
+                lambda df: df.loc[:, key]
                 ],
             )
 
@@ -466,7 +462,6 @@ def test_mi_df_loc_get_non_boolean_list_col_key(mi_table_df, key, native_error):
         if native_error:
             with pytest.raises(native_error):
                 _ = mi_table_df.loc[:, key]
-                assert df.loc[:, key].empty
         else:
             eval_snowpark_pandas_result(
                 df,
