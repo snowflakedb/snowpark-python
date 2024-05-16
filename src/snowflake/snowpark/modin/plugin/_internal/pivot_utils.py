@@ -78,7 +78,7 @@ def perform_pivot_and_concatenate(
     should_join_along_columns: bool,
 ) -> PivotedOrderedDataFrameResult:
     """
-    Helper functio to perform a full pivot (including joining in the case of multiple aggrs or values) on an OrderedDataFrame.
+    Helper function to perform a full pivot (including joining in the case of multiple aggrs or values) on an OrderedDataFrame.
 
     Args:
         ordered_dataframe: The ordered dataframe to perform pivot on.
