@@ -1202,17 +1202,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2014-02-13    high
         Freq: None, Name: windspeed, dtype: object
 
-        Snowpark pandas indexing won't raise KeyError if any key is not found;
-        instead, it will return the results from the found keys
-        or return an empty series if no key is found.
-
-        >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
-                    temp_celsius
-        2014-02-12          24.3
-        2014-02-13          31.0
-        2014-02-14          22.0
-        2014-02-15          35.0
-
         >>> ser.get('2014-02-10', '[unknown]')
         Series([], Freq: None, Name: windspeed, dtype: object)
 
@@ -1603,13 +1592,14 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         -----
         To meet the nature of lazy evaluation:
 
-        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for all types of indexers (while pandas ``.loc``
+        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for row indexers (while pandas ``.loc``
           may raise KeyError). If all values are out-of-bound, an empty result will be returned.
+        - Out-of-bounds indexing for columns will still raise a KeyError the same way pandas does.
         - In Snowpark pandas ``.loc``, unalignable boolean Series provided as indexer will perform a join on the index
           of the main dataframe or series. (while pandas will raise an IndexingError)
         - When there is a slice key, Snowpark pandas ``.loc`` performs the same as native pandas when both the start and
-          stop are labels present in the index or either one is absert but the index is sorted. When any of the two
-          labels is absert from an unsorted index, Snowpark pandas will return rows in between while native pandas will
+          stop are labels present in the index or either one is absent but the index is sorted. When any of the two
+          labels is absent from an unsorted index, Snowpark pandas will return rows in between while native pandas will
           raise a KeyError.
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
