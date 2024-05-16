@@ -335,10 +335,6 @@ def test_cumulative_agg_backward_direction(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: cast to float type not supported, should route reference to to_float to to_double",
-)
 def test_compute_lead(session):
     """Tests df.analytics.compute_lead() happy path."""
 

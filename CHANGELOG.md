@@ -20,6 +20,7 @@
   - snowflake.snowpark.Session:
     - cancel_all
 - Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
+- Added support for casting to FloatType
 - Added support for the following DataFrameReader read options to file formats `csv` and `json`:
   - PURGE
   - PATTERN
