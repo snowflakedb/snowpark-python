@@ -528,10 +528,19 @@ def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     del parameters["warehouse"]
     parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
-        session.sql_simplifier_enabled = sql_simplifier_enabled
-        schema_name = db_parameters["schema"]
-        session.use_schema(schema_name)
-        assert session.get_current_schema() == f'"{schema_name.upper()}"'
+        quoted_schema_name = f'"SCHEMA_{Utils.random_alphanumeric_str(5)}_schema"'
+        try:
+            session.sql_simplifier_enabled = sql_simplifier_enabled
+            schema_name = db_parameters["schema"]
+            session.use_schema(schema_name)
+            assert session.get_current_schema() == f'"{schema_name.upper()}"'
+            if not local_testing_mode:
+                session.sql(f"CREATE OR REPLACE SCHEMA {quoted_schema_name}").collect()
+            session.use_schema(quoted_schema_name)
+            assert session.get_current_schema() == quoted_schema_name
+        finally:
+            if not local_testing_mode:
+                session.sql(f"DROP SCHEMA IF EXISTS {quoted_schema_name}").collect()
 
 
 @pytest.mark.localtest
