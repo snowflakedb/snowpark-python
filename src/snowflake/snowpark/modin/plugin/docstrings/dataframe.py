@@ -828,7 +828,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         2    13
         dtype: int64
 
-        Returning a list-like result will result in a Series:
+        Returning a list-like object will result in a Series:
 
         >>> df.apply(lambda x: [1, 2], axis=1)
         0    [1, 2]
