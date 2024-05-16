@@ -823,42 +823,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
             )
         )
+
     @classmethod
-    def from_local_csv_file(
+    def from_file_with_pandas(
         cls,
+        filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        kwargs['on_bad_lines'] = 'error'
-        kwargs['skipfooter'] = 0
-        kwargs['skiprows'] = None 
-        kwargs['memory_map'] = False
-        kwargs['keep_default_na'] = True
-        kwargs['na_filter'] = True
-        kwargs['verbose'] = no_default
-        kwargs['skip_blank_lines'] = True
-        kwargs['infer_datetime_format'] = no_default
-        kwargs['keep_date_col'] = no_default
-        kwargs['date_parser'] = no_default
-        kwargs['dayfirst'] = False
-        kwargs['cache_dates'] = True
-        kwargs['iterator'] = False
-        kwargs['decimal'] = '.'
-        kwargs['quoting'] = 0
-        kwargs['doublequote'] = True
-        kwargs['encoding_errors'] = 'strict'
-        kwargs['delim_whitespace'] = no_default
-        kwargs['low_memory'] = True
-        kwargs['memory_map'] = False
-
-        df = native_pd.read_csv(**kwargs)
-        session = pd.session
+        local_kwargs = {k: v for k, v in kwargs.items() if k not in ["index_col"]}
+        if filetype == 'csv':
+            df = native_pd.read_csv(**local_kwargs)
         temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        session.write_pandas(df = df, table_name=temporary_table_name, auto_create_table=True, table_type='temporary')
-        return cls.from_snowflake(temporary_table_name)
-
+        pd.session.write_pandas(
+            df=df,
+            table_name=temporary_table_name,
+            auto_create_table=True,
+            table_type="temporary",
+        )
+        qc = cls.from_snowflake(temporary_table_name)
+        return cls._post_process_file(qc, **kwargs)
 
     @classmethod
-    def from_file(
+    def from_file_with_snowflake(
         cls,
         filetype: SnowflakeSupportedFileTypeLit,
         path: str,
@@ -971,7 +957,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 dtype_ = {column: dtype_ for column in qc.columns}
 
             qc = qc.astype(dtype_)
-
+        return cls._post_process_file(qc=qc, **kwargs)
+    
+    @classmethod
+    def _post_process_file(cls, qc:"SnowflakeQueryCompiler", **kwargs: Any) -> "SnowflakeQueryCompiler":
         index_col = kwargs.get("index_col", None)
         if index_col:
             pandas_labeled_index_cols = []
@@ -985,7 +974,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         column += len(qc.columns)
 
                     if column not in range(len(qc.columns)):
-                        raise IndexError("list index is out of range")
+                        raise IndexError("list index out of range")
                     pandas_labeled_index_cols.append(qc.columns[column])
 
             if len(set(pandas_labeled_index_cols)) != len(pandas_labeled_index_cols):
@@ -993,7 +982,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             if len(pandas_labeled_index_cols) != 0:
                 qc = qc.set_index(pandas_labeled_index_cols)  # type: ignore[arg-type]
-
         return qc
 
     def _to_snowpark_dataframe_from_snowpark_pandas_dataframe(
