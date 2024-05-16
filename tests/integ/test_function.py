@@ -592,7 +592,6 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    # TODO: SNOW-1235716 error experience
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sqrt(lit(-1))).collect()
     if not local_testing_mode:
