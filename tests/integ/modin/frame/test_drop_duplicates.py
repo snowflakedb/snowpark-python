@@ -23,10 +23,11 @@ def test_drop_duplicates_with_misspelled_column_name_or_empty_subset(subset):
         if "B" in subset
         else native_pd.DataFrame(columns=["A", "B", "C"])
     )
-    query_count = 1
-    join_count = 1
-    if "B" in subset:
+    query_count = 0
+    join_count = 0
+    if subset == []:
         join_count += 1
+        query_count += 1
     with SqlCounter(query_count=query_count, join_count=join_count):
         if subset == []:
             assert_frame_equal(

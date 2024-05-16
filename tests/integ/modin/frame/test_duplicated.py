@@ -23,8 +23,8 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
     with pytest.raises((KeyError, ValueError)):
         df.duplicated(subset)
     expected_res = df.duplicated(["B"]) if "B" in subset else native_pd.Series([])
-    query_count = 1
-    if is_scalar(subset):
+    query_count = 0
+    if subset == []:
         query_count += 1
     with SqlCounter(query_count=query_count):
         if subset == []:
