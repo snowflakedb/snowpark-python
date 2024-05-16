@@ -189,7 +189,7 @@ def test_pivot_table_unsupported_dropna_with_expanded_aggregation_margins_unsupp
 @pytest.mark.parametrize(
     "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
 )
-class TestPivotTableMarginsNoIndex:
+class TestPivotTableMarginsNoIndexFewerPivotValues:
     @sql_count_checker(query_count=1, join_count=1)
     def test_single_value_single_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
@@ -233,6 +233,63 @@ class TestPivotTableMarginsNoIndex:
     def test_multiple_value_multiple_aggfunc(self, columns, df_data):
         pivot_table_test_helper(
             df_data,
+            {
+                "columns": columns,
+                "values": ["D", "E"],
+                "aggfunc": ["sum", "min"],
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
+)
+class TestPivotTableMarginsNoIndexMorePivotValues:
+    @sql_count_checker(query_count=1, join_count=1)
+    def test_single_value_single_aggfunc(self, columns, df_data_more_pivot_values):
+        pivot_table_test_helper(
+            df_data_more_pivot_values,
+            {
+                "columns": columns,
+                "values": ["D"],
+                "aggfunc": "sum",
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    @sql_count_checker(query_count=1, join_count=1, union_count=2)
+    def test_multiple_value_single_aggfunc(self, columns, df_data_more_pivot_values):
+        pivot_table_test_helper(
+            df_data_more_pivot_values,
+            {
+                "columns": columns,
+                "values": ["D", "E"],
+                "aggfunc": "sum",
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    @sql_count_checker(query_count=1, join_count=3)
+    def test_single_value_multiple_aggfunc(self, columns, df_data_more_pivot_values):
+        pivot_table_test_helper(
+            df_data_more_pivot_values,
+            {
+                "columns": columns,
+                "values": ["D"],
+                "aggfunc": ["sum", "min"],
+                "dropna": True,
+                "margins": True,
+            },
+        )
+
+    @sql_count_checker(query_count=1, join_count=5, union_count=2)
+    def test_multiple_value_multiple_aggfunc(self, columns, df_data_more_pivot_values):
+        pivot_table_test_helper(
+            df_data_more_pivot_values,
             {
                 "columns": columns,
                 "values": ["D", "E"],
