@@ -382,8 +382,7 @@ def test_df_loc_get_out_of_bound_col(
             eval_snowpark_pandas_result(
                 str_index_snowpark_pandas_df,
                 str_index_native_df,
-                lambda df: df.loc[:, key]
-                ],
+                lambda df: df.loc[:, key],
             )
 
 
