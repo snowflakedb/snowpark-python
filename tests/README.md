@@ -16,25 +16,10 @@ CONNECTION_PARAMETERS = {
     'warehouse': '<warehouse>',
 }
 ```
-Snowpark pandas API also offers the convenience of implicit session creation from a configuration file.
-This eliminates the need to explicitly create a Snowpark session in your code, allowing you to write your pandas code just as you would normally.
-To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`. The contents of this configuration file should be as follows (following [TOML](https://toml.io/en/) file format):
+Snowpark also offers the convenience of implicit session creation from a configuration file.
+This feature is particularly useful to Snowpark pandas users, because you can write your Snowpark pandas code almost as you would normally write pandas code.
+To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`. For more details, refer to the docs [here][implicit session documentation].
 
-```python
-default_connection_name = "default"
-
-[default]
-account = "<myaccount>"
-user = "<myuser>"
-password = "<mypassword>"
-role="<myrole>"
-database = "<mydatabase>"
-schema = "<myschema>"
-warehouse = "<mywarehouse>"
-```
-
-The value of `default_connection_name` points to a configuration inside the TOML file, which will be used as the default configuration.
-Note that keys of a configuration (`account`, `user`) are the same as keys of connection parameters we use in `tests/parameters.py` and values of a configuration should be double quoted.
 
 Note that these files will be ignored by git, so you do not need to worry about check in your secret.
 
@@ -87,3 +72,5 @@ In order to run Snowpark pandas doctests, use:
 ```bash
 pytest -rP src/snowflake/snowpark/modin/pandas --log-cli-level=INFO
 ```
+
+[implicit session documentation]: https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect#setting-a-default-connection

@@ -34,8 +34,8 @@ cd snowpark-python
 #### Install the library in edit mode and install its dependencies
 
 - Create a new Python virtual environment with any Python version that we support.
-  - Currently supported version for Snowpark Python API is **Python 3.8, Python 3.9, Python 3.10, Python 3.11**. 
-  - Currently supported version for Snowpark pandas API is **Python 3.9, Python 3.10, Python 3.11**. Additionally, **Modin 0.28.1** and **pandas 2.2.1** are required.
+  - The Snowpark Python API supports **Python 3.8, Python 3.9, Python 3.10, and Python 3.11**. 
+  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.28.1** and **pandas 2.2.1**.
 
     ```bash
     conda create --name snowpark-dev python=3.9
@@ -100,7 +100,7 @@ if you feel like we are taking too long to get to your PR.
 
 ## Snowpark pandas Folder structure
 Following tree diagram shows the high-level structure of the Snowpark pandas.
-```bash
+```
 snowflake
 └── snowpark
     └── modin
