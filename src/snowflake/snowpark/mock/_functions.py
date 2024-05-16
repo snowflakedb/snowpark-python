@@ -920,10 +920,9 @@ def mock_to_char(
             return try_convert(convert_numeric_to_str, try_cast, data)
         elif isinstance(source_datatype, (DateType, TimeType)):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
-            (
-                format,
-                _,
-            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            (format, _,) = convert_snowflake_datetime_format(
+                _fmt, default_format=default_format, is_input_format=False
+            )
             convert_date_time_to_str = (
                 datetime.datetime.strftime
                 if isinstance(source_datatype, DateType)
@@ -934,10 +933,9 @@ def mock_to_char(
             )
         elif isinstance(source_datatype, TimestampType):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
-            (
-                format,
-                fractional_seconds,
-            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            (format, fractional_seconds,) = convert_snowflake_datetime_format(
+                _fmt, default_format, is_input_format=False
+            )
             # handle 3f, can use str index
             time_str = try_convert(
                 lambda x: datetime.date.strftime(x, format), try_cast, data

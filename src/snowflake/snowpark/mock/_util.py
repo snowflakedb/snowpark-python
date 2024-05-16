@@ -120,10 +120,19 @@ def array_custom_comparator(ascend: bool, null_first: bool, a: Any, b: Any):
     return ret if ascend else -1 * ret
 
 
-def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]:
+def convert_snowflake_datetime_format(
+    format, default_format, is_input_format=True
+) -> Tuple[str, int]:
     """
     unified processing of the time format
     converting snowflake date/time/timestamp format into python datetime format
+
+    usage notes on the returning fractional seconds:
+        fractional seconds does not come into effect when parsing input, see following sql
+            alter session set TIME_OUTPUT_FORMAT = 'HH:MI:SS.FF9';
+            select to_time('11:22:44.333333', 'HH:MI:SS.FF1');
+         it still returns '11:22:44.333333' not '11:22:44.3'
+         however fractional seconds is used in controlling the output format
     """
 
     format_to_use = format or default_format
@@ -146,10 +155,7 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]
             ff_index = str(time_fmt).index("FF")
             # handle precision string 'FF[0-9]' which could be like FF0, FF1, ..., FF9
             if str(time_fmt[ff_index + 2 : ff_index + 3]).isdigit():
-                # fractional seconds does not come into effect when parsing input, see follow sql
-                #   alter session set TIME_OUTPUT_FORMAT = 'HH:MI:SS.FF9';
-                #   select to_time('11:22:44.333333', 'HH:MI:SS.FF1');
-                # it still returns '11:22:44.333333' not '11:22:44.3'
+                fractional_seconds = int(time_fmt[ff_index + 2 : ff_index + 3])
                 # replace FF[0-9] with %f
                 time_fmt = time_fmt[:ff_index] + "%f" + time_fmt[ff_index + 3 :]
             else:
@@ -158,7 +164,9 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]
             # 'FF' is not in the fmt
             pass
 
-    return time_fmt, fractional_seconds
+    # in live connection, input does not appreciate fractional_seconds in the format,
+    # input always treated as nanoseconds if FF[1-9] is specified
+    return time_fmt, 9 if is_input_format else fractional_seconds
 
 
 def convert_numeric_string_value_to_float_seconds(time: str) -> float:
