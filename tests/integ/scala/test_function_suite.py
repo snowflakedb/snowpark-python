@@ -1361,6 +1361,18 @@ def test_to_time(session, local_testing_mode):
         [
             Row(time(1, 2, 3)),
             Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH24:MI:SS.FF4") for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
         ],
     )
 
@@ -1583,7 +1595,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_tz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1596,7 +1610,7 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         (
             to_timestamp_ntz,
             [
-                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 1, 0, 0, 0, 123456)),
                 Row(datetime(2024, 2, 2, 0, 0)),
                 Row(datetime(2024, 2, 3, 0, 0)),
             ],
@@ -1605,7 +1619,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_ltz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1626,7 +1642,7 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
     ):
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
         data = [
-            ("2024-02-01 00:00:00.000000", "YYYY-MM-DD HH24:MI:SS.FF"),
+            ("2024-02-01 00:00:00.123456789", "YYYY-MM-DD HH24:MI:SS.FF1"),
             ("20240202000000000000", "YYYYMMDDHH24MISSFF"),
             ("03 Feb 2024 00:00:00", "DD mon YYYY HH24:MI:SS"),
         ]

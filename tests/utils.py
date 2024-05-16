@@ -860,7 +860,7 @@ class TestData:
     @classmethod
     def time_primitives1(cls, session: "Session") -> DataFrame:
         # simple string data
-        data = [("01:02:03",), ("22:33:44",)]
+        data = [("01:02:03",), ("22:33:44",), ("22:33:44.123",), ("22:33:44.56789",)]
         schema = StructType([StructField("a", StringType())])
         return session.create_dataframe(data, schema)
 
