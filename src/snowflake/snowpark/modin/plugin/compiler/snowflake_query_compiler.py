@@ -6349,7 +6349,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         multiple_agg_funcs_single_values = (
             isinstance(aggfunc, list) and len(aggfunc) > 1
         ) and not (isinstance(values, list) and len(values) > 1)
-        include_pivot_columns_in_label = (
+        include_aggr_func_in_label = (
             len(groupby_snowflake_quoted_identifiers) != 0
             or multiple_agg_funcs_single_values
         )
@@ -6358,7 +6358,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 values_label_to_identifier_pairs_list,
                 aggfunc,
                 len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list) and include_pivot_columns_in_label,
+                isinstance(values, list)
+                and len(values) > 1
+                and include_aggr_func_in_label,
                 sort,
             )
         )
@@ -6392,15 +6394,165 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
         if margins and pivot_aggr_groupings and pivot_snowflake_quoted_identifiers:
-            pivot_qc = expand_pivot_result_with_pivot_table_margins(
-                pivot_aggr_groupings,
-                groupby_snowflake_quoted_identifiers,
-                pivot_snowflake_quoted_identifiers,
-                self._modin_frame.ordered_dataframe,
-                pivot_qc,
-                margins_name,
-                fill_value,
-            )
+            if len(groupby_snowflake_quoted_identifiers) > 0:
+                pivot_qc = expand_pivot_result_with_pivot_table_margins(
+                    pivot_aggr_groupings,
+                    groupby_snowflake_quoted_identifiers,
+                    pivot_snowflake_quoted_identifiers,
+                    self._modin_frame.ordered_dataframe,
+                    pivot_qc,
+                    margins_name,
+                    fill_value,
+                )
+            else:
+                names = pivot_qc.columns.names
+                margins_frame = pivot_helper(
+                    self._modin_frame,
+                    pivot_aggr_groupings,
+                    not dropna,
+                    not isinstance(aggfunc, list),
+                    columns[:1],
+                    groupby_snowflake_quoted_identifiers,
+                    pivot_snowflake_quoted_identifiers[:1],
+                    (isinstance(aggfunc, list) and len(aggfunc) > 1),
+                    (isinstance(values, list) and len(values) > 1),
+                    index,
+                )
+                if len(columns) > 1:
+                    # If there are multiple pivot columns, we need to add the margin_name to the margins frame's data column
+                    # pandas labels, as well as any empty postfixes for the remaining pivot columns if there are more than 2.
+                    new_data_column_pandas_labels = []
+                    for label in margins_frame.data_column_pandas_labels:
+                        new_data_column_pandas_labels.append(
+                            (label, margins_name)
+                            + tuple("" for _ in range(pivot_qc.columns.nlevels - 2))
+                        )
+                    margins_frame = InternalFrame.create(
+                        ordered_dataframe=margins_frame.ordered_dataframe,
+                        data_column_pandas_labels=new_data_column_pandas_labels,
+                        data_column_pandas_index_names=pivot_qc._modin_frame.data_column_pandas_index_names,
+                        data_column_snowflake_quoted_identifiers=margins_frame.data_column_snowflake_quoted_identifiers,
+                        index_column_pandas_labels=margins_frame.index_column_pandas_labels,
+                        index_column_snowflake_quoted_identifiers=margins_frame.index_column_snowflake_quoted_identifiers,
+                    )
+                margins_qc = SnowflakeQueryCompiler(margins_frame)
+                original_pivot_qc_columns = pivot_qc.columns
+                pivot_qc = pivot_qc.concat(1, [margins_qc])
+                # After this step, pivot_qc contains the pivotted columns followed by the margins columns - e.g. say our pivot result is
+                # B  on.e  tw"o
+                # D    28    27
+                # E    35    31
+                # Then our pivotted query_compiler now looks like this:
+                # B  on.e  tw"o  margin_for_on.e  margin_for_tw"o
+                # D    28    27               28               27
+                # E    35    31               35               31
+                # We have to reindex (and rename, since we used pivot, the columns will be named the same) so that we get it in the format:
+                # B  on.e  margin_for_on.e  tw"o  margin_for_tw"o
+                # D    28               28    27               27
+                # E    35               35    31               31
+                # If there are more than one pivot columns, then the stride will be greater - e.g. if our pivot result looks like this:
+                # B on.e        tw"o
+                # C dull shi'ny dull shi'ny
+                # D    5     23   10     17
+                # E    8     27   12     19
+                # Our pivotted query_compiler will look like this:
+                # B on.e        tw"o        on.e  tw"o
+                # C dull shi'ny dull shi'ny  All   All
+                # D    5     23   10     17   28    27
+                # E    8     27   12     19   35    21
+                # And so our re-indexer will look different.
+                if len(columns) == 1:
+                    # Assuming we have 4 columns after the pivot, we want our reindexer to look like this: [0, 4, 1, 5, 2, 6, 3, 7]. We can accomplish this
+                    # by zipping(range(0, 4), (4, 8)), which gives us [(0, 4), (1, 5), (2, 6), (3, 7)], and then flattening that list using sum(list, tuple())
+                    # which will result in our flattened indexer [0, 4, 1, 5, 2, 6, 3, 7].
+                    column_reindexer = list(
+                        sum(
+                            zip(
+                                range(0, len(original_pivot_qc_columns)),
+                                range(
+                                    len(original_pivot_qc_columns),
+                                    2 * len(original_pivot_qc_columns),
+                                ),
+                            ),
+                            tuple(),
+                        )
+                    )
+                else:
+                    # When there is more than one pivot column, we need to reindex differently, as the example above shows. Say we have have 2 unique values in
+                    # the first pivot column, and 2 unique values in the second pivot column (as above). Then, our final reindexer should look like this:
+                    # [0, 1, 4, 2, 3, 5]. We can determine how many columns correspond to each first pivot column value by looking at the column MultiIndex for
+                    # the pivotted QC. We can convert that to a frame using the `to_frame` MultiIndex API. Let's take a look at an example.
+                    # Assuming that the MultiIndex (after converting to a frame) looks like this (i.e. there are 2 distinct values for the first pivot column,
+                    # and 3 for the second):
+                    #       B       C
+                    # 0  on.e    dull
+                    # 1  on.e  shi'ny
+                    # 2  on.e      sy
+                    # 3  tw"o    dull
+                    # 4  tw"o  shi'ny
+                    mi_as_frame = original_pivot_qc_columns.to_frame(index=False)
+                    # We can then groupby the first pivot column, and call count, which will tell us how many columns correspond to each label from the first pivot column.
+                    #       C
+                    # B
+                    # on.e  3
+                    # tw"o  2
+                    pivot_multiindex_level_one_lengths = (
+                        mi_as_frame.groupby(mi_as_frame.columns[0])
+                        .count()[mi_as_frame.columns[1]]
+                        .values[:-1]
+                    )
+                    # We can grab the first column from this groupby (in case there are more than 2 pivot columns), and use these splits with np.split, which will tell us
+                    # the groupings of the columns. E.g., in this case, we would want the following splits for the indexes: [(0, 1, 2), (3, 4)]. Calling np.split with
+                    # the values from above (excluding the last value) will result in that output. We call tuple on the splits to get them in tuple format.
+                    split_original_pivot_qc_indexes = [
+                        list(group)
+                        for group in np.split(
+                            range(len(original_pivot_qc_columns)),
+                            pivot_multiindex_level_one_lengths,
+                        )
+                    ]
+                    # Once we have the splits [[0, 1, 2], [3, 4]], we can then insert the indices for the margins columns.
+                    reindexer = [
+                        group + [margin_index]
+                        for group, margin_index in zip(
+                            split_original_pivot_qc_indexes,
+                            range(
+                                len(original_pivot_qc_columns), len(pivot_qc.columns)
+                            ),
+                        )
+                    ]
+                    # Now, we have a list that looks like this: [[0, 1, 2, 5], [3, 4, 6]] - we need to make this into a flat list of indexes.
+                    column_reindexer = sum(reindexer, list())
+                pivot_qc = pivot_qc.take_2d_positional(slice(None), column_reindexer)
+
+                if len(columns) == 1:
+                    # After reindexing, we have to rename the margins columns to the correct name if we only have one pivot column.
+                    if original_pivot_qc_columns.nlevels == 1:
+                        pivot_qc = pivot_qc.set_columns(
+                            pd.Index(
+                                list(
+                                    sum(
+                                        zip(
+                                            original_pivot_qc_columns,
+                                            [margins_name]
+                                            * len(original_pivot_qc_columns),
+                                        ),
+                                        tuple(),
+                                    )
+                                )
+                            ).set_names(names)
+                        )
+                    else:
+                        # If there are multiple levels in the index even though there is a single pivot column, we need to copy over the prefixes as well.
+                        new_index_names = []
+                        for label in original_pivot_qc_columns:
+                            new_index_names.extend(
+                                [label, label[:-1] + (margins_name,)]
+                            )
+                        new_index = pd.MultiIndex.from_tuples(
+                            new_index_names
+                        ).set_names(names)
+                        pivot_qc = pivot_qc.set_columns(new_index)
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
@@ -9424,7 +9576,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Helper function to compute the mode ("top") and frequency with which the mode
                 appears ("count") for a given column.
 
-                This helper returns a 1-row OrderedFrame with the columns "__index__", "top" and "freq",
+                This helper returns a 1-row OrderedDataFrame with the columns "__index__", "top" and "freq",
                 containing the column name, the mode of this column, and the number of times the mode
                 occurs. This result should be UNION ALL'd together with the results from the other
                 columns of the original frame, then transposed so "top" and "freq" are rows.
@@ -9447,7 +9599,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert len(col_labels_tuple) == len(
                     new_index_identifiers
                 ), f"level of labels {col_labels_tuple} did not match level of identifiers {new_index_identifiers}"
-                # The below OrderedFrame operations are analogous to the following SQL for column "a":
+                # The below OrderedDataFrame operations are analogous to the following SQL for column "a":
                 # SELECT 'a' AS __index__,
                 #        a::VARIANT AS top,
                 #        IFF(a IS NULL, NULL, COUNT(a)) AS freq
