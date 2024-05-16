@@ -486,10 +486,6 @@ def test_startswith(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 KeyError: 2 raised",
-)
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
     # case sensitive
@@ -643,16 +639,12 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
     assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338: substring raises unsupported operand type(s) for -: 'str' and 'int'",
-)
-def test_basic_string_operations(session):
+def test_basic_string_operations(session, local_testing_mode):
     # Substring
     df = session.create_dataframe(["a not that long string"], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
-    assert "Numeric value 'b' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'b' is not recognized" in str(ex_info)
 
     # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
@@ -662,19 +654,21 @@ def test_basic_string_operations(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", 1, "c")).collect()
-    assert "Numeric value 'c' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'c' is not recognized" in str(ex_info)
 
-    # split
-    res = df.select(split("a", lit("not"))).collect()
-    assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
+    # Split is not yet supported by local testing mode
+    if not local_testing_mode:
+        # split
+        res = df.select(split("a", lit("not"))).collect()
+        assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split([1, 2, 3], "b")).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split([1, 2, 3], "b")).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split("a", [1, 2, 3])).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split("a", [1, 2, 3])).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # upper
     with pytest.raises(TypeError) as ex_info:
@@ -797,11 +791,6 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
-# Enable for local testing after addressing SNOW-850268
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
-)
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -1754,11 +1743,6 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-# TODO: enable for local testing after addressing SNOW-850263
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 TypeError: unsupported type for timedelta days component: numpy.int64",
-)
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
@@ -1923,10 +1907,6 @@ def test_array_unique_agg(session):
     ), f"Unexpected result: {result_list}, expected: {expected_result}"
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 KeyError: 2 raised",
-)
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],
