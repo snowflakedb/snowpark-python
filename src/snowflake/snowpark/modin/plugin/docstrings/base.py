@@ -1598,8 +1598,8 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         - In Snowpark pandas ``.loc``, unalignable boolean Series provided as indexer will perform a join on the index
           of the main dataframe or series. (while pandas will raise an IndexingError)
         - When there is a slice key, Snowpark pandas ``.loc`` performs the same as native pandas when both the start and
-          stop are labels present in the index or either one is absert but the index is sorted. When any of the two
-          labels is absert from an unsorted index, Snowpark pandas will return rows in between while native pandas will
+          stop are labels present in the index or either one is absent but the index is sorted. When any of the two
+          labels is absent from an unsorted index, Snowpark pandas will return rows in between while native pandas will
           raise a KeyError.
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid

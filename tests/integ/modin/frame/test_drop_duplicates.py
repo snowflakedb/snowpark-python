@@ -41,7 +41,7 @@ def test_drop_duplicates_with_misspelled_column_name_or_empty_subset(subset):
                 if all(label not in df.columns for label in subset):
                     match_str = r"None of .* are in the \[columns\]"
                 else:
-                    match_str = r".* not found in index"
+                    match_str = r".* not in index"
             else:
                 match_str = r"None of .* are in the \[columns\]"
             with pytest.raises(KeyError, match=match_str):
