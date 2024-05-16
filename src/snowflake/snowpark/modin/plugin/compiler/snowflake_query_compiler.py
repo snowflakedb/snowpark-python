@@ -2823,6 +2823,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + f"level={level}, and axis={axis}"
             )
 
+        if "include_groups" in agg_kwargs:
+            # exclude "include_groups" from the apply function kwargs
+            include_groups = agg_kwargs.pop("include_groups")
+            if not include_groups:
+                ErrorMessage.not_implemented(
+                    f"No support for groupby.apply with include_groups = {include_groups}"
+                )
+
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
