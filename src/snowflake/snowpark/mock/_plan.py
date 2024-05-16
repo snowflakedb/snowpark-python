@@ -536,7 +536,11 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        res = (
+            function_input.apply(lambda row: udf_handler(*row), axis=1)
+            .astype(object)
+            .replace({pd.NaT: None})
+        )
         res.sf_type = ColumnType(exp.datatype, exp.nullable)
         res.name = quote_name(
             f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
