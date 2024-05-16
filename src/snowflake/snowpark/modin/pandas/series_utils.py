@@ -1330,7 +1330,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pandas.date_range("2000-01-01", periods=3, freq="h")
+        ...     pd.date_range("2000-01-01", periods=3, freq="h")
         ... )
         >>> datetime_series
         0   2000-01-01 00:00:00
