@@ -682,10 +682,13 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Notes
         -----
-        1. When the type annotation of return value is provided on ``func``, the result will be cast
+        1. When ``func`` has a type annotation for its return value, the result will be cast
         to the corresponding dtype. When no type annotation is provided, data will be converted
-        to Variant type in Snowflake and leave as dtype=object. In this case, the return value must
-        be JSON-serializable.
+        to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
+        be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
+        ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
+        are not). The return type hint is used only when ``func`` is a series-to-scalar function.
+
 
         2. Under the hood, we use `Snowflake Vectorized Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch>`_.
         to implement apply() method. You can find type mappings from Snowflake SQL types to pandas
