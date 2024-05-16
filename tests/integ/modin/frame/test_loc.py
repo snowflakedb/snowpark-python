@@ -377,8 +377,8 @@ def test_df_loc_get_out_of_bound_col(
     key, str_index_native_df, str_index_snowpark_pandas_df
 ):
     match_str = r".* not found in index" if not is_scalar(key) else f"{key}"
-    with pytest.raises(KeyError, match=match_str):
-        with SqlCounter(query_count=2 if is_scalar(key) else 1):
+    with SqlCounter(query_count=2 if is_scalar(key) else 1):
+        with pytest.raises(KeyError, match=match_str):
             eval_snowpark_pandas_result(
                 str_index_snowpark_pandas_df,
                 str_index_native_df,

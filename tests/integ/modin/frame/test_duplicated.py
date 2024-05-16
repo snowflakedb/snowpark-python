@@ -26,22 +26,21 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
     query_count = 1
     if is_scalar(subset):
         query_count += 1
-    if subset == []:
-        with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=query_count):
+        if subset == []:
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 pd.DataFrame(df).duplicated(subset),
                 expected_res,
             )
-    else:
-        if isinstance(subset, list):
-            if all(label not in df.columns for label in subset):
-                match_str = r"None of .* are in the \[columns\]"
-            else:
-                match_str = r".* not found in index"
         else:
-            match_str = f"\\'{subset}\\'"
-        with pytest.raises(KeyError, match=match_str):
-            with SqlCounter(query_count=query_count):
+            if isinstance(subset, list):
+                if all(label not in df.columns for label in subset):
+                    match_str = r"None of .* are in the \[columns\]"
+                else:
+                    match_str = r".* not found in index"
+            else:
+                match_str = f"\\'{subset}\\'"
+            with pytest.raises(KeyError, match=match_str):
                 assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                     pd.DataFrame(df).duplicated(subset),
                     expected_res,

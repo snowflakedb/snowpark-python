@@ -27,24 +27,23 @@ def test_drop_duplicates_with_misspelled_column_name_or_empty_subset(subset):
     join_count = 1
     if "B" in subset:
         join_count += 1
-    if subset == []:
-        with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        if subset == []:
             assert_frame_equal(
                 pd.DataFrame(df).drop_duplicates(subset),
                 expected_res,
                 check_dtype=False,
                 check_index_type=False,
             )
-    else:
-        if isinstance(subset, list):
-            if all(label not in df.columns for label in subset):
-                match_str = r"None of .* are in the \[columns\]"
-            else:
-                match_str = r".* not found in index"
         else:
-            match_str = r"None of .* are in the \[columns\]"
-        with pytest.raises(KeyError, match=match_str):
-            with SqlCounter(query_count=query_count, join_count=join_count):
+            if isinstance(subset, list):
+                if all(label not in df.columns for label in subset):
+                    match_str = r"None of .* are in the \[columns\]"
+                else:
+                    match_str = r".* not found in index"
+            else:
+                match_str = r"None of .* are in the \[columns\]"
+            with pytest.raises(KeyError, match=match_str):
                 assert_frame_equal(
                     pd.DataFrame(df).drop_duplicates(subset),
                     expected_res,
