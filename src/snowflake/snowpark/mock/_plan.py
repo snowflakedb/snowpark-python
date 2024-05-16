@@ -1815,7 +1815,7 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_char"](
                 column, try_cast=exp.try_
             )
-        elif isinstance(exp.to, DoubleType):
+        elif isinstance(exp.to, (DoubleType, FloatType)):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
                 column, try_cast=exp.try_
             )
