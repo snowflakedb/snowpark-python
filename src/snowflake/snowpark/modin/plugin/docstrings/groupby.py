@@ -66,6 +66,7 @@ func : function, str, list, or dict
 
 *args
     Positional arguments to pass to func.
+
 engine : str, default None
     * ``'cython'`` : Runs the function through C-extensions from cython.
     * ``'numba'`` : Runs the function through JIT compiled code from numba.
@@ -136,7 +137,7 @@ Examples
 2  2  3  1.267767
 3  2  4 -0.562860
 
-The aggregation is for each column.
+Apply a single aggregation to all columns:
 
 >>> df.groupby('A').agg('min')  # doctest: +NORMALIZE_WHITESPACE
     B         C
@@ -144,7 +145,7 @@ A
 1  1  0.227877
 2  3 -0.562860
 
-Multiple aggregations
+Apply multiple aggregations to all columns:
 
 >>> df.groupby('A').agg(['min', 'max']) # doctest: +NORMALIZE_WHITESPACE
     B             C
@@ -153,7 +154,7 @@ A
 1   1   2  0.227877  0.362838
 2   3   4 -0.562860  1.267767
 
-Select a column for aggregation
+Select a single column and apply aggregations:
 
 >>> df.groupby('A').B.agg(['min', 'max'])   # doctest: +NORMALIZE_WHITESPACE
     min  max
@@ -161,7 +162,7 @@ A
 1    1    2
 2    3    4
 
-User-defined function for aggregation
+Apply different aggregations to specific columns:
 
 >>> df.groupby('A').agg({'B': ['min', 'max'], 'C': 'sum'})  # doctest: +NORMALIZE_WHITESPACE
     B             C
@@ -218,8 +219,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             * ``'numba'`` : Runs the operation through JIT compiled code from numba.
             * ``None`` : Defaults to ``'cython'`` or globally setting ``compute.use_numba``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             * For ``'cython'`` engine, there are no accepted ``engine_kwargs``
@@ -228,12 +228,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
                 ``False``. The default ``engine_kwargs`` for the ``'numba'`` engine is
                 ``{{'nopython': True, 'nogil': False, 'parallel': False}}``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake. Same as the engine parameter.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
 
         Examples
         --------
@@ -385,7 +384,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         axis : {{0 or 'index', 1 or 'columns'}}, default None
             The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
             If axis is not provided, grouper's axis is used.
-            axis=1 is not supported since it is deprecated.
+
+            Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
             .. deprecated:: 2.1.0
                 For axis=1, operate on the underlying object instead. Otherwise,
@@ -394,6 +394,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
             will be NA.
+
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data.
 
@@ -476,7 +477,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         axis : {{0 or 'index', 1 or 'columns'}}, default None
             The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
             If axis is not provided, grouper's axis is used.
-            axis=1 is not supported since it is deprecated.
+
+            Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
             .. deprecated:: 2.1.0
                 For axis=1, operate on the underlying object instead. Otherwise,
@@ -485,6 +487,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
             will be NA.
+
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data.
 
@@ -583,17 +586,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             Number of periods to shift.
         freq : str, optional
             Frequency string.
-        axis : axis to shift, default 0, axis=1 currently not supported
-            Shift direction.
+        axis : axis to shift, default 0
+            Shift direction. Snowpark pandas does not yet support axis=1.
         fill_value : optional
             The scalar value to use for newly introduced missing values.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
             Object shifted within each group.
 
-        Examples:
+        Examples
         --------
         For SeriesGroupBy:
 
@@ -645,7 +648,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-            Snowpark pandas Series or Snowpark pandas DataFrame
+            Series or DataFrame
 
         See also
         --------
@@ -693,6 +696,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         lion      6  9
         """
 
+    @property
     def indices():
         """
         Get a dictionary mapping group key to row positions.
@@ -706,7 +710,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame({'A': [1, 1, 2, 1, 2],
         ...                    'B': [np.nan, 2, 3, 4, 5],
-        ...                    'C': [1, 2, 1, 1, 2]}, columns=['A', 'B', 'C'])
+        ...                    'C': [1, 2, 1, 1, 2]})
 
         Groupby one column and get the positions of each member of each group.
 
@@ -739,7 +743,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
 
         See also
         --------
@@ -817,7 +821,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        applied : Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
 
         See Also
         --------
@@ -830,12 +834,10 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Notes
         -----
-
         Functions that mutate the passed object can produce unexpected
         behavior or errors and are not supported.
 
-
-        Returning a series or scalar in ``func`` is not supported yet.
+        Returning a Series or scalar in ``func`` is not yet supported in Snowpark pandas.
 
         Examples
         --------
@@ -918,7 +920,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
 
         See also
         --------
@@ -985,29 +987,32 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ----------
         ddof : int, default 1.
             Degrees of freedom.
-            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
+
+            Snowpark pandas currently only supports ddof=0 and ddof=1.
 
         engine : str, default None
             In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
-            This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
-            var)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             Configuration keywords for the configured execution egine.
-            Same as engine parameter, this parameter is ignored in Snowpark pandas API. (Same as var)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data columns.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
-        Standard deviation of values within each group.
+        Series or DataFrame
+            Standard deviation of values within each group.
 
         Examples
         --------
         For SeriesGroupBy:
+
         >>> lst = ['a', 'a', 'a', 'b', 'b', 'b', 'c']
         >>> ser = pd.Series([7, 2, 8, 4, 3, 3, 1], index=lst)
         >>> ser
@@ -1109,10 +1114,20 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             - bottom: assign the highest rank to NaN values
         pct: bool
             Whether to display the returned rankings in percentile form.
+        axis : {{0 or 'index', 1 or 'columns'}}, default None
+            The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
+            If axis is not provided, grouper's axis is used.
+
+            Snowpark pandas does not currently support axis=1, since it is deprecated in pandas.
+
+            .. deprecated:: 2.1.0
+                For axis=1, operate on the underlying object instead. Otherwise,
+                the axis keyword is not necessary.
+
 
         Returns
         -------
-            Snowpark pandas Series or Snowpark pandas DataFrame with ranking of values within each group
+        Series or DataFrame with ranking of values within each group
 
         Examples
         --------
@@ -1138,7 +1153,6 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         6      2
         """
 
-    @property
     def corrwith():
         pass
 
@@ -1202,24 +1216,26 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         engine : str, default None
             In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
-            This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
-            std)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             Configuration keywords for the configured execution egine.
-            Same as engine parameter, this parameter is ignored in Snowpark pandas API.  (Same as std)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data columns.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
             Variance of values within each group.
 
         Examples
         --------
         For SeriesGroupBy:
+
         >>> lst = ['a', 'a', 'a', 'b', 'b', 'b', 'c']
         >>> ser = pd.Series([7, 2, 8, 4, 3, 3, 1], index=lst)
         >>> ser
@@ -1385,7 +1401,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        Series or DataFrame
             Median of values within each group.
 
         Examples
@@ -1542,8 +1558,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             * ``'numba'`` : Runs the function through JIT compiled code from numba.
             * ``None`` : Defaults to ``'cython'`` or the global setting ``compute.use_numba``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             * For ``'cython'`` engine, there are no accepted ``engine_kwargs``
@@ -1553,11 +1568,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
               ``{'nopython': True, 'nogil': False, 'parallel': False}`` and will be
               applied to the function
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         **kwargs : Any
             Keyword arguments to be passed into func.
+
+        Notes
+        -----
+        Functions that mutate the passed object can produce unexpected
+        behavior or errors and are not supported.
+
+        Returning a Series or scalar in ``func`` is not yet supported in Snowpark pandas.
 
         Examples
         --------
@@ -1622,7 +1643,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        A :class:`Series` or :class:`DataFrame`
+        Series or DataFrame
             Count of values within each group.
 
         Examples
