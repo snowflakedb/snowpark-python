@@ -1236,10 +1236,6 @@ def expand_pivot_result_with_pivot_table_margins(
     #        14      9
     margin_columns_aggregations = []
 
-    # breakpoint()
-    # # When there are no `groupby_snowflake_quoted_identifiers`, the values column is not in the prefix labels, and is instead
-    # # in the index column. This codepath expects that the values columns are included in the prefixes of the data column pandas labels.
-    # if len(groupby_snowflake_quoted_identifiers) > 0:
     # Step 1) Generate mapping of prefix to data columns aligned with each grouping.  In this example would generate:
     # (count, D) -> [(count, D, foo, red), (count, D, bar, blue)]
     # (sum, E) -> [(sum, E, foo, red), (sum, E, bar, blue)]
@@ -1379,33 +1375,6 @@ def expand_pivot_result_with_pivot_table_margins(
         updated_data_column_snowflake_quoted_identifiers.append(
             margin_column_aggr_snowflake_quoted_identifier
         )
-        # # Step 1: When there are no groupby columns, the data column pandas label's format changes depending on how
-        # # many pivot columns there are. For a single pivot column, the resulting DataFrame has labels with only 1 level;
-        # # but when there are multiple pivot columns, the margin column takes the first pivot column's values as a prefix.
-        # # For each subsequent pivot column, an additional empty post-fix is added.
-        # if len(pivot_snowflake_quoted_identifiers) == 1:
-        #     # If there is only a single pivot column, then we just add 1 column with the name of the margin column per pivot
-        #     # value, which should be equal to the number of columns in the pivoted dataframe.
-        #     new_data_column_pandas_labels = [margins_name] * len(pivoted_qc.columns)
-        # else:
-        #     new_data_column_pandas_labels = []
-        #     num_levels_to_pad = pivoted_qc.index.nlevels - 2
-        #     for prefix in pivoted_qc.index.get_level_values(0).unique():
-        #         new_data_column_pandas_labels.append((prefix, margins_name) + tuple('' for _ in range(num_levels_to_pad)))
-        # values_snowflake_quoted_identifiers = {pair.aggr_label_identifier_pair.snowflake_quoted_identifier for pair in pivot_aggr_groupings}
-        # value_to_aggr_func = {v: [pair.aggfunc for pair in filter(lambda pair: pair.aggr_label_identifier_pair.snowflake_quoted_identifier == v, pivot_aggr_groupings)] for v in values_snowflake_quoted_identifiers}
-        # for value_snowflake_quoted_identifier, aggfunc in values_snowflake_quoted_identifiers:
-        #     margin_columns_aggregations.append(
-        #         apply_fill_value_to_snowpark_column(
-        #             get_margin_aggregation(
-        #                 aggfunc,
-        #                 col(value_snowflake_quoted_identifier)
-        #             ),
-        #             fill_value,
-        #         ).as_(original_ordered_dataframe)
-        #     )
-
-        # pass
 
     # Step 3)
     # To generate the margin column aggregations we need to group by the groupby_snowflake_quoted_identifiers and join
