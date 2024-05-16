@@ -15,6 +15,7 @@
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 - Throw `KeyError` when user passes in missing column labels to `__getitem__` and `loc`.
+- Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1 Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 
 ### Improvements
 - Improved performance for `Series.quantile` and `Series.describe`. 
