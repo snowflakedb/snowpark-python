@@ -18,6 +18,7 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_ac
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import _add_cache_result_docstring
 
 
 # Snowflake specific dataframe methods
@@ -240,18 +241,15 @@ def to_pandas(
     return self._to_pandas(statement_params=statement_params, **kwargs)
 
 
-@register_dataframe_accessor("cache")
+@register_dataframe_accessor("cache_result")
+@_add_cache_result_docstring
 @snowpark_pandas_telemetry_method_decorator
-def cache(self) -> pd.DataFrame:
+def cache_result(self, inplace: bool = False) -> pd.DataFrame:
     """
-    Materialize and cache the current Snowpark pandas DataFrame inplace.
-
-    Returns:
-        Snowpark pandas DataFrame
-
-    Note:
-        This method is inplace - the returned DataFrame is a reference to the same
-        DataFrame as was passed in.
+    Persists the current Snowpark pandas DataFrame to a temporary table that lasts the duration of the session.
     """
-    self._query_compiler.cache_result()
-    return self
+    new_qc = self._query_compiler.cache_result()
+    if not inplace:
+        return pd.DataFrame(query_compiler=new_qc)
+    else:
+        self._update_inplace(new_qc)

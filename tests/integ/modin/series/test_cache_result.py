@@ -4,6 +4,7 @@
 
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -14,34 +15,34 @@ from tests.integ.modin.utils import (
 
 
 @sql_count_checker(query_count=4)
-def test_cache_empty_series():
+def test_cache_result_empty_series():
     native_series = native_pd.Series()
     snow_series = pd.Series()
-    cached_snow_series = snow_series.cache()
-    assert cached_snow_series is snow_series
+    cached_snow_series = snow_series.cache_result()
+    assert np.all((cached_snow_series == snow_series).values)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_series, native_series
     )
 
     native_series = native_pd.Series(index=["A", "B", "C"])
     snow_series = pd.Series(native_series)
-    cached_snow_series = snow_series.cache()
-    assert cached_snow_series is snow_series
+    cached_snow_series = snow_series.cache_result()
+    assert np.all((cached_snow_series == snow_series).values)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         cached_snow_series, native_series
     )
 
 
 @sql_count_checker(query_count=3, join_count=1)
-def test_cache_dataframe_complex(
+def test_cache_result_series_complex_correctness(
     time_index_snowpark_pandas_series, time_index_native_series
 ):
     snow_series = time_index_snowpark_pandas_series
     native_series = time_index_native_series
 
     snow_series = snow_series.resample("2H").mean()
-    cached_snow_series = snow_series.cache()
-    assert snow_series is cached_snow_series
+    cached_snow_series = snow_series.cache_result()
+    assert np.all((cached_snow_series == snow_series).values)
     native_series = native_series.resample("2H").mean()
 
     cached_snow_series = cached_snow_series.diff()
