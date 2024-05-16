@@ -6473,10 +6473,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # pandas labels, as well as any empty postfixes for the remaining pivot columns if there are more than 2.
                     new_data_column_pandas_labels = []
                     for label in margins_frame.data_column_pandas_labels:
-                        new_data_column_pandas_labels.append(
-                            (label, margins_name)
-                            + tuple("" for _ in range(pivot_qc.columns.nlevels - 2))
-                        )
+                        if isinstance(aggfunc, list) and len(aggfunc) > 1:
+                            new_label = label + (margins_name,)
+                        else:
+                            new_label = (label, margins_name) + tuple(
+                                "" for _ in range(pivot_qc.columns.nlevels - 2)
+                            )
+                        new_data_column_pandas_labels.append(new_label)
                     margins_frame = InternalFrame.create(
                         ordered_dataframe=margins_frame.ordered_dataframe,
                         data_column_pandas_labels=new_data_column_pandas_labels,
@@ -6546,9 +6549,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # B
                     # on.e  3
                     # tw"o  2
-                    pivot_multiindex_level_one_lengths = (
-                        mi_as_frame.groupby(mi_as_frame.columns[0])
-                        .count()[mi_as_frame.columns[1]]
+                    # If there are multiple columns and multiple aggregation functions, we need to groupby the first two columns instead of just the first one -
+                    # as the first column will be the name of the aggregation function, and the second column will be the values from the first pivot column.
+                    if isinstance(aggfunc, list) and len(aggfunc) > 1:
+                        groupby_columns = mi_as_frame.columns[:2].tolist()
+                        value_column_index = 2
+                    else:
+                        groupby_columns = mi_as_frame.columns[0]
+                        value_column_index = 1
+                    pivot_multiindex_level_one_lengths = np.cumsum(
+                        mi_as_frame.groupby(groupby_columns, sort=False)
+                        .count()[mi_as_frame.columns[value_column_index]]
                         .values[:-1]
                     )
                     # We can grab the first column from this groupby (in case there are more than 2 pivot columns), and use these splits with np.split, which will tell us
