@@ -545,8 +545,6 @@ class StageEntity:
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns
                 result_df = pd.concat([result_df, df], ignore_index=True)
-                if purge:
-                    remove_file(local_file)
             result_df.sf_types = result_df_sf_types
             return result_df
         elif file_format == "json":
@@ -579,8 +577,6 @@ class StageEntity:
                         content = json.load(file, cls=CUSTOM_JSON_DECODER)
                         df = pd.DataFrame({result_df.columns[0]: [content]})
                         result_df = pd.concat([result_df, df], ignore_index=True)
-                    if purge:
-                        remove_file(local_file)
             else:
                 # need to infer schema
                 contents = []
@@ -618,8 +614,6 @@ class StageEntity:
                                 column_series,
                                 column_series.sf_type,
                             )
-                    if purge:
-                        remove_file(local_file)
                 # fill empty cells with None value, this aligns with snowflake
                 for content in contents:
                     for miss_key in set(result_df_sf_types.keys()) - set(
@@ -643,6 +637,11 @@ class StageEntity:
 
             result_df.sf_types = result_df_sf_types
             return result_df
+
+        if purge and local_files:
+            for file_path in local_files:
+                remove_file(file_path)
+
         self._conn.log_not_supported_error(
             external_feature_name=f"Read file format {format}",
             internal_feature_name="StageEntity.read_file",
