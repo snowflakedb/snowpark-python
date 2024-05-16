@@ -48,7 +48,6 @@ class AstBatch:
         p.ParseFromString(d1)
         print(f"parsed {p}")
 
-
         return (str(self._request_id), batch)
 
     def _init_batch(self):
