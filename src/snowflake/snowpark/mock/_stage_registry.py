@@ -64,10 +64,17 @@ SUPPORT_READ_OPTIONS = {
         "SKIP_BLANK_LINES",
         "FIELD_DELIMITER",
         "FIELD_OPTIONALLY_ENCLOSED_BY",
+        "INFER_SCHEMA",
+        "PURGE",
+        "COMPRESSION",
+        "PATTERN",
     ),
     "json": (
         "INFER_SCHEMA",
         "FILE_EXTENSION",
+        "PURGE",
+        "COMPRESSION",
+        "PATTERN",
     ),
 }
 
@@ -143,6 +150,13 @@ def copy_files_and_dirs(src, dst):
         shutil.copytree(src, dst)
     else:
         shutil.copy(src, dst)
+
+
+def remove_file(file_path: str):
+    try:
+        os.remove(file_path)
+    except Exception as exc:
+        _logger.debug(f"failed to remove file due to exception {exc}")
 
 
 class StageEntity:
@@ -376,18 +390,6 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
-        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
-        #  take PATTERN into account, when inferring schema from multiple files
-        # pattern = options.get("PATTERN") if options else None
-        #
-        # if pattern:
-        #     local_files = [
-        #         f
-        #         for f in local_files
-        #         if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
-        #     ]
-
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
             for option in options:
@@ -402,6 +404,32 @@ class StageEntity:
                         warning_logger=_logger,
                     )
 
+        # process options
+        purge = options.get("PURGE", False)
+        compression = options.get("COMPRESSION", None)
+        if compression and compression.lower() != "auto":
+            self._conn.log_not_supported_error(
+                external_feature_name=f"Read option COMPRESSION={compression} for file format {file_format}",
+                internal_feature_name="StageEntity.read_file",
+                parameters_info={
+                    "format": format,
+                    "option": "COMPRESSION",
+                    "option_value": str(compression),
+                },
+                raise_error=NotImplementedError
+                if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
+                else None,
+                warning_logger=_logger,
+            )
+
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        pattern = options.get("PATTERN") if options else None
+
+        if pattern:
+            local_files = [f for f in local_files if re.match(pattern, f)]
+
         if file_format == "csv":
             # check SNOW-1355487 for improvements
             skip_header = options.get("SKIP_HEADER", 0)
@@ -410,6 +438,22 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            infer_schema = options.get("INFER_SCHEMA", False)
+            if infer_schema:
+                self._conn.log_not_supported_error(
+                    external_feature_name=f"Read option INFER_SCHEMA={infer_schema} for file format {file_format}",
+                    internal_feature_name="StageEntity.read_file",
+                    parameters_info={
+                        "format": format,
+                        "option": "INFER_SCHEMA",
+                        "option_value": str(infer_schema),
+                    },
+                    raise_error=NotImplementedError
+                    if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
+                    else None,
+                    warning_logger=_logger,
+                )
+
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(
                     f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
@@ -500,6 +544,8 @@ class StageEntity:
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns
                 result_df = pd.concat([result_df, df], ignore_index=True)
+                if purge:
+                    remove_file(local_file)
             result_df.sf_types = result_df_sf_types
             return result_df
         elif file_format == "json":
@@ -532,6 +578,8 @@ class StageEntity:
                         content = json.load(file, cls=CUSTOM_JSON_DECODER)
                         df = pd.DataFrame({result_df.columns[0]: [content]})
                         result_df = pd.concat([result_df, df], ignore_index=True)
+                    if purge:
+                        remove_file(local_file)
             else:
                 # need to infer schema
                 contents = []
@@ -569,6 +617,8 @@ class StageEntity:
                                 column_series,
                                 column_series.sf_type,
                             )
+                    if purge:
+                        remove_file(local_file)
                 # fill empty cells with None value, this aligns with snowflake
                 for content in contents:
                     for miss_key in set(result_df_sf_types.keys()) - set(
