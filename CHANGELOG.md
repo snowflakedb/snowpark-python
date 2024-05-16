@@ -20,6 +20,7 @@
   - snowflake.snowpark.Session:
     - cancel_all
 - Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
+- Added support for casting to FloatType
 
 #### Bug Fixes
 
