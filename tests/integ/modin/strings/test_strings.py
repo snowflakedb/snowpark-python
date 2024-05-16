@@ -383,11 +383,6 @@ def test_index_missing(method, exp):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "start, stop, step, expected",
     [
@@ -398,7 +393,7 @@ def test_index_missing(method, exp):
         (3, 0, -1, ["ofa", "aba", np.nan, "aba"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_slice(start, stop, step, expected):
     ser = pd.Series(["aafootwo", "aabartwo", np.nan, "aabazqux"], dtype=object)
     result = ser.str.slice(start, stop, step)
