@@ -325,7 +325,13 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
         dtype=object,
     )
     result_df["value"] = (
-        result_df["value"].apply(handle_missing_value_in_variant).astype(object)
+        result_df["value"]
+        .apply(
+            lambda v: handle_missing_value_in_variant(
+                convert_numpy_int_result_to_int(v)
+            )
+        )
+        .astype(object)
     )
     result_df["first_position_for_group"] = input_row_positions.iloc[0]
     return result_df
@@ -689,7 +695,9 @@ def create_udf_for_series_apply(
             # Calling tolist() convert np.int*, np.bool*, etc. (which is not
             # json-serializable) to python native values
             for e in x.apply(func, args=args, **kwargs).tolist():
-                result.append(handle_missing_value_in_variant(e))
+                result.append(
+                    handle_missing_value_in_variant(convert_numpy_int_result_to_int(e))
+                )
             return result
 
     else:

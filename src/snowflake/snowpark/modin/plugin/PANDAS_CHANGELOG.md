@@ -8,6 +8,7 @@
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 - Fixed type hints for property methods, e.g. Series.empty.
 - Fixed `pd.merge` and `Dataframe.merge` outer join behavior according to pandas 2.x.
+- Fixed groupby apply int not serializable bug.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
