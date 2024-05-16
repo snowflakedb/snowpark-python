@@ -1133,11 +1133,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index, index_label
         )
 
-    def cache_result(self) -> None:
+    def cache_result(self) -> "SnowflakeQueryCompiler":
         """
         Materializes and caches this query compiler in place.
         """
-        self._modin_frame = self._modin_frame.materialize_and_cache()
+        return SnowflakeQueryCompiler(self._modin_frame.materialize_and_cache())
 
     @property
     def columns(self) -> native_pd.Index:
