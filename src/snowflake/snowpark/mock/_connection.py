@@ -346,6 +346,9 @@ class MockServerConnection:
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
             name = getattr(self, f"_active_{param}", None)
+            if name and len(name) >= 2 and name[0] == name[-1] == '"':
+                # it is a quoted identifier, return the original value
+                return name
             name = name.upper() if name is not None else name
             return (
                 (
