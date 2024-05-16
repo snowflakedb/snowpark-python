@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.utils import TestFiles
 
 
 @pytest.mark.parametrize(
@@ -127,6 +128,7 @@ def test_describe_empty_cols():
         ([int, "O"], [float, "O"], ValueError, 0),
         # Like select_dtypes, a dtype in include/exclude can be a subtype of a dtype in the other
         ([int, "O"], [float, np.number, np.datetime64], None, 9),
+        ("O", None, None, 9),
     ],
 )
 def test_describe_include_exclude(
@@ -342,3 +344,17 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
             *create_test_dfs(data, columns=columns),
             lambda df: df.describe(include=include, exclude=exclude),
         )
+
+
+@sql_count_checker(
+    query_count=10,
+    union_count=21,
+    high_count_expected=True,
+    high_count_reason="Uploading file",
+)
+# SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
+def test_describe_object_file(resources_path):
+    test_files = TestFiles(resources_path)
+    df = pd.read_csv(test_files.test_concat_file1_csv)
+    native_df = df.to_pandas()
+    eval_snowpark_pandas_result(df, native_df, lambda x: x.describe(include="O"))

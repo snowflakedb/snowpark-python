@@ -45,6 +45,7 @@ from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher im
     FactoryDispatcher,
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
+    AggFuncWithLabel,
     get_pandas_aggr_func_name,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -539,6 +540,85 @@ def try_convert_builtin_func_to_str(
         return _try_convert_single_builtin_func_to_str(fn)
 
 
+def extract_validate_and_try_convert_named_aggs_from_kwargs(
+    obj: object, allow_duplication: bool, axis: int, **kwargs
+) -> AggFuncType:
+    """
+    Attempt to extract pd.NamedAgg (or tuples of the same format) from the kwargs.
+
+    kwargs: dict
+        The kwargs to extract from.
+
+    Returns:
+        A dictionary mapping columns to a tuple containing the aggregation to perform, as well
+        as the pandas label to give the aggregated column.
+    """
+    from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
+
+    named_aggs = {}
+    accepted_keys = []
+    columns = obj._query_compiler.columns
+    for key, value in kwargs.items():
+        if isinstance(value, pd.NamedAgg) or (
+            isinstance(value, tuple) and len(value) == 2
+        ):
+            if axis == 0:
+                # If axis == 1, we would need a query to materialize the index to check its existence
+                # so we defer the error checking to later.
+                if value[0] not in columns:
+                    raise KeyError(f"Column(s) ['{value[0]}'] do not exist")
+
+            if value[0] in named_aggs:
+                if not isinstance(named_aggs[value[0]], list):
+                    named_aggs[value[0]] = [named_aggs[value[0]]]
+                named_aggs[value[0]] += [
+                    AggFuncWithLabel(func=value[1], pandas_label=key)
+                ]
+            else:
+                named_aggs[value[0]] = AggFuncWithLabel(func=value[1], pandas_label=key)
+            accepted_keys += [key]
+        elif isinstance(obj, SeriesGroupBy):
+            col_name = obj._df._query_compiler.columns[0]
+            if col_name not in named_aggs:
+                named_aggs[col_name] = AggFuncWithLabel(func=value, pandas_label=key)
+            else:
+                if not isinstance(named_aggs[col_name], list):
+                    named_aggs[col_name] = [named_aggs[col_name]]
+                named_aggs[col_name] += [AggFuncWithLabel(func=value, pandas_label=key)]
+            accepted_keys += [key]
+
+    if len(named_aggs.keys()) == 0:
+        ErrorMessage.not_implemented(
+            "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
+        )
+
+    if any(key not in accepted_keys for key in kwargs.keys()):
+        # For compatibility with pandas errors. Otherwise, we would just ignore
+        # those kwargs.
+        raise TypeError("Must provide 'func' or tuples of '(column, aggfunc).")
+
+    validated_named_aggs = {}
+    for key, value in named_aggs.items():
+        if isinstance(value, list):
+            validated_named_aggs[key] = [
+                AggFuncWithLabel(
+                    func=validate_and_try_convert_agg_func_arg_func_to_str(
+                        v.func, obj, allow_duplication, axis
+                    ),
+                    pandas_label=v.pandas_label,
+                )
+                for v in value
+            ]
+        else:
+            validated_named_aggs[key] = AggFuncWithLabel(
+                func=validate_and_try_convert_agg_func_arg_func_to_str(
+                    value.func, obj, allow_duplication, axis
+                ),
+                pandas_label=value.pandas_label,
+            )
+    return validated_named_aggs
+
+
 def validate_and_try_convert_agg_func_arg_func_to_str(
     agg_func: AggFuncType, obj: object, allow_duplication: bool, axis: int
 ) -> AggFuncType:
@@ -580,12 +660,6 @@ def validate_and_try_convert_agg_func_arg_func_to_str(
 
     """
     if agg_func is None:
-        # Snowpark pandas only support func argument at this moment.
-        # TODO (SNOW-902943): pandas allows usage of NamedAgg in kwargs to configure
-        #   tuples of (columns, agg_func) with rename. For example:
-        #   df.groupby('A').agg(b_min=pd.NamedAgg(column='B', aggfunc='min')), which applies
-        #   min function on column 'B', and uses 'b_min' as the new column name.
-        #   Once supported, refine the check to check both.
         ErrorMessage.not_implemented(
             "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
         )

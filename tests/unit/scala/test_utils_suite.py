@@ -277,6 +277,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "resources/",
                 "resources/broken.csv",
+                "resources/diamonds.csv",
                 "resources/iris.csv",
                 "resources/test.avro",
                 "resources/test.orc",
@@ -298,6 +299,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",
                 "resources/test_requirements_unsupported.txt",
+                "resources/test_concat_file1.csv",
+                "resources/test_concat_file2.csv",
                 "resources/test_environment.yml",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
