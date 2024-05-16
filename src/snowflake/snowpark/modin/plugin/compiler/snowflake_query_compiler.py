@@ -10524,7 +10524,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if native_pd.isna(k):
                     cond = column.is_null()
                 elif regex is True:
-                    cond = column.regexp(pandas_lit(f".*{k}.*"))
+                    cond = column.regexp(pandas_lit(f".*({k}).*"))
                     v = regexp_replace(subject=column, pattern=k, replacement=v)
                 else:
                     cond = column == k

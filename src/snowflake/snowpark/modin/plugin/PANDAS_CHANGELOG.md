@@ -10,6 +10,7 @@
 - Fixed `pd.merge` and `Dataframe.merge` outer join behavior according to pandas 2.x.
 - Fixed `DataFrameGroupBy/SeriesGroupBy.apply` int not serializable bug.
 - Fixed `DataFrameGroupBy/SeriesGroupBy.apply` to raise NotImplementedError for `include_groups = False`. 
+- Fixed `DataFrame/Series.replace` bug when `to_replace` contains regex special characters.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
