@@ -692,12 +692,12 @@ class InternalFrame:
             index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
         )
 
-    def materialize_and_cache(self) -> "InternalFrame":
+    def persist_to_temporary_table(self) -> "InternalFrame":
         """
-        Materializes and caches the OrderedDataFrame backing this InternalFrame.
+        Persists the OrderedDataFrame backing this InternalFrame to a temporary table for the duration of the session.
 
         Returns:
-            A new InternalFrame with the backing OrderedDataFrame materialized and cached.
+            A new InternalFrame with the backing OrderedDataFrame persisted to a temporary table.
         """
         return InternalFrame.create(
             ordered_dataframe=cache_result(self.ordered_dataframe),
