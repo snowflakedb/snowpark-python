@@ -300,7 +300,11 @@ Methods
 | ``pivot_table``             | P                               | ``observed``, ``sort``           | ``N`` if ``index``, ``columns``, or ``values`` is  |
 |                             |                                 |                                  | not str, list of str, or None; or MultiIndex; or   |
 |                             |                                 |                                  | any ``argfunc`` is not "count", "mean", "min",     |
-|                             |                                 |                                  | "max", or "sum"                                    |
+|                             |                                 |                                  | "max", or "sum". N if ``index`` is None,           | 
+|                             |                                 |                                  | ``margins`` is True and ``aggfunc`` is "count"     |
+|                             |                                 |                                  | or "mean" or a dictionary. N if ``index`` is None  |
+|                             |                                 |                                  | and ``aggfunc`` is a dictionary containing         |
+|                             |                                 |                                  | lists of aggfuncs to apply.                        |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``pop``                     | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+

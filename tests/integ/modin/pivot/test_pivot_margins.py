@@ -10,23 +10,63 @@ from tests.integ.modin.pivot.pivot_utils import pivot_table_test_helper
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 
 
+@pytest.mark.parametrize("index", [None, "A"], ids=["no_index", "single_index"])
 @pytest.mark.parametrize("dropna", [True, False])
 @pytest.mark.parametrize("columns", ["C", ["B", "C"]])
 @pytest.mark.parametrize("fill_value", [None, 99.99])
 def test_pivot_table_single_with_dropna_options(
-    df_data_with_nulls, dropna, columns, fill_value
+    df_data_with_nulls, index, dropna, columns, fill_value
 ):
     expected_join_count = 2 if not dropna else 1
+    if not dropna and index is None:
+        expected_join_count += 1
+    if len(columns) > 1 and index is None:
+        pytest.xfail(
+            reason="SNOW-1435365 - pandas computes values differently than us: https://github.com/pandas-dev/pandas/issues/58722."
+        )
     with SqlCounter(query_count=1, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data_with_nulls,
             {
-                "index": "A",
+                "index": index,
                 "columns": columns,
                 "values": "D",
                 "dropna": dropna,
                 "fill_value": fill_value,
                 "margins": True,
+            },
+        )
+
+
+# Not marking as strict since the following test cases pass:
+# [None-C-True-no_index]
+# [None-columns1-True-no_index]
+# [None-C-False-no_index]
+# [None-columns1-False-no_index]
+@pytest.mark.xfail(
+    reason="SNOW-1435365 - we do not support margins=True, with no index and aggfunc as a dictionary."
+)
+@pytest.mark.parametrize("index", [None, "A"], ids=["no_index", "single_index"])
+@pytest.mark.parametrize("dropna", [True, False])
+@pytest.mark.parametrize("columns", ["C", ["B", "C"]])
+@pytest.mark.parametrize("fill_value", [None, 99.99])
+def test_pivot_table_single_with_dropna_options_multiple_aggr_funcs(
+    df_data_with_nulls, index, dropna, columns, fill_value
+):
+    expected_join_count = 2 if not dropna else 1
+    if not dropna and index is None:
+        expected_join_count += 1
+    with SqlCounter(query_count=1, join_count=expected_join_count):
+        pivot_table_test_helper(
+            df_data_with_nulls,
+            {
+                "index": index,
+                "columns": columns,
+                "values": ["D", "E"],
+                "dropna": dropna,
+                "fill_value": fill_value,
+                "margins": True,
+                "aggfunc": {"D": "sum", "E": "max"},
             },
         )
 
@@ -67,6 +107,20 @@ def test_pivot_table_multiple_columns_values_with_margins(
 
 
 @pytest.mark.parametrize(
+    "index",
+    [
+        pytest.param(
+            None,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="SNOW-1435365 - pandas computes values differently than us: https://github.com/pandas-dev/pandas/issues/58722.",
+            ),
+        ),
+        ["A", "B"],
+    ],
+    ids=["no_index", "multiple_index"],
+)
+@pytest.mark.parametrize(
     "fill_value",
     [
         None,
@@ -82,12 +136,12 @@ def test_pivot_table_multiple_columns_values_with_margins(
 )
 @sql_count_checker(query_count=1, join_count=9, union_count=1)
 def test_pivot_table_multiple_pivot_values_null_data_with_margins(
-    df_data_with_nulls, fill_value
+    df_data_with_nulls, index, fill_value
 ):
     pivot_table_test_helper(
         df_data_with_nulls,
         {
-            "index": ["A", "B"],
+            "index": index,
             "columns": "C",
             "values": "F",
             "aggfunc": ["count", "sum", "mean"],
@@ -99,6 +153,9 @@ def test_pivot_table_multiple_pivot_values_null_data_with_margins(
     )
 
 
+@pytest.mark.parametrize(
+    "index", [None, ["A", "B"]], ids=["no_index", "multiple_index"]
+)
 @pytest.mark.parametrize(
     "fill_value",
     [
@@ -113,23 +170,25 @@ def test_pivot_table_multiple_pivot_values_null_data_with_margins(
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=6, union_count=1)
 def test_pivot_table_multiple_pivot_values_null_data_with_margins_nan_blocked(
-    df_data_with_nulls, fill_value
+    df_data_with_nulls, index, fill_value
 ):
-    pivot_table_test_helper(
-        df_data_with_nulls,
-        {
-            "index": ["A", "B"],
-            "columns": "C",
-            "values": "F",
-            "aggfunc": ["min", "max"],
-            "dropna": False,
-            "fill_value": fill_value,
-            "margins": True,
-            "margins_name": "TOTAL",
-        },
-    )
+    join_count = 7 if index is None and fill_value is None else 6
+    union_count = 0 if index is None and fill_value is None else 1
+    with SqlCounter(query_count=1, join_count=join_count, union_count=union_count):
+        pivot_table_test_helper(
+            df_data_with_nulls,
+            {
+                "index": index,
+                "columns": "C",
+                "values": "F",
+                "aggfunc": ["min", "max"],
+                "dropna": False,
+                "fill_value": fill_value,
+                "margins": True,
+                "margins_name": "TOTAL",
+            },
+        )
 
 
 @sql_count_checker(query_count=1, join_count=12, union_count=1)
