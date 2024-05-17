@@ -863,6 +863,9 @@ class TestFuncReturnsScalar:
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
+    @pytest.mark.xfail(
+        reason="SNOW-1434962 groupby.apply order is not deterministic",
+    )
     def test_group_apply_return_df_from_lambda(self):
         diamonds_path = (
             pathlib.Path(__file__).parent.parent.parent.parent
