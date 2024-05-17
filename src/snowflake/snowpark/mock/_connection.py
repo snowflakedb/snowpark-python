@@ -781,7 +781,9 @@ $$"""
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type,
+                datatype=column_data.sf_type
+                if column_data.sf_type
+                else res.sf_types[column_name],
             )
             for column_name, column_data in res.items()
         ]
