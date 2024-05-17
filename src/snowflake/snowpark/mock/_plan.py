@@ -538,10 +538,10 @@ def handle_udf_expression(
 
         # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
         # this will lead to NaN or None information loss, think about the following case of a udf definition:
-        #    def udf(x): return sqrt(x) if x is not None else None
-        # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT
+        #    def udf(x): return numpy.sqrt(x) if x is not None else None
+        # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT for both
         # however, we want NaT for the former case and None for the latter case.
-        # using dtype object + function execution help solve the limitation here
+        # using dtype object + function execution does not have the limitation
         res = ColumnEmulator(
             data=[udf_handler(*row) for _, row in function_input.iterrows()],
             sf_type=ColumnType(exp.datatype, exp.nullable),
