@@ -23,7 +23,7 @@
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
 - Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 - Added support for `Series.str.slice`.
-- Added support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 
 ## 1.15.0a1 (2024-05-03)
 
