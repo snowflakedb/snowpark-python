@@ -7,6 +7,8 @@ from functools import reduce
 from itertools import product
 from typing import Any, Callable, NamedTuple, Optional, Union
 
+import numpy as np
+import pandas as pd
 from pandas._typing import AggFuncType, AggFuncTypeBase, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
@@ -1130,6 +1132,175 @@ def get_margin_aggregation(
         aggfunc_expr = coalesce(aggfunc_expr, pandas_lit(0))
 
     return aggfunc_expr
+
+
+def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
+    pivot_qc: "SnowflakeQueryCompiler",  # type: ignore[name-defined] # noqa: F821
+    original_modin_frame: InternalFrame,
+    pivot_aggr_groupings: list[PivotAggrGrouping],
+    dropna: bool,
+    columns: list[str],
+    aggfunc: AggFuncType,
+    pivot_snowflake_quoted_identifiers: list[str],
+    values: list[str],
+    margins_name: str,
+) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
+    names = pivot_qc.columns.names
+    margins_frame = pivot_helper(
+        original_modin_frame,
+        pivot_aggr_groupings,
+        not dropna,
+        not isinstance(aggfunc, list),
+        columns[:1],
+        [],  # There are no groupby_snowflake_quoted_identifiers
+        pivot_snowflake_quoted_identifiers[:1],
+        (isinstance(aggfunc, list) and len(aggfunc) > 1),
+        (isinstance(values, list) and len(values) > 1),
+        None,  # There is no index.
+    )
+    if len(columns) > 1:
+        # If there is a multiindex on the pivot result, we need to add the margin_name to the margins frame's data column
+        # pandas labels, as well as any empty postfixes for the remaining pivot columns if there are more than 2.
+        new_data_column_pandas_labels = []
+        for label in margins_frame.data_column_pandas_labels:
+            if isinstance(aggfunc, list):
+                new_label = label + (margins_name,)
+            else:
+                new_label = (label, margins_name) + tuple(
+                    "" for _ in range(pivot_qc.columns.nlevels - 2)
+                )
+            new_data_column_pandas_labels.append(new_label)
+        margins_frame = InternalFrame.create(
+            ordered_dataframe=margins_frame.ordered_dataframe,
+            data_column_pandas_labels=new_data_column_pandas_labels,
+            data_column_pandas_index_names=pivot_qc._modin_frame.data_column_pandas_index_names,
+            data_column_snowflake_quoted_identifiers=margins_frame.data_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=margins_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=margins_frame.index_column_snowflake_quoted_identifiers,
+        )
+
+    # Need to create a QueryCompiler for the margins frame, but SnowflakeQueryCompiler is not present in this scope
+    # so we use this workaround instead.
+    margins_qc = type(pivot_qc)(margins_frame)
+    original_pivot_qc_columns = pivot_qc.columns
+    pivot_qc = pivot_qc.concat(1, [margins_qc])
+    # After this step, pivot_qc contains the pivotted columns followed by the margins columns - e.g. say our pivot result is
+    # B  on.e  tw"o
+    # D    28    27
+    # E    35    31
+    # Then our pivotted query_compiler now looks like this:
+    # B  on.e  tw"o  margin_for_on.e  margin_for_tw"o
+    # D    28    27               28               27
+    # E    35    31               35               31
+    # We have to reindex (and rename, since we used pivot, the columns will be named the same) so that we get it in the format:
+    # B  on.e  margin_for_on.e  tw"o  margin_for_tw"o
+    # D    28               28    27               27
+    # E    35               35    31               31
+    # If there are more than one pivot columns, then the stride will be greater - e.g. if our pivot result looks like this:
+    # B on.e        tw"o
+    # C dull shi'ny dull shi'ny
+    # D    5     23   10     17
+    # E    8     27   12     19
+    # Our pivotted query_compiler will look like this:
+    # B on.e        tw"o        on.e  tw"o
+    # C dull shi'ny dull shi'ny  All   All
+    # D    5     23   10     17   28    27
+    # E    8     27   12     19   35    21
+    # And so our re-indexer will look different.
+    if len(columns) == 1:
+        # Assuming we have 4 columns after the pivot, we want our reindexer to look like this: [0, 4, 1, 5, 2, 6, 3, 7]. We can accomplish this
+        # by zipping(range(0, 4), (4, 8)), which gives us [(0, 4), (1, 5), (2, 6), (3, 7)], and then flattening that list using sum(list, tuple())
+        # which will result in our flattened indexer [0, 4, 1, 5, 2, 6, 3, 7].
+        column_reindexer = list(
+            sum(
+                zip(
+                    range(0, len(original_pivot_qc_columns)),
+                    range(
+                        len(original_pivot_qc_columns),
+                        2 * len(original_pivot_qc_columns),
+                    ),
+                ),
+                tuple(),
+            )
+        )
+    else:
+        # When there is more than one pivot column, we need to reindex differently, as the example above shows. Say we have have 2 unique values in
+        # the first pivot column, and 2 unique values in the second pivot column (as above). Then, our final reindexer should look like this:
+        # [0, 1, 4, 2, 3, 5]. We can determine how many columns correspond to each first pivot column value by looking at the column MultiIndex for
+        # the pivotted QC. We can convert that to a frame using the `to_frame` MultiIndex API. Let's take a look at an example.
+        # Assuming that the MultiIndex (after converting to a frame) looks like this (i.e. there are 2 distinct values for the first pivot column,
+        # and 3 for the second):
+        #       B       C
+        # 0  on.e    dull
+        # 1  on.e  shi'ny
+        # 2  on.e      sy
+        # 3  tw"o    dull
+        # 4  tw"o  shi'ny
+        mi_as_frame = original_pivot_qc_columns.to_frame(index=False)
+        # We can then groupby the first pivot column, and call count, which will tell us how many columns correspond to each label from the first pivot column.
+        #       C
+        # B
+        # on.e  3
+        # tw"o  2
+        # If there are multiple columns and multiple aggregation functions, we need to groupby the first two columns instead of just the first one -
+        # as the first column will be the name of the aggregation function, and the second column will be the values from the first pivot column.
+        if isinstance(aggfunc, list):
+            groupby_columns = mi_as_frame.columns[:2].tolist()
+            value_column_index = 2
+        else:
+            groupby_columns = mi_as_frame.columns[0]
+            value_column_index = 1
+        pivot_multiindex_level_one_lengths = np.cumsum(
+            mi_as_frame.groupby(groupby_columns, sort=False)
+            .count()[mi_as_frame.columns[value_column_index]]
+            .values[:-1]
+        )
+        # We can grab the first column from this groupby (in case there are more than 2 pivot columns), and use these splits with np.split, which will tell us
+        # the groupings of the columns. E.g., in this case, we would want the following splits for the indexes: [(0, 1, 2), (3, 4)]. Calling np.split with
+        # the values from above (excluding the last value) will result in that output. We call tuple on the splits to get them in tuple format.
+        split_original_pivot_qc_indexes = [
+            list(group)
+            for group in np.split(
+                range(len(original_pivot_qc_columns)),
+                pivot_multiindex_level_one_lengths,
+            )
+        ]
+        # Once we have the splits [[0, 1, 2], [3, 4]], we can then insert the indices for the margins columns.
+        reindexer = [
+            group + [margin_index]
+            for group, margin_index in zip(
+                split_original_pivot_qc_indexes,
+                range(len(original_pivot_qc_columns), len(pivot_qc.columns)),
+            )
+        ]
+        # Now, we have a list that looks like this: [[0, 1, 2, 5], [3, 4, 6]] - we need to make this into a flat list of indexes.
+        column_reindexer = sum(reindexer, list())
+    pivot_qc = pivot_qc.take_2d_positional(slice(None), column_reindexer)
+
+    if len(columns) == 1:
+        # After reindexing, we have to rename the margins columns to the correct name if we only have one pivot column.
+        if original_pivot_qc_columns.nlevels == 1:
+            pivot_qc = pivot_qc.set_columns(
+                pd.Index(
+                    list(
+                        sum(
+                            zip(
+                                original_pivot_qc_columns,
+                                [margins_name] * len(original_pivot_qc_columns),
+                            ),
+                            tuple(),
+                        )
+                    )
+                ).set_names(names)
+            )
+        else:
+            # If there are multiple levels in the index even though there is a single pivot column, we need to copy over the prefixes as well.
+            new_index_names = []
+            for label in original_pivot_qc_columns:
+                new_index_names.extend([label, label[:-1] + (margins_name,)])
+            new_index = pd.MultiIndex.from_tuples(new_index_names).set_names(names)
+            pivot_qc = pivot_qc.set_columns(new_index)
+    return pivot_qc
 
 
 def expand_pivot_result_with_pivot_table_margins(

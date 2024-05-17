@@ -48,6 +48,39 @@ def test_pivot_table_no_index_single_column_multiple_values_multiple_aggr_func(d
     )
 
 
+@sql_count_checker(query_count=1, union_count=1)
+@pytest.mark.parametrize("columns", ["B", ["B", "C"]])
+def test_pivot_table_no_index_multiple_values_single_aggr_func_dict(df_data, columns):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": columns,
+            "values": ["D", "E"],
+            "aggfunc": {"D": "mean", "E": "max"},
+        },
+    )
+
+
+# pandas moves the name of the aggfunc into the data columns as an index column.
+@pytest.mark.xfail(
+    strict=True,
+    reason="SNOW-1435365 - look into no index + aggfunc as dictionary with list.",
+)
+@sql_count_checker(query_count=1, union_count=1)
+@pytest.mark.parametrize("columns", ["B", ["B", "C"]])
+def test_pivot_table_no_index_column_multiple_values_multiple_aggr_func_dict(
+    df_data, columns
+):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": columns,
+            "values": ["D", "E"],
+            "aggfunc": {"D": ["mean", "sum"], "E": "max"},
+        },
+    )
+
+
 @sql_count_checker(query_count=1, join_count=1)
 def test_pivot_table_no_index_single_column_single_values_multiple_aggr_func(df_data):
     pivot_table_test_helper(
