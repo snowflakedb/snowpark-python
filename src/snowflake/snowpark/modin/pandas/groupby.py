@@ -328,7 +328,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         if isinstance(periods, Sequence):
             ErrorMessage.not_implemented(
-                "Snowpark pandas GroupBy.shift does not yet support sequence values of `periods`"
+                "Snowpark pandas GroupBy.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
             )
         if suffix is not None:
             ErrorMessage.not_implemented(
