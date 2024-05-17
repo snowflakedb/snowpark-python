@@ -682,10 +682,13 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Notes
         -----
-        1. When the type annotation of return value is provided on ``func``, the result will be cast
+        1. When ``func`` has a type annotation for its return value, the result will be cast
         to the corresponding dtype. When no type annotation is provided, data will be converted
-        to Variant type in Snowflake and leave as dtype=object. In this case, the return value must
-        be JSON-serializable.
+        to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
+        be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
+        ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
+        are not). The return type hint is used only when ``func`` is a series-to-scalar function.
+
 
         2. Under the hood, we use `Snowflake Vectorized Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch>`_.
         to implement apply() method. You can find type mappings from Snowflake SQL types to pandas
@@ -1113,7 +1116,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def fillna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Fill NA/NaN values using the specified method.
 
@@ -1202,15 +1204,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
 
-        Only replace the first NaN element.
-
-        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
-             A    B    C    D
-        0  0.0  2.0  2.0  0.0
-        1  3.0  4.0  NaN  1.0
-        2  NaN  1.0  NaN  3.0
-        3  NaN  3.0  NaN  4.0
-
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
 
@@ -1236,7 +1229,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         pass
 
     def groupby():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Group Series using a mapper or by a Series of columns.
 
@@ -1291,10 +1283,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Parrot     30.0
             Parrot     20.0
             Name: Max Speed, dtype: float64
-            >>> ser.groupby(["a", "b", "a", "b"]).mean()  # doctest: +SKIP
-            a    210.0
-            b    185.0
-            Name: Max Speed, dtype: float64
             >>> ser.groupby(level=0).mean()
             Falcon    370.0
             Parrot     25.0
@@ -1326,21 +1314,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Captive    210.0
             Wild       185.0
             Name: Max Speed, dtype: float64
-
-            We can also choose to include `NA` in group keys or not by defining
-            `dropna` parameter, the default setting is `True`.
-
-            >>> ser = pd.Series([1, 2, 3, 3], index=["a", 'a', 'b', np.nan])
-            >>> ser.groupby(level=0).sum()      # doctest: +SKIP
-            a    3
-            b    3
-            dtype: int64
-
-            >>> ser.groupby(level=0, dropna=False).sum()        # doctest: +SKIP
-            a    3
-            b    3
-            NaN  3
-            dtype: int64
         """
 
     @_create_operator_docstring(pandas.core.series.Series.gt, overwrite_existing=True)
@@ -1722,7 +1695,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def rename():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Alter Series index labels or name.
 
@@ -1775,11 +1747,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         1    2
         2    3
         Name: my_name, dtype: int64
-        >>> s.rename(lambda x: x ** 2)  # function, changes labels  # doctest: +SKIP
-        0    1
-        1    2
-        4    3
-        dtype: int8
         >>> s.rename({1: 3, 2: 5})  # mapping, changes labels
         0    1
         3    2
@@ -2242,7 +2209,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def sort_values():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values.
 
@@ -2371,36 +2337,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2    c
         4    e
         dtype: object
-        >>> s.sort_values(key=lambda x: x.str.lower())  # doctest: +SKIP
-        0    a
-        1    B
-        2    c
-        3    D
-        4    e
-        dtype: object
-
-        NumPy ufuncs work well here. For example, we can
-        sort by the ``sin`` of the value
-
-        >>> s = pd.Series([-4, -2, 0, 2, 4])
-        >>> s.sort_values(key=np.sin)  # doctest: +SKIP
-        1   -2
-        4    4
-        2    0
-        0   -4
-        3    2
-        dtype: int8
-
-        More complicated user-defined functions can be used,
-        as long as they expect a Series and return an array-like
-
-        >>> s.sort_values(key=lambda x: (np.tan(x.cumsum())))  # doctest: +SKIP
-        0   -4
-        3    2
-        4    4
-        1   -2
-        2    0
-        dtype: int8
         """
 
     def squeeze():

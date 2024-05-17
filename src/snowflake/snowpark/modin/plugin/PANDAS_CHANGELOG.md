@@ -8,11 +8,14 @@
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 - Fixed type hints for property methods, e.g. Series.empty.
 - Fixed `pd.merge` and `Dataframe.merge` outer join behavior according to pandas 2.x.
-- Fixed groupby apply int not serializable bug.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` int not serializable bug.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` to raise NotImplementedError for `include_groups = False`. 
+- Fixed `DataFrame/Series.replace` bug when `to_replace` contains regex special characters.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
+- Throw `KeyError` when user passes in missing column labels to `__getitem__` and `loc`.
 
 ### Improvements
 - Improved performance for `Series.quantile` and `Series.describe`. 
