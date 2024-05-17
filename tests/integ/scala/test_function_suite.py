@@ -11,6 +11,7 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark.column import _to_col_if_str
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
@@ -177,7 +178,6 @@ from snowflake.snowpark.functions import (
     timestamp_tz_from_parts,
     to_array,
     to_date,
-    to_double,
     to_geography,
     to_geometry,
     to_json,
@@ -266,6 +266,10 @@ def test_covariance(session, k, v1, v2):
 
 
 def test_kurtosis(session):
+    def to_double(e):
+        c = _to_col_if_str(e, "to_double")
+        return builtin("to_double")(c)
+
     df = TestData.xyz(session).select(
         to_double(kurtosis(col("X"))),
         to_double(kurtosis(col("Y"))),
