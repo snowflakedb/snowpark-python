@@ -52,7 +52,7 @@ connection_parameters = {
 }
 
 session = Session.builder.configs(connection_parameters).create()
-df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]) # Snowpark Python dataframe
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]) # Create a Snowpark dataframe
 df = df.filter(df.a > 1)
 df.show()
 pandas_df = df.to_pandas()  # this requires pandas installed in the Python environment
