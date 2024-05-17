@@ -1373,7 +1373,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not isinstance(periods, int):
             ErrorMessage.not_implemented(
-                "Snowpark pandas DataFrame/Series.shift does not yet support sequence values of `periods`"
+                "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
             )
         # if frequency is None, shift data by periods
         # else if frequency is given, shift index only
