@@ -323,13 +323,12 @@ class DataFrameAnalyticsFunctions:
             --------------------------------------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
-        # Validate input arguments
         if isinstance(self._df.session._conn, MockServerConnection):
             self._df.session._conn.log_not_supported_error(
                 external_feature_name="DataFrameAnalyticsFunctions.moving_agg",
                 raise_error=NotImplementedError,
             )
-
+        # Validate input arguments
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
         self._validate_string_list_argument(group_by, "group_by")
