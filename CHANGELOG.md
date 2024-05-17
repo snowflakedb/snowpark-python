@@ -39,8 +39,8 @@
 #### Improvements
 
 - Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
-- Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
 - Aligned error experience with reusing a closed session in non-local execution.
+- Improved error experience of `Session.write_pandas`, `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
 
 ## 1.16.0 (TBD)
 
