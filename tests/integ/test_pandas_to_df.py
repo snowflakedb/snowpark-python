@@ -311,7 +311,9 @@ def test_write_pandas_with_table_type(session, table_type: str):
 
 
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
-def test_write_temp_table_no_breaking_change(session, table_type, caplog, local_testing_mode):
+def test_write_temp_table_no_breaking_change(
+    session, table_type, caplog, local_testing_mode
+):
     if local_testing_mode:
         pytest.skip()
     pd = PandasDF(
