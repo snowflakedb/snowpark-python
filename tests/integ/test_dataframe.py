@@ -2806,7 +2806,6 @@ def test_write_table_with_clustering_keys(session, save_mode):
         Utils.drop_table(session, table_name3)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]

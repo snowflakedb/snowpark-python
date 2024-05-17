@@ -310,12 +310,10 @@ def test_write_pandas_with_table_type(session, table_type: str):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1421323: session.write_pandas is not supported in Local Testing.",
-)
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
-def test_write_temp_table_no_breaking_change(session, table_type, caplog):
+def test_write_temp_table_no_breaking_change(session, table_type, caplog, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip()
     pd = PandasDF(
         [
             (1, 4.5, "t1"),

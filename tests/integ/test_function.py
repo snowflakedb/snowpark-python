@@ -349,7 +349,6 @@ def test_primitive_to_char(session, col_a, data, fmt, expected, convert_func):
     assert res[0][0] == expected
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("convert_func", [to_char, to_varchar])
 def test_date_or_time_to_char(session, convert_func):
     # DateType

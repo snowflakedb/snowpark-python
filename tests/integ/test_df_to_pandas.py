@@ -265,7 +265,6 @@ def test_to_pandas_batches(session, local_testing_mode):
         break
 
 
-@pytest.mark.localtest
 def test_df_to_pandas_df(session):
     df = session.create_dataframe(
         [
