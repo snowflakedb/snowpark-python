@@ -262,7 +262,7 @@ def unwrap_single_quote(name: str) -> str:
 
 
 def escape_single_quotes(input_str):
-    return input_str.replace("'", "\\'")
+    return input_str.replace("'", r"\'")
 
 
 def is_sql_select_statement(sql: str) -> bool:
