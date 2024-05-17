@@ -2026,24 +2026,23 @@ def test_attribute_reference_to_sql(session):
     Utils.check_answer([Row(1, 1)], agg_results)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-936617: Selecting columns of the same name is not supported in Local Testing",
-)
-def test_dataframe_duplicated_column_names(session):
-    df = session.sql("select 1 as a, 2 as a")
+def test_dataframe_duplicated_column_names(session, local_testing_mode):
+    tmpdf = session.create_dataframe([(1, 2)]).to_df(["v1", "v2"])
+    df = tmpdf.select(col("v1").alias("a"), col("v2").alias("a"))
+
     # collect() works and return a row with duplicated keys
     res = df.collect()
     assert len(res[0]) == 2
     assert res[0].A == 1
 
-    # however, create a table/view doesn't work because
-    # Snowflake doesn't allow duplicated column names
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.create_or_replace_view(
-            Utils.random_name_for_temp_object(TempObjectType.VIEW)
-        )
-    assert "duplicate column name 'A'" in str(ex_info)
+    if not local_testing_mode:
+        # however, create a table/view doesn't work because
+        # Snowflake doesn't allow duplicated column names
+        with pytest.raises(SnowparkSQLException) as ex_info:
+            df.create_or_replace_view(
+                Utils.random_name_for_temp_object(TempObjectType.VIEW)
+            )
+        assert "duplicate column name 'A'" in str(ex_info)
 
 
 @pytest.mark.skipif(
