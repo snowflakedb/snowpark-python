@@ -1379,10 +1379,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # if frequency is None, shift data by periods
         # else if frequency is given, shift index only
         if freq is None:
-            return self._shift_values(cast(int, periods), axis, fill_value)
+            # mypy isn't smart enough to recognize that periods is an int here
+            return self._shift_values(periods, axis, fill_value)  # type: ignore
         else:
             # axis parameter ignored, should be 0 for manipulating index. Revisit in SNOW-1023324
-            return self._shift_index(cast(int, periods), freq)  # pragma: no cover
+            return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
     def index(self) -> pd.Index:
