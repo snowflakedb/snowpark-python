@@ -536,14 +536,17 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
-        if pd.api.types.is_datetime64_any_dtype(res.dtype):
-            # pd.apply will infer series type given the result, for datetime it will replace None with pd.Nat
-            # which is not valid value in snowpark, here we manually convert pd.NaT back to None
-            res = res.astype(object).replace({pd.NaT: None})
-        res.sf_type = ColumnType(exp.datatype, exp.nullable)
-        res.name = quote_name(
-            f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+        # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
+        # this will lead to NaN or None information loss, think about the following case of a udf definition:
+        #    def udf(x): return sqrt(x) if x is not None else None
+        # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT
+        # however, we want NaT for the former case and None for the latter case.
+        # using dtype object + function execution help solve the limitation here
+        res = ColumnEmulator(
+            data=[udf_handler(*row) for _, row in function_input.iterrows()],
+            sf_type=ColumnType(exp.datatype, exp.nullable),
+            name=quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper()),
+            dtype=object,
         )
 
         return res
