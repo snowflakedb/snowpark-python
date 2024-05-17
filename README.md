@@ -9,7 +9,7 @@
 The Snowpark library provides intuitive APIs for querying and processing data in a data pipeline.
 Using this library, you can build applications that process data in Snowflake without having to move data to the system where your application code runs.
 
-[Source code][source code] | [Developer guide][developer guide] | [Snowpark Python API reference][Snowpark Python api references] | [Snowpark pandas API reference][Snowpark pandas api references] | [Product documentation][snowpark] | [Samples][samples]
+[Source code][source code] | [Snowpark Python developer guide][Snowpark Python developer guide] | [Snowpark Python API reference][Snowpark Python api references] | [Snowpark pandas devleoper guide][Snowpark pandas developer guide] | [Snowpark pandas API reference][Snowpark pandas api references] | [Product documentation][snowpark] | [Samples][samples]
 
 ## Getting started
 
@@ -113,7 +113,7 @@ df.reset_index(drop=True).to_snowflake('pandas_test2', index=True, index_label=[
 ```
 
 ## Samples
-The [Developer Guide][developer guide], [Snowpark Python API references][Snowpark Python api references], and [Snowpark pandas api references][Snowpark pandas api references] have basic sample code.
+The [Snowpark Python developer guide][Snowpark Python developer guide], [Snowpark Python API references][Snowpark Python api references], [Snowpark pandas developer guide][Snowpark pandas developer guide], and [Snowpark pandas api references][Snowpark pandas api references] have basic sample code.
 [Snowflake-Labs][snowflake lab sample code] has more curated demos.
 
 ## Logging
@@ -137,9 +137,10 @@ Please refer to [CONTRIBUTING.md][contributing].
 
 [add other sample code repo links]: # (Developer advocacy is open-sourcing a repo that has excellent sample code. The link will be added here.)
 
-[developer guide]: https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html
+[Snowpark Python developer guide]: https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html
 [Snowpark Python api references]: https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/index.html
-[Snowpark pandas api references]: https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#api-reference
+[Snowpark pandas developer guide]: https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas
+[Snowpark pandas api references]: https://docs.snowflake.com/en/LIMITEDACCESS/snowpark-pandas-api/reference/index.html
 [snowpark]: https://www.snowflake.com/snowpark
 [sign up trial]: https://signup.snowflake.com
 [source code]: https://github.com/snowflakedb/snowpark-python
