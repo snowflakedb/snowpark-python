@@ -863,9 +863,6 @@ class TestFuncReturnsScalar:
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    @pytest.mark.xfail(
-        reason="SNOW-1434962 groupby.apply order is not deterministic",
-    )
     def test_group_apply_return_df_from_lambda(self):
         diamonds_path = (
             pathlib.Path(__file__).parent.parent.parent.parent
@@ -877,7 +874,7 @@ class TestFuncReturnsScalar:
             pd.DataFrame(diamonds_pd),
             diamonds_pd,
             lambda diamonds: diamonds.groupby("cut").apply(
-                lambda x: x.sort_values("price", ascending=False).head(5),
+                lambda x: x.nlargest(5, columns=["price"]),
                 include_groups=True,
             ),
         )
