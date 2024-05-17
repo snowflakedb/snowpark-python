@@ -874,7 +874,11 @@ class TestFuncReturnsScalar:
             pd.DataFrame(diamonds_pd),
             diamonds_pd,
             lambda diamonds: diamonds.groupby("cut").apply(
-                lambda x: x.nlargest(5, columns=["price"]),
+                # Use the stable "mergesort" algorithm to make the result order
+                # deterministic (see SNOW-1434962).
+                lambda x: x.sort_values(
+                    "price", ascending=False, kind="mergesort"
+                ).head(5),
                 include_groups=True,
             ),
         )
