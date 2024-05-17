@@ -31,7 +31,10 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
-from snowflake.snowpark.modin.plugin.io.snow_io import PandasOnSnowflakeIO
+from snowflake.snowpark.modin.plugin.io.snow_io import (
+    READ_CSV_DEFAULTS,
+    PandasOnSnowflakeIO,
+)
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -44,60 +47,66 @@ if TYPE_CHECKING:  # pragma: no cover
 def read_csv(
     filepath_or_buffer: FilePath,
     *,
-    sep: Optional[Union[str, NoDefault]] = no_default,
-    delimiter: Optional[str] = None,
-    header: Optional[Union[int, Sequence[int], Literal["infer"]]] = "infer",
-    names: Optional[Union[Sequence[Hashable], NoDefault]] = no_default,
-    index_col: Optional[Union[IndexLabel, Literal[False]]] = None,
-    usecols: Optional[Union[list[Hashable], Callable]] = None,
-    dtype: Optional[DtypeArg] = None,
-    engine: Optional[CSVEngine] = None,
-    converters: Optional[dict[Hashable, Callable]] = None,
-    true_values: Optional[list[Any]] = None,
-    false_values: Optional[list[Any]] = None,
-    skipinitialspace: Optional[bool] = None,
-    skiprows: Optional[int] = None,
-    skipfooter: Optional[int] = 0,
-    nrows: Optional[int] = None,
-    na_values: Optional[Sequence[Hashable]] = None,
-    keep_default_na: Optional[bool] = True,
-    na_filter: Optional[bool] = True,
-    verbose: Optional[bool] = no_default,
-    skip_blank_lines: Optional[bool] = True,
+    sep: Optional[Union[str, NoDefault]] = READ_CSV_DEFAULTS["sep"],
+    delimiter: Optional[str] = READ_CSV_DEFAULTS["delimiter"],
+    header: Optional[Union[int, Sequence[int], Literal["infer"]]] = READ_CSV_DEFAULTS[
+        "header"
+    ],
+    names: Optional[Union[Sequence[Hashable], NoDefault]] = READ_CSV_DEFAULTS["names"],
+    index_col: Optional[Union[IndexLabel, Literal[False]]] = READ_CSV_DEFAULTS[
+        "index_col"
+    ],
+    usecols: Optional[Union[list[Hashable], Callable]] = READ_CSV_DEFAULTS["usecols"],
+    dtype: Optional[DtypeArg] = READ_CSV_DEFAULTS["dtype"],
+    engine: Optional[CSVEngine] = READ_CSV_DEFAULTS["engine"],
+    converters: Optional[dict[Hashable, Callable]] = READ_CSV_DEFAULTS["converters"],
+    true_values: Optional[list[Any]] = READ_CSV_DEFAULTS["true_values"],
+    false_values: Optional[list[Any]] = READ_CSV_DEFAULTS["false_values"],
+    skipinitialspace: Optional[bool] = READ_CSV_DEFAULTS["skipinitialspace"],
+    skiprows: Optional[int] = READ_CSV_DEFAULTS["skiprows"],
+    skipfooter: Optional[int] = READ_CSV_DEFAULTS["skipfooter"],
+    nrows: Optional[int] = READ_CSV_DEFAULTS["nrows"],
+    na_values: Optional[Sequence[Hashable]] = READ_CSV_DEFAULTS["na_values"],
+    keep_default_na: Optional[bool] = READ_CSV_DEFAULTS["keep_default_na"],
+    na_filter: Optional[bool] = READ_CSV_DEFAULTS["na_filter"],
+    verbose: Optional[bool] = READ_CSV_DEFAULTS["verbose"],
+    skip_blank_lines: Optional[bool] = READ_CSV_DEFAULTS["skip_blank_lines"],
     parse_dates: Optional[
         Union[bool, Sequence[int], Sequence[Sequence[int]], dict[str, Sequence[int]]]
-    ] = None,
-    infer_datetime_format: Optional[bool] = no_default,
-    keep_date_col: Optional[bool] = no_default,
-    date_parser: Optional[Callable] = no_default,
-    date_format: Optional[Union[str, dict]] = None,
-    dayfirst: Optional[bool] = False,
-    cache_dates: Optional[bool] = True,
-    iterator: bool = False,
-    chunksize: Optional[int] = None,
+    ] = READ_CSV_DEFAULTS["parse_dates"],
+    infer_datetime_format: Optional[bool] = READ_CSV_DEFAULTS["infer_datetime_format"],
+    keep_date_col: Optional[bool] = READ_CSV_DEFAULTS["keep_date_col"],
+    date_parser: Optional[Callable] = READ_CSV_DEFAULTS["date_parser"],
+    date_format: Optional[Union[str, dict]] = READ_CSV_DEFAULTS["date_format"],
+    dayfirst: Optional[bool] = READ_CSV_DEFAULTS["dayfirst"],
+    cache_dates: Optional[bool] = READ_CSV_DEFAULTS["cache_dates"],
+    iterator: bool = READ_CSV_DEFAULTS["iterator"],
+    chunksize: Optional[int] = READ_CSV_DEFAULTS["chunksize"],
     compression: Literal[
         "infer", "gzip", "bz2", "brotli", "zstd", "deflate", "raw_deflate", "none"
-    ] = "infer",
-    thousands: Optional[str] = None,
-    decimal: Optional[str] = ".",
-    lineterminator: Optional[str] = None,
-    quotechar: str = '"',
-    quoting: Optional[int] = 0,
-    doublequote: bool = True,
-    escapechar: Optional[str] = None,
-    comment: Optional[str] = None,
-    encoding: Optional[str] = None,
-    encoding_errors: Optional[str] = "strict",
-    dialect: Optional[Union[str, "csv.Dialect"]] = None,
-    on_bad_lines: str = "error",
-    delim_whitespace: Optional[bool] = no_default,
-    low_memory: Optional[
-        bool
-    ] = False,  # Different from default because we want better dtype detection
-    memory_map: Optional[bool] = False,
-    float_precision: Optional[Literal["high", "legacy"]] = None,
-    storage_options: StorageOptions = None,
-    dtype_backend: DtypeBackend = no_default,
+    ] = READ_CSV_DEFAULTS["compression"],
+    thousands: Optional[str] = READ_CSV_DEFAULTS["thousands"],
+    decimal: Optional[str] = READ_CSV_DEFAULTS["decimal"],
+    lineterminator: Optional[str] = READ_CSV_DEFAULTS["lineterminator"],
+    quotechar: str = READ_CSV_DEFAULTS["quotechar"],
+    quoting: Optional[int] = READ_CSV_DEFAULTS["quoting"],
+    doublequote: bool = READ_CSV_DEFAULTS["doublequote"],
+    escapechar: Optional[str] = READ_CSV_DEFAULTS["escapechar"],
+    comment: Optional[str] = READ_CSV_DEFAULTS["comment"],
+    encoding: Optional[str] = READ_CSV_DEFAULTS["encoding"],
+    encoding_errors: Optional[str] = READ_CSV_DEFAULTS["encoding_errors"],
+    dialect: Optional[Union[str, "csv.Dialect"]] = READ_CSV_DEFAULTS["dialect"],
+    on_bad_lines: str = READ_CSV_DEFAULTS["on_bad_lines"],
+    delim_whitespace: Optional[bool] = READ_CSV_DEFAULTS["delim_whitespace"],
+    low_memory: Optional[bool] = READ_CSV_DEFAULTS[
+        "low_memory"
+    ],  # Different from default because we want better dtype detection
+    memory_map: Optional[bool] = READ_CSV_DEFAULTS["memory_map"],
+    float_precision: Optional[Literal["high", "legacy"]] = READ_CSV_DEFAULTS[
+        "float_precision"
+    ],
+    storage_options: StorageOptions = READ_CSV_DEFAULTS["storage_options"],
+    dtype_backend: DtypeBackend = READ_CSV_DEFAULTS["dtype_backend"],
 ) -> DataFrame:
     """
     Read csv file(s) into a Snowpark pandas DataFrame. This API can read

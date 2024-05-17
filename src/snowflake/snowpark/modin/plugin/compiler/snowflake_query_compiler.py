@@ -14,6 +14,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
+import pandas.io.parsers
+import pandas.io.parsers.readers
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from numpy import dtype
 from pandas._libs import lib
@@ -830,9 +832,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        local_kwargs = {k: v for k, v in kwargs.items() if k not in ["index_col"]}
+        # Arguments which must be handled as part of a post-processing stage
+        local_exclude_set = ["index_col", "usecols"]
+        local_kwargs = {k: v for k, v in kwargs.items() if k not in local_exclude_set}
+
+        # For the purposses of the initial import we need to make sure the column names
+        # are strings. These will be overriden later in post-processing.
+        if local_kwargs["names"] is not no_default:
+            local_names = [str(n) for n in kwargs["names"]]
+            local_kwargs["names"] = local_names
+
         if filetype == "csv":
             df = native_pd.read_csv(**local_kwargs)
+            # When names is shorter than the total number of columns an index
+            # is created, regardless of the value of index_col. If this happens
+            # we reset the index so the full dataset is uploaded to snowflake.
+            if not isinstance(df.index, pandas.core.indexes.range.RangeIndex):
+                df = df.reset_index()
+
         temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         pd.session.write_pandas(
             df=df,
@@ -905,6 +922,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         qc = cls.from_snowflake(name_or_query=temporary_table_name)
 
+        return cls._post_process_file(qc=qc, **kwargs)
+
+    @classmethod
+    def _post_process_file(
+        cls, qc: "SnowflakeQueryCompiler", **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        # breakpoint()
         if not kwargs.get("parse_header", True):
             # Rename df header since default header in pandas is
             # 0, 1, 2, ... n.  while default header in SF is c1, c2, ... cn.
@@ -913,9 +937,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             }
             qc = qc.rename(columns_renamer=columns_renamed)
 
-        names = kwargs.get("names", None)
+        dtype_ = kwargs.get("dtype", None)
+        if dtype_ is not None:
+            if not isinstance(dtype_, dict):
+                dtype_ = {column: dtype_ for column in qc.columns}
 
-        if names is not None:
+            qc = qc.astype(dtype_)
+
+        names = kwargs.get("names", no_default)
+        if names is not no_default:
+            pandas.io.parsers.readers._validate_names(names)
             if len(names) > len(qc.columns):
                 raise ValueError(
                     f"Too many columns specified: expected {len(names)} and found {len(qc.columns)}"
@@ -926,7 +957,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 unnamed_indexes = [
                     column for column in qc.columns[: len(qc.columns) - len(names)]
                 ]
-
                 qc = qc.set_index(unnamed_indexes).set_index_names(
                     [None] * len(unnamed_indexes)
                 )
@@ -942,42 +972,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         usecols = kwargs.get("usecols", None)
 
         if usecols is not None:
-            maintain_usecols_order = filetype != "csv"
+            maintain_usecols_order = False
+            if is_list_like(usecols):
+                maintain_usecols_order = True
+            # breakpoint()
             frame = create_frame_with_data_columns(
                 qc._modin_frame,
                 get_columns_to_keep_for_usecols(
-                    usecols, qc.columns, maintain_usecols_order=maintain_usecols_order
+                    usecols, qc.columns, maintain_usecols_order
                 ),
             )
             qc = SnowflakeQueryCompiler(frame)
 
-        dtype_ = kwargs.get("dtype", None)
-        if dtype_ is not None:
-            if not isinstance(dtype_, dict):
-                dtype_ = {column: dtype_ for column in qc.columns}
-
-            qc = qc.astype(dtype_)
-        return cls._post_process_file(qc=qc, **kwargs)
-
-    @classmethod
-    def _post_process_file(
-        cls, qc: "SnowflakeQueryCompiler", **kwargs: Any
-    ) -> "SnowflakeQueryCompiler":
         index_col = kwargs.get("index_col", None)
         if index_col:
             pandas_labeled_index_cols = []
-            for column in index_col:
+            input_index_cols = index_col
+            if is_scalar(index_col):
+                input_index_cols = [index_col]
+            for column in input_index_cols:
                 if isinstance(column, str):
                     if column not in qc.columns:
                         raise ValueError(f"Index {column} invalid")
                     pandas_labeled_index_cols.append(column)
-                else:
+                elif isinstance(column, int):
                     if column < 0:
                         column += len(qc.columns)
 
                     if column not in range(len(qc.columns)):
                         raise IndexError("list index out of range")
                     pandas_labeled_index_cols.append(qc.columns[column])
+                else:
+                    raise TypeError(
+                        f"list indices must be integers or slices, not {type(column).__name__}"
+                    )
 
             if len(set(pandas_labeled_index_cols)) != len(pandas_labeled_index_cols):
                 raise ValueError("Duplicate columns in index_col are not allowed.")

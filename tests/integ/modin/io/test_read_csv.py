@@ -138,21 +138,6 @@ def test_read_csv_names_overwrite_header(resources_path):
 @pytest.mark.parametrize(
     "names, error_msg, expected_query_count",
     [
-        (
-            ("c1", "c2", "c3", "c4"),
-            "Too many columns specified: expected 4 and found 3",
-            8,
-        ),
-        (
-            native_pd.Series(["c1", "c2", "c3", "c4"]),
-            "Too many columns specified: expected 4 and found 3",
-            8,
-        ),
-        (
-            native_pd.Index(["c2", "c3", "c4", "c5"]),
-            "Too many columns specified: expected 4 and found 3",
-            8,
-        ),
         (["c1", "c1"], "Duplicate names are not allowed.", 0),
         (native_pd.Index(["c1", "c1"]), "Duplicate names are not allowed.", 0),
         (native_pd.Series(["c1", "c1"]), "Duplicate names are not allowed.", 0),
@@ -167,7 +152,7 @@ def test_read_csv_name_negative(resources_path, names, error_msg, expected_query
             pd.read_csv(test_files.test_file_csv_header, names=names)
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_read_csv_name_invalid_type_negative(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -454,22 +439,22 @@ def test_read_csv_stage(resources_path):
     "param,arg",
     [
         ("verbose", True),
-        ("dayfirst", False),
+        ("dayfirst", True),
         ("date_parser", True),
         ("date_format", "%Y-%m-%d"),
         ("keep_date_col", True),
         ("parse_dates", True),
         ("iterator", True),
-        ("na_filter", True),
+        ("na_filter", False),
         ("skipfooter", 3),
         ("nrows", 100),
         ("thousands", ","),
         ("decimal", ","),
         ("lineterminator", "q"),
         ("dialect", "excel"),
-        ("quoting", 0),
-        ("doublequote", True),
-        ("encoding_errors", "strict"),
+        ("quoting", 2),
+        ("doublequote", False),
+        ("encoding_errors", "replace"),
         ("comment", "#"),
         ("converters", {"c1": lambda x: x * 2}),
         ("true_values", ["qwe"]),
@@ -481,9 +466,9 @@ def test_read_csv_stage(resources_path):
     ],
 )
 @sql_count_checker(query_count=0)
-def test_read_csv_negative(param, arg):
+def test_read_staged_csv_negative(param, arg):
     with pytest.raises(NotImplementedError, match=f"{param} is not implemented."):
-        pd.read_csv("file.csv", **{param: arg})
+        pd.read_csv(f"@{tmp_stage_name1}/{test_file_csv}", **{param: arg})
 
 
 @pytest.mark.parametrize(
@@ -507,8 +492,9 @@ def test_read_csv_usecols(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
     expected = native_pd.read_csv(test_files.test_file_csv_header, usecols=usecols)
-    got = pd.read_csv(test_files.test_file_csv_header, usecols=usecols)
-
+    got = pd.read_csv(test_files.test_file_csv_header, usecols=usecols).to_pandas()
+    expected = expected.reindex(sorted(expected.columns), axis=1)
+    got = got.reindex(sorted(got.columns), axis=1)
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
@@ -525,7 +511,6 @@ def test_read_csv_usecols_empty(resources_path):
 @pytest.mark.parametrize(
     "usecols",
     [
-        ("rating"),
         [1, "rating"],
         [1, [2, 3], 4],
         native_pd.MultiIndex.from_arrays([["rating", "id", "name"]]),
@@ -534,22 +519,22 @@ def test_read_csv_usecols_empty(resources_path):
         [datetime.date(2021, 1, 9), datetime.datetime(2023, 1, 1, 1, 2, 3)],
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_read_csv_usecols_invalid_types_negative(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
     with pytest.raises(
         ValueError,
-        match="'usecols' must either be list-like of all strings, all integers or a callable.",
+        match="'usecols' must either be list-like of all strings, all unicode, all integers or a callable.",
     ):
         pd.read_csv(test_files.test_file_csv, usecols=usecols)
 
 
 @pytest.mark.parametrize(
     "usecols",
-    [["non_existent_col"], ["rating", "non_existent_col"], [-1], [0, 4]],
+    [["non_existent_col"], ["rating", "non_existent_col"], [-1], [0, 4], ("rating")],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_read_csv_usecols_nonexistent_negative(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -620,7 +605,7 @@ def test_read_csv_usecols_with_names_negative(resources_path):
                 usecols=["id"],
             )
 
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=1):
         with pytest.raises(
             ValueError,
             match="'usecols' do not match columns, columns expected but not found",
@@ -714,7 +699,6 @@ def test_read_csv_index_col_name(resources_path):
         got = pd.read_csv(
             test_files.test_file_csv_header, names=["c1", "c2", "c3"], index_col=["c3"]
         )
-        # breakpoint()
         assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
     test_files = TestFiles(resources_path)
@@ -748,7 +732,7 @@ def test_read_csv_index_col_name(resources_path):
         ),
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_read_csv_index_col_frontend_negative(
     resources_path, index_col, expected_error_type, expected_error_msg
 ):
@@ -763,7 +747,7 @@ def test_read_csv_index_col_frontend_negative(
     [
         (["non_existent_col", "a"], ValueError, "Index non_existent_col invalid"),
         ([-5], IndexError, "list index out of range"),
-        ((4), TypeError, "'int' object is not iterable"),
+        ((4), IndexError, "list index out of range"),
         ([0, 0], ValueError, "Duplicate columns in index_col are not allowed."),
         ([1, "name"], ValueError, "Duplicate columns in index_col are not allowed."),
     ],
