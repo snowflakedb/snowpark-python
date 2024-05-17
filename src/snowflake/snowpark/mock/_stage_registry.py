@@ -58,32 +58,38 @@ GET_RESULT_KEYS = [
 ]
 
 
+# option support map
+# top level:
+#   key: file format name
+#   value: dict of supported option
+# child level:
+#   key: option name
+#   value (two categories):
+#     - tuple, enum of valid option values in the string form
+#     - None, users set the value
 SUPPORT_READ_OPTIONS = {
-    "csv": (
-        "SKIP_HEADER",
-        "SKIP_BLANK_LINES",
-        "FIELD_DELIMITER",
-        "FIELD_OPTIONALLY_ENCLOSED_BY",
-        "INFER_SCHEMA",
-        "PURGE",
-        "COMPRESSION",
-        "PATTERN",
-        "ENCODING",
-    ),
-    "json": (
-        "INFER_SCHEMA",
-        "FILE_EXTENSION",
-        "PURGE",
-        "COMPRESSION",
-        "PATTERN",
-        "ENCODING",
-    ),
+    "csv": {
+        "SKIP_HEADER": None,
+        "SKIP_BLANK_LINES": None,
+        "FIELD_DELIMITER": None,
+        "FIELD_OPTIONALLY_ENCLOSED_BY": None,
+        "INFER_SCHEMA": ("FALSE",),
+        "PARSE_HEADER": ("TRUE", "FALSE"),
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
+    "json": {
+        "INFER_SCHEMA": ("TRUE", "FALSE"),
+        "FILE_EXTENSION": None,
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
 }
 
-SUPPORTED_OPTION_VALUES = {
-    "ENCODING": ("UTF8", "UTF-8"),
-    "COMPRESSION": ("AUTO", "NONE"),
-}
 
 RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
 
@@ -404,9 +410,9 @@ class StageEntity:
                     # ignore if option value is None, or string of "None"
                     continue
                 if (option not in SUPPORT_READ_OPTIONS[file_format]) or (
-                    option in SUPPORTED_OPTION_VALUES
+                    SUPPORT_READ_OPTIONS[file_format][option]
                     and str(options[option]).upper()
-                    not in SUPPORTED_OPTION_VALUES[option]
+                    not in SUPPORT_READ_OPTIONS[file_format][option]
                 ):
                     # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
@@ -442,21 +448,6 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
-            infer_schema = options.get("INFER_SCHEMA", False)
-            if infer_schema:
-                self._conn.log_not_supported_error(
-                    external_feature_name=f"Read option INFER_SCHEMA={infer_schema} for file format {file_format}",
-                    internal_feature_name="StageEntity.read_file",
-                    parameters_info={
-                        "format": format,
-                        "option": "INFER_SCHEMA",
-                        "option_value": str(infer_schema),
-                    },
-                    raise_error=NotImplementedError
-                    if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
-                    else None,
-                    warning_logger=_logger,
-                )
 
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(

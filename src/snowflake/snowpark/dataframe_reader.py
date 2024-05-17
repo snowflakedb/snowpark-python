@@ -28,6 +28,7 @@ from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -395,6 +396,7 @@ class DataFrameReader:
         self._file_type = "CSV"
 
         schema_to_cast, transformations = None, None
+        options = dict(self._cur_options)
 
         if not self._user_schema:
             if not self._infer_schema:
@@ -418,8 +420,11 @@ class DataFrameReader:
                 schema = [Attribute('"C1"', VariantType(), True)]
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
+            if isinstance(self._session._conn, MockServerConnection):
+                # local testing need explicit option setting
+                options["INFER_SCHEMA"] = True
         else:
-            self._cur_options["INFER_SCHEMA"] = False
+            options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
@@ -432,7 +437,7 @@ class DataFrameReader:
                         self._session._analyzer.plan_builder.read_file(
                             path,
                             self._file_type,
-                            self._cur_options,
+                            options,
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=transformations,
@@ -450,7 +455,7 @@ class DataFrameReader:
                 self._session._plan_builder.read_file(
                     path,
                     self._file_type,
-                    self._cur_options,
+                    options,
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=transformations,
@@ -648,8 +653,6 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
                 raise SnowparkSessionException(
