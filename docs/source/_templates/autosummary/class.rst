@@ -3,10 +3,6 @@
 {% endif %}
 {{ fullname | escape | underline}}
 
-{% if "modin.pandas" in module %}
-    {% set module = "modin.pandas" %}
-{% endif %}
-
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
