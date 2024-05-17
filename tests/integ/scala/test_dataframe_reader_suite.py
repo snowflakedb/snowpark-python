@@ -378,7 +378,7 @@ def test_read_csv_with_default_infer_schema(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
 @pytest.mark.parametrize("parse_header", [True, False])
@@ -789,7 +789,7 @@ def test_read_csv_with_quotes_containing_delimiter(session, mode):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370153 read metadata from stage; FEAT: parquet/avro/xml/orc support",
+    reason="SNOW-1435385 DataFrameReader.with_metadata is not supported",
 )
 @pytest.mark.parametrize(
     "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
@@ -1459,10 +1459,6 @@ def test_select_and_copy_on_non_csv_format_have_same_result_schema(session):
         assert c.column_identifier.quoted_name == f.column_identifier.quoted_name
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370153 should return number instead of UnicodeDecodeError: 'utf-8' codec can't decode byte 0xca in position 17",
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern(session, mode):
     assert (
@@ -1544,7 +1540,7 @@ def test_read_parquet_with_sql_simplifier(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370153 empty file path",
+    reason="SNOW-1435112: csv infer schema option is not supported",
 )
 def test_filepath_not_exist_or_empty(session):
     empty_stage = Utils.random_stage_name()
