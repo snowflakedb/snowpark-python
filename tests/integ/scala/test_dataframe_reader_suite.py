@@ -396,7 +396,10 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_infer_schema_negative(session, mode, caplog):
     reader = get_reader(session, mode)
