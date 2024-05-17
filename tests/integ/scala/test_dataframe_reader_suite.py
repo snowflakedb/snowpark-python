@@ -353,7 +353,7 @@ def test_read_csv(session, mode):
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1411711 to fix bug",
+    reason="SNOW-1435112: csv infer schema option is not supported",
     run=False,
 )
 def test_read_csv_with_default_infer_schema(session):
@@ -1573,7 +1573,7 @@ def test_filepath_not_exist_or_empty(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370149 infer schema, Number of columns in file (3) does not match that of the corresponding table (1)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
 )
 def test_filepath_with_single_quote(session):
     test_file_on_stage_with_quote = f"'@{tmp_stage_name1}/{test_file_csv}'"
