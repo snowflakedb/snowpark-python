@@ -1747,7 +1747,6 @@ def test_to_timestamp_numeric_scale_column(
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [

@@ -197,7 +197,6 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-@pytest.mark.localtest
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -418,7 +417,6 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
-@pytest.mark.localtest
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int

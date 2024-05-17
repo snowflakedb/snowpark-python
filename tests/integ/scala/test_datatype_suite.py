@@ -331,15 +331,13 @@ def test_dtypes(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
-)
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes(session, query, expected_dtypes, expected_schema):
+def test_structured_dtypes(session, query, expected_dtypes, expected_schema, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip()
     df = _create_test_dataframe(session)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
@@ -391,15 +389,13 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
 
 
 @pytest.mark.skipif(not installed_pandas, reason="Pandas required for this test.")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
-)
 @pytest.mark.parametrize(
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes_pandas(session, query, expected_dtypes, expected_schema):
+def test_structured_dtypes_pandas(session, query, expected_dtypes, expected_schema, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip()
     pdf = _create_test_dataframe(session).to_pandas()
     if IS_STRUCTURED_TYPES_SUPPORTED:
         assert (

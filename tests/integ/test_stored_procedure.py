@@ -350,14 +350,12 @@ def test_call_named_stored_procedure(
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Structured types are not supported in Local Testing",
-)
-@pytest.mark.skipif(
     not IS_STRUCTURED_TYPES_SUPPORTED,
     reason="Structured types not enabled in this account.",
 )
-def test_stored_procedure_with_structured_returns(session):
+def test_stored_procedure_with_structured_returns(session, local_testing_mode):
+    if local_testing_mode:
+        pytest.skip()
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
         ("MAP", "map<string(16777216),bigint>"),
@@ -1801,6 +1799,9 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
+)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here
