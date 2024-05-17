@@ -536,11 +536,14 @@ def handle_udf_expression(
                 child, input_data, analyzer, expr_to_alias
             )
 
-        res = (
-            function_input.apply(lambda row: udf_handler(*row), axis=1)
-            .astype(object)
-            .replace({pd.NaT: None})
-        )
+        res = function_input.apply(lambda row: udf_handler(*row), axis=1).astype(object)
+
+        # only replace if column is a time related type
+        # we do not perform the replacement on other type especially for numeric type
+        # because this has the side effect to replace NaN with None, while for numeric type we keep NaN
+        if isinstance(exp.datatype, (TimeType, TimestampType, DateType)):
+            res = res.replace({pd.NaT: None})
+
         res.sf_type = ColumnType(exp.datatype, exp.nullable)
         res.name = quote_name(
             f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
