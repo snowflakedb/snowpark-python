@@ -658,7 +658,6 @@ def to_numeric(
     errors: Literal["ignore", "raise", "coerce"] = "raise",
     downcast: Literal["integer", "signed", "unsigned", "float"] | None = None,
 ) -> Series | Scalar | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to a numeric type.
 
@@ -719,12 +718,6 @@ def to_numeric(
     2   -3.0
     dtype: float64
     >>> s = pd.Series(['apple', '1.0', '2', -3])
-    >>> pd.to_numeric(s, errors='ignore')  # doctest: +SKIP
-    0    apple
-    1      1.0
-    2        2
-    3       -3
-    dtype: object
     >>> pd.to_numeric(s, errors='coerce')
     0    NaN
     1    1.0
@@ -1263,7 +1256,6 @@ def to_datetime(
     origin: Any = "unix",
     cache: bool = True,
 ) -> Series | DatetimeScalar | NaTType | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to datetime.
 
@@ -1498,11 +1490,6 @@ def to_datetime(
 
     Passing ``errors='coerce'`` will force an out-of-bounds date to :const:`NaT`,
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
-
-    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')  # doctest: +SKIP
-    0    13000101
-    1         abc
-    dtype: object
 
     >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='coerce')
     0   NaT
@@ -2071,14 +2058,6 @@ def date_range(
     4   2019-01-31
     dtype: datetime64[ns]
 
-    Specify `tz` to set the timezone.
-
-    >>> pd.date_range(start='1/1/2018', periods=5, tz='Asia/Tokyo')  # doctest: +SKIP
-    DatetimeIndex(['2018-01-01 00:00:00+09:00', '2018-01-02 00:00:00+09:00',
-                   '2018-01-03 00:00:00+09:00', '2018-01-04 00:00:00+09:00',
-                   '2018-01-05 00:00:00+09:00'],
-                  dtype='datetime64[ns, Asia/Tokyo]', freq='D')
-
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
 
@@ -2158,7 +2137,6 @@ def date_range(
     return s
 
 
-@_inherit_docstrings(pandas.qcut, apilink="pandas.qcut")
 @snowpark_pandas_telemetry_standalone_function_decorator
 def qcut(
     x: np.ndarray | Series,
@@ -2167,12 +2145,46 @@ def qcut(
     retbins: bool = False,
     precision: int = 3,
     duplicates: Literal["raise"] | Literal["drop"] = "raise",
-):  # noqa: PR01, RT01, D200
+) -> Series:
     """
-    Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas API.
+    Quantile-based discretization function.
 
-    labels=False will run binning computation in Snowflake, other values are not supported in Snowpark pandas API.
+    Discretize variable into equal-sized buckets based on rank or based
+    on sample quantiles.
+
+    Parameters
+    ----------
+    x : 1-D ndarray or Series
+        The data across which to compute buckets. If a Snowpark pandas Series is passed, the computation
+        is distributed. Otherwise, if a numpy array or list is provided, the computation is performed
+        client-side instead.
+
+    q : int or list-like of float
+        Number of quantiles. 10 for deciles, 4 for quartiles, etc. Alternately array of quantiles,
+        e.g. [0, .25, .5, .75, 1.] for quartiles.
+
+    labels : array or False, default None
+        Used as labels for the resulting bin. Must be of the same length as the resulting bins. If False,
+        return only integer indicators of the bins. If True, raise an error.
+
+        ``labels=False`` will run binning computation in Snowflake; other values are not yet supported
+        in Snowpark pandas.
+
+    retbins : bool, default False
+        Whether to return the (bins, labels) or not. Can be useful if bins is given as a scalar.
+        ``retbins=True`` is not yet supported in Snowpark pandas.
+
+    precision : int, optional
+        The precision at which to store and display the bins labels.
+
+    duplicates : {default 'raise', 'drop'}, optional
+        If bin edges are not unique, raise ValueError or drop non-uniques.
+
+    Returns
+    -------
+    Series
+        Since Snowpark pandas does not yet support the ``pd.Categorical`` type, unlike native pandas, the
+        return value is always a Series.
     """
 
     kwargs = {

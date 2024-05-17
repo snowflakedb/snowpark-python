@@ -549,7 +549,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         By setting start_time to be later than end_time, you can get the times that are not between the two times.
         """
-        pass
 
     def bfill():
         """
@@ -1019,6 +1018,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
+    def map():
+        """
+        Apply a function to `BasePandasDataset elementwise.
+        """
+
     def mask():
         """
         Replace values where the condition is True.
@@ -1051,7 +1055,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def ffill():
         """
-        Synonym for `DataFrame.fillna` with ``method='ffill'``.
+        Synonym for :meth:`DataFrame.fillna` with ``method='ffill'``.
         """
 
     pad = ffill
@@ -1198,17 +1202,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2014-02-13    high
         Freq: None, Name: windspeed, dtype: object
 
-        Snowpark pandas indexing won't raise KeyError if any key is not found;
-        instead, it will return the results from the found keys
-        or return an empty series if no key is found.
-
-        >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
-                    temp_celsius
-        2014-02-12          24.3
-        2014-02-13          31.0
-        2014-02-14          22.0
-        2014-02-15          35.0
-
         >>> ser.get('2014-02-10', '[unknown]')
         Series([], Freq: None, Name: windspeed, dtype: object)
 
@@ -1330,6 +1323,9 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def convert_dtypes():
         """
         Convert columns to best possible dtypes using dtypes supporting ``pd.NA``.
+
+        This is not supported in Snowpark pandas because Snowpark pandas always uses nullable
+        data types internally. Calling this method will raise a `NotImplementedError`.
         """
 
     def isin():
@@ -1596,13 +1592,14 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         -----
         To meet the nature of lazy evaluation:
 
-        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for all types of indexers (while pandas ``.loc``
+        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for row indexers (while pandas ``.loc``
           may raise KeyError). If all values are out-of-bound, an empty result will be returned.
+        - Out-of-bounds indexing for columns will still raise a KeyError the same way pandas does.
         - In Snowpark pandas ``.loc``, unalignable boolean Series provided as indexer will perform a join on the index
           of the main dataframe or series. (while pandas will raise an IndexingError)
         - When there is a slice key, Snowpark pandas ``.loc`` performs the same as native pandas when both the start and
-          stop are labels present in the index or either one is absert but the index is sorted. When any of the two
-          labels is absert from an unsorted index, Snowpark pandas will return rows in between while native pandas will
+          stop are labels present in the index or either one is absent but the index is sorted. When any of the two
+          labels is absent from an unsorted index, Snowpark pandas will return rows in between while native pandas will
           raise a KeyError.
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
@@ -1849,7 +1846,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Return the memory usage of the `BasePandasDataset`.
         """
-        pass
 
     @doc(
         _num_doc,
@@ -1868,13 +1864,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Get modulo of `BasePandasDataset` and `other`, element-wise (binary operator `mod`).
         """
-        pass
 
     def mode():
         """
         Get the mode(s) of each element along the selected axis.
         """
-        pass
 
     def mul():
         """
@@ -2038,6 +2032,31 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
+
+        Parameters
+        ----------
+        mapper : scalar, list-like, optional
+            Value to set the axis name attribute.
+
+        index, columns : scalar, list-like, dict-like or function, optional
+            A scalar, list-like, dict-like or functions transformations to apply to that axis' values.
+
+            Use either ``mapper`` and ``axis`` to specify the axis to target with ``mapper``, or
+            ``index`` and/or ``columns``.
+
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to rename.
+
+        copy : bool, default None
+            Also copy underlying data. This parameter is ignored in Snowpark pandas.
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new DataFrame.
+
+        Returns
+        -------
+        DataFrame or None
+            DataFrame, or None if ``inplace=True``.
         """
 
     def reorder_levels():
@@ -2591,7 +2610,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
 
     def sort_values():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values along either axis.
 
@@ -2701,17 +2719,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2     B     9     9    c
         0     A     2     0    a
         1     A     1     1    B
-
-        Sorting with a key function
-
-        >>> df.sort_values(by='col4', key=lambda col: col.str.lower())  # doctest: +SKIP
-           col1  col2  col3 col4
-        0     A     2     0    a
-        1     A     1     1    B
-        2     B     9     9    c
-        3  None     8     4    D
-        4     D     7     2    e
-        5     C     4     3    F
         """
 
     @doc(
@@ -3262,7 +3269,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     @property
     def values():
         """
-        Return a NumPy representation of the `BasePandasDataset`.
+        Return a NumPy representation of the dataset.
+
+        Returns
+        -------
+        np.ndarray
         """
 
     def __array_ufunc__():

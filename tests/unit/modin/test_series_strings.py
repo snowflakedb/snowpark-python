@@ -42,7 +42,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.rjust(8), "rjust"),
         (lambda s: s.str.zfill(8), "zfill"),
         (lambda s: s.str.wrap(3), "wrap"),
-        (lambda s: s.str.slice(start=3, stop=5), "slice"),
         (lambda s: s.str.slice_replace(start=3, stop=5, repl="abc"), "slice_replace"),
         (lambda s: s.str.findall("ab"), "findall"),
         (lambda s: s.str.match("ab", case=False), "match"),
@@ -127,11 +126,6 @@ def test_str_methods_with_dataframe_return(func, func_name, mock_series):
             "fillchar must be a character, not str",
         ),
         (lambda s: s.str.wrap(-1), ValueError, r"invalid width -1 \(must be > 0\)"),
-        (
-            lambda s: s.str.slice(start=2, stop=5, step=0),
-            ValueError,
-            "slice step cannot be zero",
-        ),
         (
             lambda s: s.str.count(12),
             TypeError,

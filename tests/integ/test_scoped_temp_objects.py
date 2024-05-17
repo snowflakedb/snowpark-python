@@ -12,7 +12,7 @@ from snowflake.snowpark._internal.utils import (
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
     run=False,
 )

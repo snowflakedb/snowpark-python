@@ -86,30 +86,27 @@ Examples
 --------
 >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
 >>> df
-        B
+     B
 0  0.0
 1  1.0
 2  2.0
 3  NaN
 4  4.0
-dtype: float64
 >>> df.rolling(2, min_periods=1).aggregate("mean")
-        B
+     B
 0  0.0
 1  0.5
 2  1.5
 3  2.0
 4  4.0
-dtype: float64
 >>> df.rolling(2, min_periods=1).aggregate(["min", "max"])
-        B
-    min  max
+          B
+   min  max
 0  0.0  0.0
 1  0.0  1.0
 2  1.0  2.0
 3  2.0  2.0
 4  4.0  4.0
-dtype: float64
 """
 )
 
@@ -142,7 +139,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).sum()
              B
         0  0.0
@@ -150,7 +146,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  3.0
         3  2.0
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=2).sum()
              B
         0  NaN
@@ -158,15 +153,13 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  3.0
         3  NaN
         4  NaN
-        dtype: float64
         >>> df.rolling(3, min_periods=1, center=True).sum()
              B
         0  1.0
         1  3.0
         2  3.0
         3  6.0
-        4  4.0
-        dtype: float64"""
+        4  4.0"""
         ),
     )
     def sum():
@@ -193,7 +186,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).mean()
              B
         0  0.0
@@ -201,7 +193,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  1.5
         3  2.0
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=2).mean()
              B
         0  NaN
@@ -209,48 +200,45 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  1.5
         3  NaN
         4  NaN
-        dtype: float64
         >>> df.rolling(3, min_periods=1, center=True).mean()
              B
         0  0.5
         1  1.0
         2  1.5
         3  3.0
-        4  4.0
-        dtype: float64"""
+        4  4.0"""
         ),
     )
     def mean():
         pass
 
-    @doc(
-        _rolling_agg_method_engine_template,
-        fname="median",
-        args=None,
-        no=False,
-        e=None,
-        ek=None,
-        example=dedent(
-            """\
-        >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
-        >>> df
-             B
-        0  0.0
-        1  1.0
-        2  2.0
-        3  NaN
-        4  4.0
-        dtype: float64
-        >>> df.rolling(2, min_periods=1).median()
-             B
-        0  0.0
-        1  0.5
-        2  1.5
-        3  2.0
-        4  4.0
-        dtype: float64"""
-        ),
-    )
+    # TODO: SNOW-1419071 API not implemented - uncomment when done.
+    # @doc(
+    #     _rolling_agg_method_engine_template,
+    #     fname="median",
+    #     args=None,
+    #     no=False,
+    #     e=None,
+    #     ek=None,
+    #     example=dedent(
+    #         """\
+    #     >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
+    #     >>> df
+    #          B
+    #     0  0.0
+    #     1  1.0
+    #     2  2.0
+    #     3  NaN
+    #     4  4.0
+    #     >>> df.rolling(2, min_periods=1).median()
+    #          B
+    #     0  0.0
+    #     1  0.5
+    #     2  1.5
+    #     3  2.0
+    #     4  4.0"""
+    #     ),
+    # )
     def median():
         pass
 
@@ -275,7 +263,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).var()
              B
         0  NaN
@@ -283,7 +270,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  0.5
         3  NaN
         4  NaN
-        dtype: float64
         >>> df.rolling(2, min_periods=1).var(ddof=0)
               B
         0  0.00
@@ -297,8 +283,7 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         1  1.0
         2  0.5
         3  2.0
-        4  NaN
-        dtype: float64"""
+        4  NaN"""
         ),
     )
     def var():
@@ -325,7 +310,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).std()
                   B
         0       NaN
@@ -333,7 +317,6 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  0.707107
         3       NaN
         4       NaN
-        dtype: float64
         >>> df.rolling(2, min_periods=1).std(ddof=0)
              B
         0  0.0
@@ -347,8 +330,7 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         1  1.000000
         2  0.707107
         3  1.414214
-        4       NaN
-        dtype: float64"""
+        4       NaN"""
         ),
     )
     def std():
@@ -375,15 +357,13 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).min()
              B
         0  0.0
         1  0.0
         2  1.0
         3  2.0
-        4  4.0
-        dtype: float64"""
+        4  4.0"""
         ),
     )
     def min():
@@ -410,15 +390,13 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
         2  2.0
         3  NaN
         4  4.0
-        dtype: float64
         >>> df.rolling(2, min_periods=1).max()
              B
         0  0.0
         1  1.0
         2  2.0
         3  2.0
-        4  4.0
-        dtype: float64"""
+        4  4.0"""
         ),
     )
     def max():
@@ -439,9 +417,10 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
     def apply():
         pass
 
-    @doc(
-        _rolling_aggregate_method_doc_template, examples=_aggregate_examples_rolling_doc
-    )
+    # TODO: SNOW-1419104 API not implemented - uncomment when done.
+    # @doc(
+    #     _rolling_aggregate_method_doc_template, examples=_aggregate_examples_rolling_doc
+    # )
     def aggregate():
         pass
 

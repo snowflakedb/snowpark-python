@@ -246,7 +246,7 @@ def test_current_date_and_time(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: regexp_replace function not supported",
 )
 @pytest.mark.parametrize("col_a", ["a", col("a")])
@@ -271,7 +271,7 @@ def test_regexp_replace(session, col_a):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: regexp_extract function not supported",
 )
 def test_regexp_extract(session):
@@ -413,7 +413,7 @@ def test_semi_structure_to_char(session, convert_func):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: round function not supported",
 )
 def test_format_number(session):
@@ -433,7 +433,7 @@ def test_format_number(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: months_between function not supported",
 )
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
@@ -487,7 +487,7 @@ def test_startswith(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370338 KeyError: 2 raised",
 )
 def test_struct(session):
@@ -522,7 +522,7 @@ def test_struct(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: strtok_to_array function not supported",
 )
 def test_strtok_to_array(session):
@@ -576,7 +576,7 @@ def test_least(session, use_col, values, expected):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: hash function not supported",
 )
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
@@ -644,7 +644,7 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370338: substring raises unsupported operand type(s) for -: 'str' and 'int'",
 )
 def test_basic_string_operations(session):
@@ -733,7 +733,7 @@ def test_basic_string_operations(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_to_string function not supported",
 )
 def test_substring_index(session):
@@ -757,7 +757,7 @@ def test_substring_index(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_to_string function not supported",
 )
 def test_substring_index_col(session):
@@ -772,7 +772,7 @@ def test_substring_index_col(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: bitshitright function not supported",
 )
 def test_bitshiftright(session):
@@ -784,7 +784,7 @@ def test_bitshiftright(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: round function not supported",
 )
 def test_bround(session):
@@ -799,7 +799,7 @@ def test_bround(session):
 
 # Enable for local testing after addressing SNOW-850268
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370338: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
 )
 def test_count_distinct(session):
@@ -908,7 +908,7 @@ def test_call_builtin_avg_from_range(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: is_array function not supported",
 )
 def test_is_negative(session):
@@ -1060,7 +1060,7 @@ def test_parse_json(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: as_array function not supported",
 )
 def test_as_negative(session):
@@ -1297,7 +1297,7 @@ def test_to_binary(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_construct function not supported",
 )
 def test_array_min_max_functions(session):
@@ -1345,7 +1345,7 @@ def test_array_min_max_functions(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_flatten function not supported",
 )
 def test_array_flatten(session):
@@ -1382,7 +1382,7 @@ def test_array_flatten(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_construct function not supported",
 )
 def test_array_sort(session):
@@ -1472,7 +1472,7 @@ def test_coalesce(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: uniform function not supported",
 )
 def test_uniform(session):
@@ -1510,7 +1510,7 @@ def test_uniform(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: uniform function not supported",
 )
 def test_uniform_negative(session):
@@ -1532,7 +1532,7 @@ def test_negate_and_not_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: random function not supported",
 )
 def test_random_negative(session):
@@ -1603,7 +1603,7 @@ def test_to_filetype_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_construct function not supported",
 )
 def test_array_distinct(session):
@@ -1756,7 +1756,7 @@ def test_date_operations_negative(session):
 
 # TODO: enable for local testing after addressing SNOW-850263
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370338 TypeError: unsupported type for timedelta days component: numpy.int64",
 )
 def test_date_add_date_sub(session):
@@ -1775,7 +1775,7 @@ def test_date_add_date_sub(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: datediff function not supported",
 )
 def test_daydiff(session):
@@ -1793,7 +1793,7 @@ def test_get_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_generate_range function not supported",
 )
 def test_array_generate_range(session):
@@ -1835,7 +1835,7 @@ def test_sequence_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_generate_range function not supported",
 )
 def test_sequence(session):
@@ -1890,7 +1890,7 @@ def test_sequence(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: array_unqite_agg function not supported",
 )
 def test_array_unique_agg(session):
@@ -1924,7 +1924,7 @@ def test_array_unique_agg(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1370338 KeyError: 2 raised",
 )
 def test_create_map(session):
@@ -2073,8 +2073,7 @@ def test_to_double(session, local_testing_mode):
         [[False], [True]], schema=StructType([StructField("bool_col", BooleanType())])
     )
 
-    expected_error = TypeError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_double(c) for c in df.columns]).collect()
 
     # Test variant conversion
@@ -2096,7 +2095,7 @@ def test_to_double(session, local_testing_mode):
         [Row(56.78, 90.12, 6.78e-10, 1.0, 0.0, None)],
     )
 
-    # Test speicifying fmt, TODO: not supported in Local Testing
+    # Test specifying fmt, TODO: not supported in Local Testing
     if not local_testing_mode:
         # Local testing only covers partial implementation of to_double
         df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
@@ -2178,11 +2177,9 @@ def test_to_decimal(session, local_testing_mode):
     )
 
     # Test when input type is not supported
-    expected_error = TypeError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_decimal(df.date_col, 38, 0)]).collect()
 
     # Test when input value is not supported
-    expected_error = ValueError if local_testing_mode else SnowparkSQLException
-    with pytest.raises(expected_error):
+    with pytest.raises(SnowparkSQLException):
         df.select([to_decimal(df.float_col, 38, 0)]).collect()

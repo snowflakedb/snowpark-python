@@ -195,7 +195,9 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')", reason="This is a SQL test", run=False
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is a SQL test",
+    run=False,
 )
 def test_show_using_with_select_statement(session):
     df = session.sql(
@@ -398,7 +400,7 @@ def test_select_star(session):
 
 @pytest.mark.udf
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
 def test_select_table_function(session):
@@ -523,7 +525,7 @@ def test_select_table_function(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Session.generator is not supported in Local Testing",
 )
 def test_generator_table_function(session):
@@ -580,7 +582,7 @@ def test_generator_table_function(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Session.generator is not supported in Local Testing",
 )
 def test_generator_table_function_negative(session):
@@ -591,7 +593,7 @@ def test_generator_table_function_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -632,7 +634,7 @@ def test_select_table_function_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -690,7 +692,7 @@ def test_select_with_table_function_column_overlap(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="functions.explode is not supported in Local Testing",
 )
 def test_explode(session):
@@ -748,7 +750,7 @@ def test_explode(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="functions.explode is not supported in Local Testing",
 )
 def test_explode_negative(session):
@@ -786,7 +788,7 @@ def test_explode_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="UDTF is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -805,7 +807,7 @@ def test_with_column(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="UDTF is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -827,7 +829,7 @@ def test_with_column_negative(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="UDTF is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -902,7 +904,7 @@ def test_with_columns(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="UDTF is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -1033,7 +1035,7 @@ def test_filter(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL is not supported in Local Testing",
     run=False,
 )
@@ -1575,7 +1577,7 @@ def test_create_dataframe_with_semi_structured_data_types(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1368516 create dataframe from pandas dataframe with datetime columns has wrong schema",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -1853,7 +1855,7 @@ def test_create_dataframe_with_single_value(session, data):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.describe is not supported in Local Testing",
 )
 def test_create_dataframe_empty(session):
@@ -1932,7 +1934,7 @@ def test_create_dataframe_from_none_data(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Array binding is SQL feature",
     run=False,
 )
@@ -2025,7 +2027,7 @@ def test_attribute_reference_to_sql(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-936617: Selecting columns of the same name is not supported in Local Testing",
 )
 def test_dataframe_duplicated_column_names(session):
@@ -2283,7 +2285,7 @@ def test_fillna(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-929218: support coercion in Local Testing",
 )
 def test_replace_with_coercion(session):
@@ -2372,7 +2374,7 @@ def test_select_case_expr(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SQL expr is not supported in Local Testing",
     raises=NotImplementedError,
 )
@@ -2389,7 +2391,7 @@ def test_select_expr(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.describe is not supported in Local Testing",
 )
 def test_describe(session):
@@ -2518,7 +2520,7 @@ def test_describe(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
 )
 def test_truncate_preserves_schema(session):
@@ -2538,7 +2540,7 @@ def test_truncate_preserves_schema(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
 )
 def test_truncate_existing_table(session):
@@ -2567,7 +2569,7 @@ def test_table_types_in_save_as_table(
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
 )
 @pytest.mark.parametrize(
@@ -2622,7 +2624,7 @@ def test_save_as_table_respects_schema(session, save_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1373882: nullability is not enforced in Local Testing",
 )
 @pytest.mark.parametrize("large_data", [True, False])
@@ -2669,7 +2671,7 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1373882: nullability is not enforced in Local Testing",
 )
 @pytest.mark.parametrize(
@@ -2705,7 +2707,7 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table Sproc is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -2736,7 +2738,7 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Clustering is a SQL feature",
     run=False,
 )
@@ -2871,7 +2873,7 @@ def test_append_existing_table(session, local_testing_mode):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
     run=False,
 )
@@ -2900,7 +2902,7 @@ def test_create_dynamic_table(session, table_name_1):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.copy_into_location is not supported in Local Testing",
 )
 def test_write_copy_into_location_basic(session):
@@ -2920,7 +2922,7 @@ def test_write_copy_into_location_basic(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.copy_into_location is not supported in Local Testing",
 )
 @pytest.mark.parametrize(
@@ -2957,7 +2959,7 @@ def test_write_copy_into_location_csv(session, partition_by):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
     run=False,
 )
@@ -3012,7 +3014,7 @@ def test_df_columns(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.pivot is not supported in Local Testing",
 )
 @pytest.mark.parametrize(
@@ -3096,7 +3098,7 @@ def check_df_with_query_id_result_scan(session, df):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Result scan is a SQL feature",
     run=False,
 )
@@ -3123,7 +3125,7 @@ def test_query_id_result_scan(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="statement parameters are not supported in Local Testing",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -3467,7 +3469,7 @@ def test_suffix_negative(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
     run=False,
 )
@@ -3481,7 +3483,7 @@ def test_create_or_replace_view_with_multiple_queries(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing SQL generation",
     run=False,
 )
@@ -3557,7 +3559,7 @@ def test_to_df_then_copy(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame alias is not supported in Local Testing",
 )
 def test_to_df_then_alias_and_join(session):
@@ -3652,7 +3654,7 @@ def test_to_df_then_alias_and_join(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame alias is not supported in Local Testing",
 )
 def test_dataframe_alias(session):
@@ -3746,7 +3748,7 @@ def test_dataframe_alias(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame alias is not supported in Local Testing",
 )
 def test_dataframe_alias_negative(session):
@@ -3776,7 +3778,7 @@ def test_dataframe_result_cache_changing_schema(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="functions.seq2 is not supported in Local Testing",
 )
 @pytest.mark.parametrize("select_again", [True, False])
@@ -3807,7 +3809,7 @@ def test_dataframe_data_generator(session, select_again):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="Rank is not supported in Local Testing",
 )
 @pytest.mark.parametrize("select_again", [True, False])
@@ -3846,7 +3848,7 @@ def test_select_star_select_columns(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1373887 Basic diamond shaped joins are not supported",
 )
 def test_select_star_join(session):
@@ -3881,7 +3883,7 @@ def test_drop_columns_special_names(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="TODO: Interval Expression is not supported in Local Testing",
 )
 def test_dataframe_interval_operation(session):

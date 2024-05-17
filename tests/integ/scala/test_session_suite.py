@@ -27,7 +27,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="This is testing logging into Snowflake",
     run=False,
 )
@@ -129,7 +129,7 @@ def test_get_schema_database_works_after_use_role(session):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="_remove_config is an internal API and local testing has default schema name",
     run=False,
 )
@@ -150,7 +150,7 @@ def test_negative_test_for_missing_required_parameter_schema(
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="sql function call not supported by local testing.",
     run=False,
 )
@@ -201,10 +201,6 @@ def test_create_dataframe_from_array(session, local_testing_mode):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="SNOW-1375271: match error behavior when session is closed",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_created_before_session_close_are_not_usable_after_closing_session(
@@ -246,10 +242,6 @@ def test_session_info(session):
 
 
 @pytest.mark.skipif(
-    "config.getvalue('local_testing_mode')",
-    reason="SNOW-1375271: match error behavior when session is closed",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
 )
 def test_dataframe_close_session(session, db_parameters):
@@ -271,7 +263,7 @@ def test_dataframe_close_session(session, db_parameters):
 
 
 @pytest.mark.xfail(
-    "config.getvalue('local_testing_mode')",
+    "config.getoption('local_testing_mode', default=False)",
     reason="transactions not supported by local testing.",
     run=False,
 )
