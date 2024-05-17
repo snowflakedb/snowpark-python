@@ -377,6 +377,11 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
+        if isinstance(self._session._conn, MockServerConnection):
+            self._session._conn.log_not_supported_error(
+                external_feature_name="DataFrameReader.with_metadata",
+                raise_error=NotImplementedError,
+            )
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
@@ -396,7 +401,6 @@ class DataFrameReader:
         self._file_type = "CSV"
 
         schema_to_cast, transformations = None, None
-        options = dict(self._cur_options)
 
         if not self._user_schema:
             if not self._infer_schema:
@@ -421,10 +425,18 @@ class DataFrameReader:
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
             if isinstance(self._session._conn, MockServerConnection):
-                # local testing need explicit option setting
-                options["INFER_SCHEMA"] = True
+                self._session._conn.log_not_supported_error(
+                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
+                    internal_feature_name="DataFrameReader.csv",
+                    parameters_info={
+                        "format": str(format),
+                        "option": "INFER_SCHEMA",
+                        "option_value": "TRUE",
+                    },
+                    raise_error=NotImplementedError,
+                )
         else:
-            options["INFER_SCHEMA"] = False
+            self._cur_options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
@@ -437,7 +449,7 @@ class DataFrameReader:
                         self._session._analyzer.plan_builder.read_file(
                             path,
                             self._file_type,
-                            options,
+                            self._cur_options,
                             schema,
                             schema_to_cast=schema_to_cast,
                             transformations=transformations,
@@ -455,7 +467,7 @@ class DataFrameReader:
                 self._session._plan_builder.read_file(
                     path,
                     self._file_type,
-                    options,
+                    self._cur_options,
                     schema,
                     schema_to_cast=schema_to_cast,
                     transformations=transformations,
