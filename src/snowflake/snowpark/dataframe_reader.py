@@ -429,7 +429,7 @@ class DataFrameReader:
                     external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
                     internal_feature_name="DataFrameReader.csv",
                     parameters_info={
-                        "format": str(format),
+                        "format": "csv",
                         "option": "INFER_SCHEMA",
                         "option_value": "TRUE",
                     },
