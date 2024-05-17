@@ -406,6 +406,17 @@ class DataFrameReader:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
+            if isinstance(self._session._conn, MockServerConnection):
+                self._session._conn.log_not_supported_error(
+                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
+                    internal_feature_name="DataFrameReader.csv",
+                    parameters_info={
+                        "format": "csv",
+                        "option": "INFER_SCHEMA",
+                        "option_value": "TRUE",
+                    },
+                    raise_error=NotImplementedError,
+                )
             (
                 schema,
                 schema_to_cast,
@@ -424,17 +435,6 @@ class DataFrameReader:
                 schema = [Attribute('"C1"', VariantType(), True)]
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
-            if isinstance(self._session._conn, MockServerConnection):
-                self._session._conn.log_not_supported_error(
-                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
-                    internal_feature_name="DataFrameReader.csv",
-                    parameters_info={
-                        "format": "csv",
-                        "option": "INFER_SCHEMA",
-                        "option_value": "TRUE",
-                    },
-                    raise_error=NotImplementedError,
-                )
         else:
             self._cur_options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
