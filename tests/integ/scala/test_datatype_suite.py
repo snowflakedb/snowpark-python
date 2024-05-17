@@ -335,7 +335,9 @@ def test_dtypes(session):
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes(session, query, expected_dtypes, expected_schema, local_testing_mode):
+def test_structured_dtypes(
+    session, query, expected_dtypes, expected_schema, local_testing_mode
+):
     if local_testing_mode:
         pytest.skip()
     df = _create_test_dataframe(session)
@@ -393,7 +395,9 @@ def test_structured_dtypes_select(session, query, expected_dtypes, expected_sche
     "query,expected_dtypes,expected_schema",
     [STRUCTURED_TYPES_EXAMPLES[IS_STRUCTURED_TYPES_SUPPORTED]],
 )
-def test_structured_dtypes_pandas(session, query, expected_dtypes, expected_schema, local_testing_mode):
+def test_structured_dtypes_pandas(
+    session, query, expected_dtypes, expected_schema, local_testing_mode
+):
     if local_testing_mode:
         pytest.skip()
     pdf = _create_test_dataframe(session).to_pandas()
