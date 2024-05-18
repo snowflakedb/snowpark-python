@@ -488,8 +488,15 @@ def mock_to_decimal(
         [x] If the variant contains JSON null value, the output is NULL.
     """
 
+    def check_int(s):
+        if s[0] in ("-", "+"):
+            return s[1:].isdigit()
+        return s.isdigit()
+
     def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
-        x = float(x)
+        # casting int of big value to float leads to precision loss
+        # e.g. float(9223372036854775807) = 9.223372036854776e+18
+        x = int(x) if check_int(str(x)) else float(x)
         if x in (math.inf, -math.inf, math.nan):
             SnowparkLocalTestingException.raise_from_error(
                 ValueError("Values of infinity and NaN cannot be converted to decimal")
