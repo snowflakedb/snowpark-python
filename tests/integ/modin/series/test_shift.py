@@ -53,18 +53,12 @@ def test_series_negative_axis_1():
 @pytest.mark.parametrize(
     "params, match",
     [
-        (
-            {"periods": [1, 2, 3]},
-            "does not yet support non-int scalar values of `periods`",
-        ),
-        (
-            {"periods": [1], "suffix": "_suffix"},
-            "does not yet support the `suffix` parameter",
-        ),
+        ({"periods": [1, 2, 3]}, "periods"),  # sequence of periods is unsupported
+        ({"periods": [1], "suffix": "_suffix"}, "suffix"),  # suffix is unsupported
     ],
 )
 @sql_count_checker(query_count=0)
 def test_shift_unsupported_args(params, match):
     df = pd.Series(TEST_SERIES[2])
-    with pytest.raises(NotImplementedError, match):
+    with pytest.raises(NotImplementedError, match=match):
         df.shift(**params).to_pandas()
