@@ -322,15 +322,15 @@ class PandasOnSnowflakeIO(BaseIO):
         _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
         kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_csv_signature}
 
-        if is_local_filepath(filepath_or_buffer):
-            return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
-
-        _validate_read_staged_csv_and_read_table_args("pd.read_csv", **kwargs)
-
         if not isinstance(filepath_or_buffer, str):
             raise NotImplementedError(
                 "filepath_or_buffer must be a path to a file or folder stored locally or on a Snowflake stage."
             )
+
+        if is_local_filepath(filepath_or_buffer):
+            return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
+
+        _validate_read_staged_csv_and_read_table_args("pd.read_csv", **kwargs)
 
         sep = translate_pandas_default(sep)
         names = translate_pandas_default(names)

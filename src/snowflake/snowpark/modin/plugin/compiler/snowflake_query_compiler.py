@@ -303,7 +303,10 @@ from snowflake.snowpark.modin.plugin._typing import (
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.utils import (
+    MODIN_UNNAMED_SERIES_LABEL,
+    error_not_implemented_parameter,
+)
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -836,11 +839,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         local_exclude_set = ["index_col", "usecols"]
         local_kwargs = {k: v for k, v in kwargs.items() if k not in local_exclude_set}
 
-        # For the purposses of the initial import we need to make sure the column names
+        def is_names_set(**kwargs: Any) -> bool:
+            return kwargs["names"] is not no_default and kwargs["names"] is not None
+
+        # For the purposes of the initial import we need to make sure the column names
         # are strings. These will be overriden later in post-processing.
-        if local_kwargs["names"] is not no_default:
+        if is_names_set(local_kwargs):
             local_names = [str(n) for n in kwargs["names"]]
             local_kwargs["names"] = local_names
+
+        # We explicitly do not support chucksize yet
+        if local_kwargs["chunksize"] is not None:
+            ErrorMessage.not_implemented("chunksize parameter not supported for files")
+        # We could return an empty dataframe here, but it does not seem worth it.
+        if is_list_like(kwargs["usecols"]) and len(kwargs["usecols"]) == 0:
+            ErrorMessage.not_implemented(
+                "empty 'usecols' parameter not supported for files"
+            )
+
+        # local file that begins with '@' (represents SF stage normally)
+        if local_kwargs["filepath_or_buffer"].startswith(r"\@"):
+            local_kwargs["filepath_or_buffer"] = local_kwargs["filepath_or_buffer"][1:]
 
         if filetype == "csv":
             df = native_pd.read_csv(**local_kwargs)
@@ -849,6 +868,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # we reset the index so the full dataset is uploaded to snowflake.
             if not isinstance(df.index, pandas.core.indexes.range.RangeIndex):
                 df = df.reset_index()
+            # Integer columns are not writable to snowflake; so we need to save
+            # these names are fix the header during post processing
+            if not is_names_set(kwargs) and kwargs["header"] is None:
+                kwargs["names"] = list(df.columns.values)
+                df.columns = df.columns.astype(str)
 
         temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         pd.session.write_pandas(
@@ -858,7 +882,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_type="temporary",
         )
         qc = cls.from_snowflake(temporary_table_name)
-        return cls._post_process_file(qc, **kwargs)
+        return cls._post_process_file(qc, filetype="csv", **kwargs)
 
     @classmethod
     def from_file_with_snowflake(
@@ -922,11 +946,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         qc = cls.from_snowflake(name_or_query=temporary_table_name)
 
-        return cls._post_process_file(qc=qc, **kwargs)
+        return cls._post_process_file(qc=qc, filetype=filetype, **kwargs)
 
     @classmethod
     def _post_process_file(
-        cls, qc: "SnowflakeQueryCompiler", **kwargs: Any
+        cls,
+        qc: "SnowflakeQueryCompiler",
+        filetype: SnowflakeSupportedFileTypeLit,
+        **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         # breakpoint()
         if not kwargs.get("parse_header", True):
@@ -945,7 +972,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             qc = qc.astype(dtype_)
 
         names = kwargs.get("names", no_default)
-        if names is not no_default:
+        if names is not no_default and names is not None:
             pandas.io.parsers.readers._validate_names(names)
             if len(names) > len(qc.columns):
                 raise ValueError(
@@ -972,10 +999,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         usecols = kwargs.get("usecols", None)
 
         if usecols is not None:
-            maintain_usecols_order = False
-            if is_list_like(usecols):
-                maintain_usecols_order = True
-            # breakpoint()
+            maintain_usecols_order = filetype != "csv"
             frame = create_frame_with_data_columns(
                 qc._modin_frame,
                 get_columns_to_keep_for_usecols(
