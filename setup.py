@@ -124,7 +124,6 @@ setup(
         ],
         "localtest": [
             "pandas",
-            "pyarrow",
             "requests",
         ],
         "opentelemetry": [
