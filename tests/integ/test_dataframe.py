@@ -15,6 +15,8 @@ from itertools import product
 from typing import Tuple
 from unittest import mock
 
+from snowflake.snowpark.session import Session
+
 try:
     import pandas as pd  # noqa: F401
     from pandas import DataFrame as PandasDF
@@ -1950,6 +1952,24 @@ def test_create_dataframe_large_without_batch_insert(session):
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+@pytest.mark.parametrize("paramstyle", ["pyformat", "format", "qmark", "numeric"])
+def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    db_parameters["paramstyle"] = paramstyle
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    session_builder = Session.builder.configs(db_parameters)
+    new_session = session_builder.create()
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = new_session.create_dataframe([[1], [2], [3]])
+        Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        new_session.close()
 
 
 @pytest.mark.localtest

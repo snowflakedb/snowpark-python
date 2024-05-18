@@ -776,7 +776,9 @@ def insert_into_statement(
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
-def batch_insert_into_statement(table_name: str, column_names: List[str], paramstyle: str) -> str:
+def batch_insert_into_statement(
+    table_name: str, column_names: List[str], paramstyle: str
+) -> str:
     num_cols = len(column_names)
     if paramstyle == "qmark":
         placeholder_marks = [QUESTION_MARK] * num_cols
