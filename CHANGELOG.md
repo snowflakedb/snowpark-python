@@ -2,6 +2,14 @@
 
 ## 1.17.0 (TBD)
 
+### New Features
+
+- Added support to add a comment on tables and views using functions listed below:
+  - `DataFrameWriter.save_as_table`
+  - `DataFrame.create_or_replace_view`
+  - `DataFrame.create_or_replace_temp_view`
+  - `DataFrame.create_or_replace_dynamic_table`
+
 ### Improvements
 
 - Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
