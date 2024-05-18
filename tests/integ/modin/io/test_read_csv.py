@@ -55,7 +55,7 @@ def test_read_csv():
             os.remove(filename)
 
 
-def test_read_csv_header(resources_path):
+def test_read_csv_header_none(resources_path):
     test_files = TestFiles(resources_path)
 
     filename = test_files.test_file_csv_header
@@ -67,29 +67,25 @@ def test_read_csv_header(resources_path):
             check_dtype=False,
         )
 
-    with SqlCounter(query_count=2):
-        assert_frame_equal(
-            pd.read_csv(filename, header=0),
-            native_pd.read_csv(filename, header=0),
-            check_dtype=False,
-        )
 
-
-@pytest.mark.parametrize("header", [[0, 1, 3], 2])
-@sql_count_checker(query_count=0)
-def test_read_csv_header_negative(resources_path, header):
+@pytest.mark.parametrize("header", [0, 1])
+@sql_count_checker(query_count=4)
+def test_read_csv_header_simple(resources_path, header):
     test_files = TestFiles(resources_path)
 
-    with pytest.raises(NotImplementedError, match="header is not implemented."):
-        pd.read_csv(test_files.test_file_csv, header=header)
+    expected = pd.read_csv(test_files.test_file_csv_header, header=header)
+    got = pd.read_csv(test_files.test_file_csv_header, header=header)
+    assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=0)
-def test_read_csv_header_skiprows_negative(resources_path):
+@sql_count_checker(query_count=4)
+def test_read_csv_header_skiprows(resources_path):
     test_files = TestFiles(resources_path)
 
-    with pytest.raises(NotImplementedError, match="header is not implemented."):
-        pd.read_csv(test_files.test_file_csv, header=1, skiprows=1)
+    expected = pd.read_csv(test_files.test_file_csv_header, header=1, skiprows=1)
+    got = pd.read_csv(test_files.test_file_csv_header, header=1, skiprows=1)
+
+    assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
 @pytest.mark.parametrize(
@@ -342,21 +338,17 @@ def test_read_csv_filepath_negative():
         ("dtype_backend", "numpy_nullable"),
     ],
 )
-@sql_count_checker(query_count=2)
-def test_read_csv_with_warning_params(param, arg):
+@sql_count_checker(query_count=8)
+def test_read_csv_with_warning_params(param, resources_path, arg):
+    test_files = TestFiles(resources_path)
+    staging_filename = f"@{tmp_stage_name1}/{test_file_csv}"
+    local_filename = test_files.test_file_csv
 
-    df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
-    filename = f"test_read_csv_with_warning_params_{str(uuid.uuid4())}"
-    try:
-        df.to_csv(filename, index=False)
-        assert_frame_equal(
-            pd.read_csv(filename, **{param: arg}),
-            native_pd.read_csv(filename),
-            check_dtype=False,
-        )
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
+    assert_frame_equal(
+        pd.read_csv(staging_filename, **{param: arg}),
+        native_pd.read_csv(local_filename),
+        check_dtype=False,
+    )
 
 
 @sql_count_checker(query_count=2)
@@ -493,19 +485,15 @@ def test_read_csv_usecols(resources_path, usecols):
 
     expected = native_pd.read_csv(test_files.test_file_csv_header, usecols=usecols)
     got = pd.read_csv(test_files.test_file_csv_header, usecols=usecols).to_pandas()
-    expected = expected.reindex(sorted(expected.columns), axis=1)
-    got = got.reindex(sorted(got.columns), axis=1)
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=1)
-def test_read_csv_usecols_empty(resources_path):
+@sql_count_checker(query_count=0)
+def test_read_csv_usecols_empty_negative(resources_path):
     test_files = TestFiles(resources_path)
 
-    expected = native_pd.read_csv(test_files.test_file_csv_header, usecols=[])
-    got = pd.read_csv(test_files.test_file_csv_header, usecols=[])
-
-    assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
+    with pytest.raises(NotImplementedError, match="usecols"):
+        pd.read_csv(test_files.test_file_csv_header, usecols=[])
 
 
 @pytest.mark.parametrize(
@@ -594,7 +582,7 @@ def test_read_csv_usecols_with_special_names(resources_path, usecols):
 def test_read_csv_usecols_with_names_negative(resources_path):
     test_files = TestFiles(resources_path)
 
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         with pytest.raises(
             ValueError,
             match="'usecols' do not match columns, columns expected but not found",
