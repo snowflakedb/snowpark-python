@@ -336,6 +336,7 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
                 table_type=table_type,
             )
         if not IS_IN_STORED_PROC:
+            # SNOW-1437979: caplog.text is empty in sp pre-commit env
             assert "create_temp_table is deprecated" in caplog.text
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
