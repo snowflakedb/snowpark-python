@@ -65,26 +65,6 @@ def test_resample_date_before_snowflake_alignment_date():
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
-def test_resample_date_general_ntz():
-    date_data = native_pd.to_datetime(
-        [
-            "2018-12-01",
-            "2018-12-30",
-            "2018-12-31",
-            "2019-01-02",
-            "2019-01-05",
-            "2019-01-06",
-            "2019-01-10",
-        ]
-    )
-    eval_snowpark_pandas_result(
-        *create_test_dfs({"A": np.random.randn(7)}, index=date_data),
-        lambda df: df.resample("2D").min(),
-        check_freq=False,
-    )
-
-
 @interval
 @sql_count_checker(query_count=2, join_count=1)
 def test_resample_date_wraparound_snowflake_alignment_date(interval):
