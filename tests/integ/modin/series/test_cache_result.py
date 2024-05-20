@@ -11,6 +11,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark import Session
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -97,6 +99,26 @@ def test_cache_result_series_complex_correctness(time_index_series_data, inplace
 
 
 @pytest.mark.parametrize("inplace", [True, False])
+def test_cache_result_series_cleanup(
+    db_parameters,
+    time_index_series_data,
+    inplace,
+):
+    old_session = pd.session
+    new_session = Session.builder.configs(db_parameters).create()
+    pd.session = new_session
+    series_data, kwargs = time_index_series_data
+    snow_series, _ = create_test_series(series_data, **kwargs)
+    snow_series = cache_and_return_series(snow_series, inplace)
+    table_name = (
+        snow_series._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.table_name
+    )
+    new_session.close()
+    with pytest.raises(SnowparkSQLException, match="does not exist or not authorized"):
+        old_session.table(table_name).show()
+
+
+@pytest.mark.parametrize("inplace", [True, False])
 class TestCacheResultReducesQueryCount:
     def test_cache_result_simple(self, inplace):
         snow_series = pd.concat(
@@ -127,12 +149,12 @@ class TestCacheResultReducesQueryCount:
             )
 
     def test_cache_result_post_apply(self, inplace, simple_test_data):
-        snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
         native_series = perform_chained_operations(
             native_pd.Series(simple_test_data).apply(lambda x: x + x), native_pd
         )
         native_series.name = 0
-        with SqlCounter(query_count=2, union_count=9):
+        with SqlCounter(query_count=5, union_count=9):
+            snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
             repr(snow_series)
             snow_series = perform_chained_operations(snow_series, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(

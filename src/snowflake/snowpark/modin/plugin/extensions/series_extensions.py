@@ -209,7 +209,7 @@ def to_pandas(
 @register_series_accessor("cache_result")
 @_add_cache_result_docstring
 @snowpark_pandas_telemetry_method_decorator
-def cache_result(self, inplace: bool = False) -> Series:
+def cache_result(self, inplace: bool = False) -> pd.Series:
     """
     Persists the Snowpark pandas Series to a temporary table for the duration of the session.
     """
