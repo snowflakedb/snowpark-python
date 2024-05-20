@@ -46,3 +46,5 @@ in order to decrease the latency of longer pipelines.
     print(df)
 
 Consider using the ``cache_result`` API whenever a DataFrame or Series that is expensive to compute sees high reuse.
+One caveat is after the ``apply`` and ``applymap`` APIs, which can sometimes eagerly materialize results for metadata purposes.
+Using ``cache_result`` after an ``apply`` or an ``applymap`` may not necessarily yield performance savings.
