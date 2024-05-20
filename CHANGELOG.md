@@ -36,6 +36,8 @@
 - Fixed a bug that prevented users from being able to select multiple columns with the same alias.
 - Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+- Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
+- Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
 
 #### Improvements
 
