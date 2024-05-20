@@ -198,7 +198,7 @@ DataFrame
     DataFrame.last_valid_index
     DataFrame.resample
 
-.. rubric:: Serialization / IO / conversion
+.. rubric:: Snowflake Specific / Serialization / IO / conversion
 
 .. autosummary::
     :toctree: pandas_api/
@@ -206,10 +206,4 @@ DataFrame
     DataFrame.to_pandas
     DataFrame.to_snowflake
     DataFrame.to_snowpark
-
-.. rubric:: Caching
-
-.. autosummary::
-    :toctree: pandas_api/
-
-    DataFrame.cache
+    DataFrame.cache_result
