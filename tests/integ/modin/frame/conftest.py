@@ -151,21 +151,12 @@ def time_index_native_df():
 
 
 @pytest.fixture(scope="function")
-def time_index_string_column_snowpark_pandas_df():
-    return pd.DataFrame(
-        df_data,
-        index=date_columns_no_tz,
-        columns=list(ascii_lowercase[: df_data.shape[1]]),
-    )
-
-
-@pytest.fixture(scope="function")
-def time_index_string_column_native_df():
-    return native_pd.DataFrame(
-        df_data,
-        index=date_columns_no_tz,
-        columns=list(ascii_lowercase[: df_data.shape[1]]),
-    )
+def time_index_string_column_data():
+    kwargs = {
+        "index": date_columns_no_tz,
+        "columns": list(ascii_lowercase[: df_data.shape[1]]),
+    }
+    return df_data, kwargs
 
 
 @pytest.fixture(scope="function")
