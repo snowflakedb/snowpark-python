@@ -21,7 +21,7 @@ from snowflake.snowpark.functions import (
     lead,
     lit,
     row_number,
-    to_timestamp,
+    to_timestamp_ntz,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.join_utils import InheritJoinIndex, join
@@ -290,7 +290,6 @@ def get_snowflake_quoted_identifier_for_resample_index_col(frame: InternalFrame)
     return index_col
 
 
-# TODO SNOW-964799: Add TIME_SLICE as a Snowpark Column function.
 def time_slice(
     column: ColumnOrName,
     slice_length: int,
@@ -381,8 +380,8 @@ def perform_resample_binning_on_frame(
     ).total_seconds()
 
     # Subtract the normalization amount in seconds from the input datetime.
-    normalized_dates = to_timestamp(
-        datediff("second", to_timestamp(lit(normalization_amt)), datetime_index_col)
+    normalized_dates = to_timestamp_ntz(
+        datediff("second", to_timestamp_ntz(lit(normalization_amt)), datetime_index_col)
     )
     # frame:
     #             data_col
@@ -398,6 +397,7 @@ def perform_resample_binning_on_frame(
     # 1970-01-11         9
 
     # Call time_slice on the normalized datetime column with the slice_width and slice_unit.
+    # time_slice is not supported for timestamps with timezones, only TIMESTAMP_NTZ
     normalized_dates_set_to_bins = time_slice(normalized_dates, slice_width, slice_unit)
     # frame:
     #             data_col
@@ -479,7 +479,7 @@ def get_expected_resample_bins_frame(
     all_resample_bins_col = dateadd(
         slice_unit,
         (row_number().over(Window.order_by(lit(1))) - 1) * slice_width,
-        to_timestamp(lit(start_date)),
+        to_timestamp_ntz(lit(start_date)),
     ).as_(index_column_snowflake_quoted_identifiers[0])
 
     rowcount = math.floor(
