@@ -175,40 +175,40 @@ def read_csv(
     engine : {{'c', 'python', 'pyarrow'}}, optional
         This parameter is not supported and will be ignored.
     converters : dict, optional
-       This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     true_values : list, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     false_values : list, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     skiprows: list-like, int or callable, optional
         Line numbers to skip (0-indexed) or number of lines to skip (int)
         at the start of the file.
     skipfooter : int, default 0
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     nrows : int, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     na_values : scalar, str, list-like, or dict, optional
         Additional strings to recognize as NA/NaN.
     keep_default_na : bool, default True
-       This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     na_filter : bool, default True
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     verbose : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     skip_blank_lines : bool, default True
         If True, skip over blank lines rather than interpreting as NaN values.
     parse_dates : bool or list of int or names or list of lists or dict, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     infer_datetime_format : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     keep_date_col : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     date_parser : function, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     date_format : str or dict of column -> format, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     dayfirst : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     cache_dates : bool, default True
         This parameter is not supported and will be ignored.
     iterator : bool, default False
@@ -223,33 +223,33 @@ def read_csv(
         `List of Snowflake standard compressions
         <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#format-type-options-formattypeoptions>`_ .
     thousands : str, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     decimal : str, default '.'
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     lineterminator : str (length 1), optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     quotechar : str (length 1), optional
         The character used to denote the start and end of a quoted item. Quoted
         items can include the delimiter and it will be ignored.
     quoting : int or csv.QUOTE_* instance, default 0
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     doublequote : bool, default ``True``
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     escapechar : str (length 1), optional
-        One-character string used to escape other characters.
+       This parameter is only supported on local files.
     comment : str, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     encoding : str, default 'utf-8'
         Encoding to use for UTF when reading/writing (ex. 'utf-8'). `List of Snowflake
         standard encodings <https://docs.snowflake.com/en/sql-reference/sql/copy-into-tables>`_ .
     encoding_errors : str, optional, default "strict"
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     dialect : str or csv.Dialect, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     on_bad_lines : {{'error', 'warn', 'skip'}} or callable, default 'error'
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     delim_whitespace : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     low_memory : bool, default True
         This parameter is not supported and will be ignored.
     memory_map : bool, default False

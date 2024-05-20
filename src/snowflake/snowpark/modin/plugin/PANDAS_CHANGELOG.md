@@ -16,6 +16,7 @@
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
 - Throw `KeyError` when user passes in missing column labels to `__getitem__` and `loc`.
+- `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 
 ### Improvements
 - Improved performance for `Series.quantile` and `Series.describe`. 
