@@ -498,6 +498,9 @@ class Session:
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
         self._runtime_version_from_requirement: str = None
 
+        # Initialize the server-side session.
+        self._conn.create_coprocessor()
+
         self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
