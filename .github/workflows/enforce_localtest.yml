@@ -7,6 +7,9 @@ on:
 jobs:
   check_for_skip_or_xfail_header:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     if: ${{contains(github.event.pull_request.body, 'local_testing_mode')}}
     steps:
     - name: Checkout
