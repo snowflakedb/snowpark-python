@@ -36,6 +36,7 @@ TEST_DATA = [
     " \t\r\n\f",
     "",
     None,
+    1,
 ]
 
 
@@ -346,7 +347,7 @@ def test_str_len():
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["1", "*this", "%THAT", "4*FINAL test"],
     ],
@@ -363,7 +364,7 @@ def test_str_capitalize_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -384,7 +385,7 @@ def test_str_capitalize_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*this", "%THAT", "4*FINAL test"],
@@ -415,7 +416,7 @@ def test_str_title_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -436,7 +437,7 @@ def test_str_title_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["Foo", "BAR", "Blah", "blurg"],
+        ["Foo", "BAR", "Blah", "blurg", 1],
         ["this TEST", "That", "test", "Final Test Here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*This", "%THAT", "4*FINAL test"],
@@ -467,7 +468,7 @@ def test_str_istitle_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here"],
+        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "Str1", None, "STR2"],
         [None, None, None],
