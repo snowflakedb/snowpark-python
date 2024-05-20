@@ -21,5 +21,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
+        body: ${{github.event.pull_request.body}}
       run: |
-        gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from snowflakedb/local-testing"
+        gh pr comment "$url" --body "$body"
