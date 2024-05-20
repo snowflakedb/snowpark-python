@@ -1,4 +1,4 @@
-name: Check parity in Local Testing
+name: Check for Local Testing changes
 
 on:
   pull_request:
