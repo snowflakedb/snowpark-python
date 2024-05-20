@@ -9,6 +9,7 @@ from typing import Any, Iterable, Tuple, Union
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import parse_table_name, quote_name
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -295,7 +296,9 @@ def unalias_datetime_part(part):
     if lowered_part in DATETIME_ALIASES:
         return ALIASES_TO_DATETIME_PART[lowered_part]
     else:
-        raise ValueError(f"{part} is not a recognized date or time part.")
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(f"{part} is not a recognized date or time part.")
+        )
 
 
 def get_fully_qualified_name(

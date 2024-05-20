@@ -84,6 +84,7 @@ IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
 IS_STRUCTURED_TYPES_SUPPORTED = (
     os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+    and not IS_IN_STORED_PROC
 )
 ICEBERG_ENVIRONMENTS = {"dev", "aws"}
 IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS

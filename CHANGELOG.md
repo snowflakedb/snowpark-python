@@ -2,6 +2,14 @@
 
 ## 1.17.0 (TBD)
 
+### New Features
+
+- Added support to add a comment on tables and views using functions listed below:
+  - `DataFrameWriter.save_as_table`
+  - `DataFrame.create_or_replace_view`
+  - `DataFrame.create_or_replace_temp_view`
+  - `DataFrame.create_or_replace_dynamic_table`
+
 ### Improvements
 
 - Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
@@ -17,6 +25,10 @@
     - to_varchar
   - snowflake.snowpark.DataFrame:
     - pivot
+  - snowflake.snowpark.Session:
+    - cancel_all
+- Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
+- Added support for casting to FloatType
 
 #### Bug Fixes
 
@@ -29,6 +41,15 @@
 - Fixed a bug that when processing datetime format, fractional second part is not handled properly.
 - Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
+- Fixed a bug that prevented users from being able to select multiple columns with the same alias.
+- Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
+- Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
+
+#### Improvements
+
+- Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
+- Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
+- Aligned error experience with reusing a closed session in non-local execution.
 
 ## 1.16.0 (TBD)
 

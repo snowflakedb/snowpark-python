@@ -47,6 +47,7 @@ from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
     is_integer_dtype,
+    is_named_tuple,
     is_numeric_dtype,
     is_re_compilable,
     is_scalar,
@@ -85,6 +86,7 @@ from snowflake.snowpark.functions import (
     dayofmonth,
     dense_rank,
     first_value,
+    greatest,
     hour,
     iff,
     initcap,
@@ -92,6 +94,7 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    least,
     length,
     lower,
     max as max_,
@@ -104,9 +107,11 @@ from snowflake.snowpark.functions import (
     quarter,
     rank,
     regexp_replace,
+    reverse,
     round,
     row_number,
     second,
+    substring,
     sum as sum_,
     sum_distinct,
     timestamp_ntz_from_parts,
@@ -124,6 +129,7 @@ from snowflake.snowpark.modin.plugin._internal import (
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     AGG_NAME_COL_LABEL,
     AggFuncInfo,
+    AggFuncWithLabel,
     AggregateColumnOpParameters,
     _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
@@ -2638,6 +2644,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=agg_kwargs.get("dropna", True),
                 )
             else:
+                # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
+                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
+                if isinstance(agg_func, dict) and all(
+                    is_named_tuple(func) and len(func) == 2
+                    for func in agg_func.values()
+                ):
+                    agg_func = ", ".join(
+                        [f"{key}={value}" for key, value in agg_kwargs.items()]
+                    )
+                    agg_func = f"agg({agg_func})"
+
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas GroupBy.{agg_func} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
                 )
@@ -2645,6 +2662,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
         dropna = groupby_kwargs.get("dropna", True)
+        uses_named_aggs = False
 
         original_index_column_labels = self._modin_frame.index_column_pandas_labels
 
@@ -2677,11 +2695,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
+        def convert_func_to_agg_func_info(
+            func: Union[AggFuncType, AggFuncWithLabel]
+        ) -> AggFuncInfo:
+            nonlocal uses_named_aggs
+            if is_named_tuple(func):
+                uses_named_aggs = True
+                return AggFuncInfo(
+                    func=func.func,
+                    is_dummy_agg=False,
+                    post_agg_pandas_label=func.pandas_label,
+                )
+            else:
+                return AggFuncInfo(
+                    func=func, is_dummy_agg=False, post_agg_pandas_label=None
+                )
+
         column_to_agg_func = {
             agg_col: (
-                [AggFuncInfo(func=fn, is_dummy_agg=False) for fn in func]
-                if is_list_like(func)
-                else AggFuncInfo(func=func, is_dummy_agg=False)
+                [convert_func_to_agg_func_info(fn) for fn in func]
+                if is_list_like(func) and not is_named_tuple(func)
+                else convert_func_to_agg_func_info(func)
             )
             for (agg_col, func) in column_to_agg_func.items()
         }
@@ -2756,7 +2790,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
         drop = False
-        if not as_index:
+        if not as_index and not uses_named_aggs:
             # drop off the index columns that are from the original index columns and also the index
             # columns that are from data column with aggregation function applied.
             # For example: with the following dataframe, which has data column ['A', 'B', 'C', 'D', 'E']
@@ -2860,6 +2894,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"No support for groupby.apply with parameters by={by}, "
                 + f"level={level}, and axis={axis}"
             )
+
+        if "include_groups" in agg_kwargs:
+            # exclude "include_groups" from the apply function kwargs
+            include_groups = agg_kwargs.pop("include_groups")
+            if not include_groups:
+                ErrorMessage.not_implemented(
+                    f"No support for groupby.apply with include_groups = {include_groups}"
+                )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -5437,6 +5479,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left = self
         join_index_on_index = left_index and right_index
+        # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
+        # https://github.com/pandas-dev/pandas/pull/54611/files
+        if how == "outer":
+            sort = True
 
         # Labels of indicator columns in input frames.  We use these columns to generate
         # final indicator column in merged frame.
@@ -10550,7 +10596,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if native_pd.isna(k):
                     cond = column.is_null()
                 elif regex is True:
-                    cond = column.regexp(pandas_lit(f".*{k}.*"))
+                    cond = column.regexp(pandas_lit(f".*({k}).*"))
                     v = regexp_replace(subject=column, pattern=k, replacement=v)
                 else:
                     cond = column == k
@@ -11823,6 +11869,141 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_data_columns(length)
         )
+
+    def str_slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Slice substrings from each element in the Series or Index.
+
+        Parameters
+        ----------
+        start : int, optional
+            Start position for slice operation.
+        stop : int, optional
+            Stop position for slice operation.
+        step : int, optional
+            Step size for slice operation.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+
+        def output_col(
+            col_name: ColumnOrName,
+            start: Optional[int],
+            stop: Optional[int],
+            step: Optional[int],
+        ) -> SnowparkColumn:
+            if step is None:
+                step = 1
+            col_len_exp = length(col(col_name))
+
+            # In what follows, we define the expressions needed to evaluate the correct start and stop positions for a slice.
+            # In general, the start position needs to be included and the stop position needs to be excluded from the slice.
+            # A negative start or stop position is relative to the end boundary of the string value.
+            # Also, depending on the sign of step, we either go forward from start to stop (positive step),
+            # or backwards from start to stop (negative step).
+            # This means that for the stop position to be excluded in the positive step scenario, we need to
+            # include the position immediately to the left of the stop position, and then stop.
+            # Conversely, for the negative step scenario, we need to include the position immediately to the right
+            # of the stop position, and then stop.
+            # Also, the stop position is allowed to fall beyond string beginning and end boundaries.
+            # However, the start position cannot fall before the beginning boundary when step is positive,
+            # and similarly, it cannot fall beyond the end boundary when step is negative.
+            if start is None:
+                if step < 0:
+                    # Start position is at the end boundary.
+                    start_exp = col_len_exp
+                else:
+                    # Start position is at the beginning boundary.
+                    start_exp = pandas_lit(1)
+            elif start < 0:
+                if step < 0:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is the position immediately to the left of the beginning boundary.
+                    start_exp = greatest(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(0)
+                    )
+                else:
+                    # Start position is relative to the end boundary, and the leftmost it can
+                    # get is position representing the beginning boundary.
+                    start_exp = greatest(
+                        pandas_lit(start + 1) + col_len_exp, pandas_lit(1)
+                    )
+            else:
+                assert start >= 0
+                if step < 0:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position representing the end boundary.
+                    start_exp = least(pandas_lit(start + 1), col_len_exp)
+                else:
+                    # Start position is relative to the beginning boundary, and the rightmost it can
+                    # get is the position immediately to the right of the end boundary.
+                    start_exp = least(
+                        pandas_lit(start + 1), col_len_exp + pandas_lit(1)
+                    )
+
+            if stop is None:
+                if step < 0:
+                    # Stop position is immediately to the left of the beginning boundary.
+                    stop_exp = pandas_lit(0)
+                else:
+                    # Stop position is immediately to the right of the end boundary.
+                    stop_exp = col_len_exp + pandas_lit(1)
+            elif stop < 0:
+                # Stop position is relative to the end boundary, and the leftmost it can
+                # get is the position immediately to the left of the beginning boundary.
+                stop_exp = greatest(pandas_lit(stop + 1) + col_len_exp, pandas_lit(0))
+            else:
+                # Stop position is relative to the beginning boundary, and the rightmost it can
+                # get is the position immediately to the right of the end boundary.
+                stop_exp = least(pandas_lit(stop + 1), col_len_exp + pandas_lit(1))
+
+            if step < 0:
+                # When step is negative, we flip the column string value along with the start and
+                # stop positions. Step can be considered positive now.
+                new_col = reverse(col(col_name))
+                start_exp = col_len_exp - start_exp + pandas_lit(1)
+                stop_exp = col_len_exp - stop_exp + pandas_lit(1)
+                step = -step
+            else:
+                new_col = col(col_name)
+            # End of evaluation for start and end positions.
+
+            # If step is 1, then slicing is no different than getting a substring.
+            # Even when step is > 1, we also start by getting the substring with all
+            # the relevant characters we care about. Then we process them further below.
+            new_col = substring(new_col, start_exp, stop_exp - start_exp)
+            col_len_exp = stop_exp - start_exp
+            if step > 1:
+                # This is where the actual slicing happens using a regular expression.
+                # The regex essentially identifies every consecutive substring of size (step),
+                # and replaces it with its first character.
+                # As preprocessing, the substring operation handles the case where the length of
+                # the input string is not divisible by (step). In this case, it ensures that only
+                # the first character from the residual (n % step) characters is kept. Then, when
+                # processed by the regex, since this residual character won't be matched, it gets
+                # output as is, which is identical to python/pandas slicing behavior.
+                new_col = regexp_replace(
+                    substring(
+                        new_col,
+                        pandas_lit(1),
+                        col_len_exp - col_len_exp % pandas_lit(step) + pandas_lit(1),
+                    ),
+                    pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
+                    pandas_lit("\\2"),
+                )
+            return new_col
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            lambda col_name: output_col(col_name, start, stop, step)
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_split(
         self,

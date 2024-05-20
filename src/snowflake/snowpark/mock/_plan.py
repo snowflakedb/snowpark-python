@@ -45,6 +45,7 @@ from snowflake.snowpark.mock._window_utils import (
     RowFrameIndexer,
     is_rank_related_window_function,
 )
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -135,7 +136,6 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
@@ -454,7 +454,7 @@ def handle_udf_expression(
     udf_name = exp.udf_name
 
     if udf_name not in udf_registry:
-        raise SnowparkSQLException(f"[Local Testing] udf {udf_name} does not exist.")
+        raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
 
     # Initialize import directory
     temporary_import_path = tempfile.TemporaryDirectory()
@@ -575,7 +575,7 @@ def execute_mock_plan(
             sf_type = table.sf_types[column_name]
             table[column_name].sf_type = table.sf_types[column_name]
             if not isinstance(sf_type.datatype, _NumericType):
-                table[column_name].replace(np.nan, None, inplace=True)
+                table[column_name] = table[column_name].replace(np.nan, None)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
@@ -589,25 +589,34 @@ def execute_mock_plan(
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
-        result_df = TableEmulator()
-
+        columns = []
+        data = []
+        sf_types = []
+        null_rows_idxs_map = {}
         for exp in projection:
             if isinstance(exp, Star):
-                for i in range(len(from_df.columns)):
-                    result_df.insert(len(result_df.columns), str(i), from_df.iloc[:, i])
-                result_df.columns = from_df.columns
-                result_df.sf_types = from_df.sf_types
-                result_df.sf_types_by_col_index = from_df.sf_types_by_col_index
+                data += [d for _, d in from_df.items()]
+                columns += list(from_df.columns)
+                sf_types += list(
+                    from_df.sf_types_by_col_index.values()
+                    if from_df.sf_types_by_col_index
+                    else from_df.sf_types.values()
+                )
+                null_rows_idxs_map.update(from_df._null_rows_idxs_map)
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
                 and isinstance(exp.child, Star)
             ):
                 for e in exp.child.expressions:
-                    col_name = analyzer.analyze(e, expr_to_alias)
-                    result_df[col_name] = calculate_expression(
+                    column_name = analyzer.analyze(e, expr_to_alias)
+                    columns.append(column_name)
+                    column_series = calculate_expression(
                         e, from_df, analyzer, expr_to_alias
                     )
+                    data.append(column_series)
+                    sf_types.append(column_series.sf_type)
+                    null_rows_idxs_map[column_name] = column_series._null_rows_idxs
             else:
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
@@ -620,7 +629,10 @@ def execute_mock_plan(
                     exp, from_df, analyzer, expr_to_alias
                 )
 
-                result_df[column_name] = column_series
+                columns.append(column_name)
+                data.append(column_series)
+                sf_types.append(column_series.sf_type)
+                null_rows_idxs_map[column_name] = column_series._null_rows_idxs
 
                 if isinstance(exp, (Alias)):
                     if isinstance(exp.child, Attribute):
@@ -629,6 +641,15 @@ def execute_mock_plan(
                         for k, v in expr_to_alias.items():
                             if v == exp.child.name:
                                 expr_to_alias[k] = quoted_name
+
+        df = pd.concat(data, axis=1)
+        result_df = TableEmulator(
+            data=df,
+            sf_types={k: v for k, v in zip(columns, sf_types)},
+            sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
+        )
+        result_df.columns = columns
+        result_df._null_rows_idxs_map = null_rows_idxs_map
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
@@ -662,7 +683,7 @@ def execute_mock_plan(
                 expr_to_alias,
             )
             if len(res_df.columns) != len(cur_df.columns):
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"SQL compilation error: invalid number of result columns for set operator input branches, expected {len(res_df.columns)}, got {len(cur_df.columns)} in branch {i + 1}"
                 )
             cur_df.columns = res_df.columns
@@ -721,7 +742,7 @@ def execute_mock_plan(
         else:
             db_schme_table = parse_table_name(entity_name)
             table = ".".join([part.strip("\"'") for part in db_schme_table[:3]])
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Object '{table}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
@@ -795,8 +816,8 @@ def execute_mock_plan(
                         child_rf[column_name],
                     )
                 except KeyError:
-                    raise SnowparkSQLException(
-                        f"[Local Testing] invalid identifier {column_name}"
+                    raise SnowparkLocalTestingException(
+                        f"invalid identifier {column_name}"
                     )
             else:
                 analyzer.session._conn.log_not_supported_error(
@@ -840,7 +861,7 @@ def execute_mock_plan(
                         child_rf[plan.session._analyzer.analyze(exp)]
                     )
         except KeyError as e:
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"This is not a valid group by expression due to exception {e!r}"
             )
 
@@ -1097,7 +1118,7 @@ def execute_mock_plan(
             return res_df
         else:
             db_schme_table = parse_table_name(entity_name)
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
@@ -1106,7 +1127,7 @@ def execute_mock_plan(
         if source_plan.row_count and (
             source_plan.row_count < 0 or source_plan.row_count > 100000
         ):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 "parameter value out of range: size of fixed sample. Must be between 0 and 1,000,000."
             )
 
@@ -1336,8 +1357,8 @@ def execute_mock_plan(
                     for k, v in zip(clause.keys, clause.values):
                         column_name = analyzer.analyze(k, expr_to_alias)
                         if column_name not in rows_to_insert.columns:
-                            raise SnowparkSQLException(
-                                f"Error: invalid identifier '{column_name}'"
+                            raise SnowparkLocalTestingException(
+                                f"invalid identifier '{column_name}'"
                             )
                         inserted_columns.add(column_name)
                         new_val = calculate_expression(
@@ -1355,7 +1376,7 @@ def execute_mock_plan(
 
                 else:
                     if len(clause.values) != len(rows_to_insert.columns):
-                        raise SnowparkSQLException(
+                        raise SnowparkLocalTestingException(
                             f"Insert value list does not match column list expecting {len(rows_to_insert.columns)} but got {len(clause.values)}"
                         )
                     for col, v in zip(rows_to_insert.columns, clause.values):
@@ -1411,8 +1432,10 @@ def execute_mock_plan(
         }
 
         if agg_function_name not in agg_functions:
-            raise ValueError(
-                f"Unsupported pivot aggregation function {agg_function_name}."
+            SnowparkLocalTestingException.raise_from_error(
+                ValueError(
+                    f"Unsupported pivot aggregation function {agg_function_name}."
+                )
             )
 
         pivot_column = plan.session._analyzer.analyze(source_plan.pivot_column)
@@ -1480,6 +1503,12 @@ def execute_mock_plan(
             data = filled.replace({sentinel: None}).replace({None: default}).values
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
+
+        # Update column index map
+        result.sf_types_by_col_index = {
+            i: result[column].sf_type for i, column in enumerate(result.columns)
+        }
+
         return result
 
     analyzer.session._conn.log_not_supported_error(
@@ -1563,7 +1592,7 @@ def calculate_expression(
         try:
             return input_data[exp.name]
         except KeyError:
-            raise SnowparkSQLException(f"[Local Testing] invalid identifier {exp.name}")
+            raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
@@ -1725,7 +1754,9 @@ def calculate_expression(
             try:
                 re.compile(_pattern)
             except re.error:
-                raise SnowparkSQLException(f"Invalid regular expression {raw_pattern}")
+                raise SnowparkLocalTestingException(
+                    f"Invalid regular expression {raw_pattern}"
+                )
 
             return bool(re.match(_pattern, input_str))
 
@@ -1811,7 +1842,7 @@ def calculate_expression(
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_char"](
                 column, try_cast=exp.try_
             )
-        elif isinstance(exp.to, DoubleType):
+        elif isinstance(exp.to, (DoubleType, FloatType)):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_double"](
                 column, try_cast=exp.try_
             )
@@ -1848,7 +1879,7 @@ def calculate_expression(
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type != value.sf_type
                 ):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
                     )
             else:
@@ -1864,7 +1895,7 @@ def calculate_expression(
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type.datatype != value.sf_type.datatype
                 ):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
                     )
             else:
@@ -1880,7 +1911,7 @@ def calculate_expression(
                 window_spec.order_spec, input_data, analyzer, expr_to_alias
             )
         elif is_rank_related_window_function(window_function):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
@@ -1939,7 +1970,7 @@ def calculate_expression(
                         "upper": type(upper).__name__,
                         "lower": type(lower).__name__,
                     },
-                    raise_error=SnowparkSQLException,
+                    raise_error=SnowparkLocalTestingException,
                 )
 
             windows = handle_range_frame_indexing(
@@ -2008,7 +2039,7 @@ def calculate_expression(
                                         type(calculated_sf_type.datatype).__name__
                                     ),
                                 },
-                                raise_error=SnowparkSQLException,
+                                raise_error=SnowparkLocalTestingException,
                             )
                     res_cols.append(sub_window_res.iloc[0])
                 elif not ignore_nulls or offset == 0:
@@ -2052,7 +2083,7 @@ def calculate_expression(
                                         calculated_sf_type.datatype
                                     ).__name__,
                                 },
-                                raise_error=SnowparkSQLException,
+                                raise_error=SnowparkLocalTestingException,
                             )
                     res_cols.append(sub_window_res.iloc[0])
                 else:

@@ -57,7 +57,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
     Parameters
     ----------
-    data : DataFrame, Series, pandas.DataFrame, ndarray, Iterable or dict, optional
+    data : DataFrame, Series, `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_, ndarray, Iterable or dict, optional
         Dict can contain ``Series``, arrays, constants, dataclass or list-like objects.
         If data is a dict, column order follows insertion-order.
     index : Index or array-like, optional
@@ -219,7 +219,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def dropna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Remove missing values.
 
@@ -254,8 +253,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` with NA entries dropped from it or None if ``inplace=True``.
+        DataFrame
+            DataFrame with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
         --------
@@ -282,14 +281,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         >>> df.dropna()
              name        toy       born
         1  Batman  Batmobile 1940-04-25
-
-        Drop the columns where at least one element is missing.
-
-        >>> df.dropna(axis='columns')  # doctest: +SKIP
-               name
-        0    Alfred
-        1    Batman
-        2  Catwoman
 
         Drop the rows where all elements are missing.
 
@@ -392,7 +383,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Series
             Boolean series for each duplicated rows.
 
         See Also
@@ -624,8 +615,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-            Transformed Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`.
+        DataFrame
+            Transformed DataFrame.
 
         See Also
         --------
@@ -645,15 +636,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
            0  1
         0  3  4
         1  5  5
-
-        Like Series.map, NA values can be ignored: (TODO SNOW-888095: re-enable the test once fallback solution is used)
-
-        >>> df_copy = df.copy()
-        >>> df_copy.iloc[0, 0] = pd.NA
-        >>> df_copy.applymap(lambda x: len(str(x)), na_action='ignore')  # doctest: +SKIP
-             0  1
-        0  NaN  4
-        1  5.0  5
 
         When you use the applymap function, a user-defined function (UDF) is generated and
         applied to each column. However, in many cases, you can achieve the same results
@@ -728,7 +710,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
     agg = aggregate
 
     def apply():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Apply a function along an axis of the DataFrame.
 
@@ -738,15 +719,20 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         is inferred from the return type of the applied function. Otherwise,
         it depends on the `result_type` argument.
 
+        Snowpark pandas currently only supports ``apply`` with ``axis=1`` and callable ``func``.
+
         Parameters
         ----------
         func : function
             A Python function object to apply to each column or row, or a Python function decorated with @udf.
+
         axis : {0 or 'index', 1 or 'columns'}, default 0
             Axis along which the function is applied:
 
             * 0 or 'index': apply function to each column.
             * 1 or 'columns': apply function to each row.
+
+            Snowpark pandas does not yet support ``axis=0``.
 
         raw : bool, default False
             Determines if row or column is passed as a Series or ndarray object:
@@ -765,16 +751,20 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
             * 'broadcast' : results will be broadcast to the original shape
               of the DataFrame, the original index and columns will be
               retained.
+
+            Snowpark pandas does not yet support the ``result_type`` parameter.
+
         args : tuple
             Positional arguments to pass to `func` in addition to the
             array/series.
+
         **kwargs
             Additional keyword arguments to pass as keywords arguments to
             `func`.
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Series or DataFrame
             Result of applying ``func`` along the given axis of the DataFrame.
 
         See Also
@@ -785,12 +775,12 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Notes
         -----
-        1. When the type annotation of return value is provided on ``func``, the result will be cast
+        1. When ``func`` has a type annotation for its return value, the result will be cast
         to the corresponding dtype. When no type annotation is provided, data will be converted
-        to Variant type in Snowflake and leave as dtype=object. In this case, the return value must
+        to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
         be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
-        ``list`` objects are json-serializable, but ``bytes`` and ``datetime.datetime`` objects
-        are not). The return type hint takes effect solely when ``func`` is a series-to-scalar function.
+        ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
+        are not). The return type hint is used only when ``func`` is a series-to-scalar function.
 
         2. Under the hood, we use Snowflake Vectorized Python UDFs to implement apply() method with
         `axis=1`. You can find type mappings from Snowflake SQL types to pandas dtypes
@@ -800,29 +790,29 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         When no type annotation is provided and Variant data is returned, Python ``None`` is translated to
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
-        4. If ``func`` is a series-to-series function and can also be a scalar-to-scalar function
-        (e.g., ``np.sqrt``, ``lambad x: x+1``), it is equivalent to use `df.applymap()`,
-        which will give better performance.
+        4. If ``func`` is a series-to-series function that can also be used as a scalar-to-scalar function
+        (e.g., ``np.sqrt``, ``lambda x: x+1``), using ``df.applymap()`` to apply the function
+        element-wise may give better performance.
 
         5. When ``func`` can return a series with different indices, e.g.,
-        ``lambda x: pd.Series([1, 2], index=["a", "b"] if x.sum() > 2 else ["b", "c"]).``,
+        ``lambda x: pd.Series([1, 2], index=["a", "b"] if x.sum() > 2 else ["b", "c"])``,
         the values with the same label will be merged together.
 
-        6. The index values of returned series from ``func`` must be json-serializable. For example,
-        ``lambda x: pd.Series([1], index=[bytes(1)])`` will raise a SQL execption.
+        6. The index values of returned series from ``func`` must be JSON-serializable. For example,
+        ``lambda x: pd.Series([1], index=[bytes(1)])`` will raise a SQL execption because python ``bytes``
+        objects are not JSON-serializable.
 
         7. When ``func`` uses any first-party modules or third-party packages inside the function,
         you need to add these dependencies via ``session.add_import()`` and ``session.add_packages()``.
         Alternatively. specify third-party packages with the @udf decorator. When using the @udf decorator,
         annotations using PandasSeriesType or PandasDataFrameType are not supported.
 
-        8. Snowpark pandas module is currently not supported inside ``func``. If you need to call
-        general pandas API (e.g., ``pd.Timestamp``) inside ``func``, the workaround is to use
-        the actual pandas module.
+        8. The Snowpark pandas module cannot currently be referenced inside the definition of
+        ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
+        please use the original ``pandas`` module (with ``import pandas``) as a workaround.
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame([[2, 0], [3, 7], [4, 9]], columns=['A', 'B'])
         >>> df
            A  B
@@ -830,61 +820,35 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         1  3  7
         2  4  9
 
-        Using a numpy universal function (in this case the same as
-        ``np.sqrt(df)``):
+        Using a reducing function on ``axis=1``:
 
-        >>> df.apply(np.sqrt)  # doctest: +SKIP
-                  A         B
-        0  1.414062  0.000000
-        1  1.732422  2.646484
-        2  2.000000  3.000000
-
-
-        Using a reducing function on either axis
-
-        >>> df.apply(np.sum, axis=0)  # doctest: +SKIP
-        A     9
-        B    16
-        dtype: int8
-
-        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
+        >>> df.apply(np.sum, axis=1)
         0     2
         1    10
         2    13
         dtype: int64
 
-        Returning a list-like will result in a Series
+        Returning a list-like object will result in a Series:
 
-        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
+        >>> df.apply(lambda x: [1, 2], axis=1)
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
         dtype: object
 
-        Passing ``result_type='broadcast'`` will ensure the same shape
-        result, whether list-like or scalar is returned by the function,
-        and broadcast it along the axis. The resulting column names will
-        be the originals.
-
-        >>> df.apply(lambda x: [1, 2], axis=1, result_type='broadcast')  # doctest: +SKIP
-           A  B
-        0  1  2
-        1  1  2
-        2  1  2
-
-        To work with 3rd party packages add them to the current session
+        To work with 3rd party packages, add them to the current session:
 
         >>> import scipy.stats
         >>> pd.session.custom_package_usage_config['enabled'] = True
         >>> pd.session.add_packages(['numpy', scipy])
-        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)  # doctest: +SKIP
+        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)
         0     1.00
         1    14.50
         2    24.25
         dtype: float64
 
         or annotate the function
-        to pass to apply with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
+        with the @udf decorator from Snowpark https://docs.snowflake.com/en/developer-guide/snowpark/reference/python/latest/api/snowflake.snowpark.functions.udf.
 
         >>> from snowflake.snowpark.functions import udf
         >>> from snowflake.snowpark.types import DoubleType
@@ -1000,38 +964,54 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def transform():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
-        Currently only callable and string functions are supported since those can be directly mapped to
-        the apply function.
 
-        Examples::
-            Increment every value in dataframe by 1.
+        Parameters
+        ----------
+        func : function, str, list-like or dict-like
+            Function to use for transforming the data. If a function, must either work when passed
+            a DataFrame or when passed to DataFrame.apply. If func is both list-like and dict-like,
+            dict-like behavior takes precedence.
 
-            >>> d1 = {'col1': [1, 2, 3], 'col2': [3, 4, 5]}
-            >>> df = pd.DataFrame(data=d1)
-            >>> df
-               col1  col2
-            0     1     3
-            1     2     4
-            2     3     5
-            >>> df.transform(lambda x: x + 1)  # doctest: +SKIP
-               col1  col2
-            0     2     4
-            1     3     5
-            2     4     6
-            >>> df.transform(np.square)  # doctest: +SKIP
-               col1  col2
-            0     1     9
-            1     4    16
-            2     9    25
-            >>> df.transform("square")  # doctest: +SKIP
-               col1  col2
-            0     1     9
-            1     4    16
-            2     9    25
+            Snowpark pandas currently only supports callable arguments, and does not yet
+            support string, dict-like, or list-like arguments.
 
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            If 0 or 'index': apply function to each column. If 1 or 'columns': apply function to each row.
+
+            Snowpark pandas currently only supports axis=1, and does not yet support axis=0.
+
+        *args
+            Positional arguments to pass to `func`.
+
+        **kwargs
+            Keyword arguments to pass to `func`.
+
+        Examples
+        --------
+        Increment every value in DataFrame by 1.
+
+        >>> d1 = {'col1': [1, 2, 3], 'col2': [3, 4, 5]}
+        >>> df = pd.DataFrame(data=d1)
+        >>> df
+           col1  col2
+        0     1     3
+        1     2     4
+        2     3     5
+        >>> df.transform(lambda x: x + 1, axis=1)
+           col1  col2
+        0     2     4
+        1     3     5
+        2     4     6
+
+        Apply a numpy ufunc to every value in the DataFrame.
+
+        >>> df.transform(np.square, axis=1)
+           col1  col2
+        0     1     9
+        1     4    16
+        2     9    25
         """
 
     def transpose():
@@ -1053,7 +1033,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
             Note that a copy is always required for mixed dtype DataFrames, or for DataFrames with any extension types.
 
         Returns:
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            DataFrame
                 The transposed DataFrame.
 
         Examples::
@@ -1180,7 +1160,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def fillna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Fill NA/NaN values using the specified method.
 
@@ -1268,15 +1247,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         1  3.0  4.0  2.0  1.0
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
-
-        Only replace the first NaN element.
-
-        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
-             A    B    C    D
-        0  0.0  2.0  2.0  0.0
-        1  3.0  4.0  NaN  1.0
-        2  NaN  1.0  NaN  3.0
-        3  NaN  3.0  NaN  4.0
 
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
@@ -1615,7 +1585,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Parameters
         ----------
-        other : :class:`~snowflake.snowpark.modin.pandas.DataFrame`, :class:`~snowflake.snowpark.modin.pandas.Series`, or a list containing any combination of them
+        other : DataFrame, Series, or a list containing any combination of them
             Index should be similar to one of the columns in this one. If a
             Series is passed, its name attribute must be set, and that will be
             used as the column name in the resulting joined DataFrame.
@@ -1655,7 +1625,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowapark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        DataFrame
             A dataframe containing columns from both the caller and `other`.
 
         Notes
@@ -1893,9 +1863,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         Return the memory usage of each column in bytes.
         """
 
-    def merge():
-        pass
-
     def mod():
         """
         Get modulo of ``DataFrame`` and `other`, element-wise (binary operator `mod`).
@@ -1990,7 +1957,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        DataFrame
             An Excel style pivot table.
 
         Notes
@@ -2187,7 +2154,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
 
     def rename():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Rename columns or index labels.
 
@@ -2228,7 +2194,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
+        DataFrame or None
             DataFrame with the renamed axis labels or None if ``inplace=True``.
 
         Raises
@@ -2272,8 +2238,6 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         >>> df.index
         Index([0, 1, 2], dtype='int64')
-        >>> df.rename(index=str).index  # doctest: +SKIP
-        Index(['0', '1', '2'], dtype='object')
 
         >>> df.rename(columns={"A": "a", "B": "b", "C": "c"}, errors="raise")
         Traceback (most recent call last):
@@ -2868,7 +2832,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`, Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`, or scalar
+        DataFrame, Series, or scalar
             The projection after squeezing `axis` or all the axes.
 
         See Also
@@ -3122,9 +3086,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` with the
-            first differences of the Series.
+        DataFrame
+            DataFrame with the first differences of the Series.
 
         Notes
         -----
@@ -3226,8 +3189,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` without the removed index or column labels or
+        DataFrame or None
+            DataFrame without the removed index or column labels or
             None if ``inplace=True``.
 
         Raises
@@ -3348,7 +3311,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.>` : Equivalent method on Series.
+        :func:`Series.value_counts <snowflake.snowpark.modin.pandas.Series.value_counts>` : Equivalent method on Series.
 
         Notes
         -----
@@ -3975,3 +3938,176 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
         """
         # we need to override the docstring for this private method because
         # defines it and includes doctests that fail for Snowpark pandas.
+
+    def merge():
+        """
+        Merge DataFrame or named Series objects with a database-style join.
+
+        A named Series object is treated as a DataFrame with a single named column.
+
+        The join is done on columns or indexes. If joining columns on
+        columns, the DataFrame indexes *will be ignored*. Otherwise if joining indexes
+        on indexes or indexes on a column or columns, the index will be passed on.
+        When performing a cross merge, no column specifications to merge on are
+        allowed.
+
+        .. warning::
+
+            If both key columns contain rows where the key is a null value, those
+            rows will be matched against each other. This is different from usual SQL
+            join behaviour and can lead to unexpected results.
+
+        Parameters
+        ----------
+        right : DataFrame or named Series
+            Object to merge with.
+        how : {'left', 'right', 'outer', 'inner', 'cross'}, default 'inner'
+            Type of merge to be performed.
+
+            * left: use only keys from left frame, similar to a SQL left outer join;
+              preserve key order.
+            * right: use only keys from right frame, similar to a SQL right outer join;
+              preserve key order.
+            * outer: use union of keys from both frames, similar to a SQL full outer
+              join; sort keys lexicographically.
+            * inner: use intersection of keys from both frames, similar to a SQL inner
+              join; preserve the order of the left keys.
+            * cross: creates the cartesian product from both frames, preserves the order
+              of the left keys.
+        on : label or list
+            Column or index level names to join on. These must be found in both
+            DataFrames. If `on` is None and not merging on indexes then this defaults
+            to the intersection of the columns in both DataFrames.
+        left_on : label or list, or array-like
+            Column or index level names to join on in the left DataFrame. Can also
+            be an array or list of arrays of the length of the left DataFrame.
+            These arrays are treated as if they are columns.
+        right_on : label or list, or array-like
+            Column or index level names to join on in the right DataFrame. Can also
+            be an array or list of arrays of the length of the right DataFrame.
+            These arrays are treated as if they are columns.
+        left_index : bool, default False
+            Use the index from the left DataFrame as the join key(s). If it is a
+            MultiIndex, the number of keys in the other DataFrame (either the index
+            or a number of columns) must match the number of levels.
+        right_index : bool, default False
+            Use the index from the right DataFrame as the join key. Same caveats as
+            left_index.
+        sort : bool, default False
+            Sort the join keys lexicographically in the result DataFrame. If False,
+            the order of the join keys depends on the join type (how keyword).
+        suffixes : list-like, default is ("_x", "_y")
+            A length-2 sequence where each element is optionally a string
+            indicating the suffix to add to overlapping column names in
+            `left` and `right` respectively. Pass a value of `None` instead
+            of a string to indicate that the column name from `left` or
+            `right` should be left as-is, with no suffix. At least one of the
+            values must not be None.
+        copy : bool, default True
+            This argument is ignored in Snowpark pandas.
+        indicator : bool or str, default False
+            If True, adds a column to the output DataFrame called "_merge" with
+            information on the source of each row. The column can be given a different
+            name by providing a string argument. The column will have a Categorical
+            type with the value of "left_only" for observations whose merge key only
+            appears in the left DataFrame, "right_only" for observations
+            whose merge key only appears in the right DataFrame, and "both"
+            if the observation's merge key is found in both DataFrames.
+
+        validate : str, optional
+            This argument is not yet supported in Snowpark pandas.
+
+        Returns
+        -------
+        DataFrame
+            A DataFrame of the two merged objects.
+
+        See Also
+        --------
+        merge_ordered : Merge with optional filling/interpolation.
+        merge_asof : Merge on nearest keys.
+        DataFrame.join : Similar method using indices.
+
+        Examples
+        --------
+        >>> df1 = pd.DataFrame({'lkey': ['foo', 'bar', 'baz', 'foo'],
+        ...                     'value': [1, 2, 3, 5]})
+        >>> df2 = pd.DataFrame({'rkey': ['foo', 'bar', 'baz', 'foo'],
+        ...                     'value': [5, 6, 7, 8]})
+        >>> df1
+          lkey  value
+        0  foo      1
+        1  bar      2
+        2  baz      3
+        3  foo      5
+        >>> df2
+          rkey  value
+        0  foo      5
+        1  bar      6
+        2  baz      7
+        3  foo      8
+
+        Merge df1 and df2 on the lkey and rkey columns. The value columns have
+        the default suffixes, _x and _y, appended.
+
+        >>> df1.merge(df2, left_on='lkey', right_on='rkey')
+          lkey  value_x rkey  value_y
+        0  foo        1  foo        5
+        1  foo        1  foo        8
+        2  bar        2  bar        6
+        3  baz        3  baz        7
+        4  foo        5  foo        5
+        5  foo        5  foo        8
+
+        Merge DataFrames df1 and df2 with specified left and right suffixes
+        appended to any overlapping columns.
+
+        >>> df1.merge(df2, left_on='lkey', right_on='rkey',
+        ...           suffixes=('_left', '_right'))
+          lkey  value_left rkey  value_right
+        0  foo           1  foo            5
+        1  foo           1  foo            8
+        2  bar           2  bar            6
+        3  baz           3  baz            7
+        4  foo           5  foo            5
+        5  foo           5  foo            8
+
+
+        >>> df1 = pd.DataFrame({'a': ['foo', 'bar'], 'b': [1, 2]})
+        >>> df2 = pd.DataFrame({'a': ['foo', 'baz'], 'c': [3, 4]})
+        >>> df1
+             a  b
+        0  foo  1
+        1  bar  2
+        >>> df2
+             a  c
+        0  foo  3
+        1  baz  4
+
+        >>> df1.merge(df2, how='inner', on='a')
+             a  b  c
+        0  foo  1  3
+
+        >>> df1.merge(df2, how='left', on='a')
+             a  b    c
+        0  foo  1  3.0
+        1  bar  2  NaN
+
+        >>> df1 = pd.DataFrame({'left': ['foo', 'bar']})
+        >>> df2 = pd.DataFrame({'right': [7, 8]})
+        >>> df1
+          left
+        0  foo
+        1  bar
+        >>> df2
+           right
+        0      7
+        1      8
+
+        >>> df1.merge(df2, how='cross')
+          left  right
+        0  foo      7
+        1  foo      8
+        2  bar      7
+        3  bar      8
+        """
