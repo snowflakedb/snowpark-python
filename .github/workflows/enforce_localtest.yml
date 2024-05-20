@@ -6,6 +6,7 @@ on:
 
 jobs:
   check_for_skip_or_xfail_header:
+    if: ${{!contains(github.event.pull_request.requested_reviewers, 'snowflakedb/local-testing')}}
     runs-on: ubuntu-latest
     permissions:
       contents: write
