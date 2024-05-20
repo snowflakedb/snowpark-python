@@ -9,6 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark import Session
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -140,6 +142,26 @@ def test_cache_result_dataframe_complex_correctness(
 
 
 @pytest.mark.parametrize("inplace", [True, False])
+def test_cache_result_dataframe_cleanup(
+    db_parameters,
+    time_index_string_column_data,
+    inplace,
+):
+    old_session = pd.session
+    new_session = Session.builder.configs(db_parameters).create()
+    pd.session = new_session
+    df_data, kwargs = time_index_string_column_data
+    snow_df, _ = create_test_dfs(df_data, **kwargs)
+    snow_df = cache_and_return_df(snow_df, inplace)
+    table_name = (
+        snow_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.table_name
+    )
+    new_session.close()
+    with pytest.raises(SnowparkSQLException, match="does not exist or not authorized"):
+        old_session.table(table_name).show()
+
+
+@pytest.mark.parametrize("inplace", [True, False])
 class TestCacheResultReducesQueryCount:
     def test_cache_result_simple(self, inplace):
         snow_df = pd.concat([pd.DataFrame([range(i, i + 5)]) for i in range(0, 150, 5)])
@@ -195,12 +217,12 @@ class TestCacheResultReducesQueryCount:
             )
 
     def test_cache_result_post_apply(self, inplace, simple_test_data):
-        snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
         native_df = perform_chained_operations(
             native_pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1),
             native_pd,
         )
-        with SqlCounter(query_count=2, union_count=9):
+        with SqlCounter(query_count=6, union_count=9, udtf_count=1):
+            snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
             repr(snow_df)
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
@@ -220,11 +242,17 @@ class TestCacheResultReducesQueryCount:
             )
 
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
-        snow_df = pd.DataFrame(simple_test_data).applymap(lambda x: x + x)
         native_df = perform_chained_operations(
             native_pd.DataFrame(simple_test_data).applymap(lambda x: x + x), native_pd
         )
-        with SqlCounter(query_count=2, union_count=9, udf_count=2):
+        with SqlCounter(
+            query_count=11,
+            union_count=9,
+            udf_count=2,
+            high_count_expected=True,
+            high_count_reason="applymap requires additional queries.",
+        ):
+            snow_df = pd.DataFrame(simple_test_data).applymap(lambda x: x + x)
             repr(snow_df)
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
