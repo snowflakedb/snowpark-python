@@ -22,6 +22,7 @@ Please answer these questions before creating your pull request. Thanks!
    - [ ] I am adding a new telemetry message
    - [ ] I am adding new credentials
    - [ ] I am adding a new dependency
+   - [ ] If this is a new feature/behavior, I'm adding the Local Testing parity changes.
 
 3. Please describe how your code solves the related issue.
 
