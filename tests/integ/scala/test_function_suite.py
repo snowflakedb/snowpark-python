@@ -1789,7 +1789,12 @@ def test_to_timestamp_numeric_scale_column(
         (
             to_timestamp_ntz,
             [
-                Row(datetime(2361, 3, 21, 11, 15)),
+                # https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
+                # integer + variant depends on server local time zone, reg server is of timezone UTC different from
+                # public deployments
+                Row(datetime(2361, 3, 21, 11, 15))
+                if str(datetime.now().astimezone().tzinfo) != "UTC"
+                else Row(datetime(2361, 3, 21, 19, 15)),
                 Row(datetime(2361, 3, 21, 19, 15)),
                 Row(datetime(2024, 2, 1, 12, 34, 56, 789000)),
                 Row(datetime(2017, 12, 24, 12, 55, 59, 123456)),
