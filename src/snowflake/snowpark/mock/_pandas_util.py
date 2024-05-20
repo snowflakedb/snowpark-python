@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     VariantType,
 )
@@ -104,8 +105,9 @@ def _extract_schema_and_data_from_pandas_df(
                 else:
                     # pandas.Timestamp.value gives nanoseconds
                     # snowpark will convert it to microseconds
-                    plain_data[row_idx][col_idx] = int(
-                        plain_data[row_idx][col_idx].value / 1000
+                    # snowflake also treats pandas int as string in a timestamp column
+                    plain_data[row_idx][col_idx] = str(
+                        int(plain_data[row_idx][col_idx].value / 1000)
                     )
             elif isinstance(plain_data[row_idx][col_idx], pd.Timedelta):
                 # pandas.Timedetla.value gives nanoseconds
@@ -202,17 +204,19 @@ def _extract_schema_and_data_from_pandas_df(
     for idx, pandas_type in enumerate(data.dtypes):
         if isinstance(pandas_type, pd.IntervalDtype):
             data_type = VariantType()
-        elif isinstance(pandas_type, pd.DatetimeTZDtype):
-            data_type = TimestampType()
+        elif (
+            isinstance(pandas_type, pd.DatetimeTZDtype)
+            or pandas_type.type == numpy.datetime64
+        ):
+            if isinstance(pandas_type, pd.DatetimeTZDtype) and pandas_type.tz:
+                data_type = TimestampType(TimestampTimeZone.LTZ)
+            else:
+                data_type = TimestampType(TimestampTimeZone.NTZ)
         elif pandas_type.type == numpy.float64:
             data_type = DoubleType()
         elif isinstance(pandas_type, (pd.Float32Dtype, pd.Float64Dtype)):
             data_type = DoubleType()
-        elif (
-            pandas_type.type == numpy.int64
-            or pandas_type.type == numpy.datetime64
-            or pandas_type.type == numpy.timedelta64
-        ):
+        elif pandas_type.type == numpy.int64 or pandas_type.type == numpy.timedelta64:
             data_type = LongType()
         elif isinstance(pandas_type, PANDAS_INTEGER_TYPES):
             data_type = LongType()
