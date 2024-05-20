@@ -8,7 +8,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug where `Session.create_dataframe` when created with large greater than 512 rows threw `TypeError` when created a session with `format` or `pyformat` `paramstyle`.
+- Fixed a bug where `Session.create_dataframe` is called with more than 512 rows throws `TypeError` when creating a session with `format` or `pyformat` `paramstyle`.
 
 ### Local Testing Updates
 
