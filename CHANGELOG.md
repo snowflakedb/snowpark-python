@@ -5,10 +5,7 @@
 ### Improvements
 
 - Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
-
-### Bug Fixes
-
-- Fixed a bug where `Session.create_dataframe` is called with more than 512 rows throws `TypeError` when creating a session with `format` or `pyformat` `paramstyle`.
+- Improved error handling for `Session.create_dataframe` when called with more than 512 rows and using `format` or `pyformat` `paramstyle`.
 
 ### Local Testing Updates
 
