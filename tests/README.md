@@ -16,7 +16,12 @@ CONNECTION_PARAMETERS = {
     'warehouse': '<warehouse>',
 }
 ```
-Note that this file will be ignored by git, so you do not need to worry about check in your secret.
+Snowpark also offers the convenience of implicit session creation from a configuration file.
+This feature is particularly useful to Snowpark pandas users, because you can write your Snowpark pandas code almost as you would normally write pandas code.
+To achieve this, you'll need to create a configuration file located at `~/.snowflake/connections.toml`. For more details, refer to the docs [here][implicit session documentation].
+
+
+Note that these files will be ignored by git, so you do not need to worry about check in your secret.
 
 ## Running Tests
 
@@ -54,7 +59,18 @@ To just run the all Snowpark tests, run the following command:
 python -m tox -e py38
 ```
 ### Running doctests
+
+#### Snowpark Python Doctests
 In order to run doctests contained within a file that make use of shared objects, use:
 ```bash
 pytest -rP src/snowflake/snowpark/functions.py --log-cli-level=INFO
 ```
+
+#### Snowpark pandas Doctests
+In order to run Snowpark pandas doctests, use:
+
+```bash
+pytest -rP src/snowflake/snowpark/modin/pandas --log-cli-level=INFO
+```
+
+[implicit session documentation]: https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect#setting-a-default-connection

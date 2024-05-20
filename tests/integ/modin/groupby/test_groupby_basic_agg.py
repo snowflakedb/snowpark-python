@@ -23,6 +23,7 @@ from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_snow_df_with_table_and_data,
     create_test_dfs,
     eval_snowpark_pandas_result,
@@ -142,6 +143,34 @@ def test_groupby_agg_with_decimal_dtype(session, agg_method) -> None:
         eval_snowpark_pandas_result(snowpark_pandas_groupby, pandas_groupby, agg_method)
 
 
+@sql_count_checker(query_count=8)
+def test_groupby_agg_with_decimal_dtype_named_agg(session) -> None:
+    # create table
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session, table_name, "COL_G string, COL_D decimal(38, 1)", is_temporary=True
+    )
+    session.sql(f"insert into {table_name} values ('A', 1)").collect()
+    session.sql(f"insert into {table_name} values ('B', 2)").collect()
+    session.sql(f"insert into {table_name} values ('A', 3)").collect()
+    session.sql(f"insert into {table_name} values ('B', 5)").collect()
+
+    snowpark_pandas_df = pd.read_snowflake(table_name)
+    pandas_df = snowpark_pandas_df.to_pandas()
+
+    by = "COL_G"
+    with SqlCounter(query_count=1):
+        snowpark_pandas_groupby = snowpark_pandas_df.groupby(by=by)
+        pandas_groupby = pandas_df.groupby(by=by)
+        eval_snowpark_pandas_result(
+            snowpark_pandas_groupby,
+            pandas_groupby,
+            lambda gr: gr.agg(
+                new_col=pd.NamedAgg("COL_D", "max"), new_col1=("COL_D", np.std)
+            ),
+        )
+
+
 @sql_count_checker(query_count=2)
 def test_groupby_agg_with_float_dtypes(agg_method) -> None:
     snowpark_pandas_df = pd.DataFrame(
@@ -189,6 +218,64 @@ def test_groupby_agg_with_float_dtypes(agg_method) -> None:
         snowpark_pandas_groupby,
         pandas_groupby,
         agg_method,
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_groupby_agg_with_float_dtypes_named_agg() -> None:
+    snowpark_pandas_df = pd.DataFrame(
+        {
+            "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
+            "col2_float16": np.arange(9, dtype="float16") // 3,
+            "col3_float64": np.arange(9, dtype="float64") // 4,
+            "col4_float32": np.arange(9, dtype="float32") // 5,
+            "col5_mixed": np.concatenate(
+                [
+                    np.arange(3, dtype="int64"),
+                    np.arange(3, dtype="float32"),
+                    np.arange(3, dtype="float64"),
+                ]
+            ),
+            "col6_float_identical": [3.0] * 9,
+            "col7_float_missing": [
+                3.0,
+                2.0,
+                np.nan,
+                1.0,
+                np.nan,
+                4.0,
+                np.nan,
+                np.nan,
+                7.0,
+            ],
+            "col8_mix_missing": np.concatenate(
+                [
+                    np.arange(2, dtype="int64"),
+                    [np.nan, np.nan],
+                    np.arange(2, dtype="float32"),
+                    [np.nan],
+                    np.arange(2, dtype="float64"),
+                ]
+            ),
+        }
+    )
+
+    by = "col1_grp"
+    snowpark_pandas_groupby, pandas_groupby = eval_groupby_result(
+        snowpark_pandas_df, by
+    )
+    eval_snowpark_pandas_result(
+        snowpark_pandas_groupby,
+        pandas_groupby,
+        lambda gr: gr.agg(
+            new_col1=pd.NamedAgg("col2_float16", max),
+            new_col2=("col3_float64", min),
+            new_col3=("col4_float32", np.std),
+            new_col4=("col5_mixed", max),
+            new_col5=("col6_float_identical", np.std),
+            new_col6=("col7_float_missing", max),
+            new_col7=("col8_mix_missing", min),
+        ),
     )
 
 
@@ -365,6 +452,43 @@ def test_groupby_agg_on_groupby_columns(
 
 
 @pytest.mark.parametrize(
+    "by", ["col1", ["col1", "col2", "col3"], ["col1", "col1", "col2"]]
+)
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+def test_groupby_agg_on_groupby_columns_named_agg(
+    basic_snowpark_pandas_df, by, as_index, sort
+) -> None:
+    query_count = 2
+    kwargs = {}
+    # https://github.com/pandas-dev/pandas/issues/58446
+    # pandas (and Snowpark pandas) fail when duplicate columns are specified for
+    # by and `as_index` is False and `pd.NamedAgg`s are
+    # used for aggregation functions, but not when a dictionary
+    # is passed in.
+    if by == ["col1", "col1", "col2"] and not as_index:
+        kwargs = {
+            "expect_exception": True,
+            "expect_exception_type": ValueError,
+            "expect_exception_match": "cannot insert col1, already exists",
+            "assert_exception_equal": True,
+        }
+        query_count = 1
+    with SqlCounter(query_count=query_count):
+        native_pandas = basic_snowpark_pandas_df.to_pandas()
+        eval_snowpark_pandas_result(
+            basic_snowpark_pandas_df,
+            native_pandas,
+            lambda df: df.groupby(by=by, sort=sort, as_index=as_index).agg(
+                new_col=pd.NamedAgg("col2", sum),
+                new_col1=("col4", sum),
+                new_col3=("col3", "min"),
+            ),
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
     "agg_func",
     [
         ["max", "min"],
@@ -407,6 +531,33 @@ def test_groupby_dropna_single_index(group_data, dropna, as_index) -> None:
         snow_df,
         pandas_df,
         lambda df: df.groupby(by="grp_col", dropna=dropna, as_index=as_index).max(),
+    )
+
+
+@pytest.mark.parametrize(
+    "group_data",
+    [
+        ["A", "B", "A", "B"],
+        ["A", np.nan, "A", np.nan],
+        ["A", np.nan, "A", "B"],
+        [np.nan, np.nan, np.nan, np.nan],
+    ],
+)
+@pytest.mark.parametrize("dropna", [True, False])
+@pytest.mark.parametrize("as_index", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_dropna_single_index_named_agg(group_data, dropna, as_index) -> None:
+    pandas_df = native_pd.DataFrame(
+        {"grp_col": group_data, "value": [123.23, 13.0, 12.3, 1.0]}
+    )
+    snow_df = pd.DataFrame(pandas_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        pandas_df,
+        lambda df: df.groupby(by="grp_col", dropna=dropna, as_index=as_index).agg(
+            new_col=("value", max)
+        ),
     )
 
 
@@ -508,6 +659,29 @@ def test_groupby_with_dropna_random(agg_method, dropna: bool) -> None:
         snowpark_pandas_groupby,
         pandas_groupby,
         agg_method,
+    )
+
+
+@pytest.mark.parametrize("dropna", [True, False])
+@sql_count_checker(query_count=2)
+def test_groupby_with_dropna_random_named_agg(dropna: bool) -> None:
+    snowpark_pandas_df = pd.DataFrame(TEST_DF_DATA["float_nan_data"])
+    pandas_df = snowpark_pandas_df.to_pandas()
+
+    by = ["col2"]
+
+    agg_funcs = {}
+    for i, c in enumerate(snowpark_pandas_df.columns):
+        if c not in by:
+            agg_funcs[f"new_col{i}"] = (c, np.std)
+
+    snowpark_pandas_groupby = snowpark_pandas_df.groupby(by=by, dropna=dropna)
+    pandas_groupby = pandas_df.groupby(by=by, dropna=dropna)
+
+    eval_snowpark_pandas_result(
+        snowpark_pandas_groupby,
+        pandas_groupby,
+        lambda gr: gr.agg(**agg_funcs),
     )
 
 
@@ -912,3 +1086,11 @@ def test_groupby_agg_on_valid_variant_column(session, test_table_name):
                 }
             ),
         )
+
+
+@sql_count_checker(query_count=2)
+def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
+        basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
+    )

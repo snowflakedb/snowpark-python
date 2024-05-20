@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
     unwrap_stage_location_single_quote,
 )
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import mock_to_char
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -29,6 +28,7 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import DecimalType, StringType, VariantType
 
 if TYPE_CHECKING:
@@ -109,7 +109,9 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
                 break
 
         if not stage_name_end_idx:
-            raise SnowparkSQLException(f"Invalid stage_location {stage_location}.")
+            raise SnowparkLocalTestingException(
+                f"Invalid stage_location {stage_location}."
+            )
     else:
         stage_name_end_idx = normalized.find("/")
         prefix_start_idx = stage_name_end_idx + 1
@@ -183,7 +185,9 @@ class StageEntity:
         )
 
         if not list_of_files:
-            raise SnowparkSQLException(f"File doesn't exist: {local_file_name}")
+            raise SnowparkLocalTestingException(
+                f"File doesn't exist: {local_file_name}"
+            )
 
         for local_file_name in list_of_files:
 
@@ -314,8 +318,8 @@ class StageEntity:
             os.path.exists(stage_source_dir_path)
             or os.path.exists(stage_source_dir_path)
         ):
-            raise SnowparkSQLException(
-                f"[Local Testing] the file does not exist: {stage_source_dir_path}"
+            raise SnowparkLocalTestingException(
+                f"the file does not exist: {stage_source_dir_path}"
             )
 
         if os.path.isfile(stage_source_dir_path):
@@ -407,7 +411,7 @@ class StageEntity:
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
                 )
             if (
@@ -437,7 +441,7 @@ class StageEntity:
                 )
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                     self._conn.log_not_supported_error(
-                        error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
+                        error_message=f"Reading snowflake data type {type(column_series.sf_type.datatype)}"
                         " is not supported. It will be treated as a raw string in the dataframe.",
                         internal_feature_name="StageEntity.read_file",
                         parameters_info={
@@ -471,7 +475,7 @@ class StageEntity:
                 )
                 df.dtype = object
                 if len(df.columns) != len(schema):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"Number of columns in file ({len(df.columns)}) does not match that of"
                         f" the corresponding table ({len(schema)})."
                     )
@@ -652,7 +656,7 @@ class StageEntityRegistry:
         options: Dict[str, str] = None,
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
@@ -674,7 +678,7 @@ class StageEntityRegistry:
         options: Dict[str, str],
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)

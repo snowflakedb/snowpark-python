@@ -29,10 +29,8 @@ import sys
 from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import numpy as np
-import pandas
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
-from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 if sys.version_info[0] == 3 and sys.version_info[1] >= 7:
     # Python >= 3.7
@@ -51,7 +49,6 @@ from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
-@_inherit_docstrings(pandas.core.arrays.categorical.CategoricalAccessor)
 class CategoryMethods:
     # CategoricalDType is not supported with Snowpark pandas API. Mark all methods
     # to be unsupported.
@@ -104,7 +101,6 @@ class CategoryMethods:
         ErrorMessage.not_implemented(self.category_not_supported_message)
 
 
-@_inherit_docstrings(pandas.core.strings.accessor.StringMethods)
 class StringMethods:
     def __init__(self, series) -> None:
         # Check if dtypes is objects
@@ -187,46 +183,46 @@ class StringMethods:
             - If found splits <= n, make all splits
             - If for a certain row the number of found splits < n, append None for padding up to n if expand=True
             - If using expand=True, Series and Index callers return DataFrame and MultiIndex objects, respectively.
-
-        Examples
-        --------
-        >>> s = pd.Series(
-            [
-                "this is a regular sentence",
-                "https://docs.python.org/3/tutorial/index.html",
-                np.nan
-            ]
-        )
-        s
-        0                       this is a regular sentence
-        1    https://docs.python.org/3/tutorial/index.html
-        2                                              NaN
-        dtype: object
-
-        In the default setting, the string is split by whitespace.
-
-        >>> s.str.split()
-        0                   [this, is, a, regular, sentence]
-        1    [https://docs.python.org/3/tutorial/index.html]
-        2                                                NaN
-        dtype: object
-
-        The n parameter can be used to limit the number of splits on the delimiter.
-
-        >>> s.str.split(n=2)
-        0                     [this, is, a regular sentence]
-        1    [https://docs.python.org/3/tutorial/index.html]
-        2                                                NaN
-        dtype: object
-
-        The pat parameter can be used to split by other characters.
-
-        >>> s.str.split(pat="/")
-        0                         [this is a regular sentence]
-        1    [https:, , docs.python.org, 3, tutorial, index...
-        2                                                  NaN
-        dtype: object
         """
+        # TODO: SNOW-1432416 Add examples to docstring when implemented.
+        # Examples
+        # --------
+        # >>> s = pd.Series(
+        # ...     [
+        # ...         "this is a regular sentence",
+        # ...         "https://docs.python.org/3/tutorial/index.html",
+        # ...         np.nan
+        # ...     ]
+        # ... )
+        # >>> s
+        # 0                       this is a regular sentence
+        # 1    https://docs.python.org/3/tutorial/index.html
+        # 2                                             None
+        # dtype: object
+        #
+        # In the default setting, the string is split by whitespace.
+        #
+        # >>> s.str.split()
+        # 0                   [this, is, a, regular, sentence]
+        # 1    [https://docs.python.org/3/tutorial/index.html]
+        # 2                                               None
+        # dtype: object
+        #
+        # The n parameter can be used to limit the number of splits on the delimiter.
+        #
+        # >>> s.str.split(n=2)
+        # 0                     [this, is, a regular sentence]
+        # 1    [https://docs.python.org/3/tutorial/index.html]
+        # 2                                               None
+        # dtype: object
+        #
+        # The pat parameter can be used to split by other characters.
+        #
+        # >>> s.str.split(pat="/")
+        # 0                         [this is a regular sentence]
+        # 1    [https:, , docs.python.org, 3, tutorial, index...
+        # 2                                                 None
+        # dtype: object
         ErrorMessage.method_not_implemented_error("split", "Series.str")
 
         if not pat and pat is not None:
@@ -317,7 +313,7 @@ class StringMethods:
         1     True
         2    False
         3    False
-        4      NaN
+        4     None
         dtype: object
 
         Returning an Index of booleans using only a literal pattern.
@@ -333,7 +329,7 @@ class StringMethods:
         1    False
         2    False
         3    False
-        4      NaN
+        4     None
         dtype: object
 
         Specifying na to be False instead of NaN replaces NaN values with False. If Series or Index does not contain NaN values the resultant dtype will be bool, otherwise, an object dtype.
@@ -353,7 +349,7 @@ class StringMethods:
         1     True
         2     True
         3    False
-        4      NaN
+        4     None
         dtype: object
 
         Ignoring case sensitivity using flags with regex.
@@ -364,7 +360,7 @@ class StringMethods:
         1    False
         2     True
         3    False
-        4      NaN
+        4     None
         dtype: object
 
         Returning any digit using regular expression.
@@ -374,10 +370,10 @@ class StringMethods:
         1    False
         2    False
         3     True
-        4      NaN
+        4     None
         dtype: object
 
-        Ensure pat is a not a literal pattern when regex is set to True. Note in the following example one might expect only s2[1] and s2[3] to return True. However, ‘.0’ as a regex matches any character followed by a 0.
+        Ensure that `pat` is not a literal pattern when `regex` is set to True. Note in the following example, one might expect only s2[1] and s2[3] to return True. However, ‘.0’ as a regex matches any character followed by a 0.
 
         >>> s2 = pd.Series(['40', '40.0', '41', '41.0', '35'])
         >>> s2.str.contains('.0', regex=True)
@@ -449,58 +445,20 @@ class StringMethods:
         When pat is a string and regex is True, the given pat is compiled as a regex. When repl is a string, it replaces matching regex patterns as with re.sub(). NaN value(s) in the Series are left as is:
 
         >>> pd.Series(['foo', 'fuz', np.nan]).str.replace('f.', 'ba', regex=True)
-        0    bao
-        1    baz
-        2    NaN
+        0     bao
+        1     baz
+        2    None
         dtype: object
 
         When pat is a string and regex is False, every pat is replaced with repl as with str.replace():
 
         >>> pd.Series(['f.o', 'fuz', np.nan]).str.replace('f.', 'ba', regex=False)
-        0    bao
-        1    fuz
-        2    NaN
-        dtype: object
-
-        When repl is a callable, it is called on every pat using re.sub(). The callable should expect one positional argument (a regex object) and return a string.
-
-        To get the idea:
-
-        >>> pd.Series(['foo', 'fuz', np.nan]).str.replace('f', repr, regex=True)
-        0    <re.Match object; span=(0, 1), match='f'>oo
-        1    <re.Match object; span=(0, 1), match='f'>uz
-        2                                            NaN
-        dtype: object
-
-        Reverse every lowercase alphabetic word:
-
-        >>> repl = lambda m: m.group(0)[::-1]
-        >>> ser = pd.Series(['foo 123', 'bar baz', np.nan])
-        >>> ser.str.replace(r'[a-z]+', repl, regex=True)
-        0    oof 123
-        1    rab zab
-        2        NaN
-        dtype: object
-
-        Using regex groups (extract second group and swap case):
-
-        >>> pat = r"(?P<one>\w+) (?P<two>\w+) (?P<three>\w+)"
-        >>> repl = lambda m: m.group('two').swapcase()
-        >>> ser = pd.Series(['One Two Three', 'Foo Bar Baz'])
-        >>> ser.str.replace(pat, repl, regex=True)
-        0    tWO
-        1    bAR
+        0     bao
+        1     fuz
+        2    None
         dtype: object
 
         Using a compiled regex with flags
-
-        >>> import re
-        >>> regex_pat = re.compile(r'FUZ', flags=re.IGNORECASE)
-        >>> pd.Series(['foo', 'fuz', np.nan]).str.replace(regex_pat, 'bar', regex=True)
-        0    foo
-        1    bar
-        2    NaN
-        dtype: object
         """
         if not (isinstance(repl, str) or callable(repl)):
             raise TypeError("repl must be a string or callable")
@@ -554,8 +512,75 @@ class StringMethods:
             raise ValueError(f"invalid width {width} (must be > 0)")
         return Series(query_compiler=self._query_compiler.str_wrap(width, **kwargs))
 
-    def slice(self, start=None, stop=None, step=None):
-        ErrorMessage.method_not_implemented_error("slice", "Series.str")
+    def slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ):
+        """
+        Slice substrings from each element in the Series or Index.
+
+        Parameters
+        ----------
+        start : int, optional
+            Start position for slice operation.
+        stop : int, optional
+            Stop position for slice operation.
+        step : int, optional
+            Step size for slice operation.
+
+        Returns
+        -------
+        Series or Index of object
+            Series or Index from sliced substring from original string object.
+
+        See also
+        --------
+        Series.str.slice_replace
+            Replace a slice with a string.
+        Series.str.get
+            Return element at position. Equivalent to Series.str.slice(start=i, stop=i+1) with i being the position.
+
+        Examples
+        --------
+        >>> s = pd.Series(["koala", "dog", "chameleon"])
+        >>> s
+        0        koala
+        1          dog
+        2    chameleon
+        dtype: object
+
+        >>> s.str.slice(start=1)
+        0        oala
+        1          og
+        2    hameleon
+        dtype: object
+
+        >>> s.str.slice(start=-1)
+        0    a
+        1    g
+        2    n
+        dtype: object
+
+        >>> s.str.slice(stop=2)
+        0    ko
+        1    do
+        2    ch
+        dtype: object
+
+        >>> s.str.slice(step=2)
+        0      kaa
+        1       dg
+        2    caeen
+        dtype: object
+
+        >>> s.str.slice(start=0, stop=5, step=3)
+        0    kl
+        1     d
+        2    cm
+        dtype: object
+        """
         if step == 0:
             raise ValueError("slice step cannot be zero")
         return Series(
@@ -631,7 +656,7 @@ class StringMethods:
         This is also available on Index
 
         >>> pd.Index(['A', 'A', 'Aaba', 'cat']).str.count('a')
-        Int64Index([0, 0, 2, 1], dtype='int64')
+        Index([0, 0, 2, 1], dtype='int64')
         """
         if not isinstance(pat, (str, _pattern_type)):
             raise TypeError("first argument must be string or compiled pattern")
@@ -671,21 +696,21 @@ class StringMethods:
         0     bat
         1    Bear
         2     cat
-        3     NaN
+        3    None
         dtype: object
 
         >>> s.str.startswith('b')
         0     True
         1    False
         2    False
-        3      NaN
+        3     None
         dtype: object
 
         >>> s.str.startswith(('b', 'B'))
         0     True
         1     True
         2    False
-        3      NaN
+        3     None
         dtype: object
 
         Specifying na to be False instead of NaN.
@@ -737,21 +762,21 @@ class StringMethods:
         0     bat
         1    bear
         2     caT
-        3     NaN
+        3    None
         dtype: object
 
         >>> s.str.endswith('t')
         0     True
         1    False
         2    False
-        3      NaN
+        3     None
         dtype: object
 
         >>> s.str.endswith(('t', 'T'))
         0     True
         1    False
         2     True
-        3      NaN
+        3     None
         dtype: object
 
         Specifying na to be False instead of NaN.
@@ -862,16 +887,16 @@ class StringMethods:
         Examples
         --------
         >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
-        >>> s
+        >>> s  # doctest: +NORMALIZE_WHITESPACE
         0    1. Ant.
         1    2. Bee!\\n
         2    3. Cat?\\t
-        3          NaN
+        3         None
         4           10
         5         True
         dtype: object
 
-        >>> s.str.strip()
+        >>> s.str.strip()  # doctest: +SKIP
         0    1. Ant.
         1    2. Bee!
         2    3. Cat?
@@ -880,25 +905,7 @@ class StringMethods:
         5        NaN
         dtype: object
 
-        >>> s.str.lstrip('123.')
-        0    Ant.
-        1    Bee!\\n
-        2    Cat?\\t
-        3       NaN
-        4       NaN
-        5       NaN
-        dtype: object
-
-        >>> s.str.rstrip('.!? \\n\\t')
-        0    1. Ant
-        1    2. Bee
-        2    3. Cat
-        3       NaN
-        4       NaN
-        5       NaN
-        dtype: object
-
-        >>> s.str.strip('123.!? \\n\\t')
+        >>> s.str.strip('123.!? \\n\\t')  # doctest: +SKIP
         0    Ant
         1    Bee
         2    Cat
@@ -907,6 +914,7 @@ class StringMethods:
         5    NaN
         dtype: object
         """
+        # TODO: SNOW-1432420 fix bug in docstring.
         return Series(query_compiler=self._query_compiler.str_strip(to_strip=to_strip))
 
     def rstrip(self, to_strip=None):
@@ -1208,7 +1216,6 @@ class StringMethods:
         return Series(query_compiler=self._query_compiler.str_isdecimal())
 
 
-@_inherit_docstrings(pandas.core.indexes.accessors.CombinedDatetimelikeProperties)
 class DatetimeProperties:
     def __init__(self, series) -> None:
         self._series = series
@@ -1323,7 +1330,7 @@ class DatetimeProperties:
         Examples
         --------
         >>> datetime_series = pd.Series(
-        ...     pandas.date_range("2000-01-01", periods=3, freq="h")
+        ...     pd.date_range("2000-01-01", periods=3, freq="h")
         ... )
         >>> datetime_series
         0   2000-01-01 00:00:00

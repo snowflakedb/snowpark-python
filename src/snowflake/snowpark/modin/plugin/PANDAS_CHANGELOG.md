@@ -6,18 +6,27 @@
 - Fixed support for `display.max_rows` and `display.max_cols` being set to `None`.
 - Fixed incorrect return type in `qcut` when given `Series` input and improved error checking logic.
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
+- Fixed type hints for property methods, e.g. Series.empty.
+- Fixed `pd.merge` and `Dataframe.merge` outer join behavior according to pandas 2.x.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` int not serializable bug.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` to raise NotImplementedError for `include_groups = False`. 
+- Fixed `DataFrame/Series.replace` bug when `to_replace` contains regex special characters.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.
 - `pd.qcut` produces `NotImplementedError` whenever `labels is not False` instead of falling back to pandas itself.
+- Throw `KeyError` when user passes in missing column labels to `__getitem__` and `loc`.
 
 ### Improvements
 - Improved performance for `Series.quantile` and `Series.describe`. 
 - Improved `DataFrame.quantile` and `DataFrame.describe` for one-column `DataFrame`s.
 - Improved performance of `pd.qcut` by removing joins in generated sql query.
+- Allow `session.write_pandas` to write Snowpark pandas DataFrame or Series to a table.
 
 ### New Features
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
+- Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
+- Added support for `Series.str.slice`.
 
 ## 1.15.0a1 (2024-05-03)
 
