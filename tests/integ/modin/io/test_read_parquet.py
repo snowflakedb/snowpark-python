@@ -12,6 +12,7 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
@@ -161,7 +162,8 @@ def test_read_parquet_unimplemented_parameter_negative():
 )
 @sql_count_checker(query_count=9)
 def test_read_parquet_warning(caplog, parameter, argument):
-    temp_file_name = "test_read_parquet_warning.parquet"
+    # generate a random temp name so these tests can be run in parallel
+    temp_file_name = f"test_read_parquet_warning_{generate_random_alphanumeric(4)}.parquet"
 
     df = native_pd.DataFrame({"foo": range(5), "bar": range(5, 10)})
 
