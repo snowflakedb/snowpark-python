@@ -16,6 +16,7 @@ from typing import (
     Sequence,
     Union,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 import pandas
 from pandas._libs.lib import NoDefault, no_default
@@ -330,6 +331,7 @@ class PandasOnSnowflakeIO(BaseIO):
         if is_local_filepath(filepath_or_buffer):
             return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
 
+        WarningMessage.mismatch_with_pandas("read_csv", "Staged files use the snowflake CSV parser, which has different behavior than the pandas CSV parser")
         _validate_read_staged_csv_and_read_table_args("pd.read_csv", **kwargs)
 
         sep = translate_pandas_default(sep)
