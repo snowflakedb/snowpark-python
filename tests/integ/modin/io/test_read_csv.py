@@ -13,6 +13,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
 from tests.utils import IS_WINDOWS, TestFiles, Utils
@@ -750,3 +751,56 @@ def test_read_csv_index_col_negative(
 
     with pytest.raises(expected_error_type, match=expected_error_msg):
         pd.read_csv(test_files.test_file_csv_header, index_col=index_col).to_pandas()
+
+
+@sql_count_checker(query_count=2)
+def test_read_csv_empty_header_snow_1272443():
+    # generate a random temp name so these tests can be run in parallel
+    temp_file_name = f"test_read_csv_empty_header_{generate_random_alphanumeric(4)}.csv"
+    expected_df = native_pd.DataFrame({"": [1, 2], "a": ["qwe", 3], "b": [4, 5]})
+    expected_df.to_csv(temp_file_name, index=False)
+    # reading an empty header w/ pandas will result in "Unamed: 0" as a column header
+    # even though this is not in the original, written CSV. We account for this by
+    # re-reading the CSV with native pandas for a proper comparison.
+    expected_df = native_pd.read_csv(temp_file_name)
+    got_df = pd.read_csv(temp_file_name)
+    os.remove(temp_file_name)
+    assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
+
+
+@sql_count_checker(query_count=4)
+def test_read_csv_dateparse():
+    # generate a random temp name so these tests can be run in parallel
+    temp_file_name = f"test_read_csv_dateparse_{generate_random_alphanumeric(4)}.csv"
+    df = native_pd.DataFrame({"date": ["1/1/2019", "1/2/2019", "1/3/2019"]})
+    df.to_csv(temp_file_name, index=False)
+
+    expected_df = native_pd.read_csv(temp_file_name, parse_dates=["date"])
+    got_df = pd.read_csv(temp_file_name, parse_dates=["date"])
+    assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
+
+    expected_df = native_pd.read_csv(
+        temp_file_name, parse_dates=["date"], dayfirst=True
+    )
+    got_df = pd.read_csv(temp_file_name, parse_dates=["date"], dayfirst=True)
+    assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
+
+    os.remove(temp_file_name)
+
+
+@sql_count_checker(query_count=2)
+def test_read_csv_dateparse_multiple_columns():
+    # generate a random temp name so these tests can be run in parallel
+    temp_file_name = f"test_read_csv_dateparse_{generate_random_alphanumeric(4)}.csv"
+    df = native_pd.DataFrame(
+        {"day": [1, 2, 3], "month": [3, 2, 1], "year": [2021, 2022, 2023]}
+    )
+    df.to_csv(temp_file_name, index=False)
+
+    expected_df = native_pd.read_csv(
+        temp_file_name, parse_dates={"date": ["year", "month", "day"]}
+    )
+    got_df = pd.read_csv(temp_file_name, parse_dates={"date": ["year", "month", "day"]})
+    assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
+
+    os.remove(temp_file_name)

@@ -871,6 +871,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # we reset the index so the full dataset is uploaded to snowflake.
             if not isinstance(df.index, pandas.core.indexes.range.RangeIndex):
                 df = df.reset_index()
+
             # Integer columns are not writable to snowflake; so we need to save
             # these names are fix the header during post processing
             if not is_names_set(kwargs) and kwargs["header"] is None:
@@ -883,6 +884,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_name=temporary_table_name,
             auto_create_table=True,
             table_type="temporary",
+            use_logical_type=True,
         )
         qc = cls.from_snowflake(temporary_table_name)
         return cls._post_process_file(qc, filetype="csv", **kwargs)
