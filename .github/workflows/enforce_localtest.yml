@@ -7,6 +7,7 @@ on:
 jobs:
   check_for_skip_or_xfail_header:
     runs-on: ubuntu-latest
+    if: ${{contains(github.event.pull_request.body, 'local_testing_mode')}}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -14,7 +15,6 @@ jobs:
         fetch-depth: 0
 
     - name: Request Local Testing review if PR contains local_testing_mode
-      if: contains(github.event.pull_request.body, 'local_testing_mode')
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
