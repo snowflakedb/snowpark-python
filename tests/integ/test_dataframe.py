@@ -2835,6 +2835,7 @@ def test_write_temp_table_no_breaking_change(
                 table_type=table_type,
             )
         if not IS_IN_STORED_PROC:
+            # SNOW-1437979: caplog.text is empty in sp pre-commit env
             assert "create_temp_table is deprecated" in caplog.text
         Utils.check_answer(session.table(table_name), df, True)
         if not local_testing_mode:
