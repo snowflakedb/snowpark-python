@@ -5,7 +5,7 @@ on:
     branches: '**'
 
 jobs:
-  check_for_skip_or_xfail_header:
+  Request Local Testing review if necessary:
     if: ${{!contains(github.event.pull_request.requested_reviewers, 'snowflakedb/local-testing')}}
     runs-on: ubuntu-latest
     permissions:
