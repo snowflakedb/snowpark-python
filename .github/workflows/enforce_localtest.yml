@@ -10,7 +10,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    if: ${{contains(github.event.pull_request.body, 'local_testing_mode')}}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -21,6 +20,5 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
-        body: ${{github.event.pull_request.body}}
       run: |
-        gh pr comment "$url" --body "$body"
+        gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr comment "$url" --body "$body"
