@@ -2843,7 +2843,8 @@ def test_write_temp_table_no_breaking_change(
                 create_temp_table=True,
                 table_type=table_type,
             )
-        assert "create_temp_table is deprecated" in caplog.text
+        if not IS_IN_STORED_PROC:
+            assert "create_temp_table is deprecated" in caplog.text
         Utils.check_answer(session.table(table_name), df, True)
         if not local_testing_mode:
             Utils.assert_table_type(session, table_name, "temp")

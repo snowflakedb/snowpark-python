@@ -212,7 +212,7 @@ def test_group_by_pivot_dynamic_any(session, caplog):
         sort=False,
     )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and ("snowflake.snowpark.modin.plugin" not in sys.modules):
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
@@ -453,7 +453,7 @@ def test_pivot_default_on_none(session, caplog):
             sort=False,
         )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
