@@ -303,10 +303,7 @@ from snowflake.snowpark.modin.plugin._typing import (
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import (
-    MODIN_UNNAMED_SERIES_LABEL,
-    error_not_implemented_parameter,
-)
+from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,

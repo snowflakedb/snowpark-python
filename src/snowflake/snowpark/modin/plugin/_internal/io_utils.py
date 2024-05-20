@@ -138,19 +138,19 @@ def get_columns_to_keep_for_usecols(
         if isinstance(_usecols, native_pandas.core.series.Series):
             _usecols = _usecols.values
 
-        if isinstance(_usecols[0], str):
-            invalid_columns = [column for column in _usecols if column not in columns]
+        if isinstance(_usecols[0], str):  # type: ignore
+            invalid_columns = [column for column in _usecols if column not in columns]  # type: ignore
             if invalid_columns:
                 raise ValueError(
                     f"'usecols' do not match columns, columns expected but not found: {invalid_columns}"
                 )
         else:
-            if not all(isinstance(c, int) or isinstance(c, np.int64) for c in _usecols):
+            if not all(isinstance(c, int) or isinstance(c, np.int64) for c in _usecols):  # type: ignore
                 raise ValueError(
                     "'usecols' must either be list-like of all strings, all unicode, all integers or a callable."
                 )
             invalid_columns = [
-                column for column in _usecols if column < 0 or column >= len(columns)  # type: ignore[operator]
+                column for column in _usecols if column < 0 or column >= len(columns)  # type: ignore
             ]
             if invalid_columns:
                 raise ValueError(
@@ -158,7 +158,7 @@ def get_columns_to_keep_for_usecols(
                 )
 
             # Turn index references to pandas labels.
-            _usecols = [columns[column] for column in _usecols]
+            _usecols = [columns[column] for column in _usecols]  # type: ignore
 
         l1, l2 = (_usecols, columns) if maintain_usecols_order else (columns, _usecols)
         keep = [column for column in l1 if column in l2]
