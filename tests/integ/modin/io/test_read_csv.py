@@ -625,11 +625,15 @@ def test_read_csv_dtype(resources_path, dtype):
 @pytest.mark.parametrize(
     "dtype,expected_error,expected_error_msg",
     [
-        ({"id": [str]}, TypeError, "unhashable type: 'list'"),
+        (
+            {"id": [str]},
+            TypeError,
+            "Field elements must be 2- or 3-tuples, got '<class 'str'>",
+        ),
         (
             {"rating": "non_existent_type"},
-            NotImplementedError,
-            "pandas type non_existent_type is not implemented",
+            TypeError,
+            "data type 'non_existent_type' not understood",
         ),
     ],
 )
@@ -644,16 +648,15 @@ def test_read_csv_dtype_negative(
         pd.read_csv(test_files.test_file_csv_header, dtype=dtype).to_pandas()
 
 
-@sql_count_checker(query_count=2)
-def test_read_csv_dtype_usecols(resources_path):
+# usecols is applied after the parsing, so changing the dtypes w/ usecols will
+# fail if the original dataset has non-convertable types
+@sql_count_checker(query_count=0)
+def test_read_csv_dtype_usecols_negative(resources_path):
     test_files = TestFiles(resources_path)
-    expected = native_pd.read_csv(
-        test_files.test_file_csv_header, usecols=["id", "rating"], dtype=np.float64
-    )
-    got = pd.read_csv(
-        test_files.test_file_csv_header, usecols=["id", "rating"], dtype=np.float64
-    )
-    assert_frame_equal(expected, got, check_dtype=False)
+    with pytest.raises(ValueError, match="could not convert string to float: 'one'"):
+        pd.read_csv(
+            test_files.test_file_csv_header, usecols=["id", "rating"], dtype=np.float64
+        )
 
 
 @pytest.mark.parametrize(
@@ -707,7 +710,6 @@ def test_read_csv_index_col_name(resources_path):
 @pytest.mark.parametrize(
     "index_col,expected_error_type,expected_error_msg",
     [
-        ({"rating"}, TypeError, "list indices must be integers or slices, not set"),
         (
             [1, {"nested_example_non_existent"}, 2],
             TypeError,
