@@ -534,7 +534,7 @@ class PandasOnSnowflakeIO(BaseIO):
 
             if not columns_is_all_str:
                 raise ValueError("'columns' must either be list of all strings.")
-        return cls.query_compiler_cls.from_file("parquet", path, usecols=columns)
+        return cls.query_compiler_cls.from_file_with_snowflake("parquet", path, usecols=columns)
 
     @classmethod
     @pandas_module_level_function_not_implemented()
