@@ -22,5 +22,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
       run: |
-        gh pr edit "$url" --add-reviewer snowflakedb/sfc-gh-stan
         gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from snowflakedb/local-testing"
