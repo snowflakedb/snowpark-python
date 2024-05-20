@@ -839,7 +839,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         local_exclude_set = ["index_col", "usecols"]
         local_kwargs = {k: v for k, v in kwargs.items() if k not in local_exclude_set}
 
-        def is_names_set(**kwargs: Any) -> bool:
+        def is_names_set(kwargs: Any) -> bool:
             return kwargs["names"] is not no_default and kwargs["names"] is not None
 
         # For the purposes of the initial import we need to make sure the column names
