@@ -1,0 +1,25 @@
+name: Check parity in Local Testing
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+jobs:
+  check_for_skip_or_xfail_header:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Request Local Testing review if PR contains local_testing_mode
+      if: contains(github..event.pull_request.body, 'local_testing_mode')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        url: ${{ github.event.pull_request.html_url }}
+      run: |
+        gh pr edit "$url" --add-reviewer snowflakedb/local-testing
+        gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from snowflakedb/local-testing"
