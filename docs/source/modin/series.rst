@@ -46,8 +46,6 @@ Series
     Series.to_list
     Series.to_numpy
     Series.to_pandas
-    Series.to_snowflake
-    Series.to_snowpark
     Series.__array__
 
 
@@ -216,12 +214,14 @@ Series
     Series.str
     Series.dt
 
-.. rubric:: Caching
+.. rubric:: Snowflake Specific
 
 .. autosummary::
     :toctree: pandas_api/
 
-    Series.cache
+    Series.to_snowflake
+    Series.to_snowpark
+    Series.cache_result
 
 .. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
 .. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`
