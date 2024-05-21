@@ -697,18 +697,24 @@ class ServerConnection:
 
     def create_coprocessor(self) -> None:
         id = str(uuid.uuid4())
-        print(f"create cp start rid={id}")
-        self._conn._rest.request(f"/queries/v1/query-request?requestId={id}", { 'dataframeAst': 'new-session' }, _no_results=True)
+        logger.debug(f"create cp start rid={id}")
+        self._conn._rest.request(
+            f"/queries/v1/query-request?requestId={id}",
+            {"dataframeAst": "new-session"},
+            _no_results=True,
+        )
         time.sleep(5)  # TODO: need to send a response once the TCM is created.
-        print("create cp complete")
+        logger.debug("create cp complete")
 
     def ast_query(self, request_id__ast) -> Any:
         (request_id, ast) = request_id__ast
         req = {
             "dataframeAst": ast,
         }
-        print(f"query rid={request_id}")
-        return self._conn._rest.request(f"/queries/v1/query-request?requestId={request_id}", req)
+        logger.info(f"query rid={request_id}")
+        return self._conn._rest.request(
+            f"/queries/v1/query-request?requestId={request_id}", req
+        )
 
 
 def _fix_pandas_df_fixed_type(
