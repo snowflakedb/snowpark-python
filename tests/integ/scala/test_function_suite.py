@@ -1840,7 +1840,7 @@ def test_to_timestamp_variant_column(to_type, expected, session, local_testing_m
         datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
     ]
 
-    if to_type == to_timestamp_ntz:
+    if to_type == to_timestamp_ntz and IS_IN_STORED_PROC:
         # integer in variant type depends on local time zone of the server
         # while in sproc reg test, the timezone is non-deterministic leading to non-deterministic result
         # here we pop the case of integer in variant type
