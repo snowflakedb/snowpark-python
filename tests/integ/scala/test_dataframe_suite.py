@@ -1791,7 +1791,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-def test_createDataFrame_with_given_schema_timestamp(session):
+def test_createDataFrame_with_given_schema_timestamp(session, local_testing_mode):
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),
@@ -1808,7 +1808,15 @@ def test_createDataFrame_with_given_schema_timestamp(session):
         Row(ts_sample, ts_sample, ts_sample, ts_sample),
     ]
     df = session.create_dataframe(data, schema)
-    assert df.schema == schema
+    schema_str = str(df.schema)
+
+    assert (
+        schema_str
+        == f"StructType([StructField('TIMESTAMP', TimestampType({'' if local_testing_mode else 'tz=ntz'}), nullable=True), "
+        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
+        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
+        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"
+    )
     ts_sample_ntz_output = datetime.strptime(
         "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
     )
