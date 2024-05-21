@@ -1117,9 +1117,20 @@ def execute_mock_plan(
             res_df = execute_mock_plan(execution_plan)
             return res_df
         else:
-            db_schme_table = parse_table_name(entity_name)
+            obj_name_tuple = parse_table_name(entity_name)
+            obj_database = (
+                obj_name_tuple[0]
+                if len(obj_name_tuple) > 2
+                else analyzer.session.get_current_database()
+            )
+            obj_schema = (
+                obj_name_tuple[-2]
+                if len(obj_name_tuple) > 1
+                else analyzer.session.get_current_schema()
+            )
+            obj_name = obj_name_tuple[-1]
             raise SnowparkLocalTestingException(
-                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
+                f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
