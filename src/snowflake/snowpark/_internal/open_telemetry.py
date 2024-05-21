@@ -110,8 +110,6 @@ def open_telemetry_udf_context_manager(func, parameters):
                 except Exception as e:
                     cur_span.set_status(Status(StatusCode.ERROR, str(e)))
                     raise e
-    else:
-        yield
 
 
 def decorator_count(func):
