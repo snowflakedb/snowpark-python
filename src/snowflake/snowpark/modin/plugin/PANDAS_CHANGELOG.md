@@ -1,4 +1,4 @@
-## 1.16.0a1 (tbd)
+## 1.17.0 (2024-05-21)
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
