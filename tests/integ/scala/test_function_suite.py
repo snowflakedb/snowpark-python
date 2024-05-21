@@ -1795,7 +1795,7 @@ def test_to_timestamp_numeric_scale_column(
                 Row(datetime(2361, 3, 21, 19, 15))
                 if str(datetime.now().astimezone().tzinfo) == "UTC"
                 and IS_IN_STORED_PROC
-                else Row(datetime(2361, 3, 21, 19, 15)),
+                else Row(datetime(2361, 3, 21, 11, 15)),
                 Row(datetime(2361, 3, 21, 19, 15)),
                 Row(datetime(2024, 2, 1, 12, 34, 56, 789000)),
                 Row(datetime(2017, 12, 24, 12, 55, 59, 123456)),
