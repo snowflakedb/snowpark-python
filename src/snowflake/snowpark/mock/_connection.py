@@ -88,6 +88,32 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         self._telemetry_enabled = False
 
 
+class MockedSnowflakeConnection(SnowflakeConnection):
+    def __init__(self, *args, **kwargs) -> None:
+        # pass "application" is a trick to bypass the logic in the constructor to check input params to
+        # avoid rewrite the whole logic -- "application" is not used in any place.
+        super().__init__(*args, **kwargs, application="localtesting")
+        self._password = None
+
+    def connect(self, **kwargs) -> None:
+        self._rest = Mock()
+
+    def close(self, retry: bool = True) -> None:
+        self._rest = None
+
+    def is_closed(self) -> bool:
+        """Checks whether the connection has been closed."""
+        return self.rest is None
+
+    @property
+    def telemetry_enabled(self) -> bool:
+        return False
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, _) -> None:
+        self._telemetry_enabled = False
+
+
 class MockServerConnection:
     class TabularEntityRegistry:
         # Registry to store tables and views.
