@@ -410,7 +410,7 @@ jobs:
             .tox/coverage.xml
 
   test-modin-extra-without-pandas-extra:
-    name: Test modin extra without pandas extra modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
+    name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
