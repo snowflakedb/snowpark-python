@@ -1,5 +1,19 @@
 # Release History
 
+## 1.18.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrame's and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates
