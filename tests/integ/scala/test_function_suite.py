@@ -1789,13 +1789,7 @@ def test_to_timestamp_numeric_scale_column(
         (
             to_timestamp_ntz,
             [
-                # https://docs.snowflake.com/en/sql-reference/functions/to_timestamp#usage-notes
-                # integer + variant depends on server local time zone, reg server is of timezone UTC different from
-                # public deployments
-                Row(datetime(2361, 3, 21, 19, 15))
-                if str(datetime.now().astimezone().tzinfo) == "UTC"
-                and IS_IN_STORED_PROC
-                else Row(datetime(2361, 3, 21, 11, 15)),
+                Row(datetime(2361, 3, 21, 11, 15)),
                 Row(datetime(2361, 3, 21, 19, 15)),
                 Row(datetime(2024, 2, 1, 12, 34, 56, 789000)),
                 Row(datetime(2017, 12, 24, 12, 55, 59, 123456)),
@@ -1839,6 +1833,19 @@ def test_to_timestamp_numeric_scale_column(
     ],
 )
 def test_to_timestamp_variant_column(to_type, expected, session, local_testing_mode):
+    data = [
+        12345678900,  # integer
+        "12345678900",  # string containing integer
+        "2024-02-01 12:34:56.789000",  # timestamp str
+        datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
+    ]
+
+    if to_type == to_timestamp_ntz:
+        # integer in variant type depends on local time zone of the server
+        # while in sproc reg test, the timezone is non-deterministic leading to non-deterministic result
+        # here we pop the case of integer in variant type
+        expected.pop(0)
+        data.pop(0)
     with parameter_override(
         session,
         "timezone",
@@ -1848,12 +1855,6 @@ def test_to_timestamp_variant_column(to_type, expected, session, local_testing_m
         # as we are testing Variant + Integer case
         # this timezone has to be the same as the one in session
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
-        data = [
-            12345678900,  # integer
-            "12345678900",  # string containing integer
-            "2024-02-01 12:34:56.789000",  # timestamp str
-            datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
-        ]
         df = session.create_dataframe(
             data,
             StructType(
