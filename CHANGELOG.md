@@ -1,5 +1,13 @@
 # Release History
 
+## 1.18.0 (TBD)
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug that when processing time format, fractional second part is not handled properly.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates
