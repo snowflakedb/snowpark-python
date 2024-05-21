@@ -738,12 +738,13 @@ def test_sp_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus4_then_mod5_sp(3)
+
     if local_testing_mode:
-        with pytest.raises(ModuleNotFoundError) as ex_info:
-            plus4_then_mod5_sp(3)
+        # Local testing nests the error, but pytest only provides the top level error message
+        assert "Python Interpreter Error" in ex_info.value.message
     else:
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            plus4_then_mod5_sp(3)
         assert "No module named" in ex_info.value.message
 
 
@@ -934,12 +935,8 @@ def test_permanent_sp_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370028",
-)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
-def test_sp_negative(session):
+def test_sp_negative(session, local_testing_mode):
     def f(_, x):
         return x
 
@@ -982,11 +979,13 @@ def test_sp_negative(session):
 
     # incorrect data type
     int_sp = sproc(
-        lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
+        lambda _, x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert local_testing_mode or (
+        "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)

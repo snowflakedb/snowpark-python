@@ -9,6 +9,17 @@ from snowflake.snowpark.mock._stage_registry import (
     StageEntityRegistry,
     extract_stage_name_and_prefix,
 )
+from snowflake.snowpark.types import NullType, _NumericType
+
+
+def types_are_compatible(x, y):
+    same_type = isinstance(x, type(y))
+    both_numeric = isinstance(x, _NumericType) and isinstance(y, _NumericType)
+    has_null = isinstance(x, NullType) or isinstance(y, NullType)
+    semi_structured = not (x.is_primitive() or y.is_primitive())
+    if any([same_type, both_numeric, has_null, semi_structured]):
+        return True
+    return False
 
 
 def extract_import_dir_and_module_name(

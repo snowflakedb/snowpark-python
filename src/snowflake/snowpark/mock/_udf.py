@@ -139,11 +139,17 @@ class MockUDFRegistration(UDFRegistration):
 
         if type(func) is tuple:  # register from file
             module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name] = (module_name, func[1])
+            self._registry[udf_name] = UserDefinedFunction(
+                (module_name, func[1]),
+                return_type,
+                input_types,
+                udf_name,
+                packages=packages,
+            )
         else:
             # register from callable
-            self._registry[udf_name] = func
+            self._registry[udf_name] = UserDefinedFunction(
+                func, return_type, input_types, udf_name, packages=packages
+            )
 
-        return UserDefinedFunction(
-            func, return_type, input_types, udf_name, packages=packages
-        )
+        return self._registry[udf_name]

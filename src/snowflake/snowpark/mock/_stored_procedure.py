@@ -14,6 +14,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -24,33 +25,17 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
-from snowflake.snowpark.mock._udf_utils import extract_import_dir_and_module_name
+from snowflake.snowpark.mock._udf_utils import (
+    extract_import_dir_and_module_name,
+    types_are_compatible,
+)
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
     StoredProcedureRegistration,
 )
-from snowflake.snowpark.types import (
-    ArrayType,
-    DataType,
-    MapType,
-    StructType,
-    _FractionalType,
-    _IntegralType,
-)
-
-
-def sproc_types_are_compatible(x, y):
-    if (
-        isinstance(x, type(y))
-        or isinstance(x, _IntegralType)
-        and isinstance(y, _IntegralType)
-        or isinstance(x, _FractionalType)
-        and isinstance(y, _FractionalType)
-    ):
-        return True
-    return False
+from snowflake.snowpark.types import ArrayType, DataType, MapType, StructType
 
 
 class MockStoredProcedure(StoredProcedure):
@@ -90,7 +75,7 @@ class MockStoredProcedure(StoredProcedure):
 
                 # If expression does not define its datatype we cannot verify it's compatibale.
                 # This is potentially unsafe.
-                if expr.datatype and not sproc_types_are_compatible(
+                if expr.datatype and not types_are_compatible(
                     expr.datatype, expected_type
                 ):
                     SnowparkLocalTestingException.raise_from_error(
@@ -114,11 +99,18 @@ class MockStoredProcedure(StoredProcedure):
                 if len(resolved_expr) != 1:
                     SnowparkLocalTestingException.raise_from_error(
                         ValueError(
-                            "[Local Testing] Unexpected argument type {expr.__class__.__name__} for call to sproc"
+                            f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
                         )
                     )
                 parsed_args.append(resolved_expr[0])
             else:
+                inferred_type = infer_type(arg)
+                if not types_are_compatible(expected_type, inferred_type):
+                    SnowparkLocalTestingException.raise_from_error(
+                        ValueError(
+                            f"Unexpected type {inferred_type} for sproc argument of type {expected_type}"
+                        )
+                    )
                 parsed_args.append(arg)
 
                 # Initialize import directory
@@ -173,7 +165,12 @@ class MockStoredProcedure(StoredProcedure):
             else:
                 sproc_handler = self.func
 
-            result = sproc_handler(session, *parsed_args)
+            try:
+                result = sproc_handler(session, *parsed_args)
+            except Exception as err:
+                SnowparkLocalTestingException.raise_from_error(
+                    err, error_message="Python Interpreter Error"
+                )
 
         # Semi-structured types are serialized in json
         if isinstance(
@@ -340,7 +337,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         if sproc_name not in self._registry:
-            raise SnowparkLocalTestingException(f"sproc {sproc_name} does not exist.")
+            raise SnowparkLocalTestingException(
+                f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
+            )
 
         return self._registry[sproc_name](
             *args, session=session, statement_params=statement_params

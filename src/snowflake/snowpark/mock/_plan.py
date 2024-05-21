@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark.mock._udf_utils import types_are_compatible
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -362,6 +363,11 @@ def handle_function_expression(
                 exp, input_data, analyzer, expr_to_alias, current_row
             )
 
+        if exp.api_call_source == "functions.call_udf":
+            raise SnowparkLocalTestingException(
+                f"Unknown function {func_name}. UDF by that name does not exist."
+            )
+
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
@@ -520,13 +526,15 @@ def handle_udf_expression(
                 else:
                     shutil.copy2(module_path, temporary_import_path.name)
 
+        udf = udf_registry[udf_name]
+
         # Resolve handler callable
-        if type(udf_registry[udf_name]) is tuple:
-            module_name, handler_name = udf_registry[udf_name]
+        if type(udf.func) is tuple:
+            module_name, handler_name = udf.func
             exec(f"from {module_name} import {handler_name}")
             udf_handler = eval(handler_name)
         else:
-            udf_handler = udf_registry[udf_name]
+            udf_handler = udf.func
 
         # Compute
         function_input = TableEmulator(index=input_data.index)
@@ -535,8 +543,26 @@ def handle_udf_expression(
             function_input[col_name] = calculate_expression(
                 child, input_data, analyzer, expr_to_alias
             )
+        # Validate function inputs
+        actual_types = [col.datatype for col in function_input.sf_types.values()]
+        if len(actual_types) != len(udf._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(udf._input_types)} arguments, but received {len(actual_types)}"
+            )
 
-        res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        for expected, actual in zip(udf._input_types, actual_types):
+            if not types_are_compatible(expected, actual):
+                raise SnowparkLocalTestingException(
+                    f"UDF received input types {actual_types}, but expected inputs types of {udf._input_types}"
+                )
+
+        try:
+            res = function_input.apply(lambda row: udf_handler(*row), axis=1)
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message="Python Interpreter Error"
+            )
+
         res.sf_type = ColumnType(exp.datatype, exp.nullable)
         res.name = quote_name(
             f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
