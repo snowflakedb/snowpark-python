@@ -28,7 +28,7 @@ import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkFetchDataException
-from snowflake.snowpark.functions import col, to_timestamp
+from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -138,24 +138,29 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: dtype and value mismatch",
+)
 def test_to_pandas_precision_for_number_38_0(session):
     # Assert that we try to fit into int64 when possible and keep precision
-    df = session.sql(
-        """
-    SELECT
-        CAST(COLUMN1 as NUMBER(38,0)) AS A,
-        CAST(COLUMN2 as NUMBER(18,0)) AS B
-    FROM VALUES
-        (1111111111111111111, 222222222222222222),
-        (3333333333333333333, 444444444444444444),
-        (5555555555555555555, 666666666666666666),
-        (7777777777777777777, 888888888888888888),
-        (9223372036854775807, 111111111111111111),
-        (2222222222222222222, 333333333333333333),
-        (4444444444444444444, 555555555555555555),
-        (6666666666666666666, 777777777777777777),
-        (-9223372036854775808, 999999999999999999)
-        """
+
+    df = session.create_dataframe(
+        [
+            [1111111111111111111, 222222222222222222],
+            [3333333333333333333, 444444444444444444],
+            [5555555555555555555, 666666666666666666],
+            [7777777777777777777, 888888888888888888],
+            [9223372036854775807, 111111111111111111],
+            [2222222222222222222, 333333333333333333],
+            [4444444444444444444, 555555555555555555],
+            [6666666666666666666, 777777777777777777],
+            [-9223372036854775808, 999999999999999999],
+        ],
+        schema=["A", "B"],
+    ).select(
+        col("A").cast(DecimalType(38, 0)).alias("A"),
+        col("B").cast(DecimalType(18, 0)).alias("B"),
     )
 
     pdf = df.to_pandas()
@@ -167,19 +172,20 @@ def test_to_pandas_precision_for_number_38_0(session):
     assert pdf["A"].min() == -9223372036854775808
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: div0 and round functions not supported",
+)
 def test_to_pandas_precision_for_non_zero_scale(session):
-    df = session.sql(
-        """
-        SELECT
-            num1,
-            num2,
-            DIV0(num1, num2) AS A,
-            DIV0(CAST(num1 AS INTEGER), CAST(num2 AS INTEGER)) AS B,
-            ROUND(B, 2) as C
-        FROM (VALUES
-            (1, 11)
-        ) X(num1, num2);
-        """
+
+    df = session.create_dataframe([[1, 11]], schema=["num1", "num2"]).select(
+        col("num1"),
+        col("num2"),
+        div0(col("num1"), col("num2")).alias("A"),
+        div0(col("num1").cast(IntegerType()), col("num2").cast(IntegerType())).alias(
+            "B"
+        ),
+        round(col("B"), 2).alias("C"),
     )
 
     pdf = df.to_pandas()
@@ -189,6 +195,11 @@ def test_to_pandas_precision_for_non_zero_scale(session):
     assert pdf["C"].dtype == "float64"
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_to_pandas_non_select(session):
     # `with ... select ...` is also a SELECT statement
     isinstance(session.sql("select 1").to_pandas(), PandasDF)
@@ -254,7 +265,9 @@ def test_to_pandas_batches(session, local_testing_mode):
         break
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-1362480, backend optimization in different reg env"
+)
 def test_df_to_pandas_df(session):
     df = session.create_dataframe(
         [
@@ -354,15 +367,23 @@ def test_df_to_pandas_df(session):
             "A": pd.Series(["[\n  1,\n  2,\n  3,\n  4\n]"], dtype=object),
             "B": pd.Series([b"123"], dtype=object),
             "C": pd.Series([True], dtype=bool),
-            "D": pd.Series([1], dtype=np.int64),
+            "D": pd.Series(
+                [1], dtype=np.int64
+            ),  # in reg env, there can be backend optimization resulting in np.int8
             "E": pd.Series([datetime.date(year=2023, month=10, day=30)], dtype=object),
             "F": pd.Series([decimal.Decimal(1)], dtype=np.int64),
             "G": pd.Series([1.23], dtype=np.float64),
             "H": pd.Series([1.23], dtype=np.float64),
-            "I": pd.Series([100], dtype=np.int64),
-            "J": pd.Series([100], dtype=np.int64),
+            "I": pd.Series(
+                [100], dtype=np.int64
+            ),  # in reg env, there can be backend optimization resulting in np.int8
+            "J": pd.Series(
+                [100], dtype=np.int64
+            ),  # in reg env, there can be backend optimization resulting in np.int8
             "K": pd.Series([None], dtype=object),
-            "L": pd.Series([100], dtype=np.int64),
+            "L": pd.Series(
+                [100], dtype=np.int64
+            ),  # in reg env, there can be backend optimization resulting in np.int8
             "M": pd.Series(["abc"], dtype=object),
             "N": pd.Series(
                 [datetime.datetime(2023, 10, 30, 12, 12, 12)], dtype="datetime64[ns]"

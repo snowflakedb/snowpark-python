@@ -549,7 +549,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
         By setting start_time to be later than end_time, you can get the times that are not between the two times.
         """
-        pass
 
     def bfill():
         """
@@ -1019,6 +1018,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Return `BasePandasDataset` with duplicate rows removed.
         """
 
+    def map():
+        """
+        Apply a function to `BasePandasDataset elementwise.
+        """
+
     def mask():
         """
         Replace values where the condition is True.
@@ -1051,7 +1055,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def ffill():
         """
-        Synonym for `DataFrame.fillna` with ``method='ffill'``.
+        Synonym for :meth:`DataFrame.fillna` with ``method='ffill'``.
         """
 
     pad = ffill
@@ -1198,17 +1202,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2014-02-13    high
         Freq: None, Name: windspeed, dtype: object
 
-        Snowpark pandas indexing won't raise KeyError if any key is not found;
-        instead, it will return the results from the found keys
-        or return an empty series if no key is found.
-
-        >>> df.get(["temp_celsius", "temp_kelvin"], default="default_value")
-                    temp_celsius
-        2014-02-12          24.3
-        2014-02-13          31.0
-        2014-02-14          22.0
-        2014-02-15          35.0
-
         >>> ser.get('2014-02-10', '[unknown]')
         Series([], Freq: None, Name: windspeed, dtype: object)
 
@@ -1330,6 +1323,9 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def convert_dtypes():
         """
         Convert columns to best possible dtypes using dtypes supporting ``pd.NA``.
+
+        This is not supported in Snowpark pandas because Snowpark pandas always uses nullable
+        data types internally. Calling this method will raise a `NotImplementedError`.
         """
 
     def isin():
@@ -1596,13 +1592,14 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         -----
         To meet the nature of lazy evaluation:
 
-        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for all types of indexers (while pandas ``.loc``
+        - Snowpark pandas ``.loc`` ignores out-of-bounds indexing for row indexers (while pandas ``.loc``
           may raise KeyError). If all values are out-of-bound, an empty result will be returned.
+        - Out-of-bounds indexing for columns will still raise a KeyError the same way pandas does.
         - In Snowpark pandas ``.loc``, unalignable boolean Series provided as indexer will perform a join on the index
           of the main dataframe or series. (while pandas will raise an IndexingError)
         - When there is a slice key, Snowpark pandas ``.loc`` performs the same as native pandas when both the start and
-          stop are labels present in the index or either one is absert but the index is sorted. When any of the two
-          labels is absert from an unsorted index, Snowpark pandas will return rows in between while native pandas will
+          stop are labels present in the index or either one is absent but the index is sorted. When any of the two
+          labels is absent from an unsorted index, Snowpark pandas will return rows in between while native pandas will
           raise a KeyError.
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
@@ -1849,7 +1846,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Return the memory usage of the `BasePandasDataset`.
         """
-        pass
 
     @doc(
         _num_doc,
@@ -1868,13 +1864,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
         Get modulo of `BasePandasDataset` and `other`, element-wise (binary operator `mod`).
         """
-        pass
 
     def mode():
         """
         Get the mode(s) of each element along the selected axis.
         """
-        pass
 
     def mul():
         """
@@ -2038,6 +2032,31 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     def rename_axis():
         """
         Set the name of the axis for the index or columns.
+
+        Parameters
+        ----------
+        mapper : scalar, list-like, optional
+            Value to set the axis name attribute.
+
+        index, columns : scalar, list-like, dict-like or function, optional
+            A scalar, list-like, dict-like or functions transformations to apply to that axis' values.
+
+            Use either ``mapper`` and ``axis`` to specify the axis to target with ``mapper``, or
+            ``index`` and/or ``columns``.
+
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to rename.
+
+        copy : bool, default None
+            Also copy underlying data. This parameter is ignored in Snowpark pandas.
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new DataFrame.
+
+        Returns
+        -------
+        DataFrame or None
+            DataFrame, or None if ``inplace=True``.
         """
 
     def reorder_levels():
@@ -2047,7 +2066,104 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def resample():
         """
-        Resample time-series data.
+        Resample time-series data. Convenience method for frequency conversion and resampling of time series.
+        The object must have a datetime-like index.
+
+        Snowpark pandas DataFrame/Series.resample only supports frequencies "second", "minute", "hour", and "day" in
+        conjunction with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill".
+        Snowpark pandas also only supports DatetimeIndex, and does not support PeriodIndex or TimedeltaIndex.
+
+        Parameters
+        ----------
+        rule : DateOffset, Timedelta or str
+            The offset string or object representing target conversion.
+            Snowpark pandas only supports frequencies "second", "minute", "hour", and "day"
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            Which axis to use for up- or down-sampling. For Series this parameter is unused and defaults to 0.
+            Snowpark pandas only supports ``axis`` 0 and DatetimeIndex.
+
+            Deprecated since version 2.0.0: Use frame.T.resample(…) instead.
+        closed : {'right', 'left'}, default None
+            Which side of bin interval is closed. The default is 'left' for all frequency offsets except for
+            'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
+
+            Snowpark pandas only supports ``closed=left`` and frequencies "second", "minute", "hour", and "day".
+        label : {'right', 'left'}, default None
+            Which bin edge label to label bucket with. The default is 'left' for all frequency offsets except for
+            'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
+
+            Snowpark pandas only supports ``label=left`` and frequencies "second", "minute", "hour", and "day".
+        convention : {'start', 'end', 's', 'e'}, default 'start'
+            For PeriodIndex only, controls whether to use the start or end of rule.
+            Snowpark pandas does not support PeriodIndex.
+
+            Deprecated since version 2.2.0: Convert PeriodIndex to DatetimeIndex before resampling instead.
+        kind : {'timestamp', 'period'}, optional, default None
+            Pass 'timestamp' to convert the resulting index to a DateTimeIndex
+            or 'period' to convert it to a PeriodIndex. By default, the input representation is retained.
+
+            Snowpark pandas does not support ``kind``.
+        on : str, optional
+            For a DataFrame, column to use instead of index for resampling. Column must be datetime-like.
+            Snowpark pandas does not support ``on``.
+        level : str or int, optional
+            For a MultiIndex, level (name or number) to use for resampling. level must be datetime-like.
+            Snowpark pandas does not support DataFrame/Series.resample with a MultiIndex.
+        origin : Timestamp or str, default 'start_day'
+            The timestamp on which to adjust the grouping. The timezone of origin must match the timezone of the index.
+            If a string, must be one of the following:
+
+            'epoch': origin is 1970-01-01
+            'start': origin is the first value of the timeseries
+            'start_day': origin is the first day at midnight of the timeseries
+            'end': origin is the last value of the timeseries
+            'end_day': origin is the ceiling midnight of the last day
+
+            Snowpark pandas does not support ``origin``.
+        offset : Timedelta or str, default is None
+            An offset timedelta added to the origin.
+            Snowpark pandas does not support ``offset``.
+        group_keys : bool, default False
+            Whether to include the group keys in the result index when using ``.apply()`` on the resampled object.
+            Snowpark pandas does not support ``group_keys``.
+
+        Returns
+        -------
+        Resampler
+
+        See Also
+        --------
+        Series.resample: Resample a Series.
+        DataFrame.resample : Resample a dataframe.
+        groupby: Group Series/DataFrame by mapping, function, label, or list of labels.
+        asfreq: Reindex a Series/DataFrame with the given frequency without grouping.
+
+        Notes
+        -----
+        Snowpark pandas DataFrame/Series.resample only supports frequencies "second", "minute", "hour", and "day" in conjunction
+        with aggregations "max", "min", "mean", "median", "sum", "std", "var", "count", and "ffill". Snowpark pandas also only
+        supports DatetimeIndex, and does not support PeriodIndex or TimedeltaIndex.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=9, freq='min')
+        >>> series = pd.Series(range(9), index=index)
+        >>> series
+        2000-01-01 00:00:00    0
+        2000-01-01 00:01:00    1
+        2000-01-01 00:02:00    2
+        2000-01-01 00:03:00    3
+        2000-01-01 00:04:00    4
+        2000-01-01 00:05:00    5
+        2000-01-01 00:06:00    6
+        2000-01-01 00:07:00    7
+        2000-01-01 00:08:00    8
+        Freq: None, dtype: int64
+        >>> series.resample('3min').sum()
+        2000-01-01 00:00:00     3
+        2000-01-01 00:03:00    12
+        2000-01-01 00:06:00    21
+        Freq: None, dtype: int64
         """
 
     def reset_index():
@@ -2494,7 +2610,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         """
 
     def sort_values():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values along either axis.
 
@@ -2604,17 +2719,6 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         2     B     9     9    c
         0     A     2     0    a
         1     A     1     1    B
-
-        Sorting with a key function
-
-        >>> df.sort_values(by='col4', key=lambda col: col.str.lower())  # doctest: +SKIP
-           col1  col2  col3 col4
-        0     A     2     0    a
-        1     A     1     1    B
-        2     B     9     9    c
-        3  None     8     4    D
-        4     D     7     2    e
-        5     C     4     3    F
         """
 
     @doc(
@@ -3165,7 +3269,11 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
     @property
     def values():
         """
-        Return a NumPy representation of the `BasePandasDataset`.
+        Return a NumPy representation of the dataset.
+
+        Returns
+        -------
+        np.ndarray
         """
 
     def __array_ufunc__():

@@ -83,6 +83,10 @@ def test_regexp(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1346957: Collation not supported in Local Testing",
+)
 def test_collate(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].collate("en"))
@@ -118,7 +122,7 @@ def test_subfield(session):
 
 
 def test_case_when(session):
-    df1 = session.sql('select 1 as c, 2 as "c c"')
+    df1 = session.create_dataframe([[1, 2]], schema=["c", '"c c"'])
     df2 = df1.select(when(df1["c"] == 1, lit(True)).when(df1["c"] == 2, lit("abc")))
     assert (
         df2._output[0].name
@@ -129,7 +133,7 @@ def test_case_when(session):
 
 
 def test_multiple_expression(session):
-    df1 = session.sql("select 1 as c, 'v' as \"c c\"")
+    df1 = session.create_dataframe([[1, "v"]], schema=["c", '"c c"'])
     df2 = df1.select(in_(["c", "c c"], [[lit(1), lit("v")]]))
     assert (
         df2._output[0].name
@@ -140,7 +144,7 @@ def test_multiple_expression(session):
 
 
 def test_in_expression(session):
-    df1 = session.sql("select 1 as c, 'v' as \"c c\"")
+    df1 = session.create_dataframe([[1, "v"]], schema=["c", '"c c"'])
     df2 = df1.select(df1["c"].in_(1, 2, 3), df1["c c"].in_("v"))
     assert (
         [x.name for x in df2._output]
@@ -162,6 +166,10 @@ def test_scalar_subquery(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
+)
 def test_specified_window_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -196,6 +204,10 @@ def test_cast(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1355930: any_value is not supported in Local Testing",
+)
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert (
@@ -213,6 +225,10 @@ def test_unspecified_frame(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-982770: Rank is not supported in Local Testing",
+)
 def test_special_frame_boundry(session):
     df1 = session.sql("select 'v' as \" a\"")
     assert df1._output[0].name == '" a"'
@@ -234,8 +250,7 @@ def test_special_frame_boundry(session):
 
 
 def test_rank_related_function_expression(session):
-    "Lag, Lead, FirstValue, LastValue"
-    df1 = session.sql("select 1 as a, 'v' as \" a\"")
+    df1 = session.create_dataframe([[1, "v"]], schema=["a", '" a"'])
     window = Window.order_by(" a")
     df2 = df1.select(
         lag(df1[" a"]).over(window),
@@ -274,7 +289,7 @@ def test_rank_related_function_expression(session):
 
 
 def test_literal(session):
-    df1 = session.table("dual")
+    df1 = session.create_dataframe([[]])
     df2 = df1.select(lit("a"), lit(1), lit(True), lit([1]))
     assert (
         [x.name for x in df2._output]
@@ -289,6 +304,10 @@ def test_literal(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
 def test_interval(session):
     df1 = session.create_dataframe(
         [
@@ -406,7 +425,7 @@ def test_function_expression(session, local_testing_mode):
 
 @pytest.mark.udf
 @pytest.mark.parametrize("use_qualified_name", [True, False])
-def test_udf(session, use_qualified_name):
+def test_udf(session, use_qualified_name, local_testing_mode):
     def add_one(x: int) -> int:
         return x + 1
 
@@ -417,18 +436,51 @@ def test_udf(session, use_qualified_name):
     perm_func_name = (
         f'"{special_chars}{Utils.random_name_for_temp_object(TempObjectType.FUNCTION)}"'
     )
+    database_name = session.get_current_database()
+    schema_name = session.get_current_schema()
+    full_temp_func_name = f"{database_name}.{schema_name}.{temp_func_name}"
+
     stage_name = Utils.random_stage_name()
-    try:
+    if not local_testing_mode:
         Utils.create_stage(session, stage_name, is_temporary=False)
-        df = session.create_dataframe([1, 2], schema=["a"])
+
+    df = session.create_dataframe([1, 2], schema=["a"])
+
+    try:
+        if not local_testing_mode:
+            # Local Testing does not support permanent registration of extension functions
+            session.udf.register(
+                add_one,
+                name=perm_func_name,
+                is_permanent=True,
+                stage_location=stage_name,
+            )
+
+            if use_qualified_name:
+                full_perm_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{perm_func_name}"
+                df_perm = df.select(call_udf(full_perm_func_name, col("a")))
+                assert (
+                    df_perm._output[0].name
+                    == get_metadata_names(session, df_perm)[0]
+                    == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
+                )
+                assert (
+                    df_perm.columns[0]
+                    == get_metadata_names(session, df_perm)[0]
+                    == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
+                )
+            else:
+                df_perm = df.select(call_udf(perm_func_name, col("a")))
+                assert (
+                    df_perm._output[0].name
+                    == df_perm.columns[0]
+                    == get_metadata_names(session, df_perm)[0]
+                    == f'""{perm_func_name.upper()}"(""A"")"'
+                )
+
         session.udf.register(add_one, name=temp_func_name, is_permanent=False)
-        session.udf.register(
-            add_one, name=perm_func_name, is_permanent=True, stage_location=stage_name
-        )
+
         if use_qualified_name:
-            database_name = session.get_current_database()
-            schema_name = session.get_current_schema()
-            full_temp_func_name = f"{database_name}.{schema_name}.{temp_func_name}"
             df_temp = df.select(call_udf(full_temp_func_name, col("a")))
             assert (
                 df_temp._output[0].name
@@ -440,19 +492,6 @@ def test_udf(session, use_qualified_name):
                 == get_metadata_names(session, df_temp)[0]
                 == f'""{database_name}"."{schema_name}"."{temp_func_name.upper()}"(""A"")"'
             )
-
-            full_perm_func_name = f"{session.get_current_database()}.{session.get_current_schema()}.{perm_func_name}"
-            df_perm = df.select(call_udf(full_perm_func_name, col("a")))
-            assert (
-                df_perm._output[0].name
-                == get_metadata_names(session, df_perm)[0]
-                == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
-            )
-            assert (
-                df_perm.columns[0]
-                == get_metadata_names(session, df_perm)[0]
-                == f'""{database_name}"."{schema_name}"."{perm_func_name.upper()}"(""A"")"'
-            )
         else:
             df_temp = df.select(call_udf(temp_func_name, col("a")))
             assert (
@@ -461,23 +500,20 @@ def test_udf(session, use_qualified_name):
                 == get_metadata_names(session, df_temp)[0]
                 == f'""{temp_func_name.upper()}"(""A"")"'
             )
-
-            df_perm = df.select(call_udf(perm_func_name, col("a")))
-            assert (
-                df_perm._output[0].name
-                == df_perm.columns[0]
-                == get_metadata_names(session, df_perm)[0]
-                == f'""{perm_func_name.upper()}"(""A"")"'
-            )
     finally:
-        session._run_query(f"drop function if exists {temp_func_name}(int)")
-        session._run_query(f"drop function if exists {perm_func_name}(int)")
-        Utils.drop_stage(session, stage_name)
+        if not local_testing_mode:
+            session._run_query(f"drop function if exists {temp_func_name}(int)")
+            session._run_query(f"drop function if exists {perm_func_name}(int)")
+            Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1359104: Column alias creates incorrect column name.",
+)
 def test_unary_expression(session):
     """Alias, UnresolvedAlias, Cast, UnaryMinus, IsNull, IsNotNull, IsNaN, Not"""
-    df1 = session.sql('select 1 as " a", 2 as a')
+    df1 = session.create_dataframe([[1, 2]], schema=['" a"', "a"])
     df2 = df1.select(
         df1[" a"].cast("string"),
         df1[" a"].alias(" b"),
@@ -535,6 +571,10 @@ def test_unary_expression(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"B"'.
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Window function WithinGroup is not supported",
+)
 def test_list_agg_within_group_sort_order(session):
     df1 = session.sql(
         'select c as "a b" from (select c from values((1), (2), (3)) as t(c))'
@@ -653,7 +693,7 @@ def test_cast_nan_column_name(session):
 
 
 def test_inf_column_name(session):
-    df1 = session.sql("select 'inf'")
+    df1 = session.create_dataframe([["inf"]], schema=["'INF'"])
     df2 = df1.select(df1["'INF'"] == math.inf)
     assert (
         df2._output[0].name

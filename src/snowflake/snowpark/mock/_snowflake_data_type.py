@@ -5,6 +5,7 @@ from typing import Dict, NamedTuple, Optional, Union
 
 from snowflake.connector.options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     BooleanType,
     DataType,
@@ -122,8 +123,10 @@ class ColumnType(NamedTuple):
 
 def normalize_decimal(d: DecimalType):
     if d.scale > d.precision or d.scale > 38 or d.scale < 0 or d.precision < 0:
-        raise ValueError(
-            f"Inferred data type DecimalType({d.precision}, {d.scale}) is invalid."
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(
+                f"Inferred data type DecimalType({d.precision}, {d.scale}) is invalid."
+            )
         )
     d.precision = min(38, d.precision)
 
@@ -217,13 +220,17 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
             FloatType,
             DoubleType,
         ) or op not in ("+", "-"):
-            raise ValueError(
-                f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+            SnowparkLocalTestingException.raise_from_error(
+                ValueError(
+                    f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+                )
             )
         return ColumnType(DateType(), nullable)
 
-    raise TypeError(
-        f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+    SnowparkLocalTestingException.raise_from_error(
+        TypeError(
+            f"Result data type can't be calculated: (type1: {t1}, op: '{op}', type2: {t2})."
+        )
     )
 
 
@@ -300,7 +307,9 @@ def add_date_and_number(
             DateType(), col1.sf_type.nullable or col2.sf_type.nullable
         )
         return result
-    raise ValueError(f"Can't add {col1.sf_type.datatype} and {col2.sf_type.datatype}")
+    SnowparkLocalTestingException.raise_from_error(
+        ValueError(f"Can't add {col1.sf_type.datatype} and {col2.sf_type.datatype}")
+    )
 
 
 class ColumnEmulator(PandasSeriesType):

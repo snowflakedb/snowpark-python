@@ -195,6 +195,14 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
     )
 
 
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="SNOW-952138 DataFrame.copy_into_table is not supported in Local Testing",
+    )
+]
+
+
 def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
     assert session.table(tmp_table_name).count() == 0

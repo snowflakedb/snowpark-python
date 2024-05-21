@@ -8,6 +8,7 @@ import json
 import math
 import numbers
 import operator
+import re
 import string
 from decimal import Decimal
 from functools import partial, reduce
@@ -18,12 +19,12 @@ import pytz
 
 import snowflake.snowpark
 from snowflake.connector.options import pandas
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -56,6 +57,13 @@ from ._util import (
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 _MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
+
+
+_DEFAULT_OUTPUT_FORMAT = {
+    DateType: "YYYY-MM-DD",
+    TimeType: "HH24:MI:SS",
+    TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
+}
 
 
 class LocalTimezone:
@@ -157,8 +165,10 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
             all_item_is_none = False
             try:
                 res += float(data)
-            except ValueError:
-                raise SnowparkSQLException(f"Numeric value '{data}' is not recognized.")
+            except ValueError as exc:
+                SnowparkLocalTestingException.raise_from_error(
+                    exc, error_message=f"Numeric value '{data}' is not recognized."
+                )
     if isinstance(column.sf_type.datatype, DecimalType):
         p, s = column.sf_type.datatype.precision, column.sf_type.datatype.scale
         new_type = DecimalType(min(38, p + 12), s)
@@ -178,7 +188,7 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
 @patch("avg")
 def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"Cannot compute avg on a column of type {column.sf_type.datatype}"
         )
 
@@ -329,16 +339,17 @@ def mock_to_date(
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
     def convert_date(row):
-        _fmt = fmt[row.name]
-        data = row[0]
-        auto_detect = _fmt is None or _fmt.lower() == "auto"
-        date_format, _, _ = convert_snowflake_datetime_format(
-            _fmt, default_format="%Y-%m-%d"
-        )
-
-        if data is None:
-            return None
         try:
+            _fmt = fmt[row.name]
+            data = row[0]
+            auto_detect = _fmt is None or _fmt.lower() == "auto"
+            date_format, _ = convert_snowflake_datetime_format(
+                _fmt, default_format="%Y-%m-%d"
+            )
+
+            if data is None:
+                return None
+
             if isinstance(column.sf_type.datatype, TimestampType):
                 return data.date()
             elif isinstance(column.sf_type.datatype, StringType):
@@ -353,8 +364,10 @@ def mock_to_date(
                         return datetime.datetime.strptime(data, date_format).date()
             elif isinstance(column.sf_type.datatype, VariantType):
                 if not (_fmt is None or (_fmt and str(_fmt).lower() != "auto")):
-                    raise TypeError(
-                        "[Local Tesing] to_date function does not allow format parameter for data of VariantType"
+                    SnowparkLocalTestingException.raise_from_error(
+                        TypeError(
+                            "[Local Testing] to_date function does not allow format parameter for data of VariantType"
+                        )
                     )
                 if isinstance(data, str):
                     if data.isdigit():
@@ -367,18 +380,22 @@ def mock_to_date(
                 elif isinstance(data, datetime.date):
                     return data
                 else:
-                    raise TypeError(
-                        f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
+                    SnowparkLocalTestingException.raise_from_error(
+                        TypeError(
+                            f"[Local Testing] Unsupported conversion to_date of value {data} of VariantType"
+                        )
                     )
             else:
-                raise TypeError(
-                    f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
+                SnowparkLocalTestingException.raise_from_error(
+                    TypeError(
+                        f"[Local Testing] Unsupported conversion to_date of data type {type(column.sf_type.datatype).__name__}"
+                    )
                 )
-        except BaseException:
+        except BaseException as exc:
             if try_cast:
                 return None
             else:
-                raise
+                SnowparkLocalTestingException.raise_from_error(exc)
 
     res = column.to_frame().apply(convert_date, axis=1)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
@@ -474,12 +491,12 @@ def mock_to_decimal(
     def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
         x = float(x)
         if x in (math.inf, -math.inf, math.nan):
-            raise ValueError(
-                "Values of infinity and NaN cannot be converted to decimal"
+            SnowparkLocalTestingException.raise_from_error(
+                ValueError("Values of infinity and NaN cannot be converted to decimal")
             )
         integer_part_len = 1 if abs(x) < 1 else math.ceil(math.log10(abs(x)))
         if integer_part_len > precision:
-            raise SnowparkSQLException(f"Numeric value '{x}' is out of range")
+            raise SnowparkLocalTestingException(f"Numeric value '{x}' is out of range")
         remaining_decimal_len = min(precision - integer_part_len, scale)
         return Decimal(str(round(x, remaining_decimal_len)))
 
@@ -492,7 +509,9 @@ def mock_to_decimal(
             lambda x: try_convert(cast_as_float_convert_to_decimal, try_cast, x)
         )
     else:
-        raise TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
+        SnowparkLocalTestingException.raise_from_error(
+            TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
+        )
     res.sf_type = ColumnType(
         DecimalType(precision, scale), nullable=e.sf_type.nullable or res.hasnans
     )
@@ -523,9 +542,7 @@ def mock_to_time(
             convert_numeric_string_value_to_float_seconds(d) % 86400
         ).time()
 
-    def convert_string_to_time(
-        _data: str, _time_format: str, _hour_delta: int, _fractional_seconds: int
-    ):
+    def convert_string_to_time(_data: str, _time_format: str, _fractional_seconds: int):
         data_parts = _data.split(".")
         if len(data_parts) == 2:
             # there is a part of seconds
@@ -544,10 +561,7 @@ def mock_to_time(
             process_string_time_with_fractional_seconds(_data, _fractional_seconds),
             _time_format,
         )
-        # there is a special case that if the time is 12 p.m noon, then no need to adjust
-        if _hour_delta == 12 and target_datetime.time().hour == 12:
-            _hour_delta = 0
-        return (target_datetime + datetime.timedelta(hours=_hour_delta)).time()
+        return target_datetime.time()
 
     res = []
 
@@ -562,7 +576,6 @@ def mock_to_time(
         try:
             (
                 time_fmt,
-                hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
 
@@ -571,9 +584,7 @@ def mock_to_time(
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
-                        convert_string_to_time(
-                            data, time_fmt, hour_delta, fractional_seconds
-                        )
+                        convert_string_to_time(data, time_fmt, fractional_seconds)
                     )
             elif isinstance(datatype, TimestampType):
                 res.append(data.time())
@@ -583,26 +594,27 @@ def mock_to_time(
                         res.append(convert_int_string_to_time(data))
                     else:
                         res.append(
-                            convert_string_to_time(
-                                data, time_fmt, hour_delta, fractional_seconds
-                            )
+                            convert_string_to_time(data, time_fmt, fractional_seconds)
                         )
                 elif isinstance(data, datetime.time):
                     res.append(data)
                 else:
-                    raise ValueError(
-                        f"[Local Testing] Unsupported conversion to_time of value {data} of VariantType"
+                    SnowparkLocalTestingException.raise_from_error(
+                        ValueError(
+                            f"[Local Testing] Unsupported conversion to_time of value {data} of VariantType"
+                        )
                     )
             else:
-                raise ValueError(
-                    f"[Local Testing] Unsupported conversion to_time of data type {type(datatype).__name__}"
+                SnowparkLocalTestingException.raise_from_error(
+                    ValueError(
+                        f"[Local Testing] Unsupported conversion to_time of data type {type(datatype).__name__}"
+                    )
                 )
-        except BaseException:
+        except BaseException as exc:
             if try_cast:
                 data.append(None)
             else:
-                # TODO: local test error experience SNOW-1235716
-                raise
+                SnowparkLocalTestingException.raise_from_error(exc)
 
     # TODO: TIME_OUTPUT_FORMAT is not supported, by default snowflake outputs time in the format HH24:MI:SS
     #  check https://snowflakecomputing.atlassian.net/browse/SNOW-1305979
@@ -670,12 +682,11 @@ def _to_timestamp(
         if not isinstance(_fmt, numbers.Number):
             (
                 timestamp_format,
-                hour_delta,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
         else:
             # if _fmt is a number, then snowflake expects <numeric_expr> + <scale>, format doesn't apply here
-            timestamp_format, hour_delta, fractional_seconds = None, 0, 0
+            timestamp_format, fractional_seconds = None, 0
 
         if data is None:
             return None
@@ -755,23 +766,26 @@ def _to_timestamp(
                 elif isinstance(data, datetime.datetime):
                     parsed = data
                 else:
-                    raise TypeError(
-                        f"[Local Testing] Unsupported conversion to_timestamp* of value {data} of VariantType"
+                    SnowparkLocalTestingException.raise_from_error(
+                        TypeError(
+                            f"[Local Testing] Unsupported conversion to_timestamp* of value {data} of VariantType"
+                        )
                     )
             else:
-                raise TypeError(
-                    f"[Local Testing] Unsupported conversion to_timestamp* of data type {type(column.sf_type.datatype).__name__}"
+                SnowparkLocalTestingException.raise_from_error(
+                    TypeError(
+                        f"[Local Testing] Unsupported conversion to_timestamp* of data type {type(column.sf_type.datatype).__name__}"
+                    )
                 )
             # Add the local timezone if tzinfo is missing and a tz is desired
             if parsed and add_timezone and parsed.tzinfo is None:
                 parsed = LocalTimezone.replace_tz(parsed)
-            parsed = parsed + datetime.timedelta(hours=hour_delta)
             return parsed
-        except BaseException:
+        except BaseException as exc:
             if try_cast:
                 return None
             else:
-                raise
+                SnowparkLocalTestingException.raise_from_error(exc)
 
     res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
     return [
@@ -851,11 +865,11 @@ def try_convert(convert: Callable, try_cast: bool, val: Any):
         return None
     try:
         return convert(val)
-    except BaseException:
+    except BaseException as exc:
         if try_cast:
             return None
         else:
-            raise
+            SnowparkLocalTestingException.raise_from_error(exc)
 
 
 @patch("to_char")
@@ -863,59 +877,148 @@ def mock_to_char(
     column: ColumnEmulator,
     fmt: Optional[str] = None,
     try_cast: bool = False,
-) -> ColumnEmulator:  # TODO: support more input types
+) -> ColumnEmulator:
+    """
+    https://docs.snowflake.com/en/sql-reference/functions/to_char
+    [x] expr: An expression of any data type.
+    [x] numeric_expr: A numeric expression.
+        [ ] numeric_expr with format: not supported, check SNOW-1372863
+    [x] date_or_time_expr: An expression of type DATE, TIME, or TIMESTAMP.
+    [x] binary_expr: An expression of type BINARY or VARBINARY.
+
+    """
     source_datatype = column.sf_type.datatype
 
-    if isinstance(source_datatype, DateType):
-        date_format, _, _ = convert_snowflake_datetime_format(
-            fmt, default_format="%Y-%m-%d"
-        )
-        func = partial(
-            try_convert, lambda x: datetime.datetime.strftime(x, date_format), try_cast
-        )
-    elif isinstance(source_datatype, TimeType):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Time data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, (DateType, TimeType, TimestampType)):
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name="Use TO_CHAR on Timestamp data",
-            internal_feature_name="mock_to_char",
-            parameters_info={"source_datatype": type(source_datatype).__name__},
-            raise_error=NotImplementedError,
-        )
-    elif isinstance(source_datatype, _NumericType):
-        if fmt:
+    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+
+    def convert_char(row):
+        _fmt = fmt[row.name]
+        data = row[0]
+
+        if isinstance(source_datatype, _NumericType):
+            if _fmt:
+                # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                    internal_feature_name="mock_to_char",
+                    parameters_info={
+                        "source_datatype": type(source_datatype).__name__,
+                        "fmt": str(_fmt),
+                    },
+                    raise_error=NotImplementedError,
+                )
+            convert_numeric_to_str = (
+                lambda x: "{:.{}f}".format(data, source_datatype.scale)
+                if isinstance(source_datatype, DecimalType)
+                else str(x)
+            )
+            return try_convert(convert_numeric_to_str, try_cast, data)
+        elif isinstance(source_datatype, (DateType, TimeType)):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
+            (
+                format,
+                _,
+            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            convert_date_time_to_str = (
+                datetime.datetime.strftime
+                if isinstance(source_datatype, DateType)
+                else datetime.time.strftime
+            )
+            return try_convert(
+                lambda x: convert_date_time_to_str(x, format), try_cast, data
+            )
+        elif isinstance(source_datatype, TimestampType):
+            default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
+            (
+                format,
+                fractional_seconds,
+            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            # handle 3f, can use str index
+            time_str = try_convert(
+                lambda x: datetime.date.strftime(x, format), try_cast, data
+            ).strip()
+            # python doesn't offer a way to control digits in microseconds
+            # when converting datatime into string using format %f, hence here we manually control the output fractional
+            # microsecond parts
+            # we find the beginning of 6 consecutive digits and manipulate the string
+            # CAVEAT: this solution can not handle format like 'yyyymmddhhmmssff' in which case there are multiple
+            # 6 digits occurrences, we cannot distinguish
+            # whether the 6 digits are the part of fractional seconds or other parts of datetime
+            if "%f" in format:
+                pattern = r"\d{6}"
+                if len(re.findall(pattern, time_str)) > 1:
+                    # if we detect multiple consecutive 6 digits, it's a format we can't handle
+                    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                        external_feature_name=f"Use format string {_fmt} with TimestampType in TO_CHAR",
+                        internal_feature_name="mock_to_char",
+                        parameters_info={
+                            "source_datatype": type(source_datatype).__name__,
+                            "fmt": str(_fmt),
+                        },
+                        raise_error=NotImplementedError,
+                    )
+                start_idx = re.search(r"\d{6}", time_str).start()
+                end_idx = start_idx + 6
+                # truncate the microsecond string
+                fractional_seconds_str = time_str[start_idx:end_idx][
+                    0 : min(6, fractional_seconds)
+                ]
+                # concatenate the whole string
+                time_str = (
+                    time_str[:start_idx] + fractional_seconds_str + time_str[end_idx:]
+                )
+            return time_str
+        elif isinstance(source_datatype, BinaryType):
+            _fmt = (_fmt or "HEX").upper()
+            fmt_decoder = {
+                "HEX": binascii.hexlify,
+                "BASE64": base64.b64encode,
+                "UTF-8": lambda x: x,
+            }.get(_fmt)
+
+            if fmt_decoder is None:
+                raise SnowparkLocalTestingException(f"Invalid binary format {fmt}")
+            return try_convert(fmt_decoder, try_cast, data).decode()
+        elif isinstance(source_datatype, BooleanType):
+            return try_convert(lambda x: str(x).lower(), try_cast, data)
+        elif isinstance(source_datatype, (VariantType, ArrayType, MapType)):
+            from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
+
+            # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string
+            # when handling string object, e.g., json.dumps("123"), by default json dumps added
+            # double quotes to the output which we do not need in output, we strip the beginning and ending
+            # double quote by calling strip('"'), this has no side effect to other input types.
+            return try_convert(
+                lambda x: json.dumps(
+                    x,
+                    cls=CUSTOM_JSON_ENCODER,
+                    separators=(",", ":"),  # remove trailing space after the separators
+                ).strip('"'),
+                try_cast,
+                data,
+            )
+        elif isinstance(source_datatype, (StringType, NullType)):
+            return data
+        else:
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-                external_feature_name="Use format strings with Numeric types in TO_CHAR",
+                external_feature_name=f"Data type {type(source_datatype).__name__} in TO_CHAR",
                 internal_feature_name="mock_to_char",
                 parameters_info={
                     "source_datatype": type(source_datatype).__name__,
-                    "fmt": str(fmt),
+                    "fmt": str(_fmt),
                 },
                 raise_error=NotImplementedError,
             )
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    elif isinstance(source_datatype, BooleanType):
-        func = partial(try_convert, lambda x: str(x).lower(), try_cast)
-    elif isinstance(source_datatype, VariantType):
-        from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 
-        # here we reuse CUSTOM_JSON_ENCODER to dump a python object to string, by default json dumps added
-        # double quotes to the output which we do not need in output, we strip the beginning and ending double quote.
-        func = partial(
-            try_convert,
-            lambda x: json.dumps(x, cls=CUSTOM_JSON_ENCODER).strip('"'),
-            try_cast,
-        )
-    else:
-        func = partial(try_convert, lambda x: str(x), try_cast)
-    new_col = column.apply(func)
-    new_col.sf_type = ColumnType(StringType(), column.sf_type.nullable)
-    return new_col
+    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
+    res = column.to_frame().apply(convert_char, axis=1)
+    res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
+    return res
+
+
+@patch("to_varchar")
+def mock_to_varchar(*args, **kwargs) -> ColumnEmulator:
+    return mock_to_char(*args, **kwargs)
 
 
 @patch("to_double")
@@ -953,8 +1056,10 @@ def mock_to_double(
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
     else:
-        raise TypeError(
-            f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
+        SnowparkLocalTestingException.raise_from_error(
+            TypeError(
+                f"[Local Testing] Invalid type {column.sf_type.datatype} for parameter 'TO_DOUBLE'"
+            )
         )
 
 
@@ -990,7 +1095,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
                 return True
             elif x.lower() in ("false", "f", "no", "n", "off", "0"):
                 return False
-            raise SnowparkSQLException(f"Boolean value {x} is not recognized")
+            raise SnowparkLocalTestingException(f"Boolean value {x} is not recognized")
 
         new_col = column.apply(lambda x: try_convert(convert_str_to_bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
@@ -1001,7 +1106,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
             if x is None:
                 return None
             elif math.isnan(x) or math.isinf(x):
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Invalid value {x} for parameter 'TO_BOOLEAN'"
                 )
             else:
@@ -1011,7 +1116,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
     else:
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
         )
 
@@ -1032,14 +1137,14 @@ def mock_to_binary(
     }.get(fmt)
 
     if fmt is None:
-        raise SnowparkSQLException(f"Invalid binary format {fmt}")
+        raise SnowparkLocalTestingException(f"Invalid binary format {fmt}")
 
     if isinstance(column.sf_type.datatype, (StringType, NullType, VariantType)):
         res = column.apply(lambda x: try_convert(fmt_decoder, try_cast, x))
         res.sf_type = ColumnType(BinaryType(), column.sf_type.nullable)
         return res
     else:
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BINARY'"
         )
 
@@ -1077,7 +1182,7 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
         res.where([not x for x in condition], other=expr1, inplace=True)
         return res
     else:
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
         )
 
@@ -1085,7 +1190,7 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
 @patch("coalesce")
 def mock_coalesce(*exprs):
     if len(exprs) < 2:
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
         )
     res = pandas.Series(
@@ -1101,8 +1206,10 @@ def mock_substring(
     base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
 ):
     res = [
-        x[y - 1 : y + z - 1] if x is not None else None
-        for x, y, z in zip(base_expr, start_expr, length_expr)
+        None if string is None else string[start : start + length]
+        for string, start, length in zip(
+            base_expr, [max(0, s - 1) for s in start_expr], length_expr
+        )
     ]
     res = ColumnEmulator(
         res, sf_type=ColumnType(StringType(), base_expr.sf_type.nullable), dtype=object
@@ -1207,13 +1314,13 @@ def mock_to_object(expr: ColumnEmulator):
                 val = json.loads(val, cls=CUSTOM_JSON_DECODER)
             if val is None or type(val) is dict:
                 return val
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid object of type {type(val)} passed to 'TO_OBJECT'"
             )
 
         res = expr.apply(lambda x: try_convert(convert_variant_to_object, False, x))
     else:
-        raise SnowparkSQLException(
+        raise SnowparkLocalTestingException(
             f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
         )
 
@@ -1231,8 +1338,10 @@ def mock_to_variant(expr: ColumnEmulator):
 def _object_construct(exprs, drop_nulls):
     expr_count = len(exprs)
     if expr_count % 2 != 0:
-        raise TypeError(
-            f"Cannot construct an object from an odd number ({expr_count}) of values."
+        SnowparkLocalTestingException.raise_from_error(
+            TypeError(
+                f"Cannot construct an object from an odd number ({expr_count}) of values."
+            )
         )
 
     if expr_count == 0:
@@ -1322,7 +1431,9 @@ def mock_dateadd(
         cast = cast_to_datetime
         sf_type = ts_type
     else:
-        raise ValueError(f"{part} is not a recognized date or time part.")
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(f"{part} is not a recognized date or time part.")
+        )
 
     res = datetime_expr.combine(
         value_expr, lambda date, duration: func(cast(date), duration)
@@ -1401,8 +1512,10 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
             lambda x: None if x is None else int((x.strftime("%z") or "0000")[-2:])
         )
     else:
-        raise ValueError(
-            f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(
+                f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
+            )
         )
     return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
 
@@ -1464,7 +1577,9 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
             lambda x: datetime.datetime(x.year, 1, 1, tzinfo=getattr(x, "tzinfo", None))
         )
     else:
-        raise ValueError(f"{part} is not a supported time unit for date_trunc.")
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(f"{part} is not a supported time unit for date_trunc.")
+        )
 
     if isinstance(datetime_expr.sf_type.datatype, DateType):
         truncated = truncated.dt.date
@@ -1581,8 +1696,10 @@ def mock_convert_timezone(
 
     is_ntz = source_time.sf_type.datatype.tz is TimestampTimeZone.NTZ
     if source_timezone is not None and not is_ntz:
-        raise ValueError(
-            "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(
+                "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
+            )
         )
 
     # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
@@ -1659,7 +1776,9 @@ def mock_get(
 @patch("concat")
 def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
     if len(columns) < 1:
-        raise ValueError("concat expects one or more column(s) to be passed in.")
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError("concat expects one or more column(s) to be passed in.")
+        )
     pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
@@ -1671,8 +1790,10 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
 @patch("concat_ws")
 def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
     if len(columns) < 2:
-        raise ValueError(
-            "concat_ws expects a seperator column and one or more value column(s) to be passed in."
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(
+                "concat_ws expects a seperator column and one or more value column(s) to be passed in."
+            )
         )
     pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(

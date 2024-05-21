@@ -39,6 +39,14 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is a SQL test suite",
+        run=False,
+    )
+]
+
 
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
