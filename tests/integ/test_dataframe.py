@@ -2571,6 +2571,10 @@ def test_truncate_preserves_schema(session, local_testing_mode):
     Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
+)
 def test_truncate_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
@@ -2595,6 +2599,10 @@ def test_table_types_in_save_as_table(
         Utils.assert_table_type(session, table_name, table_type)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
@@ -2651,6 +2659,10 @@ def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373882: nullability is not enforced in Local Testing",
+)
 @pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
@@ -2700,6 +2712,10 @@ def test_save_as_table_nullable_test(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373882: nullability is not enforced in Local Testing",
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
@@ -3774,6 +3790,10 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame alias is not supported in Local Testing",
+)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],

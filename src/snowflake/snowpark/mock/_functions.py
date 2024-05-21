@@ -191,6 +191,13 @@ class MockedFunctionRegistry:
                 del self._registry[name]
 
 
+_DEFAULT_OUTPUT_FORMAT = {
+    DateType: "YYYY-MM-DD",
+    TimeType: "HH24:MI:SS",
+    TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
+}
+
+
 class LocalTimezone:
     """
     A singleton class that encapsulates conversion to the local timezone.
