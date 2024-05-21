@@ -560,7 +560,7 @@ def handle_udf_expression(
             res = function_input.apply(lambda row: udf_handler(*row), axis=1)
         except Exception as err:
             SnowparkLocalTestingException.raise_from_error(
-                err, error_message="Python Interpreter Error"
+                err, error_message=f"Python Interpreter Error: {err}"
             )
 
         res.sf_type = ColumnType(exp.datatype, exp.nullable)

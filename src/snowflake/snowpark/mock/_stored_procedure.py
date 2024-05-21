@@ -78,10 +78,8 @@ class MockStoredProcedure(StoredProcedure):
                 if expr.datatype and not types_are_compatible(
                     expr.datatype, expected_type
                 ):
-                    SnowparkLocalTestingException.raise_from_error(
-                        ValueError(
-                            f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
-                        )
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {expr.datatype} for sproc argument of type {expected_type}"
                     )
 
                 # Expression may be a nested expression. Expression should not need any input data
@@ -97,24 +95,27 @@ class MockStoredProcedure(StoredProcedure):
 
                 # If the length of the resolved expression is not a single value we cannot pass it as a literal.
                 if len(resolved_expr) != 1:
-                    SnowparkLocalTestingException.raise_from_error(
-                        ValueError(
-                            f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
-                        )
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
                     )
+
+                if not types_are_compatible(
+                    resolved_expr.sf_type.datatype, expected_type
+                ):
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {resolved_expr.sf_type.datatype} for sproc argument of type {expected_type}"
+                    )
+
                 parsed_args.append(resolved_expr[0])
             else:
                 inferred_type = infer_type(arg)
                 if not types_are_compatible(expected_type, inferred_type):
-                    SnowparkLocalTestingException.raise_from_error(
-                        ValueError(
-                            f"Unexpected type {inferred_type} for sproc argument of type {expected_type}"
-                        )
+                    raise SnowparkLocalTestingException(
+                        f"Unexpected type {inferred_type} for sproc argument of type {expected_type}"
                     )
                 parsed_args.append(arg)
 
-                # Initialize import directory
-
+        # Initialize import directory
         temporary_import_path = tempfile.TemporaryDirectory()
         last_import_directory = sys._xoptions.get("snowflake_import_directory")
         sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
@@ -169,7 +170,7 @@ class MockStoredProcedure(StoredProcedure):
                 result = sproc_handler(session, *parsed_args)
             except Exception as err:
                 SnowparkLocalTestingException.raise_from_error(
-                    err, error_message="Python Interpreter Error"
+                    err, error_message=f"Python Interpreter Error: {err}"
                 )
 
         # Semi-structured types are serialized in json
@@ -293,11 +294,17 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
         if imports is not None:
             for _import in imports:
-                if type(_import) is str:
+                if isinstance(_import, str):
                     self._import_file(_import, sproc_name=sproc_name)
-                else:
+                elif isinstance(_import, tuple) and all(
+                    isinstance(item, str) for item in _import
+                ):
                     local_path, import_path = _import
                     self._import_file(local_path, import_path, sproc_name=sproc_name)
+                else:
+                    raise TypeError(
+                        "stored-proc-level import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+                    )
 
         if type(func) is tuple:  # register from file
             if sproc_name not in self._sproc_level_imports:

@@ -776,11 +776,7 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        # Local testing nests the error, but pytest only provides the top level error message
-        assert "Python Interpreter Error" in ex_info.value.message
+    assert "No module named" in ex_info.value.message
 
     session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
 
@@ -795,10 +791,7 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "Python Interpreter Error" in ex_info.value.message
+    assert "No module named" in ex_info.value.message
 
     # clean
     session.clear_imports()
