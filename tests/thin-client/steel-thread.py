@@ -25,6 +25,10 @@ parameters = {
 
 session = Session.builder.configs(parameters).getOrCreate()
 
+# create test table with data before invoking DataFrame API
+
+
+
 df = session.table("test_table")
 df = df.filter("STR LIKE '%e%'")
 df.show()
