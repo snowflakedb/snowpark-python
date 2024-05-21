@@ -47,7 +47,7 @@ extensions = [
 autodoc_default_options = {
     "autosummary-generate": True,
     "member-order": "alphabetical",  # 'alphabetical', by member type ('groupwise') or source order (value 'bysource')
-    "undoc-members": True,  # If set, autodoc will also generate document for the members not having docstrings
+    "undoc-members": True,  # If set, autodoc will also generate the document for the members not having docstrings
     "show-inheritance": True,
 }
 
@@ -91,10 +91,9 @@ html_show_sourcelink = False  # Hide "view page source" link
 html_show_sphinx = False
 
 
-# Construct URL to corresponding section in the snowpark-python repo
+# Construct URL to the corresponding section in the snowpark-python repo
 def linkcode_resolve(domain, info):
-    import warnings, inspect, pkg_resources
-    import snowflake.snowpark
+    import inspect
 
     if domain != "py":
         return None

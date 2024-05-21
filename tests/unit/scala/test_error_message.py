@@ -107,7 +107,7 @@ def test_df_must_provide_schema_for_reading_file():
     assert ex.error_code == "1106"
     assert (
         ex.message
-        == "You must call DataFrameReader.schema() and specify the schema for the file."
+        == 'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})'
     )
 
 

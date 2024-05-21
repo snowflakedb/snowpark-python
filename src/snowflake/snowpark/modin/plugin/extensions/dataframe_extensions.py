@@ -10,6 +10,7 @@ as `DataFrame.to_snowflake`.
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
+import pandas
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
@@ -204,9 +205,9 @@ def to_pandas(
     *,
     statement_params: Optional[dict[str, str]] = None,
     **kwargs: Any,
-) -> pd.DataFrame:
+) -> pandas.DataFrame:
     """
-    Convert Snowpark pandas DataFrame to pandas DataFrame
+    Convert Snowpark pandas DataFrame to `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_
 
     Args:
         statement_params: Dictionary of statement level parameters to be set while executing this action.

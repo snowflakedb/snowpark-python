@@ -47,6 +47,14 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is testing inbound telemetry",
+        run=False,
+    )
+]
+
 
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
@@ -260,7 +268,8 @@ def test_describe_api_calls(session):
 
     empty_df = TestData.timestamp1(session).describe()
     assert empty_df._plan.api_calls == [
-        {"name": "Session.sql"},
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.select"},
         {
             "name": "DataFrame.describe",
             "subcalls": [{"name": "Session.create_dataframe[values]"}],

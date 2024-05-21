@@ -6,8 +6,6 @@
 
 from textwrap import dedent
 
-from pandas.util._decorators import doc
-
 
 class Resampler:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
     def __getitem__(self, key):  # pragma: no cover
@@ -105,7 +103,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
     2013-01-01 00:00:02    3
     2013-01-01 00:00:03    4
     2013-01-01 00:00:04    5
-    Freq: None, dtype: int8
+    Freq: None, dtype: int64
 
     >>> r = s.resample('2s')
 
@@ -131,23 +129,25 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
     """
     )
 
-    @doc(
-        _shared_docs,
-        see_also=_agg_see_also_doc,
-        examples=_agg_examples_doc,
-        klass="DataFrame",
-        axis="",
-    )
+    # TODO - SNOW-1420892 API not implemented, uncomment when done.
+    # @doc(
+    #     _shared_docs,
+    #     see_also=_agg_see_also_doc,
+    #     examples=_agg_examples_doc,
+    #     klass="DataFrame",
+    #     axis="",
+    # )
     def apply():
         pass
 
-    @doc(
-        _shared_docs,
-        see_also=_agg_see_also_doc,
-        examples=_agg_examples_doc,
-        klass="DataFrame",
-        axis="",
-    )
+    # TODO - SNOW-1420825 API not implemented, uncomment when done.
+    # @doc(
+    #     _shared_docs,
+    #     see_also=_agg_see_also_doc,
+    #     examples=_agg_examples_doc,
+    #     klass="DataFrame",
+    #     axis="",
+    # )
     def aggregate():
         pass
 
@@ -166,7 +166,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         Parameters
         ----------
         limit : int, optional
-            This parameter is not supported and will raise a NotImplementedError.
+            This parameter is not supported and will raise NotImplementedError.
 
         Returns
         -------
@@ -184,7 +184,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-05    3
         2020-01-07    4
         2020-01-08    5
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('1D').ffill()
         2020-01-03    1
@@ -193,12 +193,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-06    3
         2020-01-07    4
         2020-01-08    5
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('3D').ffill()
         2020-01-03    1
         2020-01-06    3
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> lst2 = pd.to_datetime(['2023-01-03 1:00:00', '2023-01-04', '2023-01-05 23:00:00', '2023-01-06', '2023-01-07 2:00:00', '2023-01-10'])
         >>> ser2 = pd.Series([1, 2, 3, 4, None, 6], index=lst2)
@@ -312,7 +312,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
     def count():
         """
-        Compute count of resample bins.
+        Compute count of resample bins, exclude missing values.
 
         Returns
         -------
@@ -330,12 +330,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').count()
         2020-01-01    2
         2020-01-03    2
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
         >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
@@ -414,12 +414,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').max()
         2020-01-01    2
         2020-01-03    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
         >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
@@ -500,12 +500,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').mean()
-        2020-01-01    1.500000
-        2020-01-03    3.500000
-        Freq: None, dtype: object
+        2020-01-01    1.5
+        2020-01-03    3.5
+        Freq: None, dtype: float64
 
         >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
         >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
@@ -535,10 +535,10 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-05  2  5.0
 
         >>> df1.resample('2D').mean()
-                           A    B
-        2020-01-01  1.000000  2.0
-        2020-01-03  1.500000  3.5
-        2020-01-05  2.000000  5.0
+                      A    B
+        2020-01-01  1.0  2.0
+        2020-01-03  1.5  3.5
+        2020-01-05  2.0  5.0
 
         >>> df1.resample('2D')['B'].mean()
         2020-01-01    2.0
@@ -593,7 +593,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').median()
         2020-01-01    1.5
@@ -628,7 +628,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-04  2  6  9
 
         >>> df.resample('2D').median()
-                    a    b    c
+                      a    b    c
         2020-01-01  1.0  5.0  3.5
         2020-01-03  2.0  5.5  8.5
         """
@@ -668,12 +668,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').min()
         2020-01-01    1
         2020-01-03    3
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
         >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
@@ -735,7 +735,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**
@@ -759,7 +759,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').std()
         2020-01-01    0.707107
@@ -777,7 +777,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         >>> ser2.resample('2S').std()
         2020-01-01 00:00:00    0.707107
-        2020-01-01 00:00:02    NaN
+        2020-01-01 00:00:02         NaN
         Freq: None, dtype: float64
 
         For DataFrame:
@@ -794,9 +794,9 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-04  2  6  9
 
         >>> df.resample('2D').std()
-                    a   b        c
-        2020-01-01  0.0 4.242641 2.121320
-        2020-01-03  0.0 0.707107 0.707107
+                      a         b         c
+        2020-01-01  0.0  4.242641  2.121320
+        2020-01-03  0.0  0.707107  0.707107
         """
 
     def sum():
@@ -810,7 +810,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` and non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**
@@ -834,12 +834,12 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').sum()
         2020-01-01    3
         2020-01-03    7
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
         >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
@@ -869,9 +869,9 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-04  2  6  9
 
         >>> df.resample('2D').sum()
-                    a  b  c
-        2020-01-01  2  10 7
-        2020-01-03  4  11 17
+                    a   b   c
+        2020-01-01  2  10   7
+        2020-01-03  4  11  17
         """
 
     def var():
@@ -889,7 +889,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
 
         min_count : int, default 0
             The required number of valid values to perform the operation. If fewer
-            than ``min_count`` non-NA values are present the result will be NA.
+            than ``min_count`` non-NA values are present, the result will be NA.
 
         engine : str, default None
             **This parameter is ignored in Snowpark pandas. The execution engine will always be Snowflake.**
@@ -913,7 +913,7 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-02    2
         2020-01-03    3
         2020-01-04    4
-        Freq: None, dtype: int8
+        Freq: None, dtype: int64
 
         >>> ser1.resample('2D').var()
         2020-01-01    0.5
@@ -948,9 +948,9 @@ class Resampler:  # pragma: no cover: we use this class's docstrings, but we nev
         2020-01-04  2  6  9
 
         >>> df.resample('2D').var()
-                    a   b    c
-        2020-01-01  0.0 18.0 4.5
-        2020-01-03  0.0 0.5  0.5
+                      a     b    c
+        2020-01-01  0.0  18.0  4.5
+        2020-01-03  0.0   0.5  0.5
         """
 
     def quantile():

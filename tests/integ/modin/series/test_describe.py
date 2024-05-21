@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     create_test_series,
@@ -17,48 +17,46 @@ from tests.integ.modin.utils import (
 
 
 @pytest.mark.parametrize(
-    # For numeric data, 7 UNIONs occur because we concat 8 query compilers together:
-    # count, mean, std, min, 0.25, 0.5, 0.75, max
+    # For numeric data, 5 UNIONs occur because we concat 6 query compilers together:
+    # count, mean, std, min, quantiles (0.25, 0.5, 0.75), max
     # For object data, 5 UNIONs occur:
     # - 2 to concat 3 query compilers (count, unique, top/freq)
     # - 1 to NULL-pad the Series to avoid special-case handling top/freq calculation for empty Series
     # - 2 from a UNION ALL + replicated subquery when transposing the top/freq calculation
-    "data, expected_union_count",
+    "data",
     [
-        ([1, 10, -1, 20], 7),
-        ([None, 1.0, 0.8, 0.9, 0, 0.1, 0.2, None], 7),
+        [1, 10, -1, 20],
+        [None, 1.0, 0.8, 0.9, 0, 0.1, 0.2, None],
         # If there are multiple modes, return the first
-        (["k", "j", "j", "k"], 5),
-        (["y", "y", "y", "z"], 5),
+        ["k", "j", "j", "k"],
+        ["y", "y", "y", "z"],
         # Empty series is object by default
-        ([], 5),
+        [],
         # Heterogeneous data is considered non-numeric
-        ([1.1, 2.2, "hello", None], 5),
+        [1.1, 2.2, "hello", None],
     ],
 )
-def test_describe(data, expected_union_count):
-    with SqlCounter(query_count=1, union_count=expected_union_count):
-        eval_snowpark_pandas_result(
-            *create_test_series(data), lambda ser: ser.describe()
-        )
+@sql_count_checker(query_count=1, union_count=5)
+def test_describe(data):
+    eval_snowpark_pandas_result(*create_test_series(data), lambda ser: ser.describe())
 
 
 @pytest.mark.parametrize(
-    "percentiles, expected_union_count",
+    "percentiles",
     [
-        # We concat count, std, mean, min, max, and 1 QC for each percentile
+        # We concat count, std, mean, min, max, and 1 QC for all percentiles
         # median is automatically added if it is not present already
-        ([0.1, 0.2, 0.33, 0.432], 9),
-        ([], 5),
-        ([0.1], 6),
-        ([0.5], 5),
+        [0.1, 0.2, 0.33, 0.432],
+        [],
+        [0.1],
+        [0.5],
     ],
 )
-def test_describe_percentiles(percentiles, expected_union_count):
-    with SqlCounter(query_count=1, union_count=expected_union_count):
-        eval_snowpark_pandas_result(
-            *create_test_series(list(range(10))), lambda ser: ser.describe(percentiles)
-        )
+@sql_count_checker(query_count=1, union_count=5)
+def test_describe_percentiles(percentiles):
+    eval_snowpark_pandas_result(
+        *create_test_series(list(range(10))), lambda ser: ser.describe(percentiles)
+    )
 
 
 # The include and exclude parameters are completely ignored for Series objects, even if
@@ -105,9 +103,9 @@ def test_describe_ignore_include_exclude(include, exclude):
         ],
     ],
 )
-# Datetime Series have 6 UNIONs for 7 computed statistics.
-# (count, mean, min, 0.25, 0.5, 0.75, max)
-@sql_count_checker(query_count=1, union_count=6)
+# Datetime Series have 4 UNIONs for 5 computed statistics.
+# (count, mean, min, quantiles, max)
+@sql_count_checker(query_count=1, union_count=4)
 def test_describe_timestamps(data):
     def timestamp_describe_comparator(snow_res, native_res):
         # atol/rtol arguments of asserters doesn't work for datetimes
@@ -145,16 +143,16 @@ def test_describe_timestamps(data):
     ],
 )
 @pytest.mark.parametrize(
-    "data, expected_union_count",
+    "data",
     [
-        ([-1, -3, 1, 14, 0, 100], 7),
-        ([3.1, 4.1, 5.9, 2.6, 5.3, np.nan], 7),
-        ([f"data{i}" for i in range(6)], 5),
+        [-1, -3, 1, 14, 0, 100],
+        [3.1, 4.1, 5.9, 2.6, 5.3, np.nan],
+        [f"data{i}" for i in range(6)],
     ],
     ids=["ints", "floats", "objects"],
 )
-def test_describe_multiindex(data, index, expected_union_count):
-    with SqlCounter(query_count=1, union_count=expected_union_count):
-        eval_snowpark_pandas_result(
-            *create_test_series(data, index=index), lambda ser: ser.describe()
-        )
+@sql_count_checker(query_count=1, union_count=5)
+def test_describe_multiindex(data, index):
+    eval_snowpark_pandas_result(
+        *create_test_series(data, index=index), lambda ser: ser.describe()
+    )

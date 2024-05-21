@@ -10,12 +10,6 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark import Session
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.plugin.default2pandas.stored_procedure_utils import (
-    PACKAGING_REQUIREMENT,
-    SNOWPARK_PANDAS_IMPORT,
-)
 from tests.integ.modin.sql_counter import sql_count_checker
 
 
@@ -172,88 +166,3 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
         native_pd.date_range("2000-01-01", periods=3, freq="h")
     )
     eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
-
-
-# Negative test for SNOW-972740 - Apply on a series changes causes errors in a later transpose
-@sql_count_checker(query_count=3, fallback_count=0, sproc_count=0)
-def test_fallback_transpose_after_apply_in_stored_proc_negative(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([1, 2, 3])
-        # apply followed with transpose inside stored procedure fails to resolve
-        # the target path today. This is likely due to how Snowpark pandas is
-        # installed today, should be resolved once Snowpark pandas is installed as
-        # standard conda library. More investigation is needed.
-        # Apply is not an inplace update, here we call df[0] = ... to make sure the
-        # final df have the apply subquery.
-        df[0] = df[0].apply(lambda x: x)
-        df.transpose()
-        return 42
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        assert func_proc() == 42
-    assert "Python Interpreter Error" in str(ex_info)
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=SnowparkSQLException,
-)
-@sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
-def test_sum_in_stored_proc(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([9, 8, 7])
-        return df.sum()[0]
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-    assert func_proc() == 24
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=SnowparkSQLException,
-)
-@sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
-def test_transpose_in_stored_proc(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([9, 8, 7])
-        return df.transpose()[2][0]
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-    assert func_proc() == 7

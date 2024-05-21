@@ -629,7 +629,7 @@ class UDTFRegistration:
                 every batch by setting a smaller batch size. Note that setting a larger value does not
                 guarantee that Snowflake will encode batches with the specified number of rows. It will
                 be ignored when registering a non-vectorized UDTF.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
@@ -777,7 +777,7 @@ class UDTFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDTF result is deterministic or not for the same input.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::

@@ -36,9 +36,6 @@ from snowflake.snowpark.modin.utils import (
 )
 
 
-@_inherit_docstrings(
-    pandas.core.window.rolling.Window, modify_doc=doc_replace_dataframe_with_link
-)
 # TODO SNOW-1041934: Add support for more window aggregations
 class Window(metaclass=TelemetryMeta):
     def __init__(

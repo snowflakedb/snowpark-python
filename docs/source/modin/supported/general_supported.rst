@@ -45,8 +45,7 @@ Data manipulations
 |                             |                                 | ``sort``                         | not str; or MultiIndex; or any ``argfunc`` is not  |
 |                             |                                 |                                  | "count", "mean", "min", "max", or "sum"            |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``qcut``                    | P                               |                                  | ``N`` if ``labels`` is an array or                 |
-|                             |                                 |                                  | ``retbins=True``                                   |
+| ``qcut``                    | P                               |                                  | ``N`` if ``labels!=False`` or ``retbins=True``.    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``read_csv``                | P                               | ``engine``, ``converters``,      | Reads both local and staged file(s) into a Snowpark|
 |                             |                                 | ``true_values``,                 | pandas DataFrame. Note, the order of rows in the   |

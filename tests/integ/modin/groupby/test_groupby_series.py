@@ -83,6 +83,21 @@ def test_groupby_agg_series(agg_func, sort):
     )
 
 
+@pytest.mark.parametrize("sort", [True, False])
+@pytest.mark.parametrize("aggs", [{"minimum": min}, {"minimum": min, "maximum": max}])
+@sql_count_checker(query_count=2)
+def test_groupby_agg_series_named_agg(aggs, sort):
+    index = native_pd.Index(["a", "b", "b", "a", "c"])
+    index.names = ["grp_col"]
+    series = pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
+
+    eval_snowpark_pandas_result(
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby(by="grp_col", sort=sort).agg(**aggs),
+    )
+
+
 @pytest.mark.parametrize("numeric_only", [False, None])
 @sql_count_checker(query_count=2)
 def test_groupby_series_numeric_only(series_str, numeric_only):

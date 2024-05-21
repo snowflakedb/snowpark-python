@@ -75,6 +75,10 @@ def test_update_rows_in_table(session):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1019159 ERROR_ON_NONDETERMINISTIC_UPDATE is not supported in Local Testing",
+)
+@pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Cannot alter session in SP",
 )

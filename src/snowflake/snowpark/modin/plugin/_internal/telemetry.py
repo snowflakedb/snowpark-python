@@ -7,7 +7,7 @@ import inspect
 import re
 from contextlib import nullcontext
 from enum import Enum, unique
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from typing_extensions import ParamSpec
 
@@ -23,6 +23,8 @@ from snowflake.snowpark.session import Session
 
 # Define ParamSpec with "_Args" as the generic parameter specification similar to Any
 _Args = ParamSpec("_Args")
+
+T = TypeVar("T", bound=Callable[..., Any])
 
 
 @unique
@@ -40,11 +42,19 @@ class SnowparkPandasTelemetryField(Enum):
 ARG_TRUNCATE_SIZE = 100
 
 
+@unique
+class PropertyMethodType(Enum):
+    FGET = "get"
+    FSET = "set"
+    FDEL = "delete"
+
+
 @safe_telemetry
 def _send_snowpark_pandas_telemetry_helper(
     *,
     session: Session,
     telemetry_type: str,
+    error_msg: Optional[str] = None,
     func_name: str,
     query_history: Optional[QueryHistory],
     api_calls: Union[str, list[dict[str, Any]]],
@@ -56,6 +66,7 @@ def _send_snowpark_pandas_telemetry_helper(
     Args:
         session: The Snowpark session.
         telemetry_type: telemetry type. e.g. TYPE_SNOWPARK_PANDAS_FUNCTION_USAGE.value
+        error_msg: Optional error message if telemetry_type is a Snowpark pandas error
         func_name: The name of the function being tracked.
         query_history: The query history context manager to record queries that are pushed down to the Snowflake
         database in the session.
@@ -64,9 +75,10 @@ def _send_snowpark_pandas_telemetry_helper(
     Returns:
         None
     """
-    data: dict[str, Union[str, list[dict[str, Any]], list[str]]] = {
+    data: dict[str, Union[str, list[dict[str, Any]], list[str], Optional[str]]] = {
         TelemetryField.KEY_FUNC_NAME.value: func_name,
         TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_SNOWPARK_PANDAS.value,
+        TelemetryField.KEY_ERROR_MSG.value: error_msg,
     }
     if len(api_calls) > 0:
         data[TelemetryField.KEY_API_CALLS.value] = api_calls
@@ -191,7 +203,10 @@ def error_to_telemetry_type(e: Exception) -> str:
 
 
 def _gen_func_name(
-    class_prefix: str, func: Callable[_Args, Any], property_name: Optional[str] = None
+    class_prefix: str,
+    func: Callable[_Args, Any],
+    property_name: Optional[str] = None,
+    property_method_type: Optional[PropertyMethodType] = None,
 ) -> str:
     """
     Generate function name for telemetry.
@@ -201,15 +216,17 @@ def _gen_func_name(
         func: the main function
         property_name: the property name if the function is used by a property, e.g., `index`, `name`, `iloc`, `loc`,
         `dtype`, etc
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that
+        this function implements, if this method is used by a property.
+        `property_name` must also be specified.
 
     Returns:
         The generated function name
     """
     func_name = func.__qualname__
     if property_name:
-        func_name = func_name.replace("__get__", f"{property_name}_get").replace(
-            "__set__", f"{property_name}_set"
-        )
+        assert property_method_type is not None
+        func_name = f"property.{property_name}_{property_method_type.value}"
     return f"{class_prefix}.{func_name}"
 
 
@@ -220,6 +237,7 @@ def _telemetry_helper(
     kwargs: dict[str, Any],
     is_standalone_function: bool,
     property_name: Optional[str] = None,
+    property_method_type: Optional[PropertyMethodType] = None,
 ) -> Any:
     """
     Helper function for the main process of all two telemetry decorators: snowpark_pandas_telemetry_method_decorator &
@@ -239,6 +257,9 @@ def _telemetry_helper(
         in Python is a function defined outside a class or any other enclosing structure, callable directly without
         an instance of a class.
         property_name: the property name if the `func` is from a property.
+        property_method_type: The property method (`FGET`/`FSET`/`FDEL`) that
+        this function implements, if this method is used by a property.
+        `property_name` must also be specified.
 
     Returns:
         The return value of the API function.
@@ -292,7 +313,7 @@ def _telemetry_helper(
     # caller and the rest will be the qualname of the func, which gives more complete information than __name__ and
     # therefore can be more helpful in debugging, e.g., func_name "DataFrame.DataFrame.dropna" shows the
     # caller object is Snowpark pandas DataFrame and the function used is from DataFrame's dropna method
-    func_name = _gen_func_name(class_prefix, func, property_name)
+    func_name = _gen_func_name(class_prefix, func, property_name, property_method_type)
     curr_api_call: dict[str, Any] = {TelemetryField.NAME.value: func_name}
     if kwargs_telemetry:
         curr_api_call[SnowparkPandasTelemetryField.ARGS.value] = kwargs_telemetry
@@ -309,6 +330,10 @@ def _telemetry_helper(
         _send_snowpark_pandas_telemetry_helper(
             session=session,
             telemetry_type=error_to_telemetry_type(e),
+            # Only track error messages for NotImplementedError
+            error_msg=e.args[0]
+            if isinstance(e, NotImplementedError) and e.args
+            else None,
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
@@ -353,8 +378,10 @@ def _telemetry_helper(
 
 
 def snowpark_pandas_telemetry_method_decorator(
-    func: Callable, property_name: Optional[str] = None
-) -> Callable:
+    func: T,
+    property_name: Optional[str] = None,
+    property_method_type: Optional[PropertyMethodType] = None,
+) -> T:
     """
     Decorator function for telemetry of API calls in BasePandasDataset and its subclasses.
 
@@ -378,19 +405,27 @@ def snowpark_pandas_telemetry_method_decorator(
     """
 
     @functools.wraps(func)
-    def wrap(*args: Any, **kwargs: Any) -> Callable:
+    def wrap(*args, **kwargs):  # type: ignore
+        # add a `type: ignore` for this function definition because the
+        # function should be of type `T`, but it's too much work to
+        # extract the input and output types from T in order to add type
+        # hints in-line here. We'll fix up the type with a `cast` before
+        # returning the function.
         return _telemetry_helper(
             func=func,
             args=args,
             kwargs=kwargs,
             is_standalone_function=False,
             property_name=property_name,
+            property_method_type=property_method_type,
         )
 
-    return wrap
+    # need cast to convince mypy that we are returning a function with the same
+    # signature as func.
+    return cast(T, wrap)
 
 
-def snowpark_pandas_telemetry_standalone_function_decorator(func: Callable) -> Callable:
+def snowpark_pandas_telemetry_standalone_function_decorator(func: T) -> T:
     """
     Telemetry decorator for standalone functions.
 
@@ -410,7 +445,12 @@ def snowpark_pandas_telemetry_standalone_function_decorator(func: Callable) -> C
     """
 
     @functools.wraps(func)
-    def wrap(*args: Any, **kwargs: Any) -> Callable:
+    def wrap(*args, **kwargs):  # type: ignore
+        # add a `type: ignore` for this function definition because the
+        # function should be of type `T`, but it's too much work to
+        # extract the input and output types from T in order to add type
+        # hints in-line here. We'll fix up the type with a `cast` before
+        # returning the function.
         return _telemetry_helper(
             func=func,
             args=args,
@@ -418,7 +458,9 @@ def snowpark_pandas_telemetry_standalone_function_decorator(func: Callable) -> C
             is_standalone_function=True,
         )
 
-    return wrap
+    # need cast to convince mypy that we are returning a function with the same
+    # signature as func.
+    return cast(T, wrap)
 
 
 # The list of private methods that telemetry is enabled. Only those methods are interested to use are collected. Note
@@ -483,12 +525,32 @@ class TelemetryMeta(type):
                 # wrap on getter and setter
                 attrs[attr_name] = property(
                     snowpark_pandas_telemetry_method_decorator(
-                        attr_value.__get__, property_name=attr_name
+                        cast(
+                            # add a cast because mypy doesn't recognize that
+                            # non-None fget and __get__ are both callable
+                            # arguments to snowpark_pandas_telemetry_method_decorator.
+                            Callable,
+                            attr_value.__get__  # pragma: no cover: we don't encounter this case in pandas or modin because every property has an fget method.
+                            if attr_value.fget is None
+                            else attr_value.fget,
+                        ),
+                        property_name=attr_name,
+                        property_method_type=PropertyMethodType.FGET,
                     ),
                     snowpark_pandas_telemetry_method_decorator(
-                        attr_value.__set__, property_name=attr_name
+                        attr_value.__set__
+                        if attr_value.fset is None
+                        else attr_value.fset,
+                        property_name=attr_name,
+                        property_method_type=PropertyMethodType.FSET,
                     ),
-                    attr_value.__delattr__,
+                    snowpark_pandas_telemetry_method_decorator(
+                        attr_value.__delete__
+                        if attr_value.fdel is None
+                        else attr_value.fdel,
+                        property_name=attr_name,
+                        property_method_type=PropertyMethodType.FDEL,
+                    ),
                     doc=attr_value.__doc__,
                 )
         return type.__new__(cls, name, bases, attrs)

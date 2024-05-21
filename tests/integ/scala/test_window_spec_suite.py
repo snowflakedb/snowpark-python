@@ -42,8 +42,12 @@ from snowflake.snowpark.functions import (
 from tests.utils import TestData, Utils
 
 
-# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="precision for local testing is not yet aligned.",
+)
 def test_partition_by_order_by_rows_between(session, local_testing_mode):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -98,7 +102,10 @@ def test_range_between(session):
     )
 
 
-# [Local Testing GA] TODO: enable for local testing
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362852: Window functions need better alignment with live.",
+)
 def test_window_function_with_aggregates(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -112,7 +119,10 @@ def test_window_function_with_aggregates(session):
     )
 
 
-# [Local Testing GA] TODO: Align error behavior with live connection
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1362852: Window functions need better alignment with live.",
+)
 def test_window_function_inside_where_and_having_clauses(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).select("a").where(
@@ -176,6 +186,10 @@ def test_reuse_window_order_by(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ntile is not yet supported in local testing mode.",
+)
 def test_rank_functions_in_unspecific_window(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
@@ -268,6 +282,10 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
     assert "requires ORDER BY in window specification" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="corr is not yet supported in local testing mode.",
+)
 def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
     df = session.create_dataframe(
         [
@@ -330,6 +348,10 @@ def test_corr_covar_pop_stddev_pop_functions_in_specific_window(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="covar_samp is not yet supported in local testing mode.",
+)
 def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
     df = session.create_dataframe(
         [
@@ -395,6 +417,10 @@ def test_aggregation_function_on_invalid_column(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="skew is not yet supported in local testing mode.",
+)
 def test_skewness_and_kurtosis_functions_in_window(session):
     df = session.create_dataframe(
         [
@@ -466,6 +492,10 @@ def test_window_functions_in_multiple_selects(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="WithinGroup expressions are not yet supported by local testing mode.",
+)
 def test_listagg_window_function(session):
     df = session.create_dataframe(
         [

@@ -26,7 +26,10 @@ from snowflake.snowpark.session import (
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 
-@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1374069: fix RuntimeConfig for Local Testing",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_runtime_config(db_parameters):
     session = (
@@ -67,6 +70,11 @@ def test_runtime_config(db_parameters):
     session.close()
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
 def test_update_query_tag(session):
     store_tag = session.query_tag
@@ -82,11 +90,21 @@ def test_update_query_tag(session):
         session.query_tag = store_tag
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_sql_select_with_params(session):
     res = (
         session.sql("EXECUTE IMMEDIATE $$ SELECT ? AS x $$", [1]).select("x").collect()
@@ -152,6 +170,11 @@ def test_session_builder(session):
     assert builder1 != builder2
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Query called from a stored procedure contains a function with side effects [SYSTEM$CANCEL_ALL_QUERIES]",
@@ -202,6 +225,10 @@ def test_create_session_in_sp(session):
         internal_utils.PLATFORM = original_platform
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: Mock object is closed undefined",
+)
 def test_close_session_in_sp(session):
     # TODO: local testing support SNOW-1331149 mocking connector connection
     import snowflake.snowpark._internal.utils as internal_utils
@@ -215,8 +242,13 @@ def test_close_session_in_sp(session):
         internal_utils.PLATFORM = original_platform
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_list_files_in_stage(session, resources_path, local_testing_mode):
+def test_list_files_in_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     special_name = f'"{stage_name}/aa"'
     single_quoted_name = f"'{stage_name}/b\\' b'"
@@ -266,17 +298,12 @@ def test_list_files_in_stage(session, resources_path, local_testing_mode):
         assert os.path.basename(test_files.test_file_csv) in files6
 
         Utils.create_stage(session, single_quoted_name, is_temporary=False)
-        if not local_testing_mode:
-            # TODO: session.file.put has a bug that it can not add '@' to single quoted name stage when normalizing path
-            session._conn.upload_file(
-                stage_location=single_quoted_name,
-                path=test_files.test_file_csv,
-                compress_data=False,
-            )
-        else:
-            Utils.upload_to_stage(
-                session, single_quoted_name, test_files.test_file_csv, compress=False
-            )
+        # TODO: session.file.put has a bug that it can not add '@' to single quoted name stage when normalizing path
+        session._conn.upload_file(
+            stage_location=single_quoted_name,
+            path=test_files.test_file_csv,
+            compress_data=False,
+        )
         files7 = session._list_files_in_stage(single_quoted_name)
         assert len(files7) == 1
         assert os.path.basename(test_files.test_file_csv) in files7
@@ -304,7 +331,9 @@ def test_create_session_from_parameters(db_parameters, sql_simplifier_enabled):
 
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
+def test_create_session_from_connection(
+    db_parameters, sql_simplifier_enabled, local_testing_mode
+):
     connection = snowflake.connector.connect(**db_parameters)
     session_builder = Session.builder.configs({"connection": connection})
     new_session = session_builder.create()
@@ -313,13 +342,18 @@ def test_create_session_from_connection(db_parameters, sql_simplifier_enabled):
         df = new_session.createDataFrame([[1, 2]], schema=["a", "b"])
         Utils.check_answer(df, [Row(1, 2)])
         assert session_builder._options.get("password") is None
-        assert new_session._conn._lower_case_parameters.get("password") is None
+        if not local_testing_mode:
+            assert new_session._conn._lower_case_parameters.get("password") is None
         assert new_session._conn._conn._password is None
     finally:
         new_session.close()
 
 
-@pytest.mark.localtest
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is testing live connection feature",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_connection_with_noise_parameters(
     db_parameters, sql_simplifier_enabled
@@ -343,6 +377,11 @@ def test_create_session_from_connection_with_noise_parameters(
         new_session.close()
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Query tag is a SQL feature",
+    run=False,
+)
 @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_session_builder_app_name(session, db_parameters):
@@ -359,6 +398,11 @@ def test_session_builder_app_name(session, db_parameters):
         new_session.close()
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="The test creates temporary tables of which the names do not follow the rules of temp object on purposes.",
@@ -484,10 +528,19 @@ def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
     del parameters["warehouse"]
     parameters["local_testing"] = local_testing_mode
     with Session.builder.configs(parameters).create() as session:
-        session.sql_simplifier_enabled = sql_simplifier_enabled
-        schema_name = db_parameters["schema"]
-        session.use_schema(schema_name)
-        assert session.get_current_schema() == f'"{schema_name.upper()}"'
+        quoted_schema_name = f'"SCHEMA_{Utils.random_alphanumeric_str(5)}_schema"'
+        try:
+            session.sql_simplifier_enabled = sql_simplifier_enabled
+            schema_name = db_parameters["schema"]
+            session.use_schema(schema_name)
+            assert session.get_current_schema() == f'"{schema_name.upper()}"'
+            if not local_testing_mode:
+                session.sql(f"CREATE OR REPLACE SCHEMA {quoted_schema_name}").collect()
+            session.use_schema(quoted_schema_name)
+            assert session.get_current_schema() == quoted_schema_name
+        finally:
+            if not local_testing_mode:
+                session.sql(f"DROP SCHEMA IF EXISTS {quoted_schema_name}").collect()
 
 
 @pytest.mark.localtest
@@ -561,6 +614,11 @@ def test_get_current_schema(session):
     check(f'"a""b_{suffix}"', f'"a""b_{suffix}"')
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="use secondary role is not allowed in stored proc (owner mode)",

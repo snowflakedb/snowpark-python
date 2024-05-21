@@ -406,7 +406,7 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         See Also:
@@ -554,7 +554,7 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
-            comment: Adds a comment for the created object object. See
+            comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
         Note::

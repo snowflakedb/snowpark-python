@@ -70,7 +70,7 @@ class WhenMatchedClause:
 
     Args:
         condition: An optional :class:`Column` object representing the
-            specified condition.
+            specified condition. For example, ``col("a") == 1``.
     """
 
     def __init__(self, condition: Optional[Column] = None) -> None:

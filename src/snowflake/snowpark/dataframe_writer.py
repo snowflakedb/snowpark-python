@@ -122,6 +122,7 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        comment: Optional[str] = None,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -154,6 +155,9 @@ class DataFrameWriter:
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a
+                table already exists and save mode is ``append`` or ``truncate``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -221,6 +225,7 @@ class DataFrameWriter:
                 self._dataframe._plan,
                 table_type,
                 clustering_exprs,
+                comment,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)

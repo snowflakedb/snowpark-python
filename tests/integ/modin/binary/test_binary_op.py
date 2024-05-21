@@ -2536,3 +2536,30 @@ def test_binary_single_row_dataframe_and_series(func):
         native_df,
         func,
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_df_sub_series():
+
+    series1 = native_pd.Series(np.random.randn(3), index=["a", "b", "c"])
+    series2 = native_pd.Series(np.random.randn(4), index=["a", "b", "c", "d"])
+    series3 = native_pd.Series(np.random.randn(3), index=["b", "c", "d"])
+
+    native_df = native_pd.DataFrame(
+        {
+            "one": series1,
+            "two": series2,
+            "three": series3,
+        }
+    )
+    snow_df = pd.DataFrame(
+        {
+            "one": pd.Series(series1),
+            "two": pd.Series(series2),
+            "three": pd.Series(series3),
+        }
+    )
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.sub(df["two"], axis="index"), inplace=True
+    )

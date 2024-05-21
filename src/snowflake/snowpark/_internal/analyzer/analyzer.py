@@ -939,6 +939,7 @@ class Analyzer:
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
+                logical_plan.comment,
                 resolved_children[logical_plan.children[0]],
             )
 
@@ -1064,7 +1065,10 @@ class Analyzer:
                 )
 
             return self.plan_builder.create_or_replace_view(
-                logical_plan.name, resolved_children[logical_plan.child], is_temp
+                logical_plan.name,
+                resolved_children[logical_plan.child],
+                is_temp,
+                logical_plan.comment,
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
@@ -1072,6 +1076,7 @@ class Analyzer:
                 logical_plan.name,
                 logical_plan.warehouse,
                 logical_plan.lag,
+                logical_plan.comment,
                 resolved_children[logical_plan.child],
             )
 

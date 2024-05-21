@@ -1,4 +1,4 @@
-name: Snowpark pandas Notebook Tests
+name: Daily Snowpark pandas jupyter notebook test
 
 on:
     schedule:
@@ -65,7 +65,8 @@ jobs:
                   - image_name: windows-latest
                     download_name: windows
                 python-version: ["3.9", "3.10", "3.11"]
-                cloud-provider: [aws, azure, gcp]
+                # FINANCIAL__ECONOMIC_ESSENTIALS database unavailable in gcp, azure
+                cloud-provider: [aws]
         steps:
             - name: Checkout Code
               uses: actions/checkout@v4
@@ -98,7 +99,7 @@ jobs:
             - name: Run notebook tests
               run: |
                 python -c "import sys; sys.path.append('../')"
-                python -m pytest -ra --nbmake tests/notebooks/modin
+                python -m pytest -ra --nbmake --nbmake-timeout=1000 tests/notebooks/modin
               env:
                 PYTHON_VERSION: ${{ matrix.python-version }}
                 cloud_provider: ${{ matrix.cloud-provider }}

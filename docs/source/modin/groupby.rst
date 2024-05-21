@@ -23,7 +23,6 @@ GroupBy
     :toctree: pandas_api/
 
     DataFrameGroupBy.apply
-    SeriesGroupBy.apply
     DataFrameGroupBy.agg
     SeriesGroupBy.agg
     DataFrameGroupBy.aggregate
@@ -66,13 +65,18 @@ GroupBy
     SeriesGroupBy.cummax
     SeriesGroupBy.cummin
     SeriesGroupBy.cumsum
+    SeriesGroupBy.head
+    SeriesGroupBy.idxmax
+    SeriesGroupBy.idxmin
     SeriesGroupBy.max
     SeriesGroupBy.mean
     SeriesGroupBy.median
     SeriesGroupBy.min
+    SeriesGroupBy.nunique
     SeriesGroupBy.quantile
     SeriesGroupBy.rank
     SeriesGroupBy.shift
     SeriesGroupBy.std
     SeriesGroupBy.sum
+    SeriesGroupBy.tail
     SeriesGroupBy.var

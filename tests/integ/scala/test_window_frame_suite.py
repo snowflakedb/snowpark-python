@@ -327,8 +327,12 @@ def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
             assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
-# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1348452: Precision not fully aligned for local testing.",
+)
 def test_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]
@@ -346,8 +350,12 @@ def test_sliding_rows_between_with_aggregation(session):
     )
 
 
-# [Local Testing PuPr] TODO: enable for local testing when we align precision.
+# [Local Testing PuPr] enable for local testing when we align precision.
 # In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1348452: Precision not fully aligned for local testing.",
+)
 def test_reverse_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "1"), (2, "2"), (1, "1"), (2, "2")]

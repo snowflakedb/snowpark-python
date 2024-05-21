@@ -22,7 +22,9 @@ def extract_import_dir_and_module_name(
     if is_on_stage:
         stage_registry = stage_registry
         stage_name, stage_prefix = extract_stage_name_and_prefix(file_path)
-        local_path = stage_registry[stage_name]._working_directory + "/" + stage_prefix
+        local_path = str(
+            os.path.join(stage_registry[stage_name]._working_directory, stage_prefix)
+        )
     else:
         local_path = file_path
 
@@ -40,7 +42,7 @@ def extract_import_dir_and_module_name(
             import_path and not is_on_stage
         ):  # import_path is only considered for local python files
             module_root_dir = local_path[
-                0 : local_path.rfind(import_path.replace(".", "/"))
+                0 : local_path.rfind(import_path.replace(".", os.sep))
             ]
         elif file_extension == ".py":
             module_root_dir = os.path.join(local_path, "..")

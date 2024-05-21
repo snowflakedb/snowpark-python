@@ -19,6 +19,8 @@ from snowflake.snowpark._internal.utils import (
     get_version,
 )
 
+from .exceptions import SnowparkLocalTestingException
+
 REQUESTS_AVAILABLE = True
 try:
     # by default in stored procedure requests is not imported
@@ -215,7 +217,12 @@ class LocalTestOOBTelemetryService(TelemetryService):
         if warning_logger:
             warning_logger.warning(error_message)
         if raise_error:
-            raise raise_error(error_message)
+            if raise_error in (NotImplementedError, SnowparkLocalTestingException):
+                raise raise_error(error_message)
+            else:
+                SnowparkLocalTestingException.raise_from_error(
+                    raise_error(error_message), error_message
+                )
 
 
 atexit.register(LocalTestOOBTelemetryService.get_instance().close)

@@ -45,6 +45,10 @@ except ImportError:
 
 pytestmark = [
     pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="UDTF not supported in Local Testing",
+    ),
 ]
 
 

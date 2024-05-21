@@ -92,9 +92,8 @@ def _merge_native_pandas_frames_on_index_on_both_sides(
     is_left_mi = left.index.nlevels > 1
     is_right_mi = right.index.nlevels > 1
     if sort:
-        # When joining single index frame with multi-index or multi-index frame with
-        # single index, native pandas doesn't respect 'sort' argument. It always
-        # behaves as sort=False.
+        # When multi-index is involved on either (or both) side of frames, native pandas
+        # doesn't respect 'sort' argument. It always behaves as sort=False.
         # We need to sort explicitly to compare results with Snowpark pandas result.
         if (is_left_mi and not is_right_mi) or (not is_left_mi and is_right_mi):
             join_key = left.index.name if is_right_mi else right.index.name
@@ -103,17 +102,16 @@ def _merge_native_pandas_frames_on_index_on_both_sides(
                 .sort_values(join_key, kind="stable")
                 .set_index([join_key], append=True)
             )
-        # When joining multi-index frame with another multi-index frame where index
-        # labels are same only order is different, native pandas doesn't respect 'sort'
-        # argument. It always behaves as sort=False.
-        # We need to sort explicitly to compare results with Snowpark pandas result.
         if (
             is_left_mi
             and is_right_mi
-            and left.index.nlevels == right.index.nlevels
-            and not set(left.index.names).difference(set(right.index.names))
+            and set(left.index.names).intersection(set(right.index.names))
         ):
-            native_res = native_res.sort_index()
+            # sort on common index columns.
+            levels = [name for name in left.index.names if name in right.index.names]
+            native_res = native_res.sort_index(
+                level=levels, sort_remaining=False, kind="stable"
+            )
 
     # Index column name in merged frame is pretty inconsistent in native pandas.
     # In some cases it is inherited from left frame and in some cases its set to None.
@@ -185,32 +183,6 @@ def _merge_native_pandas_frames_on_index_on_one_side(
     return native_res.set_index(left_index_names)
 
 
-def _add_row_position_columns(
-    left: native_pd.DataFrame, right: Union[native_pd.DataFrame, native_pd.Series]
-) -> tuple[native_pd.DataFrame, native_pd.DataFrame]:
-    if isinstance(right, native_pd.Series):
-        right = right.to_frame()
-    # Add row position columns to both frames.
-    left = left.assign(left_pos=range(len(left)))
-    right = right.assign(right_pos=range(len(right)))
-    return left, right
-
-
-def _sort_and_remove_row_position_columns(
-    df: native_pd.DataFrame, how: str, ignore_index: bool
-) -> native_pd.DataFrame:
-    # Sort by row position columns
-    # To match native pandas behavior, reset index if left_index and right_index
-    # both are false.
-    row_position_columns = ["left_pos", "right_pos"]
-    if how == "right":
-        row_position_columns.reverse()
-    df = df.sort_values(row_position_columns, ignore_index=ignore_index)
-
-    # Drop row position columns
-    return df.drop(row_position_columns, axis=1)
-
-
 def _verify_merge(
     left: pd.DataFrame,
     right: Union[pd.DataFrame, pd.Series],
@@ -226,26 +198,12 @@ def _verify_merge(
     indicator: Optional[Union[bool, str]] = False,
 ) -> None:
     """
-    For inner and outer join order of joined frame in Snowpark pandas is different from
-    native pandas. In Snowpark pandas we order by [left.row_position, right.row_position]
-    while in Native pandas output of joined frame is: first rows are grouped by the
-    keys, and order among keys is inherited from the left dataframe, and then the right
-    data frame.
-
-    In addition to above there are bugs in Native pandas where even left and right join
-    do not preserve order from left frame or right frame respectively.
-    https://github.com/pandas-dev/pandas/issues/40608
-    join/merge of DataFrame does not keep order of index
+    To avoid comparison failure due to bugs in Native pandas we perform some custom
+    operation after merge.
+    Some example bugs:
 
     https://github.com/pandas-dev/pandas/issues/46225
     outer join out of order when joining multiple DataFrames
-
-    To compare join/merge results we perform following additional operations on
-    native dataframes to simulate ordering behavior of Snowpark pandas.
-    1. Add an extra column with row position to left and right dataframes.
-    2. Join both frames.
-    3. Sort joined frame on row position columns added in step 1.
-    4. Drop row position columns and compare.
 
     Args:
         left: Left DataFrame to join
@@ -264,11 +222,7 @@ def _verify_merge(
     """
     left_native = left.to_pandas()
     right_native = right.to_pandas()
-    # Step 1: Add row position columns
-    if not sort:
-        left_native, right_native = _add_row_position_columns(left_native, right_native)
 
-    # Step 2: Join frames.
     if left_index and right_index:
         native_res = _merge_native_pandas_frames_on_index_on_both_sides(
             left_native, right_native, how, sort=sort
@@ -295,13 +249,6 @@ def _verify_merge(
             right_index=right_index,
             sort=sort,
             indicator=indicator,
-        )
-
-    if not sort:
-        # Step 3 & 4
-        ignore_index = not (left_index or right_index)
-        native_res = _sort_and_remove_row_position_columns(
-            native_res, how, ignore_index
         )
 
     if force_output_column_order:
@@ -339,10 +286,6 @@ def test_merge_on(left_df, right_df, on, how, sort):
 @pytest.mark.parametrize("on", ["left_i", "right_i"])
 @sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_columns(left_df, right_df, how, on, sort):
-    if how == "outer" and sort is False:
-        pytest.xfail(
-            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
-        )
     # Change left_df to: columns=["right_i", "B", "left_c", "left_d"] index=["left_i"]
     left_df = left_df.rename(columns={"A": "right_i"})
     # Change right_df to: columns=["left_i", "B", "right_c", "right_d"] index=["right_i"]
@@ -394,8 +337,8 @@ def test_join_type_mismatch_negative(index1, index2):
             [3, 4],
             [True, False],
             native_pd.DataFrame(
-                {"A": [1.0, 2.0, np.NaN], "B": [3, 3, 4]},
-                index=native_pd.Index([True, True, False]),
+                {"A": [np.NaN, 1.0, 2.0], "B": [4, 3, 3]},
+                index=native_pd.Index([False, True, True]),
             ),
         ),
         # string and bool, Snowflake converts bool to string, and then performs the join. However, native pandas
@@ -404,8 +347,8 @@ def test_join_type_mismatch_negative(index1, index2):
             ["a", "b"],
             [True, False],
             native_pd.DataFrame(
-                {"A": [1.0, 2.0, np.NaN, np.NaN], "B": [np.NaN, np.NaN, 3.0, 4.0]},
-                index=native_pd.Index(["a", "b", "true", "false"]),
+                {"A": [1.0, 2.0, np.NaN, np.NaN], "B": [np.NaN, np.NaN, 4.0, 3.0]},
+                index=native_pd.Index(["a", "b", "false", "true"]),
             ),
         ),
     ],
@@ -473,7 +416,6 @@ def test_merge_on_index_single_index(left_df, right_df, how, sort):
     _verify_merge(left_df, right_df, how, left_index=True, right_index=True, sort=sort)
 
 
-@pytest.mark.xfail(reason="SNOW-1321662 - pandas 2.2.1 update failure", strict=True)
 @sql_count_checker(query_count=3, join_count=1)
 def test_merge_on_index_multiindex_common_labels(left_df, right_df, how, sort):
     left_df = left_df.set_index("A", append=True)  # index columns ['left_i', 'A']
@@ -483,7 +425,10 @@ def test_merge_on_index_multiindex_common_labels(left_df, right_df, how, sort):
     )
 
 
-@pytest.mark.xfail(reason="SNOW-1321662 - pandas 2.2.1 update failure", strict=True)
+@pytest.mark.xfail(
+    reason="pandas bug: https://github.com/pandas-dev/pandas/issues/58721",
+    strict=True,
+)
 def test_merge_on_index_multiindex_common_labels_with_none(
     left_df, right_df, how, sort
 ):
@@ -513,18 +458,22 @@ def test_merge_on_index_multiindex_equal_labels(left_df, right_df, how, sort):
 
 
 def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, sort):
-    if how == "outer" and sort is False:
-        pytest.xfail(
-            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
-        )
     right_df = right_df.rename(columns={"A": "left_i"}).set_index(
         "left_i", append=True
     )  # index columns ['right_i', 'left_i']
     if how in ("inner", "right"):
-        with SqlCounter(query_count=3, join_count=1):
-            _verify_merge(
-                left_df, right_df, how=how, left_index=True, right_index=True, sort=sort
-            )
+        if how == "inner" and sort is False:
+            pytest.skip("pandas bug: https://github.com/pandas-dev/pandas/issues/55774")
+        else:
+            with SqlCounter(query_count=3, join_count=1):
+                _verify_merge(
+                    left_df,
+                    right_df,
+                    how=how,
+                    left_index=True,
+                    right_index=True,
+                    sort=sort,
+                )
     else:  # left and outer join
         # When joining single index with multi index, in native pandas 'left' join
         # behaves as 'inner' join and 'outer' join behaves as 'right' join.
@@ -549,10 +498,6 @@ def test_merge_left_index_right_index_single_to_multi(left_df, right_df, how, so
 
 
 def test_merge_left_index_right_index_multi_to_single(left_df, right_df, how, sort):
-    if how == "outer" and sort is False:
-        pytest.xfail(
-            "SNOW-1321662 - pandas 2.2.1 update fails when merge is outer and sort is False"
-        )
     left_df = left_df.rename(columns={"A": "right_i"}).set_index(
         "right_i", append=True
     )  # index columns ['left_i', 'right_i']
@@ -897,19 +842,13 @@ def test_merge_duplicate_join_keys_negative(left_df, right_df):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_merge_invalid_how_negative(left_df, right_df):
-    pytest.xfail("SNOW-1321662 - pandas 2.2.1 update error message different in pandas")
-    eval_snowpark_pandas_result(
-        left_df,
-        left_df.to_pandas(),
-        lambda df: df.merge(
-            right_df if isinstance(df, pd.DataFrame) else right_df.to_pandas(),
-            on="A",
-            how="full_outer_join",
-        ),
-        expect_exception=True,
-    )
+    # native pandas raises UnboundLocalError: local variable 'lidx' referenced before assignment
+    # In snowpark pandas we raise more meaningful error
+    msg = "do not recognize join method full_outer_join"
+    with pytest.raises(ValueError, match=msg):
+        left_df.merge(right_df, on="A", how="full_outer_join")
 
 
 @sql_count_checker(query_count=2, join_count=1)

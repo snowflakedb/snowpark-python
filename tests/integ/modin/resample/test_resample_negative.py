@@ -104,3 +104,22 @@ def test_resample_ffill_negative():
         match="Parameter limit of resample.ffill has not been implemented",
     ):
         snow_df.resample("1D").ffill(limit=10)
+
+
+@sql_count_checker(query_count=1)
+def test_resample_tz_negative():
+    snow_df = pd.DataFrame(
+        {"a": range(3)},
+        index=native_pd.to_datetime(
+            [
+                "2014-08-01 09:00:00+02:00",
+                "2014-08-01 10:00:00+02:00",
+                "2014-08-01 11:00:00+02:00",
+            ]
+        ),
+    )
+    with pytest.raises(
+        TypeError,
+        match="Cannot subtract tz-naive and tz-aware datetime-like objects.",
+    ):
+        snow_df.resample("2D").min()

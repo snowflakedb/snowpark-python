@@ -100,8 +100,6 @@ setup(
         "snowflake.snowpark.modin.plugin._internal",
         "snowflake.snowpark.modin.plugin.compiler",
         "snowflake.snowpark.modin.plugin.docstrings",
-        "snowflake.snowpark.modin.plugin.default2pandas",
-        "snowflake.snowpark.modin.plugin.docstrings",
         "snowflake.snowpark.modin.plugin.extensions",
         "snowflake.snowpark.modin.plugin.io",
         "snowflake.snowpark.modin.plugin.utils",

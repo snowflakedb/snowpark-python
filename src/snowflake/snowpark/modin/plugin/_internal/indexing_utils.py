@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
+import pandas
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -749,6 +750,7 @@ def _extract_loc_set_col_info(
         elif not is_bool_indexer(columns):
             enlargement_may_happen = True
 
+    original_columns = columns
     if enlargement_may_happen:
         frame_data_columns = internal_frame.data_columns_index
         # This list contains the columns after loc set
@@ -768,9 +770,11 @@ def _extract_loc_set_col_info(
             union_data_columns
         ):
             raise ValueError(CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE)
+        # split labels into existing and new
         new_column_pandas_labels = [
             label for label in columns if label not in frame_data_columns
         ]
+        columns = [label for label in columns if label in frame_data_columns]
         before = frame_data_columns.value_counts()
         after = union_data_columns.value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
@@ -793,7 +797,7 @@ def _extract_loc_set_col_info(
     # When column enlargement may happen, get the list of pandas labels corresponding column key; otherwise, i.e., when
     # it is slice or boolean indexer, use the corresponding column position to get the labels
     column_pandas_labels = (
-        columns
+        original_columns
         if enlargement_may_happen
         else [
             internal_frame.data_column_pandas_labels[pos]
@@ -827,6 +831,9 @@ def get_valid_col_positions_from_col_labels(
     Args:
         internal_frame: the main frame
         col_loc: the column labels in different types
+
+    Raises:
+        KeyError: when values are missing from `internal_frame` columns
 
     Returns:
         Column position list
@@ -911,21 +918,23 @@ def get_valid_col_positions_from_col_labels(
         indexer = []
         for col_loc_item in col_loc:
             # for each locator, we perform prefix matching for multiindex
-            try:
-                if is_scalar(col_loc_item):
-                    col_loc_item = (col_loc_item,)
-                item_indexer = columns.get_locs(col_loc_item)
-            except KeyError:
-                # Note Snowpark pandas will ignore out-of-bound labels
-                item_indexer = []
+            if is_scalar(col_loc_item):
+                col_loc_item = (col_loc_item,)
+            # May throw KeyError if any labels are not found in columns
+            item_indexer = columns.get_locs(col_loc_item)
             indexer.extend(item_indexer)
     else:
         if is_scalar(col_loc):
+            if col_loc not in columns:
+                raise KeyError(f"{col_loc}")
             col_loc = [col_loc]
         elif isinstance(col_loc, tuple):
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
-
-        # Note Snowpark pandas will ignore out-of-bound labels
+        # Throw a KeyError in case there are any missing column labels
+        if len(col_loc) > 0 and all(label not in columns for label in col_loc):
+            raise KeyError(f"None of {pandas.Index(col_loc)} are in the [columns]")
+        elif any(label not in columns for label in col_loc):
+            raise KeyError(f"{[k for k in col_loc if k not in columns]} not in index")
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].

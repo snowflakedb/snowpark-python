@@ -15,22 +15,20 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
 @pytest.mark.parametrize(
-    "interpolation,use_fallback",
+    "interpolation",
     [
-        ("linear", False),
+        "linear",
         pytest.param(
             "lower",
-            True,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
                 raises=RuntimeError,
             ),
         ),
-        ("nearest", False),
+        "nearest",
         pytest.param(
             "midpoint",
-            True,
             marks=pytest.mark.xfail(
                 reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
                 strict=True,
@@ -69,9 +67,7 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
     ],
 )
 @pytest.mark.parametrize("q", [0, 0.5, 1])
-def test_quantile(interpolation, use_fallback, a_vals, b_vals, q):
-    if use_fallback and running_on_public_ci():
-        pytest.skip(reason="slow fallback test")
+def test_quantile(interpolation, a_vals, b_vals, q):
     if (
         interpolation == "nearest"
         and q == 0.5
@@ -96,9 +92,7 @@ def test_quantile(interpolation, use_fallback, a_vals, b_vals, q):
         columns=["val"],
         index=native_pd.Index(["a", "b"], name="key"),
     )
-    with SqlCounter(
-        query_count=8, fallback_count=1, sproc_count=1
-    ) if use_fallback else SqlCounter(query_count=1):
+    with SqlCounter(query_count=1):
         result = df.groupby("key").quantile(q, interpolation=interpolation)
         assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
@@ -240,7 +234,7 @@ def test_groupby_quantile_with_arraylike_q_and_int_columns(frame_size, groupby, 
     else:
         expected_query_count = 8
 
-    with SqlCounter(query_count=expected_query_count, fallback_count=1, sproc_count=1):
+    with SqlCounter(query_count=expected_query_count, sproc_count=1):
         result = df.groupby(groupby).quantile(q)
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 

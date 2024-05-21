@@ -24,6 +24,7 @@ def snow_series():
         ("on", "ON"),  # scalar prefix-> scalar
         ("ne", "NE"),  # scalar suffix-> scalar
         ("n", "N"),  # scalar infix-> scalar
+        ("o|t", "_"),  # scalar with '|' (meaningful for regex) -> scalar
         ("one", pd.NA),  # scalar -> NULL
         ("one", None),  # scalar -> None
         (pd.NA, "ONE"),  # NULL -> scalar
