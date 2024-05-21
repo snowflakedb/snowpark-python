@@ -1,5 +1,13 @@
 # Release History
 
+## 1.18.0 (TBD)
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug that when processing datetime and time format, fractional second part is not handled properly.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates
@@ -41,7 +49,6 @@
 #### Bug Fixes
 
 - Fixed a bug that stored procedure and UDF should not remove imports already in the `sys.path` during the clean-up step.
-- Fixed a bug that when processing datetime format, the fractional second part is not handled properly.
 - Fixed a bug that on Windows platform that file operations was unable to properly handle file separator in directory name.
 - Fixed a bug that on Windows platform that when reading a pandas dataframe, IntervalType column with integer data can not be processed.
 - Fixed a bug that prevented users from being able to select multiple columns with the same alias.
