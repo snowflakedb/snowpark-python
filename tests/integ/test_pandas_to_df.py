@@ -759,81 +759,81 @@ def test_create_from_pandas_extension_types(session):
     notes:
         pd.SparseDtype is not supported in the live mode due to pyarrow
     """
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series(["a", "b", "c", "a"], dtype=pd.CategoricalDtype()),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c"), Row("a")]
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series([1, 2, 3], dtype=pd.Int8Dtype()),
-    #         "B": pd.Series([1, 2, 3], dtype=pd.Int16Dtype()),
-    #         "C": pd.Series([1, 2, 3], dtype=pd.Int32Dtype()),
-    #         "D": pd.Series([1, 2, 3], dtype=pd.Int64Dtype()),
-    #         "E": pd.Series([1, 2, 3], dtype=pd.UInt8Dtype()),
-    #         "F": pd.Series([1, 2, 3], dtype=pd.UInt16Dtype()),
-    #         "G": pd.Series([1, 2, 3], dtype=pd.UInt32Dtype()),
-    #         "H": pd.Series([1, 2, 3], dtype=pd.UInt64Dtype()),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert (
-    #     sp_df.select("A").collect()
-    #     == sp_df.select("B").collect()
-    #     == sp_df.select("C").collect()
-    #     == sp_df.select("D").collect()
-    #     == sp_df.select("E").collect()
-    #     == sp_df.select("F").collect()
-    #     == sp_df.select("G").collect()
-    #     == sp_df.select("H").collect()
-    #     == [Row(1), Row(2), Row(3)]
-    # )
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series([1.1, 2.2, 3.3]),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series([1.1, 2.2, 3.3], dtype=pd.Float64Dtype()),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series(["a", "b", "c"], dtype=pd.StringDtype()),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c")]
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series([True, False, True], dtype=pd.BooleanDtype()),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row(True), Row(False), Row(True)]
-    #
-    # pandas_df = pd.DataFrame(
-    #     {
-    #         "A": pd.Series(
-    #             [pd.Period("2022-01", freq="M")], dtype=pd.PeriodDtype(freq="M")
-    #         ),
-    #     }
-    # )
-    # sp_df = session.create_dataframe(data=pandas_df)
-    # assert sp_df.select("A").collect() == [Row(624)]
-    #
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(["a", "b", "c", "a"], dtype=pd.CategoricalDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c"), Row("a")]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1, 2, 3], dtype=pd.Int8Dtype()),
+            "B": pd.Series([1, 2, 3], dtype=pd.Int16Dtype()),
+            "C": pd.Series([1, 2, 3], dtype=pd.Int32Dtype()),
+            "D": pd.Series([1, 2, 3], dtype=pd.Int64Dtype()),
+            "E": pd.Series([1, 2, 3], dtype=pd.UInt8Dtype()),
+            "F": pd.Series([1, 2, 3], dtype=pd.UInt16Dtype()),
+            "G": pd.Series([1, 2, 3], dtype=pd.UInt32Dtype()),
+            "H": pd.Series([1, 2, 3], dtype=pd.UInt64Dtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        sp_df.select("A").collect()
+        == sp_df.select("B").collect()
+        == sp_df.select("C").collect()
+        == sp_df.select("D").collect()
+        == sp_df.select("E").collect()
+        == sp_df.select("F").collect()
+        == sp_df.select("G").collect()
+        == sp_df.select("H").collect()
+        == [Row(1), Row(2), Row(3)]
+    )
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1.1, 2.2, 3.3]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1.1, 2.2, 3.3], dtype=pd.Float64Dtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(["a", "b", "c"], dtype=pd.StringDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c")]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([True, False, True], dtype=pd.BooleanDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(True), Row(False), Row(True)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(
+                [pd.Period("2022-01", freq="M")], dtype=pd.PeriodDtype(freq="M")
+            ),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(624)]
+
     pandas_df = pd.DataFrame(
         {
             "A": pd.Series([pd.Interval(left=0, right=5)], dtype=pd.IntervalDtype()),
