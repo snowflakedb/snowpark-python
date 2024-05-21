@@ -10,11 +10,11 @@ as `Series.to_snowflake`.
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
+import pandas
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
@@ -179,9 +179,9 @@ def to_pandas(
     *,
     statement_params: Optional[dict[str, str]] = None,
     **kwargs: Any,
-) -> Series:
+) -> pandas.Series:
     """
-    Convert Snowpark pandas Series to pandas Series
+    Convert Snowpark pandas Series to `pandas.Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_
 
     Args:
         statement_params: Dictionary of statement level parameters to be set while executing this action.

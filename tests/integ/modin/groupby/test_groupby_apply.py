@@ -858,7 +858,6 @@ class TestFuncReturnsScalar:
                 operation,
             )
 
-    # TODO: SNOW-1429855 test support include_groups = False
     @sql_count_checker(
         query_count=8,
         udtf_count=UDTF_COUNT,
@@ -875,10 +874,23 @@ class TestFuncReturnsScalar:
             pd.DataFrame(diamonds_pd),
             diamonds_pd,
             lambda diamonds: diamonds.groupby("cut").apply(
-                lambda x: x.sort_values("price", ascending=False).head(5),
+                # Use the stable "mergesort" algorithm to make the result order
+                # deterministic (see SNOW-1434962).
+                lambda x: x.sort_values(
+                    "price", ascending=False, kind="mergesort"
+                ).head(5),
                 include_groups=True,
             ),
         )
+
+        with pytest.raises(
+            NotImplementedError,
+            match="No support for groupby.apply with include_groups = False",
+        ):
+            pd.DataFrame(diamonds_pd).groupby("cut").apply(
+                lambda x: x.sort_values("price", ascending=False).head(5),
+                include_groups=False,
+            )
 
 
 class TestFuncReturnsSeries:

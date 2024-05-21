@@ -1,4 +1,4 @@
-## 1.16.0a1 (tbd)
+## 1.17.0 (2024-05-21)
 
 ### Bug Fixes
 - Fixed bug when creating a DataFrame with a dict of Series objects.
@@ -8,7 +8,9 @@
 - Fixed bug when performing multiple DataFrameGroupBy apply/transform operations on the same DataFrame.
 - Fixed type hints for property methods, e.g. Series.empty.
 - Fixed `pd.merge` and `Dataframe.merge` outer join behavior according to pandas 2.x.
-- Fixed groupby apply int not serializable bug.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` int not serializable bug.
+- Fixed `DataFrameGroupBy/SeriesGroupBy.apply` to raise NotImplementedError for `include_groups = False`. 
+- Fixed `DataFrame/Series.replace` bug when `to_replace` contains regex special characters.
 
 ### Behavior Changes
 - Given an input of type `Series`, `pd.qcut` always returns a `Series`.

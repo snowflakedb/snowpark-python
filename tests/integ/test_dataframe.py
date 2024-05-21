@@ -2026,24 +2026,23 @@ def test_attribute_reference_to_sql(session):
     Utils.check_answer([Row(1, 1)], agg_results)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-936617: Selecting columns of the same name is not supported in Local Testing",
-)
-def test_dataframe_duplicated_column_names(session):
-    df = session.sql("select 1 as a, 2 as a")
+def test_dataframe_duplicated_column_names(session, local_testing_mode):
+    tmpdf = session.create_dataframe([(1, 2)]).to_df(["v1", "v2"])
+    df = tmpdf.select(col("v1").alias("a"), col("v2").alias("a"))
+
     # collect() works and return a row with duplicated keys
     res = df.collect()
     assert len(res[0]) == 2
     assert res[0].A == 1
 
-    # however, create a table/view doesn't work because
-    # Snowflake doesn't allow duplicated column names
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df.create_or_replace_view(
-            Utils.random_name_for_temp_object(TempObjectType.VIEW)
-        )
-    assert "duplicate column name 'A'" in str(ex_info)
+    if not local_testing_mode:
+        # however, create a table/view doesn't work because
+        # Snowflake doesn't allow duplicated column names
+        with pytest.raises(SnowparkSQLException) as ex_info:
+            df.create_or_replace_view(
+                Utils.random_name_for_temp_object(TempObjectType.VIEW)
+            )
+        assert "duplicate column name 'A'" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -2742,8 +2741,11 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
     reason="Clustering is a SQL feature",
     run=False,
 )
+@pytest.mark.parametrize("include_comment", [True, False])
 @pytest.mark.parametrize("save_mode", ["append", "overwrite", "truncate"])
-def test_write_table_with_clustering_keys(session, save_mode):
+def test_write_table_with_clustering_keys_and_comment(
+    session, save_mode, include_comment
+):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name3 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -2773,14 +2775,18 @@ def test_write_table_with_clustering_keys(session, save_mode):
             [StructField("t", TimestampType()), StructField("v", VariantType())]
         ),
     )
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}" if include_comment else None
+
     try:
         df1.write.save_as_table(
             table_name1,
             mode=save_mode,
             clustering_keys=["c1", "c2"],
+            comment=comment,
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name1}')")[0][0]
         assert 'cluster by ("C1", "C2")' in ddl
+        assert not include_comment or comment in ddl
 
         df2.write.save_as_table(
             table_name2,
@@ -2789,17 +2795,21 @@ def test_write_table_with_clustering_keys(session, save_mode):
                 col("c1").cast(DateType()),
                 col("c2").substring(0, 10),
             ],
+            comment=comment,
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name2}')")[0][0]
         assert 'cluster by ( CAST ("C1" AS DATE), substring("C2", 0, 10))' in ddl
+        assert not include_comment or comment in ddl
 
         df3.write.save_as_table(
             table_name3,
             mode=save_mode,
             clustering_keys=[get_path(col("v"), lit("Data.id")).cast(IntegerType())],
+            comment=comment,
         )
         ddl = session._run_query(f"select get_ddl('table', '{table_name3}')")[0][0]
         assert "cluster by ( CAST (get_path(\"V\", 'Data.id') AS INT))" in ddl
+        assert not include_comment or comment in ddl
     finally:
         Utils.drop_table(session, table_name1)
         Utils.drop_table(session, table_name2)
@@ -2824,7 +2834,9 @@ def test_write_temp_table_no_breaking_change(
                 create_temp_table=True,
                 table_type=table_type,
             )
-        assert "create_temp_table is deprecated" in caplog.text
+        if not IS_IN_STORED_PROC:
+            # SNOW-1437979: caplog.text is empty in sp pre-commit env
+            assert "create_temp_table is deprecated" in caplog.text
         Utils.check_answer(session.table(table_name), df, True)
         if not local_testing_mode:
             Utils.assert_table_type(session, table_name, "temp")
@@ -2870,14 +2882,22 @@ def test_create_dynamic_table(session, table_name_1):
     try:
         df = session.table(table_name_1)
         dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
         df.create_or_replace_dynamic_table(
-            dt_name, warehouse=session.get_current_warehouse(), lag="1000 minutes"
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            comment=comment,
         )
         # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
         # here we manually refresh the dynamic table
         session.sql(f"alter dynamic table {dt_name} refresh").collect()
         res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
         assert len(res) == 1
+
+        ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+        assert comment in session.sql(ddl_sql).collect()[0][0]
+
     finally:
         Utils.drop_dynamic_table(session, dt_name)
 

@@ -2831,9 +2831,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if "include_groups" in agg_kwargs:
             # exclude "include_groups" from the apply function kwargs
-            agg_kwargs.pop("include_groups")
-
-        # TODO: SNOW-1429855 support include_groups = False
+            include_groups = agg_kwargs.pop("include_groups")
+            if not include_groups:
+                ErrorMessage.not_implemented(
+                    f"No support for groupby.apply with include_groups = {include_groups}"
+                )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -10528,7 +10530,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if native_pd.isna(k):
                     cond = column.is_null()
                 elif regex is True:
-                    cond = column.regexp(pandas_lit(f".*{k}.*"))
+                    cond = column.regexp(pandas_lit(f".*({k}).*"))
                     v = regexp_replace(subject=column, pattern=k, replacement=v)
                 else:
                     cond = column == k

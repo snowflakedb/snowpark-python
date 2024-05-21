@@ -476,6 +476,7 @@ def create_udtf_for_groupby_apply(
     index_column_names: Names of the input dataframe's index
     input_data_column_types: Types of the input dataframe's data columns
     input_index_column_types: Types of the input dataframe's index columns
+    session: the current session
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
