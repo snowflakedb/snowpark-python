@@ -396,7 +396,9 @@ def test_date_or_time_to_char(session, convert_func):
         Row("12-21-2021 12:56:09"),
         Row("01-01-1969 01:01:01"),
     ]
-    assert df.select(convert_func(col("a"))).collect() == [
+    # we explicitly set format here because in some test env the default output format is changed
+    # leading to different result
+    assert df.select(convert_func(col("a"), "yyyy-mm-dd hh24:mi:ss.FF3")).collect() == [
         Row("2021-12-21 09:12:56.000"),
         Row("1969-01-01 01:01:01.000"),
     ]
