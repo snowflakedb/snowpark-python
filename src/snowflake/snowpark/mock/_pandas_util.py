@@ -123,7 +123,10 @@ def _extract_schema_and_data_from_pandas_df(
                         # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
-                        return int(obj.value / 1000)
+                        # pd.Timestamp inside pd.Interval is treated as VariantType
+                        # and for variant type datetime is treated as string according to
+                        # https://docs.snowflake.com/en/sql-reference/data-types-semistructured
+                        return obj.to_pydatetime().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                     else:
                         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                             external_feature_name=f"{type(obj).__name__} within pandas.Interval",
@@ -209,7 +212,11 @@ def _extract_schema_and_data_from_pandas_df(
             or pandas_type.type == numpy.datetime64
         ):
             if isinstance(pandas_type, pd.DatetimeTZDtype) and pandas_type.tz:
-                data_type = TimestampType(TimestampTimeZone.LTZ)
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="DataFrame creation from pandas DataFrame containg pd.DatetimeTZDtype with timezone information",
+                    internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                    raise_error=NotImplementedError,
+                )
             else:
                 data_type = TimestampType(TimestampTimeZone.NTZ)
         elif pandas_type.type == numpy.float64:
