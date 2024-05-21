@@ -56,6 +56,43 @@ def open_telemetry_context_manager(func, dataframe):
         yield
 
 
+@contextmanager
+def open_telemetry_udf_context_manager(func, parameters):
+    # trace when required package is installed
+    if open_telemetry_found:
+        class_name = func.__qualname__
+        name = func.__name__
+        tracer = trace.get_tracer(f"snow.snowpark.stored_procedure:{class_name}")
+
+        with tracer.start_as_current_span(name) as cur_span:
+            try:
+                if cur_span.is_recording():
+                    # store execution location in span
+                    filename, lineno = context_manager_code_location(
+                        inspect.stack(), func
+                    )
+                    cur_span.set_attribute("code.filepath", f"{filename}")
+                    cur_span.set_attribute("code.lineno", lineno)
+                    cur_span.set_attribute(
+                        "function.name",
+                        parameters.get("name")
+                        if parameters.get("name")
+                        else "None because this is a temporary udf and name is not set by user",
+                    )
+                    cur_span.set_attribute(
+                        "function.filepath",
+                        parameters.get("file_path")
+                        if parameters.get("file_path")
+                        else "None because not registering from a file",
+                    )
+            except Exception as e:
+                logger.warning(f"Error when acquiring span attributes. {e}")
+            finally:
+                yield
+    else:
+        yield
+
+
 def decorator_count(func):
     count = 0
     current_func = func

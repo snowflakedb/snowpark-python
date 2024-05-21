@@ -22,6 +22,9 @@ import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -592,47 +595,47 @@ class UDFRegistration:
         - :func:`~snowflake.snowpark.functions.udf`
         - :meth:`register_from_file`
         """
+        with open_telemetry_udf_context_manager(self.register, locals()):
+            if not callable(func):
+                raise TypeError(
+                    "Invalid function: not a function or callable "
+                    f"(__call__ is not defined): {type(func)}"
+                )
 
-        if not callable(func):
-            raise TypeError(
-                "Invalid function: not a function or callable "
-                f"(__call__ is not defined): {type(func)}"
+            check_register_args(
+                TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
             )
 
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
+            _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+            native_app_params = kwargs.get("native_app_params", None)
 
-        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
-        native_app_params = kwargs.get("native_app_params", None)
-
-        # register udf
-        return self._do_register_udf(
-            func,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            max_batch_size,
-            _from_pandas,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            native_app_params=native_app_params,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDFRegistration.register"
-            + ("[pandas_udf]" if _from_pandas else ""),
-            is_permanent=is_permanent,
-        )
+            # register udf
+            return self._do_register_udf(
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                max_batch_size,
+                _from_pandas,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                native_app_params=native_app_params,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDFRegistration.register"
+                + ("[pandas_udf]" if _from_pandas else ""),
+                is_permanent=is_permanent,
+            )
 
     def register_from_file(
         self,
