@@ -18,10 +18,12 @@ Please answer these questions before creating your pull request. Thanks!
 2. Fill out the following pre-review checklist:
 
    - [ ] I am adding a new automated test(s) to verify correctness of my new code
+      - [ ] If this test skips Local Testing mode, I'm requesting review from @snowflakedb/local-testing
    - [ ] I am adding new logging messages
    - [ ] I am adding a new telemetry message
    - [ ] I am adding new credentials
    - [ ] I am adding a new dependency
+   - [ ] If this is a new feature/behavior, I'm adding the Local Testing parity changes.
 
 3. Please describe how your code solves the related issue.
 

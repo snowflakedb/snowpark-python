@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.utils import (
     EMPTY_STRING,
     TempObjectType,
     escape_quotes,
+    escape_single_quotes,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -154,6 +155,7 @@ MERGE = " MERGE "
 MATCHED = " MATCHED "
 LISTAGG = " LISTAGG "
 HEADER = " HEADER "
+COMMENT = " COMMENT "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
@@ -737,6 +739,14 @@ def join_statement(
     )
 
 
+def get_comment_sql(comment: Optional[str]) -> str:
+    return (
+        COMMENT + EQUALS + SINGLE_QUOTE + escape_single_quotes(comment) + SINGLE_QUOTE
+        if comment
+        else EMPTY_STRING
+    )
+
+
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -744,6 +754,7 @@ def create_table_statement(
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
+    comment: Optional[str] = None,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
@@ -753,12 +764,13 @@ def create_table_statement(
         if clustering_key
         else EMPTY_STRING
     )
+    comment_sql = get_comment_sql(comment)
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
         f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
         f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause}"
+        f"{cluster_by_clause}{comment_sql}"
     )
 
 
@@ -791,17 +803,19 @@ def create_table_as_select_statement(
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
+    comment: Optional[str] = None,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
         else EMPTY_STRING
     )
+    comment_sql = get_comment_sql(comment)
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
         f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause} {AS}{project_statement([], child)}"
+        f"{cluster_by_clause} {comment_sql} {AS}{project_statement([], child)}"
     )
 
 
@@ -1006,7 +1020,10 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
     return name + SPACE + direction + SPACE + null_ordering
 
 
-def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> str:
+def create_or_replace_view_statement(
+    name: str, child: str, is_temp: bool, comment: Optional[str]
+) -> str:
+    comment_sql = get_comment_sql(comment)
     return (
         CREATE
         + OR
@@ -1014,14 +1031,16 @@ def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> st
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
+        + comment_sql
         + AS
         + project_statement([], child)
     )
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, child: str
+    name: str, warehouse: str, lag: str, comment: Optional[str], child: str
 ) -> str:
+    comment_sql = get_comment_sql(comment)
     return (
         CREATE
         + OR
@@ -1031,6 +1050,7 @@ def create_or_replace_dynamic_table_statement(
         + name
         + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
         + f"{WAREHOUSE + EQUALS + warehouse}"
+        + comment_sql
         + AS
         + project_statement([], child)
     )

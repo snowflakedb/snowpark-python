@@ -727,10 +727,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            self._conn.log_not_supported_error(
-                external_feature_name="RelationalGroupedDataFrame.Pivot",
-                raise_error=NotImplementedError,
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Unpivot):
             self._conn.log_not_supported_error(

@@ -35,12 +35,13 @@ from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# following import are used in doctest
+# the following import is used in doctests
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 
 # Snowpark pandas API version
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.utils import (
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
@@ -570,10 +571,17 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             ErrorMessage.not_implemented(
                 "axis other than 0 is not supported"
             )  # pragma: no cover
-
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func, obj=self, allow_duplication=True, axis=self._axis
-        )
+        if func is None:
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                obj=self, allow_duplication=True, axis=self._axis, **kwargs
+            )
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=True,
+                axis=self._axis,
+            )
 
         if isinstance(func, str):
             # Using "getattr" here masks possible AttributeError which we throw
