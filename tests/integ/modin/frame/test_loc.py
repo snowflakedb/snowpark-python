@@ -376,17 +376,14 @@ def test_df_loc_get_negative_row_diff2native(
 def test_df_loc_get_out_of_bound_col(
     key, str_index_native_df, str_index_snowpark_pandas_df
 ):
-    with SqlCounter(query_count=2 if is_scalar(key) else 1):
-        eval_snowpark_pandas_result(
-            str_index_snowpark_pandas_df,
-            str_index_native_df,
-            lambda df: df.loc[
-                :,
-                key
-                if isinstance(df, pd.DataFrame)
-                else [k for k in key if k in str_index_native_df.columns],
-            ],
-        )
+    match_str = r".* not in index" if not is_scalar(key) else f"{key}"
+    with SqlCounter(query_count=0):
+        with pytest.raises(KeyError, match=match_str):
+            eval_snowpark_pandas_result(
+                str_index_snowpark_pandas_df,
+                str_index_native_df,
+                lambda df: df.loc[:, key],
+            )
 
 
 @pytest.mark.parametrize(
@@ -464,7 +461,6 @@ def test_mi_df_loc_get_non_boolean_list_col_key(mi_table_df, key, native_error):
         if native_error:
             with pytest.raises(native_error):
                 _ = mi_table_df.loc[:, key]
-            assert df.loc[:, key].empty
         else:
             eval_snowpark_pandas_result(
                 df,
@@ -3802,3 +3798,35 @@ def test_df_loc_set_none():
         native_pd.DataFrame({"a": [1, 2, 3, 100]}, index=[0, 1, 2, None]),
         check_dtype=False,
     )
+
+
+@sql_count_checker(query_count=1, join_count=3)
+def test_df_loc_set_with_index_and_column_labels():
+    """
+    Create a DataFrame using 3 Series objects and perform loc set with a scalar.
+    2 joins are performed since the concat() operation is used to concat the three Series
+    into one DataFrame object, 1 join from loc set operation.
+    """
+
+    def loc_set_helper(df):
+        df.loc["a", "three"] = 1.0
+
+    series1 = native_pd.Series(np.random.randn(3), index=["a", "b", "c"])
+    series2 = native_pd.Series(np.random.randn(4), index=["a", "b", "c", "d"])
+    series3 = native_pd.Series(np.random.randn(3), index=["b", "c", "d"])
+
+    native_df = native_pd.DataFrame(
+        {
+            "one": series1,
+            "two": series2,
+            "three": series3,
+        }
+    )
+    snow_df = pd.DataFrame(
+        {
+            "one": pd.Series(series1),
+            "two": pd.Series(series2),
+            "three": pd.Series(series3),
+        }
+    )
+    eval_snowpark_pandas_result(snow_df, native_df, loc_set_helper, inplace=True)

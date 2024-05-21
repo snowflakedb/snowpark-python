@@ -25,6 +25,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     TempObjectType,
+    generate_snowflake_quoted_identifiers_helper,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
@@ -47,11 +48,6 @@ from snowflake.snowpark.window import Window
 
 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER = '"LABEL"'
 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER = '"VALUE"'
-APPLY_ORIGINAL_ROW_POSITION_COLUMN_QUOTED_IDENTIFIER = '"ORIGINAL_ROW_POSITION"'
-APPLY_ROW_POSITION_WITHIN_GROUP_COLUMN_QUOTED_IDENTIFIER = '"ROW_POSITION_WITHIN_GROUP"'
-APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION_QUOTED_IDENTIFIER = (
-    '"FIRST_GROUP_KEY_OCCURRENCE_POSITION"'
-)
 
 # Default partition size to use when applying a UDTF. A higher value results in less parallelism, less contention and higher batching.
 DEFAULT_UDTF_PARTITION_SIZE = 1000
@@ -329,7 +325,13 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
         dtype=object,
     )
     result_df["value"] = (
-        result_df["value"].apply(handle_missing_value_in_variant).astype(object)
+        result_df["value"]
+        .apply(
+            lambda v: handle_missing_value_in_variant(
+                convert_numpy_int_result_to_int(v)
+            )
+        )
+        .astype(object)
     )
     result_df["first_position_for_group"] = input_row_positions.iloc[0]
     return result_df
@@ -387,6 +389,7 @@ def create_udtf_for_groupby_apply(
     session: Session,
     series_groupby: bool,
     by_types: list[DataType],
+    existing_identifiers: list[str],
 ) -> UserDefinedTableFunction:
     """
     Create a UDTF from the Python function for groupby.apply.
@@ -473,16 +476,18 @@ def create_udtf_for_groupby_apply(
     index_column_names: Names of the input dataframe's index
     input_data_column_types: Types of the input dataframe's data columns
     input_index_column_types: Types of the input dataframe's index columns
+    session: the current session
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
+    existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
 
     Returns
     -------
     A UDTF that will apply the provided function to a group and return a
-    dataframe representing all of the data and metadata of the result.
+    dataframe representing all the data and metadata of the result.
     """
 
-    # Get the length of this list outside of the vUDTF function because the vUDTF
+    # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
 
@@ -502,7 +507,7 @@ def create_udtf_for_groupby_apply(
             """
             current_column_position = 0
 
-            # First column is row position. Save it for later.
+            # The first column is row position. Save it for later.
             row_position_column_number = 0
             row_positions = df.iloc[:, row_position_column_number]
             current_column_position = row_position_column_number + 1
@@ -614,17 +619,26 @@ def create_udtf_for_groupby_apply(
         # ...then the data columns for the input dataframe or series.
         *input_data_column_types,
     ]
+
+    col_labels = [
+        "LABEL",
+        "ROW_POSITION_WITHIN_GROUP",
+        "VALUE",
+        "ORIGINAL_ROW_POSITION",
+        "APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION",
+    ]
+    # Generate new column identifiers for all required UDTF columns with the helper below to prevent collisions in
+    # column identifiers.
+    col_names = generate_snowflake_quoted_identifiers_helper(
+        pandas_labels=col_labels,
+        excluded=existing_identifiers,
+        wrap_double_underscore=False,
+    )
     return udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
-            [
-                APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_ROW_POSITION_WITHIN_GROUP_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_ORIGINAL_ROW_POSITION_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION_QUOTED_IDENTIFIER,
-            ],
+            col_names,
         ),
         input_types=[PandasDataFrameType(col_types=input_types)],
         # We have to specify the local pandas package so that the UDF's pandas
@@ -682,7 +696,9 @@ def create_udf_for_series_apply(
             # Calling tolist() convert np.int*, np.bool*, etc. (which is not
             # json-serializable) to python native values
             for e in x.apply(func, args=args, **kwargs).tolist():
-                result.append(handle_missing_value_in_variant(e))
+                result.append(
+                    handle_missing_value_in_variant(convert_numpy_int_result_to_int(e))
+                )
             return result
 
     else:
