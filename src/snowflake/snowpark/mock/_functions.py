@@ -669,6 +669,9 @@ def _to_timestamp(
 
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    if len(column) == 0:
+        return []
+
     import dateutil.parser
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
@@ -800,11 +803,9 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    return ColumnEmulator(
-        data=_to_timestamp(column, fmt, try_cast),
-        sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
-        dtype=object,
-    )
+    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    return result
 
 
 @patch("to_timestamp_ntz")
@@ -816,7 +817,7 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) for x in result],
+        data=[None if x is None else x.replace(tzinfo=None) for x in result],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
