@@ -15,7 +15,6 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 excluded_frontend_files = [
     "accessor.py",
-    "series_utils.py",
 ]
 
 

@@ -666,7 +666,6 @@ def to_numeric(
     errors: Literal["ignore", "raise", "coerce"] = "raise",
     downcast: Literal["integer", "signed", "unsigned", "float"] | None = None,
 ) -> Series | Scalar | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to a numeric type.
 
@@ -727,12 +726,6 @@ def to_numeric(
     2   -3.0
     dtype: float64
     >>> s = pd.Series(['apple', '1.0', '2', -3])
-    >>> pd.to_numeric(s, errors='ignore')  # doctest: +SKIP
-    0    apple
-    1      1.0
-    2        2
-    3       -3
-    dtype: object
     >>> pd.to_numeric(s, errors='coerce')
     0    NaN
     1    1.0
@@ -1271,7 +1264,6 @@ def to_datetime(
     origin: Any = "unix",
     cache: bool = True,
 ) -> Series | DatetimeScalar | NaTType | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to datetime.
 
@@ -1506,11 +1498,6 @@ def to_datetime(
 
     Passing ``errors='coerce'`` will force an out-of-bounds date to :const:`NaT`,
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
-
-    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')  # doctest: +SKIP
-    0    13000101
-    1         abc
-    dtype: object
 
     >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='coerce')
     0   NaT
@@ -2078,14 +2065,6 @@ def date_range(
     3   2018-10-31
     4   2019-01-31
     dtype: datetime64[ns]
-
-    Specify `tz` to set the timezone.
-
-    >>> pd.date_range(start='1/1/2018', periods=5, tz='Asia/Tokyo')  # doctest: +SKIP
-    DatetimeIndex(['2018-01-01 00:00:00+09:00', '2018-01-02 00:00:00+09:00',
-                   '2018-01-03 00:00:00+09:00', '2018-01-04 00:00:00+09:00',
-                   '2018-01-05 00:00:00+09:00'],
-                  dtype='datetime64[ns, Asia/Tokyo]', freq='D')
 
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
