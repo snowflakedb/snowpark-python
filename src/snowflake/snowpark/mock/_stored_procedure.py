@@ -279,6 +279,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
         check_python_runtime_version(self._session._runtime_version_from_requirement)
 
+        if replace and if_not_exists:
+            raise ValueError("options replace and if_not_exists are incompatible")
+
+        if sproc_name in self._registry and if_not_exists:
+            return self._registry[sproc_name]
+
         if sproc_name in self._registry and not replace:
             raise SnowparkLocalTestingException(
                 f"002002 (42710): SQL compilation error: \nObject '{sproc_name}' already exists.",
