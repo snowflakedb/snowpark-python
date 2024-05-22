@@ -35,7 +35,6 @@ def pytest_collection_modifyitems(items) -> None:
     """Applies tags to tests based on folders that they are in."""
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
-    modin_doctest_dir = top_doctest_dir.joinpath("modin/pandas")
     for item in items:
         item_path = Path(str(item.fspath)).parent
         try:
@@ -49,7 +48,7 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
-            elif str(item_path).startswith(str(modin_doctest_dir)):
+            elif "modin" in str(item_path):
                 if not is_excluded_frontend_file(item.fspath):
                     item.add_marker("doctest")
                     item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
