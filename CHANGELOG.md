@@ -39,6 +39,10 @@
 - Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 
+#### Improvements
+
+- Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates
