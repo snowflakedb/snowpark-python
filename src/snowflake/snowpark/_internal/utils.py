@@ -266,6 +266,10 @@ def unwrap_single_quote(name: str) -> str:
     return new_name
 
 
+def escape_single_quotes(input_str):
+    return input_str.replace("'", r"\'")
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None

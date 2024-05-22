@@ -575,7 +575,7 @@ def execute_mock_plan(
             sf_type = table.sf_types[column_name]
             table[column_name].sf_type = table.sf_types[column_name]
             if not isinstance(sf_type.datatype, _NumericType):
-                table[column_name].replace(np.nan, None, inplace=True)
+                table[column_name] = table[column_name].replace(np.nan, None)
         return table
     if isinstance(source_plan, MockSelectExecutionPlan):
         return execute_mock_plan(source_plan.execution_plan, expr_to_alias)
@@ -589,25 +589,34 @@ def execute_mock_plan(
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
-        result_df = TableEmulator()
-
+        columns = []
+        data = []
+        sf_types = []
+        null_rows_idxs_map = {}
         for exp in projection:
             if isinstance(exp, Star):
-                for i in range(len(from_df.columns)):
-                    result_df.insert(len(result_df.columns), str(i), from_df.iloc[:, i])
-                result_df.columns = from_df.columns
-                result_df.sf_types = from_df.sf_types
-                result_df.sf_types_by_col_index = from_df.sf_types_by_col_index
+                data += [d for _, d in from_df.items()]
+                columns += list(from_df.columns)
+                sf_types += list(
+                    from_df.sf_types_by_col_index.values()
+                    if from_df.sf_types_by_col_index
+                    else from_df.sf_types.values()
+                )
+                null_rows_idxs_map.update(from_df._null_rows_idxs_map)
             elif (
                 isinstance(exp, UnresolvedAlias)
                 and exp.child
                 and isinstance(exp.child, Star)
             ):
                 for e in exp.child.expressions:
-                    col_name = analyzer.analyze(e, expr_to_alias)
-                    result_df[col_name] = calculate_expression(
+                    column_name = analyzer.analyze(e, expr_to_alias)
+                    columns.append(column_name)
+                    column_series = calculate_expression(
                         e, from_df, analyzer, expr_to_alias
                     )
+                    data.append(column_series)
+                    sf_types.append(column_series.sf_type)
+                    null_rows_idxs_map[column_name] = column_series._null_rows_idxs
             else:
                 if isinstance(exp, Alias):
                     column_name = expr_to_alias.get(exp.expr_id, exp.name)
@@ -620,7 +629,10 @@ def execute_mock_plan(
                     exp, from_df, analyzer, expr_to_alias
                 )
 
-                result_df[column_name] = column_series
+                columns.append(column_name)
+                data.append(column_series)
+                sf_types.append(column_series.sf_type)
+                null_rows_idxs_map[column_name] = column_series._null_rows_idxs
 
                 if isinstance(exp, (Alias)):
                     if isinstance(exp.child, Attribute):
@@ -629,6 +641,15 @@ def execute_mock_plan(
                         for k, v in expr_to_alias.items():
                             if v == exp.child.name:
                                 expr_to_alias[k] = quoted_name
+
+        df = pd.concat(data, axis=1)
+        result_df = TableEmulator(
+            data=df,
+            sf_types={k: v for k, v in zip(columns, sf_types)},
+            sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
+        )
+        result_df.columns = columns
+        result_df._null_rows_idxs_map = null_rows_idxs_map
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
@@ -1096,9 +1117,20 @@ def execute_mock_plan(
             res_df = execute_mock_plan(execution_plan)
             return res_df
         else:
-            db_schme_table = parse_table_name(entity_name)
+            obj_name_tuple = parse_table_name(entity_name)
+            obj_name = obj_name_tuple[-1]
+            obj_schema = (
+                obj_name_tuple[-2]
+                if len(obj_name_tuple) > 1
+                else analyzer.session.get_current_schema()
+            )
+            obj_database = (
+                obj_name_tuple[-3]
+                if len(obj_name_tuple) > 2
+                else analyzer.session.get_current_database()
+            )
             raise SnowparkLocalTestingException(
-                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
+                f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
@@ -1482,6 +1514,17 @@ def execute_mock_plan(
             data = filled.replace({sentinel: None}).replace({None: default}).values
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
+
+            # Column name should be quoted string
+            quoted_col = quote_name(str(res_col))
+            result.rename(columns={res_col: quoted_col}, inplace=True)
+            result.sf_types[quoted_col] = result.sf_types.pop(res_col)
+
+        # Update column index map
+        result.sf_types_by_col_index = {
+            i: result[column].sf_type for i, column in enumerate(result.columns)
+        }
+
         return result
 
     analyzer.session._conn.log_not_supported_error(

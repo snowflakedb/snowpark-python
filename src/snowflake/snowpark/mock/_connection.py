@@ -637,7 +637,7 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal(str(v))
+                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
                         if isinstance(sf_types[i].datatype, DecimalType)
                         and v is not None
                         else v
@@ -781,14 +781,25 @@ $$"""
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=res[column_name].sf_type,
+                datatype=column_data.sf_type
+                if column_data.sf_type
+                else res.sf_types[column_name],
             )
-            for column_name in res.columns.tolist()
+            for column_name, column_data in res.items()
         ]
 
-        rows = [
-            Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
-        ]
+        rows = []
+        for i in range(len(res)):
+            values = []
+            for j, attr in enumerate(attrs):
+                value = res.iloc[i, j]
+                if isinstance(attr.datatype.datatype, DecimalType):
+                    value = Decimal(
+                        "{0:.{1}f}".format(value, attr.datatype.datatype.scale)
+                    )
+                values.append(value)
+            rows.append(Row(*values))
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
