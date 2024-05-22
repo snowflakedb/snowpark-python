@@ -15,6 +15,7 @@
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Aligned error experience when calling udf and sprocs.
 
 ### Snowpark Local Testing Updates
 
@@ -75,7 +76,6 @@
 - Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
 - Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
 - Aligned error experience with reusing a closed session in non-local execution.
-- Aligned error experience when calling udf and sprocs.
 
 ## 1.16.0 (2024-05-07)
 
