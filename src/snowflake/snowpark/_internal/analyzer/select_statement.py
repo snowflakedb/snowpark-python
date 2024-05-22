@@ -6,7 +6,6 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
-from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -21,7 +20,10 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
+from snowflake.snowpark._internal.analyzer.cte_utils import (
+    compute_subtree_query_complexity,
+    encode_id,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
@@ -201,6 +203,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
+        self._subtree_query_complexity = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -300,15 +303,18 @@ class Selectable(LogicalPlan, ABC):
         """
         return len(self.column_states.active_columns)
 
-    @cached_property
+    @property
     def subtree_query_complexity(self) -> int:
         """This is sum of individual query complexity estimates for all nodes
         within a query plan subtree.
         """
-        estimate = self.individual_query_complexity
-        for child in self.children_plan_nodes:
-            estimate += child.subtree_query_complexity
-        return estimate
+        if self._subtree_query_complexity is None:
+            self._subtree_query_complexity = compute_subtree_query_complexity(self)
+        return self._subtree_query_complexity
+
+    @subtree_query_complexity.setter
+    def subtree_query_complexity(self, value: int):
+        self._subtree_query_complexity = value
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:

@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     SetOperation,
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
+    compute_subtree_query_complexity,
     create_cte_query,
     encode_id,
     find_duplicate_subtrees,
@@ -232,6 +233,7 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
+        self._subtree_query_complexity = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -354,12 +356,15 @@ class SnowflakePlan(LogicalPlan):
     def individual_query_complexity(self) -> int:
         return len(self.output)
 
-    @cached_property
+    @property
     def subtree_query_complexity(self) -> int:
-        estimate = self.individual_query_complexity
-        for child in self.children_plan_nodes:
-            estimate += child.subtree_query_complexity
-        return estimate
+        if self._subtree_query_complexity is None:
+            self._subtree_query_complexity = compute_subtree_query_complexity(self)
+        return self._subtree_query_complexity
+
+    @subtree_query_complexity.setter
+    def subtree_query_complexity(self, value: int):
+        self._subtree_query_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
