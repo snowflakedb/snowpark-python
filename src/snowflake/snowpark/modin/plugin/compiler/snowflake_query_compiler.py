@@ -222,6 +222,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
     expand_pivot_result_with_pivot_table_margins,
+    expand_pivot_result_with_pivot_table_margins_no_groupby_columns,
     generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings,
     generate_single_pivot_labels,
     pivot_helper,
@@ -6370,14 +6371,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             raise TypeError("Must provide 'func' or named aggregation **kwargs.")
 
-        # With margins, a dictionary aggfunc that maps to list of aggregations is not supported by pandas.  We return
-        # friendly error message in this case.
-        if (
-            margins
-            and isinstance(aggfunc, dict)
-            and any(not isinstance(af, str) for af in aggfunc.values())
+        if isinstance(aggfunc, dict) and any(
+            not isinstance(af, str) for af in aggfunc.values()
         ):
-            raise ValueError("Margins not supported if list of aggregation functions")
+            # With margins, a dictionary aggfunc that maps to list of aggregations is not supported by pandas.  We return
+            # friendly error message in this case.
+            if margins:
+                raise ValueError(
+                    "Margins not supported if list of aggregation functions"
+                )
+            elif index is None:
+                raise NotImplementedError(
+                    "Not implemented index is None and list of aggregation functions."
+                )
 
         # Duplicate pivot column and index are not allowed, but duplicate aggregation values are supported.
         index_and_data_column_pandas_labels = (
@@ -6414,11 +6420,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else []
         )
 
-        if len(groupby_snowflake_quoted_identifiers) == 0:
-            raise NotImplementedError(
-                "pivot_table with no index configuration is currently not supported"
-            )
-
         if values is None:
             # If no values (aggregation columns) are specified, then we use all data columns that are neither
             # groupby (index) nor pivot columns as the aggregation columns.  For example, a dataframe with
@@ -6439,13 +6440,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 values, self._modin_frame
             )
         )
-
+        multiple_agg_funcs_single_values = (
+            isinstance(aggfunc, list) and len(aggfunc) > 1
+        ) and not isinstance(values, list)
+        include_aggr_func_in_label = (
+            len(groupby_snowflake_quoted_identifiers) != 0
+            or multiple_agg_funcs_single_values
+        )
         pivot_aggr_groupings = list(
             generate_single_pivot_labels(
                 values_label_to_identifier_pairs_list,
                 aggfunc,
                 len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list),
+                isinstance(values, list)
+                and (not margins or len(values) > 1)
+                and include_aggr_func_in_label,
                 sort,
             )
         )
@@ -6459,6 +6468,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             columns,
             groupby_snowflake_quoted_identifiers,
             pivot_snowflake_quoted_identifiers,
+            (isinstance(aggfunc, list) and len(aggfunc) > 1),
+            (isinstance(values, list) and len(values) > 1),
             index,
         )
 
@@ -6476,16 +6487,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
-        if margins and pivot_aggr_groupings and pivot_snowflake_quoted_identifiers:
-            pivot_qc = expand_pivot_result_with_pivot_table_margins(
-                pivot_aggr_groupings,
-                groupby_snowflake_quoted_identifiers,
-                pivot_snowflake_quoted_identifiers,
-                self._modin_frame.ordered_dataframe,
-                pivot_qc,
-                margins_name,
-                fill_value,
-            )
+        # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins, since the result
+        # will still be an empty DataFrame (but we will have increased the join and union count) for no reason.
+        if (
+            margins
+            and pivot_aggr_groupings
+            and pivot_snowflake_quoted_identifiers
+            and len(pivot_qc.columns) != 0
+        ):
+            if len(groupby_snowflake_quoted_identifiers) > 0:
+                pivot_qc = expand_pivot_result_with_pivot_table_margins(
+                    pivot_aggr_groupings,
+                    groupby_snowflake_quoted_identifiers,
+                    pivot_snowflake_quoted_identifiers,
+                    self._modin_frame.ordered_dataframe,
+                    pivot_qc,
+                    margins_name,
+                    fill_value,
+                )
+            else:
+                pivot_qc = (
+                    expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
+                        pivot_qc,
+                        self._modin_frame,
+                        pivot_aggr_groupings,
+                        dropna,
+                        columns,
+                        aggfunc,
+                        pivot_snowflake_quoted_identifiers,
+                        values,
+                        margins_name,
+                    )
+                )
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
@@ -9694,7 +9728,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Helper function to compute the mode ("top") and frequency with which the mode
                 appears ("count") for a given column.
 
-                This helper returns a 1-row OrderedFrame with the columns "__index__", "top" and "freq",
+                This helper returns a 1-row OrderedDataFrame with the columns "__index__", "top" and "freq",
                 containing the column name, the mode of this column, and the number of times the mode
                 occurs. This result should be UNION ALL'd together with the results from the other
                 columns of the original frame, then transposed so "top" and "freq" are rows.
@@ -9717,7 +9751,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert len(col_labels_tuple) == len(
                     new_index_identifiers
                 ), f"level of labels {col_labels_tuple} did not match level of identifiers {new_index_identifiers}"
-                # The below OrderedFrame operations are analogous to the following SQL for column "a":
+                # The below OrderedDataFrame operations are analogous to the following SQL for column "a":
                 # SELECT 'a' AS __index__,
                 #        a::VARIANT AS top,
                 #        IFF(a IS NULL, NULL, COUNT(a)) AS freq
