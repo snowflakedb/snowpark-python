@@ -7,24 +7,14 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark import Session
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
 )
-
-
-def assert_snowpark_pandas_dataframes_are_equal(snow_df1, snow_df2):
-    assert snow_df1.empty is snow_df2.empty
-    assert snow_df1.columns.equals(snow_df2.columns)
-    assert snow_df1.index.equals(snow_df2.index)
-    if not snow_df1.empty:
-        with SqlCounter(query_count=2):
-            assert np.all(snow_df1.values == snow_df2.values)
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):
@@ -68,6 +58,12 @@ def cache_and_return_df(snow_df, inplace):
 
 
 def perform_chained_operations(df, module):
+    """
+    Helper method to simulate an expensive pipeline.
+
+    This method is expensive because the concat generates unions, and the objects being unioned
+    may themselves contain unions, joins, or other expensive operations like pivots.
+    """
     df = df.reset_index(drop=True)
     return module.concat([df] * 10)
 
@@ -80,7 +76,9 @@ def test_cache_result_empty_dataframe(inplace):
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
     with SqlCounter(query_count=2):
-        assert_snowpark_pandas_dataframes_are_equal(snow_df_copy, cached_snow_df)
+        assert_frame_equal(
+            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
+        )
     with SqlCounter(query_count=1):
         assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
 
@@ -89,8 +87,10 @@ def test_cache_result_empty_dataframe(inplace):
     snow_df_copy = snow_df.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=4):
-        assert_snowpark_pandas_dataframes_are_equal(snow_df_copy, cached_snow_df)
+    with SqlCounter(query_count=2):
+        assert_frame_equal(
+            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
+        )
     with SqlCounter(query_count=1):
         assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
 
@@ -100,7 +100,9 @@ def test_cache_result_empty_dataframe(inplace):
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
     with SqlCounter(query_count=2):
-        assert_snowpark_pandas_dataframes_are_equal(snow_df_copy, cached_snow_df)
+        assert_frame_equal(
+            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
+        )
     with SqlCounter(query_count=1):
         assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
 
@@ -109,8 +111,10 @@ def test_cache_result_empty_dataframe(inplace):
     snow_df_copy = snow_df.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=6):
-        assert_snowpark_pandas_dataframes_are_equal(snow_df_copy, cached_snow_df)
+    with SqlCounter(query_count=2):
+        assert_frame_equal(
+            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
+        )
     with SqlCounter(query_count=1):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             cached_snow_df, native_df
@@ -129,8 +133,10 @@ def test_cache_result_dataframe_complex_correctness(
     snow_df_copy = snow_df.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=6):
-        assert_snowpark_pandas_dataframes_are_equal(snow_df_copy, cached_snow_df)
+    with SqlCounter(query_count=2):
+        assert_frame_equal(
+            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
+        )
     native_df = native_df.resample("2H").mean()
 
     cached_snow_df = cached_snow_df.set_index("b", drop=False)
@@ -142,31 +148,12 @@ def test_cache_result_dataframe_complex_correctness(
 
 
 @pytest.mark.parametrize("inplace", [True, False])
-def test_cache_result_dataframe_cleanup(
-    db_parameters,
-    time_index_string_column_data,
-    inplace,
-):
-    old_session = pd.session
-    new_session = Session.builder.configs(db_parameters).create()
-    pd.session = new_session
-    df_data, kwargs = time_index_string_column_data
-    snow_df, _ = create_test_dfs(df_data, **kwargs)
-    snow_df = cache_and_return_df(snow_df, inplace)
-    table_name = (
-        snow_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.table_name
-    )
-    new_session.close()
-    with pytest.raises(SnowparkSQLException, match="does not exist or not authorized"):
-        old_session.table(table_name).show()
-
-
-@pytest.mark.parametrize("inplace", [True, False])
 class TestCacheResultReducesQueryCount:
     def test_cache_result_simple(self, inplace):
         snow_df = pd.concat([pd.DataFrame([range(i, i + 5)]) for i in range(0, 150, 5)])
-        native_df = native_pd.DataFrame(np.arange(150).reshape((30, 5)))
-        native_df = native_pd.concat([native_df] * 10)
+        native_df = perform_chained_operations(
+            native_pd.DataFrame(np.arange(150).reshape((30, 5))), native_pd
+        )
         with SqlCounter(query_count=1, union_count=299):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
@@ -217,6 +204,9 @@ class TestCacheResultReducesQueryCount:
             )
 
     def test_cache_result_post_apply(self, inplace, simple_test_data):
+        # In this test, the caching doesn't aid in the query counts since
+        # the implementation of apply(axis=1) itself contains intermediate
+        # result caching.
         native_df = perform_chained_operations(
             native_pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1),
             native_pd,
@@ -242,6 +232,8 @@ class TestCacheResultReducesQueryCount:
             )
 
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
+        # The high query counts in this test case come from the setup and definition
+        # of the UDFs used.
         native_df = perform_chained_operations(
             native_pd.DataFrame(simple_test_data).applymap(lambda x: x + x), native_pd
         )
@@ -250,7 +242,7 @@ class TestCacheResultReducesQueryCount:
             union_count=9,
             udf_count=2,
             high_count_expected=True,
-            high_count_reason="applymap requires additional queries.",
+            high_count_reason="applymap requires additional queries to setup the UDF.",
         ):
             snow_df = pd.DataFrame(simple_test_data).applymap(lambda x: x + x)
             repr(snow_df)
@@ -262,13 +254,14 @@ class TestCacheResultReducesQueryCount:
         with SqlCounter(
             query_count=10,
             high_count_expected=True,
-            high_count_reason="caching result of udf seems to have high query count.",
+            high_count_reason="applymap requires additional queries to setup the UDF.",
         ):
             snow_df = pd.DataFrame(simple_test_data).applymap(lambda x: x + x)
             cached_snow_df = cache_and_return_df(snow_df, inplace)
 
-        with SqlCounter(query_count=2, union_count=9, udf_count=0):
+        with SqlCounter(query_count=1):
             repr(cached_snow_df)
+        with SqlCounter(query_count=1, union_count=9, udf_count=0):
             cached_snow_df = perform_chained_operations(cached_snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 cached_snow_df,

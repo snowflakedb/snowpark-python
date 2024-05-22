@@ -1135,7 +1135,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def cache_result(self) -> "SnowflakeQueryCompiler":
         """
-        Materializes and caches this query compiler in place.
+        Returns a materialized view of this QueryCompiler.
         """
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 

@@ -12,7 +12,7 @@
 
 #### New Features
 
-- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrame's and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames' and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 ## 1.17.0 (2024-05-21)
 

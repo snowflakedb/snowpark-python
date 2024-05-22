@@ -27,7 +27,6 @@
 - Added partial support for `SeriesGroupBy.apply` (where the `SeriesGrouBy` is obtained through `DataFrameGroupBy.__getitem__`).
 - Added support for `pd.NamedAgg` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 - Added support for `Series.str.slice`.
-- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrame's and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 ## 1.15.0a1 (2024-05-03)
 

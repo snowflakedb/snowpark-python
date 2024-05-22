@@ -245,12 +245,12 @@ def to_pandas(
 @register_dataframe_accessor("cache_result")
 @_add_cache_result_docstring
 @snowpark_pandas_telemetry_method_decorator
-def cache_result(self, inplace: bool = False) -> pd.DataFrame:
+def cache_result(self, inplace: bool = False) -> Optional[pd.DataFrame]:
     """
     Persists the current Snowpark pandas DataFrame to a temporary table that lasts the duration of the session.
     """
     new_qc = self._query_compiler.cache_result()
-    if not inplace:
-        return pd.DataFrame(query_compiler=new_qc)
-    else:
+    if inplace:
         self._update_inplace(new_qc)
+    else:
+        return pd.DataFrame(query_compiler=new_qc)

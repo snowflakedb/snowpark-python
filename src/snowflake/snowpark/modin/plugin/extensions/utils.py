@@ -15,7 +15,8 @@ Args:
         Whether to perform the materialization inplace.
 
 Returns:
-    Snowpark pandas {object_name}
+    Snowpark pandas {object_name} or None
+        Cached Snowpark pandas {object_name} or None if ``inplace=True``.
 
 Note:
     - The temporary table produced by this method lasts for the duration of the session.
