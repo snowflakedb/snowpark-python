@@ -41,8 +41,17 @@ def validate_scalar_result(res1, res2):
     "func, is_scalar, has_count_aggregate, expected_union_count",
     [
         (lambda df: df.aggregate(["min"]), False, False, 0),
+        (lambda df: df.aggregate(x="min"), False, False, 0),
         (lambda df: df.aggregate(["min", np.max]), False, False, 1),
+        (lambda df: df.aggregate(x="min", y=np.max), False, False, 1),
+        (
+            lambda df: df.aggregate(y="min", x=np.max),
+            False,
+            False,
+            1,
+        ),  # Test order of index is correct.
         (lambda df: df.aggregate(["min", np.max, "count"]), False, True, 2),
+        (lambda df: df.aggregate(x="min", y=np.max, z="count"), False, True, 2),
         (lambda df: df.aggregate(min), True, False, 0),
         (lambda df: df.max(), True, False, 0),
         (lambda df: df.max(skipna=False), True, False, 0),
@@ -184,6 +193,8 @@ def test_general_agg_numeric_series(skipna_agg_method, data, dtype, skipna):
         (lambda df: df.aggregate(["min"]), False, 0),
         (lambda df: df.aggregate(["min", np.max]), False, 1),
         (lambda df: df.aggregate(min), True, 0),
+        (lambda df: df.aggregate(y="min", z=np.max), False, 1),
+        (lambda df: df.aggregate(x=min), False, 0),
         (lambda df: df.count(), True, 0),
     ],
 )
@@ -270,6 +281,14 @@ def test_duplicate_agg_funcs_raise(native_series):
     # in general for consistency.
     with pytest.raises(SpecificationError, match="Function names must be unique"):
         snow_series.aggregate([min, max, min])
+
+
+@sql_count_checker(query_count=1, union_count=1)
+def test_duplicate_named_agg_funcs_succeeds(native_series):
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda df: df.agg(x="min", y="min")
+    )
 
 
 @pytest.mark.parametrize("agg_func", ["sum", "std", "var", "mean", "median"])

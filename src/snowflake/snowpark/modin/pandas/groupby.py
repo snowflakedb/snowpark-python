@@ -575,6 +575,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
                 obj=self, allow_duplication=True, axis=self._axis, **kwargs
             )
+            uses_named_agg = True
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
                 agg_func=func,
@@ -582,6 +583,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 allow_duplication=True,
                 axis=self._axis,
             )
+            uses_named_agg = False
 
         if isinstance(func, str):
             # Using "getattr" here masks possible AttributeError which we throw
@@ -602,6 +604,17 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             how="axis_wise",
             is_result_dataframe=is_result_dataframe,
         )
+
+        if uses_named_agg:
+            # When we use NamedAggregations, the output columns must be in the same order
+            # as they were passed in via the kwargs, but due to how we process the NamedAggregations
+            # they can end up out of order, as named aggregations on the same column will be moved to
+            # be contiguous.
+            # Example: say we have new_col1=('A', 'max'), new_col2=('B', 'min'), new_col3=('A', 'min')
+            # Our result will have columns ordered like so: [new_col1, new_col3, new_col2]. We need
+            # to throw an additional reindex in order to ensure the correct ordering.
+            if result.columns.tolist() != list(kwargs.keys()):
+                result = result[list(kwargs.keys())]
         return result
 
     agg = aggregate

@@ -55,3 +55,16 @@ def test_valid_func_with_named_agg_errors(basic_snowpark_pandas_df):
         assert_exception_equal=False,  # There is a difference in our errors.
         expect_exception_type=TypeError,
     )
+
+
+# Query count is 2 in below test due to line 65, basic_snowpark_pandas_df.to_pandas()
+# That produces the native pandas DataFrame to test against.
+@sql_count_checker(query_count=2)
+def test_named_agg_output_column_order(basic_snowpark_pandas_df):
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        basic_snowpark_pandas_df.to_pandas(),
+        lambda df: df.groupby("col1").agg(
+            new_col1=("col1", min), new_col2=("col2", min), new_col3=("col1", max)
+        ),
+    )

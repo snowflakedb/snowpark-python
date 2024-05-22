@@ -553,8 +553,10 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         A dictionary mapping columns to a tuple containing the aggregation to perform, as well
         as the pandas label to give the aggregated column.
     """
+    from snowflake.snowpark.modin.pandas import Series
     from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
 
+    is_series_like = isinstance(obj, (Series, SeriesGroupBy))
     named_aggs = {}
     accepted_keys = []
     columns = obj._query_compiler.columns
@@ -577,8 +579,11 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
             else:
                 named_aggs[value[0]] = AggFuncWithLabel(func=value[1], pandas_label=key)
             accepted_keys += [key]
-        elif isinstance(obj, SeriesGroupBy):
-            col_name = obj._df._query_compiler.columns[0]
+        elif is_series_like:
+            if isinstance(obj, SeriesGroupBy):
+                col_name = obj._df._query_compiler.columns[0]
+            else:
+                col_name = obj._query_compiler.columns[0]
             if col_name not in named_aggs:
                 named_aggs[col_name] = AggFuncWithLabel(func=value, pandas_label=key)
             else:
