@@ -1,3 +1,5 @@
+much credit goes to former ponder intern Renchu Wang (https://github.com/rentruewang)
+
 out of curiosity, i revived our old query visualization tool from ponder and made it work with snowpark dataframes. here's how it works for snowpark pandas.
 
 i don't think we have a real use case for this tool yet among users or developers, but it's fun to see the visualizations.
