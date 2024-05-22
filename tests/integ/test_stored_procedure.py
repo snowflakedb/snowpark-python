@@ -1432,10 +1432,6 @@ def test_sp_replace(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370044: Support if_not_exists in Local Testing",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
 )
@@ -1806,15 +1802,14 @@ def test_stored_proc_register_with_module(session):
     # use pandas module here
     session.custom_package_usage_config["enabled"] = True
     packages = list(session.get_packages().values())
-    assert "pd" "pd" not in packages
+    assert "pd" not in packages
     packages = [pd] + packages
 
-    def proc_function(session: Session) -> str:
+    def proc_function(session_: Session) -> str:
         return "test response"
 
     session.sproc.register(
         proc_function,
-        name="test_proc",
         source_code_display=False,
         packages=packages,
     )
