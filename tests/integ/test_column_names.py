@@ -715,8 +715,7 @@ def test_table_function():
 
 @pytest.mark.localtest
 def test_str_column_name_no_quotes(session, local_testing_mode):
-    # TODO: SNOW-1348452 precision
-    decimal_string = "1.5" if local_testing_mode else "1.500000"
+    decimal_string = "1.500000"
     df = session.create_dataframe([1, 2], schema=["a"])
     assert str(df.select(col("a")).collect()) == "[Row(A=1), Row(A=2)]"
     assert (
@@ -735,8 +734,6 @@ def test_str_column_name_no_quotes(session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_show_column_name_with_quotes(session, local_testing_mode):
-    # TODO: SNOW-1348452 precision
-    decimal_string = "|1.5           |" if local_testing_mode else "|1.500000      |"
     df = session.create_dataframe([1, 2], schema=["a"])
     assert (
         df.select(col("a"))._show_string()
@@ -751,11 +748,11 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
     )
     assert (
         df.select(avg(col("a")))._show_string()
-        == f"""\
+        == """\
 ----------------
 |"AVG(""A"")"  |
 ----------------
-{decimal_string}
+|1.500000      |
 ----------------
 """
     )
@@ -775,11 +772,11 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
     )
     assert (
         df.select(avg(col('"a"')))._show_string()
-        == f"""\
+        == """\
 ----------------
 |"AVG(""A"")"  |
 ----------------
-{decimal_string}
+|1.500000      |
 ----------------
 """
     )
