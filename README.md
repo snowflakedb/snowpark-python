@@ -28,12 +28,12 @@ To have the best experience when using it with UDFs, [creating a local conda env
 ```bash
 pip install snowflake-snowpark-python
 ```
-To use the [Snowpark pandas API][Snowpark pandas developer guide], you can optionally install the following, which installs Modin in the same environment. The Snowpark pandas API provides a familiar interface for pandas users to query and process data directly in Snowflake.
+To use the [Snowpark pandas API][Snowpark pandas developer guide], you can optionally install the following, which installs [modin](https://github.com/modin-project/modin) in the same environment. The Snowpark pandas API provides a familiar interface for pandas users to query and process data directly in Snowflake.
 ```bash
 pip install "snowflake-snowpark-python[modin]"
 ```
 
-### Create a session and use the Snowpark DataFrame APIs
+### Create a session and use the Snowpark DataFrame API
 ```python
 from snowflake.snowpark import Session
 
@@ -61,7 +61,7 @@ df.show()
 # -------------
 ```
 
-### Create a session and use the Snowpark pandas APIs
+### Create a session and use the Snowpark pandas API
 ```python
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin
@@ -135,7 +135,7 @@ for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
 
 ## Reading and writing to pandas DataFrame
 
-Snowpark DataFrame API supports reading from and writing to a pandas DataFrame via the [to_pandas](to_pandas) and [write_pandas](write_pandas) commands. 
+Snowpark DataFrame API supports reading from and writing to a pandas DataFrame via the [to_pandas][to_pandas] and [write_pandas][write_pandas] commands. 
 
 To use these operations, ensure that pandas is installed in the same environment. You can install pandas alongside Snowpark Python by executing the following command:
 ```bash
