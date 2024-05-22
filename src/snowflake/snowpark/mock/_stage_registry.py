@@ -165,13 +165,6 @@ def copy_files_and_dirs(src, dst):
         shutil.copy(src, dst)
 
 
-def remove_file(file_path: str):
-    try:
-        os.remove(file_path)
-    except Exception as exc:
-        _logger.debug(f"failed to remove file due to exception {exc}")
-
-
 class StageEntity:
     def __init__(
         self, root_dir_path: str, stage_name: str, conn: "MockServerConnection"
@@ -405,14 +398,14 @@ class StageEntity:
 
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
+            supported_options_for_format = SUPPORT_READ_OPTIONS[file_format]
             for option in options:
                 if str(options[option]).upper() == "NONE":
                     # ignore if option value is None, or string of "None"
                     continue
-                if (option not in SUPPORT_READ_OPTIONS[file_format]) or (
-                    SUPPORT_READ_OPTIONS[file_format][option]
-                    and str(options[option]).upper()
-                    not in SUPPORT_READ_OPTIONS[file_format][option]
+                if (option not in supported_options_for_format) or (
+                    supported_options_for_format
+                    and str(options[option]).upper() not in supported_options_for_format
                 ):
                     # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
@@ -634,7 +627,10 @@ class StageEntity:
 
         if purge and local_files:
             for file_path in local_files:
-                remove_file(file_path)
+                try:
+                    os.remove(file_path)
+                except Exception as exc:
+                    _logger.debug(f"failed to remove file due to exception {exc}")
 
         self._conn.log_not_supported_error(
             external_feature_name=f"Read file format {format}",

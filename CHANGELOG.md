@@ -20,6 +20,14 @@
 
 ### Snowpark Local Testing Updates
 
+### New Features
+
+- Added support for the following DataFrameReader read options to file formats `csv` and `json`:
+  - PURGE
+  - PATTERN
+  - INFER_SCHEMA with value being `False`
+  - ENCODING with value being `UTF8`
+
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
@@ -50,6 +58,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Breaking changes
+
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
+
 #### New Features
 
 - Added support for NumericType and VariantType data conversion in the mocked function `to_timestamp_ltz`, `to_timestamp_ntz`, `to_timestamp_tz` and `to_timestamp`.
@@ -63,11 +75,6 @@
     - cancel_all
 - Introduced a new exception class `snowflake.snowpark.mock.exceptions.SnowparkLocalTestingException`.
 - Added support for casting to FloatType
-- Added support for the following DataFrameReader read options to file formats `csv` and `json`:
-  - PURGE
-  - PATTERN
-  - INFER_SCHEMA with value being `False`
-  - ENCODING with value being `UTF8`
 
 #### Bug Fixes
 
@@ -78,10 +85,6 @@
 - Fixed a bug that prevented users from being able to select multiple columns with the same alias.
 - Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
-
-#### Breaking changes
-
-- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
 
 #### Improvements
 
