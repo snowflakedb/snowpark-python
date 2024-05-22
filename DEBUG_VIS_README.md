@@ -1,12 +1,30 @@
+out of curiosity, i revived our old query visualization tool from ponder and made it work with snowpark dataframes. here's how it works for snowpark pandas.
+
+i don't think we have a real use case for this tool yet among users or developers, but it's fun to see the visualizations.
+
+we could also imagine visualizing the pandas API calls in a similar way by tracking lineage at the Snowpark pandas layer rather than at the Snowpark dataframe layer, e.g. a user could trace the pandas lineage of the snowpark pandas df as 1) read_sql 2) `getitem(['a', 'b'])` 3)  query('a==3') :
+
+```python
+df = pd.read_sql('CUSTOMER')
+result = df[['a', 'b']]
+result.query('a==3').debug_vis()
+```
+
+there are many ways to extend such a tool, e.g. each node can include a clickable stack trace to the code that caused that node to be added.
+
+generally i think of a tool like this as a way to translate queries written imperatively into a form that makes the declarative structure clearer than a blob of unindented sql. this tool can be seen as a supplement to the logical plan visualization that snowflake already provides: https://docs.snowflake.com/en/user-guide/ui-query-profile
+
 # Instructions
 
 
 1. add extra dependencies. I think they are
 
 
-    - networkx
-    - pygraphviz
-    - colorcet
+    ```
+    networkx
+    pygraphviz
+    colorcet
+    ```
 
 1. run a script like
 
@@ -35,6 +53,7 @@
 
 1. to get prettier visualizations, set `pd.session.sql_simplifier_enabled = False` before generating your dataframe. The SQL simplifier often flattens recursive SQL queries.
 1. some DataFrame methods don't have visualizations yet.
+1. moving nodes is a little frustrating; they don't stay where i want them to.
 
 # Examples
 
