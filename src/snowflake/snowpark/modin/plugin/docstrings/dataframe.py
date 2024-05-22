@@ -1962,12 +1962,20 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Notes
         -----
-        Raise NotImplementedError if
+        - Raise NotImplementedError if
 
-            * margins, observed, or sort is given;
-            * or index, columns, or values is not str;
+            * observed or sort is given;
+            * or index, columns, or values is not str, a list of str, or None;
             * or DataFrame contains MultiIndex;
-            * or any argfunc is not "count", "mean", "min", "max", or "sum"
+            * or any aggfunc is not "count", "mean", "min", "max", or "sum"
+            * index is None, and aggfunc is a dictionary containing lists.
+
+        - Computing margins with no index has limited support:
+            * when aggfunc is "count" or "mean" the result has discrepancies with pandas -
+              Snowpark pandas computes the aggfunc over the data grouped by the first pivot
+              column, while pandas computes the aggfunc over the result of the aggfunc from
+              the initial pivot.
+            * aggfunc as a dictionary is not supported.
 
         See Also
         --------
