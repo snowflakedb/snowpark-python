@@ -135,7 +135,7 @@ for logger_name in ('snowflake.snowpark', 'snowflake.connector'):
 
 ## Reading and writing to pandas DataFrame
 
-Snowpark DataFrame API supports reading from and writing to a pandas DataFrame via the [to_pandas](https://docs.snowflake.com/developer-guide/snowpark/reference/python/latest/snowpark/api/snowflake.snowpark.DataFrame.to_pandas) and [write_pandas](https://docs.snowflake.com/developer-guide/snowpark/reference/python/latest/snowpark/api/snowflake.snowpark.Session.write_pandas) commands. 
+Snowpark DataFrame API supports reading from and writing to a pandas DataFrame via the [to_pandas](to_pandas) and [write_pandas](write_pandas) commands. 
 
 To use these operations, ensure that pandas is installed in the same environment. You can install pandas alongside Snowpark Python by executing the following command:
 ```bash
@@ -171,3 +171,5 @@ Please refer to [CONTRIBUTING.md][contributing].
 [snowflake lab sample code]: https://github.com/Snowflake-Labs/snowpark-python-demos
 [samples]: https://github.com/snowflakedb/snowpark-python/blob/main/README.md#samples
 [contributing]: https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md
+[to_pandas]: https://docs.snowflake.com/developer-guide/snowpark/reference/python/latest/snowpark/api/snowflake.snowpark.DataFrame.to_pandas
+[write_pandas]: https://docs.snowflake.com/developer-guide/snowpark/reference/python/latest/snowpark/api/snowflake.snowpark.Session.write_pandas
