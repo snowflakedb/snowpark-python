@@ -3,6 +3,7 @@
 #
 
 import copy
+from functools import cached_property
 import uuid
 from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
@@ -79,6 +80,19 @@ class Expression:
             ", ".join([x.sql for x in self.children]) if self.children else ""
         )
         return f"{self.pretty_name}({children_sql})"
+
+    @cached_property
+    def total_children_count(self) -> int:
+        count = 0
+        current_layer = [self]
+        while current_layer:
+            next_layer = []
+            for expression in current_layer:
+                count += 1
+                if expression.children:
+                    next_layer.extend(expression.children)
+            current_layer = next_layer
+        return count
 
     def __str__(self) -> str:
         return self.pretty_name
