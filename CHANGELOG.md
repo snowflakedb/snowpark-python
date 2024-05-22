@@ -21,6 +21,7 @@
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
+- Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 
 ## 1.17.0 (2024-05-21)
 
@@ -69,7 +70,6 @@
 - Fixed a bug that prevented users from being able to select multiple columns with the same alias.
 - Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
-- Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 
 #### Improvements
 
