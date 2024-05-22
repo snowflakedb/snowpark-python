@@ -84,6 +84,7 @@ IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
 STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
 IS_STRUCTURED_TYPES_SUPPORTED = (
     os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+    and not IS_IN_STORED_PROC
 )
 ICEBERG_ENVIRONMENTS = {"dev", "aws"}
 IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
@@ -860,7 +861,7 @@ class TestData:
     @classmethod
     def time_primitives1(cls, session: "Session") -> DataFrame:
         # simple string data
-        data = [("01:02:03",), ("22:33:44",)]
+        data = [("01:02:03",), ("22:33:44",), ("22:33:44.123",), ("22:33:44.56789",)]
         schema = StructType([StructField("a", StringType())])
         return session.create_dataframe(data, schema)
 

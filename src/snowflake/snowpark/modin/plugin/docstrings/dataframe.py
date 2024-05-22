@@ -57,7 +57,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
     Parameters
     ----------
-    data : DataFrame, Series, pandas.DataFrame, ndarray, Iterable or dict, optional
+    data : DataFrame, Series, `pandas.DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_, ndarray, Iterable or dict, optional
         Dict can contain ``Series``, arrays, constants, dataclass or list-like objects.
         If data is a dict, column order follows insertion-order.
     index : Index or array-like, optional
@@ -253,8 +253,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` with NA entries dropped from it or None if ``inplace=True``.
+        DataFrame
+            DataFrame with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
         --------
@@ -383,7 +383,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Series
             Boolean series for each duplicated rows.
 
         See Also
@@ -615,8 +615,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-            Transformed Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`.
+        DataFrame
+            Transformed DataFrame.
 
         See Also
         --------
@@ -764,7 +764,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Series or DataFrame
             Result of applying ``func`` along the given axis of the DataFrame.
 
         See Also
@@ -1033,7 +1033,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
             Note that a copy is always required for mixed dtype DataFrames, or for DataFrames with any extension types.
 
         Returns:
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            DataFrame
                 The transposed DataFrame.
 
         Examples::
@@ -1585,7 +1585,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Parameters
         ----------
-        other : :class:`~snowflake.snowpark.modin.pandas.DataFrame`, :class:`~snowflake.snowpark.modin.pandas.Series`, or a list containing any combination of them
+        other : DataFrame, Series, or a list containing any combination of them
             Index should be similar to one of the columns in this one. If a
             Series is passed, its name attribute must be set, and that will be
             used as the column name in the resulting joined DataFrame.
@@ -1625,7 +1625,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowapark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        DataFrame
             A dataframe containing columns from both the caller and `other`.
 
         Notes
@@ -1957,17 +1957,25 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        DataFrame
             An Excel style pivot table.
 
         Notes
         -----
-        Raise NotImplementedError if
+        - Raise NotImplementedError if
 
-            * margins, observed, or sort is given;
-            * or index, columns, or values is not str;
+            * observed or sort is given;
+            * or index, columns, or values is not str, a list of str, or None;
             * or DataFrame contains MultiIndex;
-            * or any argfunc is not "count", "mean", "min", "max", or "sum"
+            * or any aggfunc is not "count", "mean", "min", "max", or "sum"
+            * index is None, and aggfunc is a dictionary containing lists.
+
+        - Computing margins with no index has limited support:
+            * when aggfunc is "count" or "mean" the result has discrepancies with pandas -
+              Snowpark pandas computes the aggfunc over the data grouped by the first pivot
+              column, while pandas computes the aggfunc over the result of the aggfunc from
+              the initial pivot.
+            * aggfunc as a dictionary is not supported.
 
         See Also
         --------
@@ -2194,7 +2202,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
+        DataFrame or None
             DataFrame with the renamed axis labels or None if ``inplace=True``.
 
         Raises
@@ -2832,7 +2840,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`, Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`, or scalar
+        DataFrame, Series, or scalar
             The projection after squeezing `axis` or all the axes.
 
         See Also
@@ -3086,9 +3094,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` with the
-            first differences of the Series.
+        DataFrame
+            DataFrame with the first differences of the Series.
 
         Notes
         -----
@@ -3190,8 +3197,8 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or None
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` without the removed index or column labels or
+        DataFrame or None
+            DataFrame without the removed index or column labels or
             None if ``inplace=True``.
 
         Raises
@@ -3312,7 +3319,7 @@ class DataFrame:  # pragma: no cover: we use this class's docstrings, but we nev
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.>` : Equivalent method on Series.
+        :func:`Series.value_counts <snowflake.snowpark.modin.pandas.Series.value_counts>` : Equivalent method on Series.
 
         Notes
         -----
