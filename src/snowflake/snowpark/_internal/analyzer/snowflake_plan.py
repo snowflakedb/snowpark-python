@@ -350,6 +350,17 @@ class SnowflakePlan(LogicalPlan):
     def num_duplicate_nodes(self) -> int:
         return len(find_duplicate_subtrees(self))
 
+    @cached_property
+    def individual_query_complexity(self) -> int:
+        return len(self.output)
+
+    @cached_property
+    def subtree_query_complexity(self) -> int:
+        estimate = self.individual_query_complexity
+        for child in self.children_plan_nodes:
+            estimate += child.subtree_query_complexity
+        return estimate
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(

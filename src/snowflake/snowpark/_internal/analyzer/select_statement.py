@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -291,6 +292,25 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
+    def individual_query_complexity(self) -> int:
+        """This is the query complexity estimate added by this Selectable node
+        to the overall query plan. For default case, it is the number of active
+        columns. Specific cases are handled in child classes with additional
+        explanation.
+        """
+        return len(self.column_states.active_columns)
+
+    @cached_property
+    def subtree_query_complexity(self) -> int:
+        """This is sum of individual query complexity estimates for all nodes
+        within a query plan subtree.
+        """
+        estimate = self.individual_query_complexity
+        for child in self.children_plan_nodes:
+            estimate += child.subtree_query_complexity
+        return estimate
+
+    @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
         This property is currently only used for traversing the query plan tree
@@ -349,6 +369,11 @@ class SelectableEntity(Selectable):
         return self.sql_query
 
     @property
+    def individual_query_complexity(self) -> int:
+        # select * from entity has 1 char '*' to represent columns
+        return 1
+
+    @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
 
@@ -402,6 +427,16 @@ class SelectSQL(Selectable):
     @property
     def schema_query(self) -> str:
         return self._schema_query
+
+    @property
+    def individual_query_complexity(self):
+        if self.pre_actions:
+            # having pre-actions implies we have a non-select query followed by a
+            # select * from table(result_scan) statement
+            return 1
+
+        # no pre-action implies the best estimate we have is of # active columns
+        return len(self.column_states.active_columns)
 
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
@@ -914,6 +949,16 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
         return new
 
+    @property
+    def individual_query_complexity(self) -> int:
+        # projection component
+        estimate = 1 if self.projection is None else len(self.projection)
+        # order by component
+        estimate += 0 if self.order_by is None else len(self.order_by)
+        # filter component
+        estimate += 0 if self.where is None else self.where.total_children_count
+        return estimate
+
 
 class SelectTableFunction(Selectable):
     """Wrap table function related plan to a subclass of Selectable."""
@@ -1038,6 +1083,11 @@ class SetStatement(Selectable):
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return self._nodes
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # we add #set_operands - 1 additional operators in sql query
+        return len(self.set_operands) - 1
 
 
 class DeriveColumnDependencyError(Exception):
