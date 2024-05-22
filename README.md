@@ -33,7 +33,7 @@ To use the [Snowpark pandas API][Snowpark pandas developer guide], you can optio
 pip install "snowflake-snowpark-python[modin]"
 ```
 
-### Create a session and use the Snowpark DataFrame API
+### Create a session and use the Snowpark Python API
 ```python
 from snowflake.snowpark import Session
 
@@ -147,8 +147,19 @@ df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 # Convert Snowpark DataFrame to pandas DataFrame
 pandas_df = df.to_pandas() 
 # Write pandas DataFrame to a Snowflake table and return Snowpark DataFrame
-snowpark_df = session.write_pandas(pandas_df, "new_pandas_table", auto_create_table=True)
+snowpark_df = session.write_pandas(pandas_df, "new_table", auto_create_table=True)
 ```
+
+Snowpark pandas API also supports writing to pandas: 
+```python
+import modin.pandas as pd
+import snowflake.snowpark.modin.plugin
+df = pd.DataFrame([[1, 2], [3, 4]], columns=["a", "b"])
+# Convert Snowpark pandas DataFrame to pandas DataFrame
+pandas_df = df.to_pandas() 
+```
+
+Note that the above Snowpark pandas commands will work if Snowpark is installed with the `[modin]` option, the additional `[pandas]` installation is not required.
 
 ## Contributing
 Please refer to [CONTRIBUTING.md][contributing].
