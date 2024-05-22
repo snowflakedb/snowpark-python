@@ -16,6 +16,12 @@
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug that when processing time format, fractional second part is not handled properly.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates
