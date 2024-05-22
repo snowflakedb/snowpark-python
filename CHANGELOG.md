@@ -15,6 +15,7 @@
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- blah
 
 ### Snowpark Local Testing Updates
 
