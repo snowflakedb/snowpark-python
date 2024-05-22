@@ -76,6 +76,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
     _doc_binary_op,
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
     raise_if_native_pandas_objects,
@@ -703,17 +704,28 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func,
-            obj=self,
-            allow_duplication=False,
-            axis=axis,
-        )
+        if func is None:
+            if axis == 1:
+                raise ValueError(
+                    "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
+                )
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                self, allow_duplication=False, axis=axis, **kwargs
+            )
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=False,
+                axis=axis,
+            )
 
         # This is to stay consistent with pandas result format, when the func is single
         # aggregation function in format of callable or str, reduce the result dimension to
         # convert dataframe to series, or convert series to scalar.
-        need_reduce_dimension = (
+        # Note: When named aggregations are used, the result is not reduced, even if there
+        # is only a single function.
+        need_reduce_dimension = func is not None and (
             (callable(func) or isinstance(func, str))
             # A Series should be returned when a single scalar string/function aggregation function, or a
             # dict of scalar string/functions is specified. In all other cases (including if the function

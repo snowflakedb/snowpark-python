@@ -139,6 +139,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
+    get_pandas_label_to_agg_func_info_map,
     get_snowflake_agg_func,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
@@ -4250,27 +4251,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels_for_columns_to_exclude_when_agg_on_all=[],
             )
 
-            # get a map between each aggregation function and the columns needs to apply this aggregation function
-            agg_func_to_col_map = get_agg_func_to_col_map(column_to_agg_func)
-
-            # aggregation creates an index column with the aggregation function names as its values
-            # For example: with following dataframe
-            #       A   B   C
-            #   0   1   2   3
-            #   1   4   5   6
-            #   2   7   8   9
-            # after we call df.aggregate({"A": ["min"], "B": ["max"]}), the result is following
-            #       A   B
-            # min   1   NaN
-            # max   NaN	8
-            #
-            # However, if all values in the agg_func dict are scalar strings/functions rather than lists,
-            # then the result will instead be a Series:
-            # >>> df.aggregate({"A": "min", "B": "max"})
-            # 0    1
-            # 1    8
-            # dtype: int64
-
             # generate the quoted identifier for the aggregation function name column
             agg_name_col_quoted_identifier = (
                 internal_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -4408,19 +4388,69 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
             else:
-                for agg_func, cols in agg_func_to_col_map.items():
-                    col_single_agg_func_map = {
-                        column: AggFuncInfo(
-                            func=agg_func if column in cols else "min",
-                            is_dummy_agg=column not in cols,
-                        )
-                        for column in column_to_agg_func.keys()
-                    }
-                    single_agg_func_query_compilers.append(
-                        generate_agg_qc(
-                            col_single_agg_func_map, get_pandas_aggr_func_name(agg_func)
-                        )
+                if any(
+                    isinstance(agg_func, AggFuncWithLabel)
+                    or (
+                        is_list_like(agg_func)
+                        and isinstance(agg_func[0], AggFuncWithLabel)
                     )
+                    for agg_func in column_to_agg_func.values()
+                ):
+                    # If this is true, then we are dealing with agg with NamedAggregations. In that case,
+                    # `column_to_agg_func` looks like this:
+                    # {PandasLabelToSnowflakeIdentifierPair(pandas_label='A', snowflake_quoted_identifier='"A"'):
+                    # [AggFuncWithLabel(func='max', pandas_label='x'), AggFuncWithLabel(func='min', pandas_label='y')]}
+                    # We need to go throuh and apply each of the aggregations to the corresponding column, and apply
+                    # the correct index value. First, though, we can convert the dictionary to a different format for
+                    # ease of code.
+                    pandas_label_to_agg_func_info_map = (
+                        get_pandas_label_to_agg_func_info_map(column_to_agg_func)
+                    )
+                    # Now, we have a mapping from the new index value to the dictionary mapping the
+                    # PandasLabelToSnowflakeIdentifierPair to the AggFuncInfo object that we can pass in
+                    # to generate_agg_qc.
+                    for (
+                        new_index_label,
+                        agg_func_info_dict,
+                    ) in pandas_label_to_agg_func_info_map.items():
+                        single_agg_func_query_compilers.append(
+                            generate_agg_qc(agg_func_info_dict, new_index_label)
+                        )
+                else:
+                    # get a map between each aggregation function and the columns needs to apply this aggregation function
+                    agg_func_to_col_map = get_agg_func_to_col_map(column_to_agg_func)
+
+                    # aggregation creates an index column with the aggregation function names as its values
+                    # For example: with following dataframe
+                    #       A   B   C
+                    #   0   1   2   3
+                    #   1   4   5   6
+                    #   2   7   8   9
+                    # after we call df.aggregate({"A": ["min"], "B": ["max"]}), the result is following
+                    #       A   B
+                    # min   1   NaN
+                    # max   NaN	8
+                    #
+                    # However, if all values in the agg_func dict are scalar strings/functions rather than lists,
+                    # then the result will instead be a Series:
+                    # >>> df.aggregate({"A": "min", "B": "max"})
+                    # 0    1
+                    # 1    8
+                    # dtype: int64
+                    for agg_func, cols in agg_func_to_col_map.items():
+                        col_single_agg_func_map = {
+                            column: AggFuncInfo(
+                                func=agg_func if column in cols else "min",
+                                is_dummy_agg=column not in cols,
+                            )
+                            for column in column_to_agg_func.keys()
+                        }
+                        single_agg_func_query_compilers.append(
+                            generate_agg_qc(
+                                col_single_agg_func_map,
+                                get_pandas_aggr_func_name(agg_func),
+                            )
+                        )
 
         assert single_agg_func_query_compilers, "no aggregation result"
         if len(single_agg_func_query_compilers) == 1:

@@ -914,6 +914,41 @@ def get_agg_func_to_col_map(
     return agg_func_to_col_map
 
 
+def get_pandas_label_to_agg_func_info_map(
+    col_to_agg_func_map: dict[
+        PandasLabelToSnowflakeIdentifierPair,
+        Union[AggFuncWithLabel, list[AggFuncWithLabel]],
+    ]
+) -> dict[Hashable, dict[PandasLabelToSnowflakeIdentifierPair, AggFuncInfo]]:
+    pandas_label_to_agg_func_info_map: dict[
+        Hashable, dict[PandasLabelToSnowflakeIdentifierPair, AggFuncInfo]
+    ] = {}
+
+    def _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
+        key: PandasLabelToSnowflakeIdentifierPair, agg_func: AggFuncWithLabel
+    ) -> None:
+        nonlocal pandas_label_to_agg_func_info_map
+        pandas_label = agg_func.pandas_label
+        func = agg_func.func
+        pandas_label_to_agg_func_info_map[pandas_label] = {
+            key: AggFuncInfo(func=func, is_dummy_agg=False)
+        }
+
+    for column_label_to_identifier_pair, agg_funcs in col_to_agg_func_map.items():
+        if is_list_like(agg_funcs) and not is_named_tuple(agg_funcs):
+            # Here we are dealing with multiple aggregation functions applied to the same column.
+            for agg_func in agg_funcs:
+                _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
+                    column_label_to_identifier_pair, agg_func
+                )
+        else:
+            _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
+                column_label_to_identifier_pair, agg_funcs  # type: ignore[arg-type]
+            )
+
+    return pandas_label_to_agg_func_info_map
+
+
 def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> str:
     """
     Returns the friendly name for the aggr function.  For example, if it is a callable, it will return __name__
