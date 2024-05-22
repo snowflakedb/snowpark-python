@@ -384,7 +384,7 @@ def handle_function_expression(
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:
-            # TODO is this really the best place for this?
+            # SNOW-1441602: Move Star logic to calculate_expression once it can handle table returns
             args = []
             for c in exp.children[idx:]:
                 if isinstance(c, Star):
