@@ -24,6 +24,7 @@
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
 - Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
+- Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 
 ## 1.17.0 (2024-05-21)
 
