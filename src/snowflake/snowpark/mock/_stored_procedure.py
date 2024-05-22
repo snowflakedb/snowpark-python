@@ -255,6 +255,20 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
+
+        if is_permanent:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering permanent sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
+
+        if anonymous:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering anonymous sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
         (
             sproc_name,
             is_pandas_udf,
