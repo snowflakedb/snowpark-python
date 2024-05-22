@@ -4215,3 +4215,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             # per NEP18 we raise NotImplementedError so that numpy can intercept
             return NotImplemented  # pragma: no cover
+
+
+    def debug_vis(self, output: str = "", browser: bool = True):
+        return self._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.debug_vis(output, browser)
