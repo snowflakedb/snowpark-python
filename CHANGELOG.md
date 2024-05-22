@@ -21,6 +21,7 @@
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
+- Fixed a couple bugs in TimestampType casting that resulted in incorrect data.
 
 ## 1.17.0 (2024-05-21)
 
