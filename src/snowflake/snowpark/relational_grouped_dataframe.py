@@ -32,7 +32,7 @@ from snowflake.snowpark._internal.utils import (
     prepare_pivot_arguments,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe import DataFrame, query_tree_node_dependency_decorator, QueryTreeNodeDependency
 from snowflake.snowpark.types import StructType
 
 
@@ -128,10 +128,18 @@ class RelationalGroupedDataFrame:
     def __init__(
         self, df: DataFrame, grouping_exprs: List[Expression], group_type: _GroupType
     ) -> None:
+        self._result_query_tree_node_dependency =[]
         self._df = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
+
+    def depends_on(self):
+        return self._query_tree_node_dependency
+    
+
+    def generate_sql(self):
+        return self._df.generate_sql()
 
     def _to_df(self, agg_exprs: List[Expression]) -> DataFrame:
         aliased_agg = []
@@ -199,6 +207,7 @@ class RelationalGroupedDataFrame:
 
         return DataFrame(self._df._session, group_plan)
 
+    @query_tree_node_dependency_decorator
     @relational_group_df_api_usage
     def agg(
         self, *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]]
@@ -231,9 +240,14 @@ class RelationalGroupedDataFrame:
             )
 
         exprs = parse_positional_args_to_list(*exprs)
+
         # special case for single list or tuple
         if is_valid_tuple_for_agg(exprs):
             exprs = [exprs]
+
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'aggregation', 'aggregation': exprs}
+        ))
 
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
@@ -373,6 +387,7 @@ class RelationalGroupedDataFrame:
 
     applyInPandas = apply_in_pandas
 
+    @query_tree_node_dependency_decorator
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -459,6 +474,10 @@ class RelationalGroupedDataFrame:
         )
 
         self._group_type = _PivotType(pc[0], pivot_values, default_on_null)
+
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'pivot', 'pivot_col': pivot_col, 'values': values, 'default_on_null': default_on_null, 'group_type': self._group_type}
+        ))
         return self
 
     @relational_group_df_api_usage

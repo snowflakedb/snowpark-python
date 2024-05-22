@@ -3,8 +3,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 import copy
 import itertools
+from pathlib import Path
+import datetime 
 import re
 import sys
 from collections import Counter
@@ -269,6 +273,38 @@ def _disambiguate(
     )
     return lhs_remapped, rhs_remapped
 
+from typing import Sequence,Mapping
+
+class QueryTreeNodeDependency:
+    def __init__(
+        self,
+        *,
+        parents: Sequence["DataFrame"] = (),
+        extras: Mapping[str, Any] | None = None,
+    ):
+        # Using None as default value because there's no `frozendict`.
+        if extras is None:
+            extras = {}
+
+        object.__setattr__(self, "parents", parents)
+        object.__setattr__(self, "extras", {k: str(v) for k, v in extras.items()})
+
+    def __post_init__(self):
+        for parent in self.parents:
+            assert isinstance(parent, DataFrame), parent
+
+        for key in self.extras:
+            assert isinstance(key, str), key    
+
+import functools
+
+def query_tree_node_dependency_decorator(method):
+    @functools.wraps(method)
+    def wrapped(self, *args, **kwargs):
+        result = method(self, *args, **kwargs)
+        result._query_tree_node_dependency = self._result_query_tree_node_dependency.pop()
+        return result
+    return wrapped
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -509,6 +545,7 @@ class DataFrame:
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
     ) -> None:
+        self._result_query_tree_node_dependency = []
         self._session = session
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
@@ -539,6 +576,8 @@ class DataFrame:
         self.replace = self._na.replace
 
         self._alias: Optional[str] = None
+
+        self._query_tree_node_dependency = QueryTreeNodeDependency(extras={'operation': 'unknown'})
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1063,6 +1102,7 @@ class DataFrame:
             return Column(self._resolve(col_name))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def select(
         self,
         *cols: Union[
@@ -1114,6 +1154,9 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'select_columns', "columns": [str(x) for x in cols]}
+        ))
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
@@ -1195,6 +1238,7 @@ class DataFrame:
         return self._with_plan(Project(names, join_plan or self._plan))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator    
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
@@ -1220,12 +1264,16 @@ class DataFrame:
             <BLANKLINE>
 
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'select expressions', "expressions": [str(expr) for expr in exprs]}
+        ))
         return self.select(
             [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
         )
 
     selectExpr = select_expr
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def drop(
         self,
@@ -1257,6 +1305,10 @@ class DataFrame:
             :class:`SnowparkClientException`: if the resulting :class:`DataFrame`
                 contains no output columns.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'drop', "columns": [str(col) for col in cols]}
+        ))
+
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
@@ -1295,6 +1347,7 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
@@ -1316,6 +1369,9 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'filter', "condition": expr}
+        ))
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
@@ -1330,6 +1386,7 @@ class DataFrame:
         )
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def sort(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1381,6 +1438,9 @@ class DataFrame:
              sorts a column in descending order . If you specify a list of multiple
              sort orders, the length of the list must equal the number of columns.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'sort', "cols": [repr(col) for col in cols], "ascending": ascending, }
+        ))
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
         exprs = self._convert_cols_to_exprs("sort()", *cols)
@@ -1467,6 +1527,7 @@ class DataFrame:
             ] = attr.name
         return _copy
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def agg(
         self,
@@ -1529,6 +1590,9 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'aggregate', "aggregation expressions": exprs}
+        ))
         return self.group_by().agg(*exprs)
 
     @df_to_relational_group_df_api_usage
@@ -1550,6 +1614,7 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
         )
 
+    @query_tree_node_dependency_decorator
     @df_to_relational_group_df_api_usage
     def group_by(
         self,
@@ -1590,11 +1655,15 @@ class DataFrame:
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[self], extras={'Operation': 'group_by', 'group_by': grouping_exprs}
+        ))
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
         )
+
 
     @df_to_relational_group_df_api_usage
     def group_by_grouping_sets(
@@ -1659,12 +1728,14 @@ class DataFrame:
         )
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self], extras={'operation': 'distinct'}))
         return self.group_by(
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
@@ -1708,6 +1779,7 @@ class DataFrame:
         return df
 
     @df_to_relational_group_df_api_usage
+    @query_tree_node_dependency_decorator    
     def pivot(
         self,
         pivot_col: ColumnOrName,
@@ -1774,7 +1846,7 @@ class DataFrame:
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
             self, "DataFrame.pivot", pivot_col, values, default_on_null
         )
-
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self], extras={'operation': 'pivot', 'pivot_values': pivot_values, 'values': values, 'default_on_null': default_on_null}))
         return snowflake.snowpark.RelationalGroupedDataFrame(
             target_df,
             [],
@@ -1784,6 +1856,7 @@ class DataFrame:
         )
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def unpivot(
         self, value_column: str, name_column: str, column_list: List[ColumnOrName]
     ) -> "DataFrame":
@@ -1817,6 +1890,8 @@ class DataFrame:
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self], extras={'operation': 'unpivot', 'value_column': value_column, 'name_column': name_column, 'column_exprs': column_exprs}))
+
         if self._select_statement:
             return self._with_plan(
                 SelectStatement(
@@ -1828,6 +1903,7 @@ class DataFrame:
             )
         return self._with_plan(unpivot_plan)
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def limit(self, n: int, offset: int = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
@@ -1856,12 +1932,18 @@ class DataFrame:
             |3    |4    |
             -------------
             <BLANKLINE>
+
         """
+
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self], extras={'operation': 'limit', 'n': n, 'offset': offset}))
+
+
         if self._select_statement:
             return self._with_plan(self._select_statement.limit(n, offset=offset))
         return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
@@ -1883,6 +1965,9 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'union'}))
+
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -1896,6 +1981,7 @@ class DataFrame:
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
@@ -1919,6 +2005,8 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'union_all'}))
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -1932,6 +2020,7 @@ class DataFrame:
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
@@ -1955,9 +2044,12 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'union_by_name'}))
+
         return self._union_by_name_internal(other, is_all=False)
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -1982,6 +2074,7 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'union_all_by_name'}))
         return self._union_by_name_internal(other, is_all=True)
 
     def _union_by_name_internal(
@@ -2030,6 +2123,7 @@ class DataFrame:
             df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
         return df
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
@@ -2052,6 +2146,7 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'intersect'}))
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2065,6 +2160,7 @@ class DataFrame:
         return self._with_plan(Intersect(self._plan, other._plan))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
@@ -2086,6 +2182,7 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, other], extras={'operation': 'except_'}))
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2099,9 +2196,10 @@ class DataFrame:
         return self._with_plan(Except(self._plan, other._plan))
 
     @df_api_usage
+    @query_tree_node_dependency_decorator
     def natural_join(
         self, right: "DataFrame", how: Optional[str] = None, **kwargs
-    ) -> "DataFrame":
+    ) -> "DataFrame":        
         """Performs a natural join of the specified type (``how``) with the
         current DataFrame and another DataFrame (``right``).
 
@@ -2142,6 +2240,7 @@ class DataFrame:
             --------------------
             <BLANKLINE>
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, right], extras={'operation': 'natrual_join', 'how': how}))
         join_type = kwargs.get("join_type") or how
         join_plan = Join(
             self._plan,
@@ -2161,6 +2260,7 @@ class DataFrame:
             return self._with_plan(select_plan)
         return self._with_plan(join_plan)
 
+    @query_tree_node_dependency_decorator
     @df_api_usage
     def join(
         self,
@@ -2430,6 +2530,7 @@ class DataFrame:
             -----------------------------------------------
             <BLANKLINE>
         """
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(parents=[self, right], extras={'operation': 'join', 'how': how, 'on': on}))
         using_columns = kwargs.get("using_columns") or on
         join_type = kwargs.get("join_type") or how
         if isinstance(right, DataFrame):
@@ -4212,3 +4313,38 @@ Query List:
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
+
+
+    def debug_vis(self, output: str = "", browser: bool = True):
+        """
+        Chops down the forest so I could see clearly.
+
+        Saves a visualization of the query tree to a file.
+        Saves the SQL generated by each node to a separate file.
+
+        Parameters
+        ----------
+
+        output: str
+            The output directory.
+            If not specified, use `.ponder/query-tree-vis/{current-time}`
+
+        browser: bool
+            Whether to open the browser.
+        """
+
+        from . import debug_vis
+
+        if output:
+            output = Path(output)
+        else:
+            now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            output = Path(".ponder/query-tree-vis") / now
+
+        debug_vis.debug_vis(root=self, output_folder=output, browser=browser)
+
+    def depends_on(self):
+        return self._query_tree_node_dependency
+    
+    def generate_sql(self):
+        return (';\n').join([x.sql for x in self._plan.queries])

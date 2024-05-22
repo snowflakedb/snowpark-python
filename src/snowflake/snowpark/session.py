@@ -19,6 +19,7 @@ from functools import reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
+from snowflake.snowpark.dataframe import query_tree_node_dependency_decorator
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
@@ -442,6 +443,7 @@ class Session:
         conn: Union[ServerConnection, MockServerConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self._result_query_tree_node_dependency = []
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
@@ -2397,6 +2399,7 @@ class Session:
                 str(ci_output)
             )
 
+    @query_tree_node_dependency_decorator    
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
@@ -2453,6 +2456,12 @@ class Session:
             requires permission to (1) CREATE STAGE (2) CREATE TABLE and (3) CREATE FILE FORMAT under the current
             database and schema.
         """
+        from snowflake.snowpark.dataframe import QueryTreeNodeDependency
+
+        self._result_query_tree_node_dependency.append(QueryTreeNodeDependency(
+            parents=[], extras={'Operation': 'create_dataframe', "data": data, "schema": schema}
+        ))
+
         if data is None:
             raise ValueError("data cannot be None.")
 
