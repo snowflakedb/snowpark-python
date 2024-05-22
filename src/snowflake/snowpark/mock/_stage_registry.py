@@ -404,8 +404,9 @@ class StageEntity:
                     # ignore if option value is None, or string of "None"
                     continue
                 if (option not in supported_options_for_format) or (
-                    supported_options_for_format
-                    and str(options[option]).upper() not in supported_options_for_format
+                    supported_options_for_format[option]
+                    and str(options[option]).upper()
+                    not in supported_options_for_format[option]
                 ):
                     # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
