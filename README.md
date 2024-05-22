@@ -28,7 +28,7 @@ To have the best experience when using it with UDFs, [creating a local conda env
 ```bash
 pip install snowflake-snowpark-python
 ```
-To use the [Snowpark pandas API](https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas), you can optionally install the following, which installs Modin in the same environment. The Snowpark pandas API provides a familiar interface for pandas users to query and process data directly in Snowflake.
+To use the [Snowpark pandas API][Snowpark pandas developer guide], you can optionally install the following, which installs Modin in the same environment. The Snowpark pandas API provides a familiar interface for pandas users to query and process data directly in Snowflake.
 ```bash
 pip install "snowflake-snowpark-python[modin]"
 ```
