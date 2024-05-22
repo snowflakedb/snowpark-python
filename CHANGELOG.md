@@ -21,6 +21,18 @@
 
 ### Snowpark Local Testing Updates
 
+#### Breaking changes
+
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
+
+### New Features
+
+- Added support for the following DataFrameReader read options to file formats `csv` and `json`:
+  - PURGE
+  - PATTERN
+  - INFER_SCHEMA with value being `False`
+  - ENCODING with value being `UTF8`
+
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
