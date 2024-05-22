@@ -1525,6 +1525,11 @@ def execute_mock_plan(
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
 
+            # Column name should be quoted string
+            quoted_col = quote_name(str(res_col))
+            result.rename(columns={res_col: quoted_col}, inplace=True)
+            result.sf_types[quoted_col] = result.sf_types.pop(res_col)
+
         # Update column index map
         result.sf_types_by_col_index = {
             i: result[column].sf_type for i, column in enumerate(result.columns)

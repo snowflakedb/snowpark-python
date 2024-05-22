@@ -12,6 +12,8 @@
 
 #### New Features
 
+- Added support for `if_not_exists` parameter during udf and sproc registration.
+
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
@@ -24,6 +26,7 @@
 - Fixed a bug that caused function calls on `*` to fail.
 - Fixed a bug that prevented creation of map and struct type objects.
 - Fixed a bug that function `date_add` was unable to handle some numeric types.
+- Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 
 ## 1.17.0 (2024-05-21)
 
