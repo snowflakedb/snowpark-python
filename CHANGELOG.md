@@ -20,6 +20,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Breaking changes
+
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
+
 ### New Features
 
 - Added support for the following DataFrameReader read options to file formats `csv` and `json`:
@@ -57,10 +61,6 @@
 - Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas) for more details.
 
 ### Snowpark Local Testing Updates
-
-#### Breaking changes
-
-- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
 
 #### New Features
 
