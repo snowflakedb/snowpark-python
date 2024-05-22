@@ -1029,13 +1029,13 @@ class DataFrame:
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
 
-    def __getattr__(self, name: str):
-        # Snowflake DB ignores cases when there is no quotes.
-        if name.lower() not in [c.lower() for c in self.columns]:
-            raise AttributeError(
-                f"{self.__class__.__name__} object has no attribute {name}"
-            )
-        return self.col(name)
+    def __getattribute__(self, name: str):
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            if name.lower() in [c.lower() for c in self.columns]:
+                return self.col(name)
+            raise
 
     @property
     def columns(self) -> List[str]:
