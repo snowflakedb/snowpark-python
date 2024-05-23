@@ -33,7 +33,7 @@ def get_sample_dataframe(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
+    reason="SNOW-1433643 DataFrameAnalyticsFunctions.moving_agg is not supported",
 )
 def test_moving_agg(session):
     """Tests df.analytics.moving_agg() happy path."""
@@ -65,7 +65,7 @@ def test_moving_agg(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
+    reason="SNOW-1433643 DataFrameAnalyticsFunctions.moving_agg is not supported",
 )
 def test_moving_agg_custom_formatting(session):
     """Tests df.analytics.moving_agg() with custom formatting of output columns."""
@@ -124,7 +124,7 @@ def test_moving_agg_custom_formatting(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
+    reason="SNOW-1433643 DataFrameAnalyticsFunctions.moving_agg is not supported",
 )
 def test_moving_agg_invalid_inputs(session):
     """Tests df.analytics.moving_agg() with invalid window sizes."""
@@ -257,7 +257,7 @@ def test_moving_agg_invalid_inputs(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
+    reason="SNOW-1433644 DataFrameAnalyticsFunctions.cumulative_agg is not supported",
 )
 def test_cumulative_agg_forward_direction(session):
     """Tests df.analytics.cumulative_agg() with forward direction for cumulative calculations."""
@@ -297,7 +297,7 @@ def test_cumulative_agg_forward_direction(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message windows function UnresolvedAttribute not supported",
+    reason="SNOW-1433644 DataFrameAnalyticsFunctions.cumulative_agg is not supported",
 )
 def test_cumulative_agg_backward_direction(session):
     """Tests df.analytics.cumulative_agg() with backward direction for cumulative calculations."""

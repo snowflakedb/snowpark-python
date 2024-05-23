@@ -1447,10 +1447,6 @@ def test_udf_replace(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370035: support if_not_exists in UDF registration and enable",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
 def test_udf_if_not_exists(session):
