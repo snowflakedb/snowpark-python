@@ -253,6 +253,20 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
     ) -> StoredProcedure:
+
+        if is_permanent:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering permanent sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
+
+        if anonymous:
+            self._session._conn.log_not_supported_error(
+                external_feature_name="sproc",
+                error_message="Registering anonymous sproc is not currently supported.",
+                raise_error=NotImplementedError,
+            )
         (
             sproc_name,
             is_pandas_udf,
@@ -276,6 +290,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         check_python_runtime_version(self._session._runtime_version_from_requirement)
+
+        if replace and if_not_exists:
+            raise ValueError("options replace and if_not_exists are incompatible")
+
+        if sproc_name in self._registry and if_not_exists:
+            return self._registry[sproc_name]
 
         if sproc_name in self._registry and not replace:
             raise SnowparkLocalTestingException(

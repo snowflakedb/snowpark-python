@@ -152,7 +152,6 @@ def test_dataframe_get_attr(session):
     assert "object has no attribute" in str(exc_info)
 
 
-# @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
@@ -160,8 +159,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
 
     try:
-        if not local_testing_mode:
-            Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
         Utils.upload_to_stage(
             session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
         )

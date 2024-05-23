@@ -117,6 +117,18 @@ class MockUDFRegistration(UDFRegistration):
                 self._session._runtime_version_from_requirement
             )
 
+        if replace and if_not_exists:
+            raise ValueError("options replace and if_not_exists are incompatible")
+
+        if udf_name in self._registry and if_not_exists:
+            return UserDefinedFunction(
+                self._registry[udf_name],
+                return_type,
+                input_types,
+                udf_name,
+                packages=packages,
+            )
+
         if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
                 f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",

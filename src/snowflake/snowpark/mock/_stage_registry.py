@@ -58,20 +58,40 @@ GET_RESULT_KEYS = [
 ]
 
 
+# option support map
+# top level:
+#   key: file format name
+#   value: dict of supported option
+# child level:
+#   key: option name
+#   value (two categories):
+#     - tuple, enum of valid option values in the string form
+#     - None, users set the value
 SUPPORT_READ_OPTIONS = {
-    "csv": (
-        "SKIP_HEADER",
-        "SKIP_BLANK_LINES",
-        "FIELD_DELIMITER",
-        "FIELD_OPTIONALLY_ENCLOSED_BY",
-    ),
-    "json": (
-        "INFER_SCHEMA",
-        "FILE_EXTENSION",
-    ),
+    "csv": {
+        "SKIP_HEADER": None,
+        "SKIP_BLANK_LINES": None,
+        "FIELD_DELIMITER": None,
+        "FIELD_OPTIONALLY_ENCLOSED_BY": None,
+        "INFER_SCHEMA": ("FALSE",),
+        "PARSE_HEADER": ("TRUE", "FALSE"),
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
+    "json": {
+        "INFER_SCHEMA": ("TRUE", "FALSE"),
+        "FILE_EXTENSION": None,
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
 }
 
-RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
+
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -376,31 +396,43 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
-        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
-        #  take PATTERN into account, when inferring schema from multiple files
-        # pattern = options.get("PATTERN") if options else None
-        #
-        # if pattern:
-        #     local_files = [
-        #         f
-        #         for f in local_files
-        #         if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
-        #     ]
-
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
+            supported_options_for_format = SUPPORT_READ_OPTIONS[file_format]
             for option in options:
-                if option not in SUPPORT_READ_OPTIONS[file_format]:
+                if str(options[option]).upper() == "NONE":
+                    # ignore if option value is None, or string of "None"
+                    continue
+                if (option not in supported_options_for_format) or (
+                    supported_options_for_format[option]
+                    and str(options[option]).upper()
+                    not in supported_options_for_format[option]
+                ):
+                    # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
-                        external_feature_name=f"Read option {option} for file format {file_format}",
+                        external_feature_name=f"Read option '{option}' of value '{str(options[option])}' for file format '{file_format}'",
                         internal_feature_name="StageEntity.read_file",
-                        parameters_info={"format": format, "option": option},
+                        parameters_info={
+                            "format": format,
+                            "option": option,
+                            "option_value": str(options[option]),
+                        },
                         raise_error=NotImplementedError
                         if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
                         else None,
                         warning_logger=_logger,
                     )
+
+        # process options
+        purge = options.get("PURGE", False)
+
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        pattern = options.get("PATTERN") if options else None
+
+        if pattern:
+            local_files = [f for f in local_files if re.match(pattern, f)]
 
         if file_format == "csv":
             # check SNOW-1355487 for improvements
@@ -410,6 +442,7 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(
                     f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
@@ -592,6 +625,14 @@ class StageEntity:
 
             result_df.sf_types = result_df_sf_types
             return result_df
+
+        if purge and local_files:
+            for file_path in local_files:
+                try:
+                    os.remove(file_path)
+                except Exception as exc:
+                    _logger.debug(f"failed to remove file due to exception {exc}")
+
         self._conn.log_not_supported_error(
             external_feature_name=f"Read file format {format}",
             internal_feature_name="StageEntity.read_file",
