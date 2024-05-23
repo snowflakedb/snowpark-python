@@ -1117,9 +1117,20 @@ def execute_mock_plan(
             res_df = execute_mock_plan(execution_plan)
             return res_df
         else:
-            db_schme_table = parse_table_name(entity_name)
+            obj_name_tuple = parse_table_name(entity_name)
+            obj_name = obj_name_tuple[-1]
+            obj_schema = (
+                obj_name_tuple[-2]
+                if len(obj_name_tuple) > 1
+                else analyzer.session.get_current_schema()
+            )
+            obj_database = (
+                obj_name_tuple[-3]
+                if len(obj_name_tuple) > 2
+                else analyzer.session.get_current_database()
+            )
             raise SnowparkLocalTestingException(
-                f"Object '{db_schme_table[0][1:-1]}.{db_schme_table[1][1:-1]}.{db_schme_table[2][1:-1]}' does not exist or not authorized."
+                f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
         res_df = execute_mock_plan(source_plan.child)
@@ -1503,6 +1514,11 @@ def execute_mock_plan(
             data = filled.replace({sentinel: None}).replace({None: default}).values
             # Column Emulator has to be reconctructed with sf_type in this case
             result[res_col] = ColumnEmulator(data, sf_type=child_rf[agg_column].sf_type)
+
+            # Column name should be quoted string
+            quoted_col = quote_name(str(res_col))
+            result.rename(columns={res_col: quoted_col}, inplace=True)
+            result.sf_types[quoted_col] = result.sf_types.pop(res_col)
 
         # Update column index map
         result.sf_types_by_col_index = {
