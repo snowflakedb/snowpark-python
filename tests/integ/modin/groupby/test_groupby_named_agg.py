@@ -4,12 +4,16 @@
 import re
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 
 @sql_count_checker(query_count=1)
@@ -72,6 +76,37 @@ def test_named_agg_output_column_order(basic_snowpark_pandas_df):
             new_col1=("col1", min), new_col2=("col2", min), new_col3=("col1", max)
         ),
     )
+
+
+# Query count is 2 in below test due to line 65, basic_snowpark_pandas_df.to_pandas()
+# That produces the native pandas DataFrame to test against.
+@sql_count_checker(query_count=2)
+def test_named_agg_output_column_order_with_dup_columns(basic_snowpark_pandas_df):
+    basic_snowpark_pandas_df = basic_snowpark_pandas_df.rename(columns={"col3": "col1"})
+
+    with pytest.raises(
+        AttributeError, match=re.escape("'DataFrame' object has no attribute 'name'")
+    ):
+        basic_snowpark_pandas_df.to_pandas().groupby("col4").agg(
+            new_col1=("col1", min), new_col2=("col2", min), new_col3=("col1", max)
+        )
+
+    result_df = native_pd.DataFrame(
+        [
+            [1.0, 8.0, 5.0, 1.0, 8.0],
+            [2.0, 4.0, 4.0, 2.0, 4.0],
+            [0.0, 1.1, 5.0, 0.0, 1.1],
+            [0.0, 10.0, 7.0, 0.0, 10.0],
+            [1.0, 12.0, 36.0, 1.0, 12.0],
+            [2.0, 3.1, 4.0, 2.0, 3.1],
+        ],
+        columns=["new_col1", "new_col1", "new_col2", "new_col3", "new_col3"],
+        index=pd.Index([3, 5, 6, 15, 16, 17], name="col4"),
+    )
+    snow_df = basic_snowpark_pandas_df.groupby("col4").agg(
+        new_col1=("col1", min), new_col2=("col2", min), new_col3=("col1", max)
+    )
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, result_df)
 
 
 # Query count is 2 in below test due to line 65, basic_snowpark_pandas_df.to_pandas()
