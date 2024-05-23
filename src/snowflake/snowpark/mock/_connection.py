@@ -150,6 +150,11 @@ class MockServerConnection:
         def write_table(
             self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
         ) -> Row:
+            for column in table.columns:
+                if not table[column].sf_type.nullable and table[column].isnull().any():
+                    raise SnowparkLocalTestingException(
+                        "NULL result in a non-nullable column"
+                    )
             current_schema = self.conn._get_current_parameter("schema")
             current_database = self.conn._get_current_parameter("database")
             name = get_fully_qualified_name(name, current_schema, current_database)
