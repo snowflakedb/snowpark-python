@@ -13,6 +13,7 @@
 #### New Features
 
 - Added support for `if_not_exists` parameter during udf and sproc registration.
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames' and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Improvements
 
