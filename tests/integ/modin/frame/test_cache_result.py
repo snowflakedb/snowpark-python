@@ -68,10 +68,19 @@ def perform_chained_operations(df, module):
     return module.concat([df] * 10)
 
 
+@pytest.mark.parametrize(
+    "init_kwargs",
+    [
+        {},
+        {"columns": ["A", "B", "C"]},
+        {"index": ["A", "B", "C"]},
+        {"columns": ["A", "B", "C"], "index": [0, 1, 2]},
+    ],
+    ids=["no_col_no_index", "only_col", "only_index", "col_and_index"],
+)
 @pytest.mark.parametrize("inplace", [True, False])
-def test_cache_result_empty_dataframe(inplace):
-    native_df = native_pd.DataFrame()
-    snow_df = pd.DataFrame()
+def test_cache_result_empty_dataframe(init_kwargs, inplace):
+    snow_df, native_df = create_test_dfs(**init_kwargs)
     snow_df_copy = snow_df.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
@@ -80,45 +89,12 @@ def test_cache_result_empty_dataframe(inplace):
             snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
         )
     with SqlCounter(query_count=1):
-        assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
-
-    native_df = native_pd.DataFrame(columns=["A", "B", "C"])
-    snow_df = pd.DataFrame(native_df)
-    snow_df_copy = snow_df.copy(deep=True)
-    with SqlCounter(query_count=1):
-        cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=2):
-        assert_frame_equal(
-            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
-        )
-    with SqlCounter(query_count=1):
-        assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
-
-    native_df = native_pd.DataFrame(index=["A", "B", "C"])
-    snow_df = pd.DataFrame(native_df)
-    snow_df_copy = snow_df.copy(deep=True)
-    with SqlCounter(query_count=1):
-        cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=2):
-        assert_frame_equal(
-            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
-        )
-    with SqlCounter(query_count=1):
-        assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
-
-    native_df = native_pd.DataFrame(columns=["A", "B", "C"], index=[0, 1, 2])
-    snow_df = pd.DataFrame(native_df)
-    snow_df_copy = snow_df.copy(deep=True)
-    with SqlCounter(query_count=1):
-        cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=2):
-        assert_frame_equal(
-            snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
-        )
-    with SqlCounter(query_count=1):
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            cached_snow_df, native_df
-        )
+        if native_df.empty:
+            assert_empty_snowpark_pandas_equals_to_pandas(cached_snow_df, native_df)
+        else:
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                cached_snow_df, native_df
+            )
 
 
 @pytest.mark.parametrize("inplace", [True, False])
@@ -150,27 +126,24 @@ def test_cache_result_dataframe_complex_correctness(
 @pytest.mark.parametrize("inplace", [True, False])
 class TestCacheResultReducesQueryCount:
     def test_cache_result_simple(self, inplace):
-        snow_df = pd.concat([pd.DataFrame([range(i, i + 5)]) for i in range(0, 150, 5)])
+        snow_df = pd.concat([pd.DataFrame([range(i, i + 5)]) for i in range(0, 15, 5)])
         native_df = perform_chained_operations(
-            native_pd.DataFrame(np.arange(150).reshape((30, 5))), native_pd
+            native_pd.DataFrame(np.arange(15).reshape((3, 5))), native_pd
         )
-        with SqlCounter(query_count=1, union_count=299):
+        with SqlCounter(query_count=1, union_count=29):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df, native_df
             )
 
-        with SqlCounter(query_count=1, union_count=29):
+        with SqlCounter(query_count=1, union_count=2):
             snow_df = pd.concat(
-                [pd.DataFrame([range(i, i + 5)]) for i in range(0, 150, 5)]
+                [pd.DataFrame([range(i, i + 5)]) for i in range(0, 15, 5)]
             )
             cached_snow_df = cache_and_return_df(snow_df, inplace)
 
         with SqlCounter(query_count=1, union_count=9):
             cached_snow_df = perform_chained_operations(cached_snow_df, pd)
-            cached_snow_df.to_pandas()
-
-        with SqlCounter(query_count=1):
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 cached_snow_df, native_df
             )

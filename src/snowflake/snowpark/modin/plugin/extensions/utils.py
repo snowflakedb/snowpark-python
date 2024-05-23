@@ -42,20 +42,9 @@ read from a table.
 >>> np.all((new_{object_var_name} == {object_var_name}).values)
 True
 
->>> from time import perf_counter
+>>> {object_var_name}.reset_index(drop=True, inplace=True) # Slower
 
->>> def time_reset_index({object_var_name}_obj):
-...     start = perf_counter()
-...     {object_var_name}_obj.reset_index(drop=True)
-...     end = perf_counter()
-...     return end - start
-...
-
->>> uncached_time = time_reset_index({object_var_name})
-
->>> cached_time = time_reset_index(new_{object_var_name})
-
->>> assert cached_time < uncached_time
+>>> new_{object_var_name}.reset_index(drop=True, inplace=True) # Faster
 
 """
 

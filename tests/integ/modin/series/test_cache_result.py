@@ -54,10 +54,12 @@ def simple_test_data():
     return list(chain.from_iterable(zip(int_data, str_data)))
 
 
+@pytest.mark.parametrize(
+    "init_kwargs", [{}, {"index": ["A", "B", "C"]}], ids=["no_index", "index"]
+)
 @pytest.mark.parametrize("inplace", [True, False])
-def test_cache_result_empty_series(inplace):
-    native_series = native_pd.Series()
-    snow_series = pd.Series()
+def test_cache_result_empty_series(init_kwargs, inplace):
+    snow_series, native_series = create_test_series(**init_kwargs)
     snow_series_copy = snow_series.copy(deep=True)
     with SqlCounter(query_count=1):
         cached_snow_series = cache_and_return_series(snow_series, inplace)
@@ -68,20 +70,6 @@ def test_cache_result_empty_series(inplace):
     with SqlCounter(query_count=1):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_series, native_series
-        )
-
-    native_series = native_pd.Series(index=["A", "B", "C"])
-    snow_series = pd.Series(native_series)
-    snow_series_copy = snow_series.copy(deep=True)
-    with SqlCounter(query_count=1):
-        cached_snow_series = cache_and_return_series(snow_series, inplace)
-    with SqlCounter(query_count=2):
-        assert_series_equal(
-            cached_snow_series.to_pandas(), snow_series_copy.to_pandas()
-        )
-    with SqlCounter(query_count=1):
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            cached_snow_series, native_series
         )
 
 
@@ -116,6 +104,9 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(np.arange(50)), native_pd
         )
+        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
+        # snow_series.reset_index names the returned series 0, so we must
+        # name the pandas Series as well so that they match.
         native_series.name = 0
         with SqlCounter(query_count=1, union_count=99):
             snow_series = perform_chained_operations(snow_series, pd)
@@ -131,9 +122,6 @@ class TestCacheResultReducesQueryCount:
 
         with SqlCounter(query_count=1, union_count=9):
             cached_snow_series = perform_chained_operations(cached_snow_series, pd)
-            cached_snow_series.to_pandas()
-
-        with SqlCounter(query_count=1):
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 cached_snow_series, native_series
             )
@@ -145,6 +133,9 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(simple_test_data).apply(lambda x: x + x), native_pd
         )
+        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
+        # snow_series.reset_index names the returned series 0, so we must
+        # name the pandas Series as well so that they match.
         native_series.name = 0
         with SqlCounter(query_count=5, union_count=9):
             snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
