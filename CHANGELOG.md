@@ -21,7 +21,8 @@
 
 #### Bug Fixes
 
-- Fixed how we support mixed columns for string methods (`Series.str.*`)
+- Fixed how we support mixed columns for string methods (`Series.str.*`).
+- Re-added support for `Series.str.split`.
 
 ### Snowpark Local Testing Updates
 
