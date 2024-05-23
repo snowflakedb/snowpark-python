@@ -1,8 +1,12 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
+
+import modin.pandas as pd
 import pytest
 
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
@@ -68,3 +72,30 @@ def test_named_agg_output_column_order(basic_snowpark_pandas_df):
             new_col1=("col1", min), new_col2=("col2", min), new_col3=("col1", max)
         ),
     )
+
+
+# Query count is 2 in below test due to line 65, basic_snowpark_pandas_df.to_pandas()
+# That produces the native pandas DataFrame to test against.
+@sql_count_checker(query_count=2)
+def test_named_agg_passed_in_via_star_kwargs(basic_snowpark_pandas_df):
+    kwargs = {"new_col1": ("col1", min), "new_col2": pd.NamedAgg("col2", min)}
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        basic_snowpark_pandas_df.to_pandas(),
+        lambda df: df.groupby("col1").agg(**kwargs),
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_named_agg_with_invalid_function_raises_not_implemented(
+    basic_snowpark_pandas_df,
+):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas GroupBy.agg(c1=('col2', 'min'), c2=('col2', 'random_function')) does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+        ),
+    ):
+        basic_snowpark_pandas_df.groupby("col1").agg(
+            c1=("col2", "min"), c2=("col2", "random_function")
+        )

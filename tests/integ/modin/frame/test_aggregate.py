@@ -906,7 +906,7 @@ def test_named_agg_not_supported_function(numeric_native_df):
         NotImplementedError,
         match=re.escape(
             "Aggregate with func=None and parameters "
-            + f"x=(A, {np.exp})"
+            + f"x=('A', {np.exp})"
             + " not supported yet in Snowpark pandas."
         ),
     ):
@@ -925,3 +925,10 @@ def test_named_agg_missing_key(numeric_native_df):
         expect_exception_match=re.escape("Column(s) ['x'] do not exist"),
         expect_exception_type=KeyError,
     )
+
+
+@sql_count_checker(query_count=1, union_count=1)
+def test_named_agg_passed_in_via_star_kwargs(numeric_native_df):
+    snow_df = pd.DataFrame(numeric_native_df)
+    kwargs = {"x": ("A", "min"), "y": pd.NamedAgg("B", "max")}
+    eval_snowpark_pandas_result(snow_df, numeric_native_df, lambda df: df.agg(**kwargs))

@@ -134,13 +134,13 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     check_is_aggregation_supported_in_snowflake,
     column_quantile,
     convert_agg_func_arg_to_col_agg_func_map,
-    convert_named_agg_func_art_to_include_snowflake_quoted_identifier,
     drop_non_numeric_data_columns,
     generate_column_agg_info,
     generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    using_named_aggregations_for_func,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
@@ -2576,10 +2576,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
                 # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
-                if isinstance(agg_func, dict) and all(
-                    is_named_tuple(func) and len(func) == 2
-                    for func in agg_func.values()
-                ):
+                if using_named_aggregations_for_func(agg_func):
                     agg_func = ", ".join(
                         [f"{key}={value}" for key, value in agg_kwargs.items()]
                     )
@@ -2667,6 +2664,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_data_column_quoted_identifier = [
             col_agg_op.agg_snowflake_quoted_identifier for col_agg_op in agg_col_ops
         ]
+
+        # The ordering of the named aggregations is changed by us when we process
+        # the agg_kwargs into the func dict (named aggregations on the same
+        # column are moved to be contiguous, see groupby.py::aggregate for an
+        # example). We need to check if the order of the output columns is correct,
+        # and if not, reorder them.
+        if uses_named_aggs:
+            correct_ordering = list(agg_kwargs.keys())
+            if correct_ordering != new_data_column_pandas_labels:
+                # In this case, we need to reorder the new_data_column_pandas_labels
+                # and the new_data_column_quoted_identifier.
+                data_column_label_to_quoted_identifier = list(
+                    zip(
+                        new_data_column_pandas_labels, new_data_column_quoted_identifier
+                    )
+                )
+                data_column_label_to_quoted_identifier = list(
+                    zip(
+                        *[
+                            pair
+                            for column_label in correct_ordering
+                            for pair in filter(
+                                lambda pair: pair[0] == column_label,
+                                data_column_label_to_quoted_identifier,
+                            )
+                        ]
+                    )
+                )
+                new_data_column_pandas_labels = list(
+                    data_column_label_to_quoted_identifier[0]
+                )
+                new_data_column_quoted_identifier = list(
+                    data_column_label_to_quoted_identifier[1]
+                )
         if sort:
             # when sort is True, the result is ordered by the groupby keys
             ordering_columns = [
@@ -4137,49 +4168,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Call fallback if the aggregation function passed in the arg is currently not supported
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
-        uses_named_aggs_df = (
-            is_dict_like(func)
-            and is_dict_like(list(func.values())[0])
-            and isinstance(list(list(func.values())[0].values())[0], AggFuncWithLabel)
-        )
-        uses_named_aggs_series = is_dict_like(func) and any(
-            isinstance(value, AggFuncWithLabel)
-            or (
-                isinstance(value, list)
-                and any(isinstance(v, AggFuncWithLabel) for v in value)
-            )
-            for value in func.values()
-        )
-        if uses_named_aggs_df:
-            funcs = {}
-            for key, col_to_agg_func_dict in func.items():
-                column_to_agg_on = list(col_to_agg_func_dict.keys())[0]
-                funcs[key] = (column_to_agg_on, list(col_to_agg_func_dict.values())[0])
-            if not check_is_aggregation_supported_in_snowflake(
-                [v[1] for v in list(funcs.values())], kwargs, axis
-            ):
-                ErrorMessage.not_implemented(
-                    "Aggregate with func=None and parameters "
-                    + ", ".join(
-                        [f"{k}=({v[0]}, {v[1].func})" for k, v in funcs.items()]
-                    )
+        uses_named_aggs = using_named_aggregations_for_func(func)
+        if not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
+            if uses_named_aggs:
+                # Format the error message a little differently, so it looks nicer.
+                error_msg = (
+                    "Aggregate with func=None and parameters"
+                    + f" {kwargs['_formatted_named_kwargs']}"
                     + " not supported yet in Snowpark pandas."
                 )
-        elif not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
-            if uses_named_aggs_series:
-                # Format the error message a little differently, so it looks nicer.
-                error_msg = "Aggregate with func=None and parameters "
-                if isinstance(list(func.values())[0], list):
-                    error_msg += ", ".join(
-                        [
-                            f"{agg_func.pandas_label}={agg_func.func}"
-                            for agg_func in list(func.values())[0]
-                        ]
-                    )
-                else:
-                    agg_func = list(func.values())[0]
-                    error_msg += f"{agg_func.pandas_label}={agg_func.func}"
-                error_msg += " not supported yet in Snowpark pandas."
             else:
                 error_msg = (
                     f"Aggregate function {func} with parameters "
@@ -4216,6 +4213,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         #    max  min
         # 1  3.0  NaN
         # 0  NaN  0.0
+        # should_squeeze cannot be True if we are using named aggregations, since
+        # the values for func in that case are either NamedTuples (AggFuncWithLabels) or
+        # lists of NamedTuples, both of which are list like.
         should_squeeze = is_dict_like(func) and all(
             not is_list_like(value) for value in func.values()
         )
@@ -4291,18 +4291,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
         else:  # axis == 0
             # get a map between the Snowpark pandas column to the aggregation function needs to be applied on the column
-            if uses_named_aggs_df:
-                column_to_agg_func = (
-                    convert_named_agg_func_art_to_include_snowflake_quoted_identifier(
-                        internal_frame, func
-                    )
-                )
-            else:
-                column_to_agg_func = convert_agg_func_arg_to_col_agg_func_map(
-                    internal_frame,
-                    func,
-                    pandas_labels_for_columns_to_exclude_when_agg_on_all=[],
-                )
+            column_to_agg_func = convert_agg_func_arg_to_col_agg_func_map(
+                internal_frame,
+                func,
+                pandas_labels_for_columns_to_exclude_when_agg_on_all=[],
+            )
 
             # generate the quoted identifier for the aggregation function name column
             agg_name_col_quoted_identifier = (
@@ -4441,49 +4434,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
             else:
-                if uses_named_aggs_df:
-                    # If this is true, then we are dealing with agg with NamedAggregations. In that case,
-                    # `column_to_agg_func` looks like this:
-                    # {'x': {PandasLabelToSnowflakeIdentifierPair(pandas_label='A', snowflake_quoted_identifier='"A"'):
-                    # AggFuncWithLabel(func='max', pandas_label='x')}, 'y': [{PandasLabelToSnowflakeIdentifierPair(pandas_label='B', snowflake_quoted_identifier='"B"'):
-                    # AggFuncWithLabel(func='min', pandas_label='y'}, {PandasLabelToSnowflakeIdentifierPair(pandas_label='B', snowflake_quoted_identifier='"B_sada"'):
-                    # AggFuncWithLabel(func='min', pandas_label='y'}]} where y is an aggregation over columns B (there are two columns named B in the input DataFrame).
-                    # We need to go through each of the new labels (in order) and apply each of the aggregations to the corresponding column, and apply
-                    # the correct index value.
+                if uses_named_aggs:
+                    # If this is true, then we are dealing with agg with NamedAggregations.
 
-                    # First though, we need to get the list of columns over which to apply aggregations over. This is the union of all columns that recieve an aggregation.
-                    columns = []
-                    for value in column_to_agg_func.values():
-                        if isinstance(value, list):
-                            for v in value:
-                                for identifier_pair in v.keys():
-                                    columns += [identifier_pair]
-                        else:
-                            for identifier_pair in value.keys():
-                                columns += [identifier_pair]
-                    # columns is now a list of all PandasLabelToSnowflakeQuotedIdentifierPairs that we will need for the aggregations, but may contain duplicates.
-                    # We don't need to make it unique though, since we use columns to add keys to a dictionary, so any duplicates will be handled correctly.
-                    # We don't want to filter, because calling list(set(columns)) can mess up the order of the columns, and so the output dataframe may not have
-                    # the columns correctly ordered.
-
-                    def column_to_agg_func_label_dict_to_col_single_agg_func_map(
-                        column_to_agg_func_label_dict: dict[
-                            PandasLabelToSnowflakeIdentifierPair, AggFuncWithLabel
-                        ]
+                    def generate_single_agg_column_func_map(
+                        identifier_pair: PandasLabelToSnowflakeIdentifierPair,
+                        agg_func: AggFuncWithLabel,
                     ) -> dict[PandasLabelToSnowflakeIdentifierPair, AggFuncInfo]:
                         """
-                        Helper function to convert a dictionary mapping PandasLabelToSnowflakeIdentifierPair -> AggFuncWithLabel to a dictionary mapping PandasLabelToSnowflakeIdentifierPair -> AggFuncInfo.
+                        Helper function to produce the agg func map for a single aggregation, including dummy aggregations.
 
                         Notes:
                         Adds dummy aggregations for all columns that will be aggregated over.
                         """
-                        identifier_pair = list(column_to_agg_func_label_dict.keys())[0]
-                        agg_func = list(column_to_agg_func_label_dict.values())[0].func
                         col_single_agg_func_map = {}
-                        for c in columns:
+                        for c in column_to_agg_func.keys():
                             if c == identifier_pair:
                                 col_single_agg_func_map[c] = AggFuncInfo(
-                                    func=agg_func, is_dummy_agg=False
+                                    func=agg_func.func, is_dummy_agg=False
                                 )
                             else:
                                 col_single_agg_func_map[c] = AggFuncInfo(
@@ -4491,57 +4459,54 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                                 )
                         return col_single_agg_func_map
 
+                    # We can't simply append the generated_qcs to single_agg_func_query_compilers, because
+                    # we have changed the order of the aggregations - see the comment in the function
+                    # extract_validate_and_try_convert_named_aggs_from_kwargs for an explanation of how
+                    # and why the order changes. Instead, we get a mapping of the name of the aggregation to the
+                    # QueryCompiler it produces, which we can then use to insert into single_agg_func_query_compilers
+                    # in the correct order, which we recieve from the frontend, so that when the concatenation occurs,
+                    # the final QueryCompiler is ordered correctly.
+                    index_label_to_generated_qcs: dict[
+                        Hashable, list["SnowflakeQueryCompiler"]
+                    ] = {}
                     for (
-                        new_index_label,
-                        agg_func_label_dict,
+                        identifier_pair,
+                        agg_func_with_label,
                     ) in column_to_agg_func.items():
-                        if isinstance(agg_func_label_dict, list):
-                            for agg_func_label in agg_func_label_dict:
-                                single_agg_func_query_compilers.append(
-                                    generate_agg_qc(
-                                        column_to_agg_func_label_dict_to_col_single_agg_func_map(
-                                            agg_func_label
-                                        ),
-                                        new_index_label,
-                                    )
-                                )
-                        else:
-                            single_agg_func_query_compilers.append(
-                                generate_agg_qc(
-                                    column_to_agg_func_label_dict_to_col_single_agg_func_map(
-                                        agg_func_label_dict
-                                    ),
-                                    new_index_label,
-                                )
-                            )
-                elif uses_named_aggs_series:
-                    # If this is true, then we are using named aggregations with Series, which takes a slightly different codepath. In that case, we have a mapping of
-                    # PandasLabelToSnowflakeQuotedIdentifierPair -> AggFuncWithLabel. We need to loop through all of the aggregations and apply them.
-                    for pair, agg_func_with_label in column_to_agg_func.items():
                         if isinstance(agg_func_with_label, list):
                             for agg_func in agg_func_with_label:
-                                single_agg_func_query_compilers.append(
-                                    generate_agg_qc(
-                                        {
-                                            pair: AggFuncInfo(
-                                                func=agg_func.func, is_dummy_agg=False
-                                            )
-                                        },
-                                        agg_func.pandas_label,
-                                    )
+                                new_qc = generate_agg_qc(
+                                    generate_single_agg_column_func_map(
+                                        identifier_pair, agg_func
+                                    ),
+                                    agg_func.pandas_label,
                                 )
+                                index_label_to_generated_qcs[
+                                    agg_func.pandas_label
+                                ] = index_label_to_generated_qcs.get(
+                                    agg_func.pandas_label, []
+                                ) + [
+                                    new_qc
+                                ]
                         else:
-                            single_agg_func_query_compilers.append(
-                                generate_agg_qc(
-                                    {
-                                        pair: AggFuncInfo(
-                                            func=agg_func_with_label.func,
-                                            is_dummy_agg=False,
-                                        )
-                                    },
-                                    agg_func_with_label.pandas_label,
-                                )
+                            new_qc = generate_agg_qc(
+                                generate_single_agg_column_func_map(
+                                    identifier_pair, agg_func_with_label
+                                ),
+                                agg_func_with_label.pandas_label,
                             )
+                            index_label_to_generated_qcs[
+                                agg_func_with_label.pandas_label
+                            ] = index_label_to_generated_qcs.get(
+                                agg_func_with_label.pandas_label, []
+                            ) + [
+                                new_qc
+                            ]
+                    correct_order_of_index_labels = kwargs["_correct_aggregation_order"]
+                    for index_label in correct_order_of_index_labels:
+                        single_agg_func_query_compilers.extend(
+                            index_label_to_generated_qcs[index_label]
+                        )
                 else:
                     # get a map between each aggregation function and the columns needs to apply this aggregation function
                     agg_func_to_col_map = get_agg_func_to_col_map(column_to_agg_func)

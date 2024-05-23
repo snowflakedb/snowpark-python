@@ -710,7 +710,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
                 )
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
-                self, allow_duplication=False, axis=axis, is_from_agg=True, **kwargs
+                self, allow_duplication=False, axis=axis, **kwargs
             )
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
@@ -725,7 +725,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # convert dataframe to series, or convert series to scalar.
         # Note: When named aggregations are used, the result is not reduced, even if there
         # is only a single function.
-        need_reduce_dimension = func is not None and (
+        # needs_reduce_dimension cannot be True if we are using named aggregations, since
+        # the values for func in that case are either NamedTuples (AggFuncWithLabels) or
+        # lists of NamedTuples, both of which are list like.
+        need_reduce_dimension = (
             (callable(func) or isinstance(func, str))
             # A Series should be returned when a single scalar string/function aggregation function, or a
             # dict of scalar string/functions is specified. In all other cases (including if the function
@@ -780,7 +783,16 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # >>> pd.DataFrame([[np.nan], [0]]).count(skipna=True, axis=0)
         # TypeError: got an unexpected keyword argument 'skipna'
         if is_dict_like(func):
+            order_of_aggregations = list(kwargs.keys())
+            formatted_kwargs = ", ".join(
+                [f"{key}={value}" for key, value in kwargs.items()]
+            )
             kwargs.clear()
+            # Used to make error message formatting a little cleaner
+            # when using named aggregations.
+            kwargs["_formatted_named_kwargs"] = formatted_kwargs
+            # Used to correctly order the aggregations when using named aggregations.
+            kwargs["_correct_aggregation_order"] = order_of_aggregations
 
         result = self.__constructor__(
             query_compiler=self._query_compiler.agg(

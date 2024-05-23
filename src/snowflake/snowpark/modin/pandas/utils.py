@@ -541,7 +541,7 @@ def try_convert_builtin_func_to_str(
 
 
 def extract_validate_and_try_convert_named_aggs_from_kwargs(
-    obj: object, allow_duplication: bool, axis: int, is_from_agg: bool, **kwargs
+    obj: object, allow_duplication: bool, axis: int, **kwargs
 ) -> AggFuncType:
     """
     Attempt to extract pd.NamedAgg (or tuples of the same format) from the kwargs.
@@ -579,28 +579,16 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
             # The output of this function will look like this:
             # {A: [AggFuncWithLabel(func=min, label=new_col), AggFuncWithLabel(func=max, label=new_col2)]
             # B: AggFuncWithLabel(func=max, label=new_col1)}
-            # And so our final dataframe will have the wrong order. For groupby.agg, this is ok though,
-            # as the aggregations form the new columns, and we have the columns fully materialized client
-            # side, so it is possible to check the order of the columns, and add a reindex if necessary.
-            # For df.agg, the aggregations become the index, so instead of throwing a reindex,
-            # its better to attempt to preserve the order. To do so, we instead return a mapping
-            # new_label -> dict[column_name -> tuple[agg_func, new_label]]
-            # so we can iterate through the new_labels in the correct order internally.
-            if not is_from_agg:
-                if value[0] in named_aggs:
-                    if not isinstance(named_aggs[value[0]], list):
-                        named_aggs[value[0]] = [named_aggs[value[0]]]
-                    named_aggs[value[0]] += [
-                        AggFuncWithLabel(func=value[1], pandas_label=key)
-                    ]
-                else:
-                    named_aggs[value[0]] = AggFuncWithLabel(
-                        func=value[1], pandas_label=key
-                    )
+            # And so our final dataframe will have the wrong order. We handle the reordering of the generated
+            # labels at the QC layer.
+            if value[0] in named_aggs:
+                if not isinstance(named_aggs[value[0]], list):
+                    named_aggs[value[0]] = [named_aggs[value[0]]]
+                named_aggs[value[0]] += [
+                    AggFuncWithLabel(func=value[1], pandas_label=key)
+                ]
             else:
-                named_aggs[key] = {
-                    value[0]: AggFuncWithLabel(func=value[1], pandas_label=key)
-                }
+                named_aggs[value[0]] = AggFuncWithLabel(func=value[1], pandas_label=key)
             accepted_keys += [key]
         elif is_series_like:
             if isinstance(obj, SeriesGroupBy):
@@ -615,14 +603,15 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
                 named_aggs[col_name] += [AggFuncWithLabel(func=value, pandas_label=key)]
             accepted_keys += [key]
 
-    if len(named_aggs.keys()) == 0:
-        ErrorMessage.not_implemented(
-            "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
-        )
-
-    if any(key not in accepted_keys for key in kwargs.keys()):
-        # For compatibility with pandas errors. Otherwise, we would just ignore
-        # those kwargs.
+    if len(named_aggs.keys()) == 0 or any(
+        key not in accepted_keys for key in kwargs.keys()
+    ):
+        # First check makes sure that some functions have been passed. If nothing has been passed,
+        # we raise the TypeError.
+        # The second check is for compatibility with pandas errors. Say the user does something like this:
+        # df.agg(x=pd.NamedAgg('A', 'min'), random_extra_kwarg=14). pandas errors out, since func is None
+        # and not every kwarg is a named aggregation. Without this check explicitly, we would just ignore
+        # the extraneous kwargs, so we include this check for parity with pandas.
         raise TypeError("Must provide 'func' or tuples of '(column, aggfunc).")
 
     validated_named_aggs = {}
@@ -637,18 +626,6 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
                 )
                 for v in value
             ]
-        elif isinstance(value, dict):
-            assert len(value.keys()) == 1
-            agg_func_with_label = list(value.values())[0]
-            value_key = list(value.keys())[0]
-            validated_named_aggs[key] = {
-                value_key: AggFuncWithLabel(
-                    func=validate_and_try_convert_agg_func_arg_func_to_str(
-                        agg_func_with_label.func, obj, allow_duplication, axis
-                    ),
-                    pandas_label=agg_func_with_label.pandas_label,
-                )
-            }
         else:
             validated_named_aggs[key] = AggFuncWithLabel(
                 func=validate_and_try_convert_agg_func_arg_func_to_str(
@@ -699,11 +676,6 @@ def validate_and_try_convert_agg_func_arg_func_to_str(
             If nested dict configuration is used when agg_func is dict like or functions with duplicated names.
 
     """
-    if agg_func is None:
-        ErrorMessage.not_implemented(
-            "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
-        )
-
     if callable(agg_func):
         result_agg_func = try_convert_builtin_func_to_str(agg_func, obj)
     elif is_dict_like(agg_func):
