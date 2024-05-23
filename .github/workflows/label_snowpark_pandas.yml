@@ -1,5 +1,4 @@
-name: "GitHub PR Labeler"
-description: 'Automatically label new pull requests based on the paths of files being changed'
+name: "Snowpark pandas PR Labeler"
 
 on:
   pull_request:
@@ -14,5 +13,5 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
-    - id: label-the-pr
+    - name: label-the-pr
       uses: actions/labeler@v5
