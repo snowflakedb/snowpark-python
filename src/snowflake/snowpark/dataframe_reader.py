@@ -28,6 +28,7 @@ from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -376,6 +377,11 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
+        if isinstance(self._session._conn, MockServerConnection):
+            self._session._conn.log_not_supported_error(
+                external_feature_name="DataFrameReader.with_metadata",
+                raise_error=NotImplementedError,
+            )
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
@@ -400,6 +406,17 @@ class DataFrameReader:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
+            if isinstance(self._session._conn, MockServerConnection):
+                self._session._conn.log_not_supported_error(
+                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
+                    internal_feature_name="DataFrameReader.csv",
+                    parameters_info={
+                        "format": "csv",
+                        "option": "INFER_SCHEMA",
+                        "option_value": "TRUE",
+                    },
+                    raise_error=NotImplementedError,
+                )
             (
                 schema,
                 schema_to_cast,
@@ -648,8 +665,6 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
                 raise SnowparkSessionException(

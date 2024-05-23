@@ -697,6 +697,7 @@ class SnowflakePlanBuilder:
         mode: SaveMode,
         table_type: str,
         clustering_keys: Iterable[str],
+        comment: Optional[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -724,6 +725,7 @@ class SnowflakePlanBuilder:
                 error=error,
                 table_type=table_type,
                 clustering_key=clustering_keys,
+                comment=comment,
             )
 
             # so that dataframes created from non-select statements,
@@ -781,6 +783,7 @@ class SnowflakePlanBuilder:
                         replace=True,
                         table_type=table_type,
                         clustering_key=clustering_keys,
+                        comment=comment,
                     ),
                     child,
                     None,
@@ -794,6 +797,7 @@ class SnowflakePlanBuilder:
                     replace=True,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -807,6 +811,7 @@ class SnowflakePlanBuilder:
                     error=False,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -819,6 +824,7 @@ class SnowflakePlanBuilder:
                     column_definition,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -882,7 +888,7 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool
+        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str]
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -892,7 +898,7 @@ class SnowflakePlanBuilder:
 
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
-            lambda x: create_or_replace_view_statement(name, x, is_temp),
+            lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             None,
         )
@@ -902,6 +908,7 @@ class SnowflakePlanBuilder:
         name: str,
         warehouse: str,
         lag: str,
+        comment: Optional[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -913,7 +920,7 @@ class SnowflakePlanBuilder:
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
-                name, warehouse, lag, x
+                name, warehouse, lag, comment, x
             ),
             child,
             None,
