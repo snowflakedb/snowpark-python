@@ -167,20 +167,97 @@ def test_agg_dup_col(numeric_native_df, func, expected_union_count):
         eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
 
 
-@pytest.mark.parametrize(
-    "func, expected_union_count",
-    [
-        (lambda df: df.aggregate(x=("A", "min"), y=("B", "min")), 1),
-        (lambda df: df.aggregate(x=("A", "min"), y=("A", "max")), 1),
-    ],
-)
-def test_named_agg_dup_col(numeric_native_df, func, expected_union_count):
+def test_named_agg_dup_col_pandas_fails_snowpark_pandas_supports(numeric_native_df):
     # rename to have duplicated column
     numeric_native_df.columns = ["A", "B", "A"]
     snow_df = pd.DataFrame(numeric_native_df)
 
-    with SqlCounter(query_count=1, union_count=expected_union_count):
-        eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (1, 2) instead"
+        ),
+    ):
+        numeric_native_df.agg(x=("A", "min"))
+
+    result_df = native_pd.DataFrame(
+        [[0, np.nan], [np.nan, 2.0]], columns=["A", "A"], index=["x", "x"]
+    ).reset_index(drop=False)
+
+    with SqlCounter(query_count=1, union_count=1):
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df.agg(x=("A", "min")).reset_index(drop=False), result_df
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (2, 2) instead"
+        ),
+    ):
+        numeric_native_df.agg(x=("A", "min"), y=("B", "min"))
+
+    result_df = native_pd.DataFrame(
+        [[0, np.nan, np.nan], [np.nan, 2.0, np.nan], [np.nan, np.nan, 0]],
+        columns=["A", "A", "B"],
+        index=["x", "x", "y"],
+    ).reset_index(drop=False)
+
+    with SqlCounter(query_count=1, union_count=2):
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df.agg(x=("A", "min"), y=("B", "min")).reset_index(drop=False),
+            result_df,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (2, 2) instead"
+        ),
+    ):
+        numeric_native_df.agg(x=("B", "min"), y=("A", "min"))
+
+    result_df = native_pd.DataFrame(
+        [[0, np.nan, np.nan], [np.nan, 0, np.nan], [np.nan, np.nan, 2.0]],
+        columns=["B", "A", "A"],
+        index=["x", "y", "y"],
+    ).reset_index(drop=False)
+
+    with SqlCounter(query_count=1, union_count=2):
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df.agg(x=("B", "min"), y=("A", "min")).reset_index(drop=False),
+            result_df,
+        )
+
+    numeric_native_df.columns = ["A", "A", "A"]
+    snow_df = pd.DataFrame(numeric_native_df)
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (2, 3) instead"
+        ),
+    ):
+        numeric_native_df.agg(x=("A", "min"), y=("A", "max"))
+
+    result_df = native_pd.DataFrame(
+        [
+            [0, np.nan, np.nan],
+            [np.nan, 0, np.nan],
+            [np.nan, np.nan, 2.0],
+            [4, np.nan, np.nan],
+            [np.nan, 8, np.nan],
+            [np.nan, np.nan, 8.2],
+        ],
+        columns=["A", "A", "A"],
+        index=["x", "x", "x", "y", "y", "y"],
+    ).reset_index(drop=False)
+
+    with SqlCounter(query_count=1, union_count=5):
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df.agg(x=("A", "min"), y=("A", "max")).reset_index(drop=False),
+            result_df,
+        )
 
 
 @pytest.mark.parametrize(
@@ -820,3 +897,31 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
         match="`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`.",
     ):
         snow_df.agg(x=("A", "min"), axis=1)
+
+
+@sql_count_checker(query_count=0)
+def test_named_agg_not_supported_function(numeric_native_df):
+    snow_df = pd.DataFrame(numeric_native_df)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Aggregate with func=None and parameters "
+            + f"x=(A, {np.exp})"
+            + " not supported yet in Snowpark pandas."
+        ),
+    ):
+        snow_df.agg(x=("A", np.exp))
+
+
+@sql_count_checker(query_count=0)
+def test_named_agg_missing_key(numeric_native_df):
+    snow_df = pd.DataFrame(numeric_native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        numeric_native_df,
+        lambda df: df.agg(x=("x", "min")),
+        expect_exception=True,
+        assert_exception_equal=True,
+        expect_exception_match=re.escape("Column(s) ['x'] do not exist"),
+        expect_exception_type=KeyError,
+    )

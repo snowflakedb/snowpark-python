@@ -826,6 +826,66 @@ def aggregate_with_ordered_dataframe(
     return agg_ordered_dataframe
 
 
+def convert_named_agg_func_art_to_include_snowflake_quoted_identifier(
+    internal_frame: InternalFrame,
+    agg_func: dict[Hashable, dict[Hashable, AggFuncWithLabel]],
+) -> dict[
+    Hashable,
+    Union[
+        list[dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase]],
+        dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase],
+    ],
+]:
+    """
+    Convert dictionary mapping new pandas labels to the column and agg func to apply to a dictionary mapping new pandas labels to the snowflake identifier pair + agg func to apply.
+
+    Args:
+        internal_frame: InternalFrame. The internal frame to apply aggregation on
+        agg_func: The dictionary to convert.
+
+    Returns:
+        Dict[Hashable, Union[list[dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase]], dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase]]]
+            Map from new pandas label to a dictionary mapping the the Snowpark pandas column to the aggregation function that needs to be applied to it.
+    """
+    map_with_quoted_identifiers: dict[
+        Hashable,
+        Union[
+            list[dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase]],
+            dict[PandasLabelToSnowflakeIdentifierPair, AggFuncTypeBase],
+        ],
+    ] = {}
+    for new_label, agg_func_dict in agg_func.items():
+        column_pandas_label = list(agg_func_dict.keys())[0]
+        agg_func_with_label = list(agg_func_dict.values())[0]
+        col_quoted_identifiers = (
+            internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                [column_pandas_label],
+                include_index=False,
+            )
+        )[0]
+        for col_quoted_identifier in col_quoted_identifiers:
+            new_entry = {
+                PandasLabelToSnowflakeIdentifierPair(
+                    column_pandas_label, col_quoted_identifier
+                ): agg_func_with_label
+            }
+            if new_label in map_with_quoted_identifiers.keys():
+                if isinstance(map_with_quoted_identifiers.get(new_label), list):
+                    map_with_quoted_identifiers[
+                        new_label
+                    ] = map_with_quoted_identifiers[new_label] + [
+                        new_entry
+                    ]  # type: ignore[operator]
+                else:
+                    map_with_quoted_identifiers[new_label] = [
+                        map_with_quoted_identifiers[new_label],  # type: ignore[list-item]
+                        new_entry,
+                    ]
+            else:
+                map_with_quoted_identifiers[new_label] = new_entry
+    return map_with_quoted_identifiers
+
+
 def convert_agg_func_arg_to_col_agg_func_map(
     internal_frame: InternalFrame,
     agg_func: AggFuncType,
@@ -912,41 +972,6 @@ def get_agg_func_to_col_map(
             agg_func_to_col_map[agg_func].append(column_identifier)
 
     return agg_func_to_col_map
-
-
-def get_pandas_label_to_agg_func_info_map(
-    col_to_agg_func_map: dict[
-        PandasLabelToSnowflakeIdentifierPair,
-        Union[AggFuncWithLabel, list[AggFuncWithLabel]],
-    ]
-) -> dict[Hashable, dict[PandasLabelToSnowflakeIdentifierPair, AggFuncInfo]]:
-    pandas_label_to_agg_func_info_map: dict[
-        Hashable, dict[PandasLabelToSnowflakeIdentifierPair, AggFuncInfo]
-    ] = {}
-
-    def _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
-        key: PandasLabelToSnowflakeIdentifierPair, agg_func: AggFuncWithLabel
-    ) -> None:
-        nonlocal pandas_label_to_agg_func_info_map
-        pandas_label = agg_func.pandas_label
-        func = agg_func.func
-        pandas_label_to_agg_func_info_map[pandas_label] = {
-            key: AggFuncInfo(func=func, is_dummy_agg=False)
-        }
-
-    for column_label_to_identifier_pair, agg_funcs in col_to_agg_func_map.items():
-        if is_list_like(agg_funcs) and not is_named_tuple(agg_funcs):
-            # Here we are dealing with multiple aggregation functions applied to the same column.
-            for agg_func in agg_funcs:
-                _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
-                    column_label_to_identifier_pair, agg_func
-                )
-        else:
-            _extract_agg_func_info_from_agg_func_with_label_and_put_in_dictionary(
-                column_label_to_identifier_pair, agg_funcs  # type: ignore[arg-type]
-            )
-
-    return pandas_label_to_agg_func_info_map
 
 
 def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> str:

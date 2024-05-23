@@ -573,7 +573,11 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             )  # pragma: no cover
         if func is None:
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
-                obj=self, allow_duplication=True, axis=self._axis, **kwargs
+                obj=self,
+                allow_duplication=True,
+                axis=self._axis,
+                is_from_agg=False,
+                **kwargs,
             )
             uses_named_agg = True
         else:

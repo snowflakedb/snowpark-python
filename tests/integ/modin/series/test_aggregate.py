@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -338,3 +340,16 @@ def test_skew_series():
     native_df = native_pd.DataFrame(np.array([1, 2, 1]), columns=["A"])
     snow_df = pd.DataFrame(native_df)
     assert round(snow_df["A"].skew(), 4) == round(native_df["A"].skew(), 4)
+
+
+@sql_count_checker(query_count=0)
+def test_named_agg_not_supported_function(native_series):
+    snow_series = pd.Series(native_series)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Aggregate with func=None and parameters "
+            + f"x={np.exp} not supported yet in Snowpark pandas."
+        ),
+    ):
+        snow_series.agg(x=np.exp)

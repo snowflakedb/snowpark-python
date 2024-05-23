@@ -710,7 +710,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
                 )
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
-                self, allow_duplication=False, axis=axis, **kwargs
+                self, allow_duplication=False, axis=axis, is_from_agg=True, **kwargs
             )
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
