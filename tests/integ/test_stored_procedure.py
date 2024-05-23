@@ -1432,10 +1432,6 @@ def test_sp_replace(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370044: Support if_not_exists in Local Testing",
-)
-@pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
 )

@@ -12,16 +12,39 @@
 
 #### New Features
 
+- Added support for `if_not_exists` parameter during udf and sproc registration.
+
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 
 ### Snowpark Local Testing Updates
+
+#### Breaking changes
+
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
+
+### New Features
+
+- Added support for the following DataFrameReader read options to file formats `csv` and `json`:
+  - PURGE
+  - PATTERN
+  - INFER_SCHEMA with value being `False`
+  - ENCODING with value being `UTF8`
 
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
-- Fixed a couple bugs in TimestampType casting that resulted in incorrect data.
+- Fixed bugs in TimestampType casting that resulted in incorrect data.
+- Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
+- Fixed a bug where referencing missing table or view raises confusing `IndexError`.
+- Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
+- Fixed a bug that mocked UDFs handles output data of None improperly.
+
+#### Improvements
+
+- Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
 
 ## 1.17.0 (2024-05-21)
 

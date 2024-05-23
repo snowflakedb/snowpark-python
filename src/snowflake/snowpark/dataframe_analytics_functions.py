@@ -21,6 +21,7 @@ from snowflake.snowpark.functions import (
     unix_timestamp,
     year,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.window import Window
 
 # "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "mm" (months), "y" (years)
@@ -322,6 +323,11 @@ class DataFrameAnalyticsFunctions:
             --------------------------------------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
+        if isinstance(self._df.session._conn, MockServerConnection):
+            self._df.session._conn.log_not_supported_error(
+                external_feature_name="DataFrameAnalyticsFunctions.moving_agg",
+                raise_error=NotImplementedError,
+            )
         # Validate input arguments
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
@@ -404,6 +410,11 @@ class DataFrameAnalyticsFunctions:
             ----------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
+        if isinstance(self._df.session._conn, MockServerConnection):
+            self._df.session._conn.log_not_supported_error(
+                external_feature_name="DataFrameAnalyticsFunctions.cumulative_agg",
+                raise_error=NotImplementedError,
+            )
         # Validate input arguments
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
