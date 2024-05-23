@@ -46,6 +46,7 @@
 - Fixed a bug that mocked UDFs handles output data of None improperly.
 - Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
 - Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
+- Fixed a bug that `DataFrameWriter.save_as_table` did not check nullability of the data.
 
 #### Improvements
 
