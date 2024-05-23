@@ -542,6 +542,10 @@ def handle_udf_expression(
         # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT for both
         # however, we want NaT for the former case and None for the latter case.
         # using dtype object + function execution does not have the limitation
+        # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
+        # And these code would look like:
+        # res=input.apply(...)
+        # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
         res = ColumnEmulator(
             data=[udf_handler(*row) for _, row in function_input.iterrows()],
             sf_type=ColumnType(exp.datatype, exp.nullable),

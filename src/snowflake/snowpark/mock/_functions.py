@@ -818,7 +818,9 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) if x is not None else x for x in result],
+        data=[
+            try_convert(lambda x: x.replace(tzinfo=None), try_cast, x) for x in result
+        ],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
