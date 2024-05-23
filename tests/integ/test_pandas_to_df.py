@@ -39,7 +39,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 
 @pytest.fixture(scope="module")
@@ -342,7 +342,9 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
                 auto_create_table=True,
                 table_type=table_type,
             )
-        assert "create_temp_table is deprecated" in caplog.text
+        if not IS_IN_STORED_PROC:
+            # SNOW-1437979: caplog.text is empty in sp pre-commit env
+            assert "create_temp_table is deprecated" in caplog.text
         results = df.to_pandas()
         assert_frame_equal(results, pd, check_dtype=False)
         Utils.assert_table_type(session, table_name, "temp")

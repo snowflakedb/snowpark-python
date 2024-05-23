@@ -80,7 +80,9 @@ class LocalTimezone:
         cls.LOCAL_TZ = tz
 
     @classmethod
-    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+    def to_local_timezone(
+        cls, d: Optional[datetime.datetime]
+    ) -> Optional[datetime.datetime]:
         """Converts an input datetime to the local timezone."""
         return d.astimezone(tz=cls.LOCAL_TZ) if d is not None else d
 
@@ -543,6 +545,7 @@ def mock_to_time(
         [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+    import dateutil.parser
 
     def convert_int_string_to_time(d: str):
         return datetime.datetime.utcfromtimestamp(
@@ -556,13 +559,17 @@ def mock_to_time(
             seconds_part = data_parts[1]
             # find the idx that the seconds part ends
             idx = 0
-            while seconds_part[idx].isdigit():
+            while idx < len(seconds_part) and seconds_part[idx].isdigit():
                 idx += 1
             # truncate to precision
             seconds_part = (
                 seconds_part[: min(idx, _fractional_seconds)] + seconds_part[idx:]
             )
             _data = f"{data_parts[0]}.{seconds_part}"
+
+        # %f is optional if fractional seconds part doesn't show up in the input which means it is 0 nanoseconds
+        if len(data_parts) == 1 and ".%f" in _time_format:
+            _time_format = _time_format.replace(".%f", "")
 
         target_datetime = datetime.datetime.strptime(
             process_string_time_with_fractional_seconds(_data, _fractional_seconds),
@@ -585,13 +592,15 @@ def mock_to_time(
                 time_fmt,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
-
+            auto_detect = _fmt is None or str(_fmt).lower() == "auto"
             if isinstance(datatype, StringType):
                 if data.isdigit():
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
-                        convert_string_to_time(data, time_fmt, fractional_seconds)
+                        dateutil.parser.parse(data).time()
+                        if auto_detect
+                        else convert_string_to_time(data, time_fmt, fractional_seconds)
                     )
             elif isinstance(datatype, TimestampType):
                 res.append(data.time())
@@ -600,9 +609,8 @@ def mock_to_time(
                     if data.isdigit():
                         res.append(convert_int_string_to_time(data))
                     else:
-                        res.append(
-                            convert_string_to_time(data, time_fmt, fractional_seconds)
-                        )
+                        # variant type does not support format input
+                        res.append(dateutil.parser.parse(data).time())
                 elif isinstance(data, datetime.time):
                     res.append(data)
                 else:
@@ -823,7 +831,9 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) if x is not None else x for x in result],
+        data=[
+            try_convert(lambda x: x.replace(tzinfo=None), try_cast, x) for x in result
+        ],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
@@ -922,10 +932,9 @@ def mock_to_char(
             return try_convert(convert_numeric_to_str, try_cast, data)
         elif isinstance(source_datatype, (DateType, TimeType)):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
-            (
-                format,
-                _,
-            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            (format, _,) = convert_snowflake_datetime_format(
+                _fmt, default_format=default_format, is_input_format=False
+            )
             convert_date_time_to_str = (
                 datetime.datetime.strftime
                 if isinstance(source_datatype, DateType)
@@ -936,10 +945,9 @@ def mock_to_char(
             )
         elif isinstance(source_datatype, TimestampType):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
-            (
-                format,
-                fractional_seconds,
-            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            (format, fractional_seconds,) = convert_snowflake_datetime_format(
+                _fmt, default_format, is_input_format=False
+            )
             # handle 3f, can use str index
             time_str = try_convert(
                 lambda x: datetime.date.strftime(x, format), try_cast, data
