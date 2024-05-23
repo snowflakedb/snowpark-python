@@ -1916,12 +1916,6 @@ def calculate_expression(
             )
             res.set_sf_type(ColumnType(exp.to, nullable=column.sf_type.nullable))
             return res
-        elif isinstance(exp.to, LongType):
-            res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
-                column, try_cast=exp.try_
-            )
-            res.set_sf_type(ColumnType(LongType(), nullable=column.sf_type.nullable))
-            return res
         elif isinstance(exp.to, BinaryType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
                 column, try_cast=exp.try_
