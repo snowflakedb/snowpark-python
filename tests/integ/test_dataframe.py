@@ -1576,7 +1576,7 @@ def test_create_dataframe_with_semi_structured_data_types(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1368516 create dataframe from pandas dataframe with datetime columns has wrong schema",
+    reason="SNOW-1439717 create dataframe from pandas dataframe containing timestamp with tzinfo is not supported.",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_create_dataframe_with_pandas_df(session):

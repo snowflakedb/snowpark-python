@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark.mock._udf_utils import types_are_compatible
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -362,6 +363,11 @@ def handle_function_expression(
                 exp, input_data, analyzer, expr_to_alias, current_row
             )
 
+        if exp.api_call_source == "functions.call_udf":
+            raise SnowparkLocalTestingException(
+                f"Unknown function {func_name}. UDF by that name does not exist."
+            )
+
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func_name,
@@ -520,13 +526,15 @@ def handle_udf_expression(
                 else:
                     shutil.copy2(module_path, temporary_import_path.name)
 
+        udf = udf_registry[udf_name]
+
         # Resolve handler callable
-        if type(udf_registry[udf_name]) is tuple:
-            module_name, handler_name = udf_registry[udf_name]
+        if type(udf.func) is tuple:
+            module_name, handler_name = udf.func
             exec(f"from {module_name} import {handler_name}")
             udf_handler = eval(handler_name)
         else:
-            udf_handler = udf_registry[udf_name]
+            udf_handler = udf.func
 
         # Compute
         function_input = TableEmulator(index=input_data.index)
@@ -535,23 +543,42 @@ def handle_udf_expression(
             function_input[col_name] = calculate_expression(
                 child, input_data, analyzer, expr_to_alias
             )
+        # Validate function inputs
+        actual_types = [col.datatype for col in function_input.sf_types.values()]
+        if len(actual_types) != len(udf._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(udf._input_types)} arguments, but received {len(actual_types)}"
+            )
 
-        # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
-        # this will lead to NaN or None information loss, think about the following case of a udf definition:
-        #    def udf(x): return numpy.sqrt(x) if x is not None else None
-        # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT for both
-        # however, we want NaT for the former case and None for the latter case.
-        # using dtype object + function execution does not have the limitation
-        # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
-        # And these code would look like:
-        # res=input.apply(...)
-        # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
-        res = ColumnEmulator(
-            data=[udf_handler(*row) for _, row in function_input.iterrows()],
-            sf_type=ColumnType(exp.datatype, exp.nullable),
-            name=quote_name(f"{exp.udf_name}({', '.join(input_data.columns)})".upper()),
-            dtype=object,
-        )
+        for expected, actual in zip(udf._input_types, actual_types):
+            if not types_are_compatible(expected, actual):
+                raise SnowparkLocalTestingException(
+                    f"UDF received input types {actual_types}, but expected inputs types of {udf._input_types}"
+                )
+
+        try:
+            # we do not use pd.apply here because pd.apply will auto infer dtype for the output column
+            # this will lead to NaN or None information loss, think about the following case of a udf definition:
+            #    def udf(x): return numpy.sqrt(x) if x is not None else None
+            # calling udf(-1) and udf(None), pd.apply will infer the column dtype to be int which returns NaT for both
+            # however, we want NaT for the former case and None for the latter case.
+            # using dtype object + function execution does not have the limitation
+            # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
+            # And these code would look like:
+            # res=input.apply(...)
+            # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
+            res = ColumnEmulator(
+                data=[udf_handler(*row) for _, row in function_input.iterrows()],
+                sf_type=ColumnType(exp.datatype, exp.nullable),
+                name=quote_name(
+                    f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+                ),
+                dtype=object,
+            )
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message=f"Python Interpreter Error: {err}"
+            )
 
         return res
 

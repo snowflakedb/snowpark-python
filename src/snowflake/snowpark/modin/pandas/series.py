@@ -2442,10 +2442,11 @@ class Series(BasePandasDataset):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ):
         """
         Shift index by desired number of periods with an optional time `freq`.
@@ -2455,7 +2456,7 @@ class Series(BasePandasDataset):
             # pandas compatible error.
             raise ValueError("No axis named 1 for object type Series")
 
-        return super().shift(periods, freq, axis, fill_value)
+        return super().shift(periods, freq, axis, fill_value, suffix)
 
     @property
     def str(self):  # noqa: RT01, D200

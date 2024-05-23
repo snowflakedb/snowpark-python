@@ -2557,17 +2557,34 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
         Args:
-            periods : int
-                Number of periods to shift. Can be positive or negative.
-            freq : not supported, default None
+            periods : int | Sequence[int]
+                Number of periods to shift. Can be positive or negative. If an iterable of ints,
+                the data will be shifted once by each int. This is equivalent to shifting by one
+                value at a time and concatenating all resulting frames. The resulting columns
+                will have the shift suffixed to their column names. For multiple periods, axis must not be 1.
+
+                Snowpark pandas does not currently support sequences of int for `periods`.
+
+            freq : DateOffset, tseries.offsets, timedelta, or str, optional
+                Offset to use from the tseries module or time rule (e.g. ‘EOM’).
+
+                Snowpark pandas does not yet support this parameter.
+
             axis : {0 or 'index', 1 or 'columns', None}, default None
                 Shift direction.
+
             fill_value : object, optional
                 The scalar value to use for newly introduced missing values.
                 the default depends on the dtype of `self`.
                 For numeric data, ``np.nan`` is used.
                 For datetime, timedelta, or period data, etc. :attr:`NaT` is used.
                 For extension dtypes, ``self.dtype.na_value`` is used.
+
+            suffix : str, optional
+                If str is specified and periods is an iterable, this is added after the column name
+                and before the shift value for each shifted column name.
+
+                Snowpark pandas does not yet support this parameter.
 
         Returns:
             BasePandasDataset

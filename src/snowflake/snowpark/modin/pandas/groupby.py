@@ -22,7 +22,7 @@
 """Implement GroupBy public API as pandas does."""
 
 from collections.abc import Hashable
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import numpy as np  # noqa: F401
 import numpy.typing as npt
@@ -318,9 +318,22 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         return 2  # ndim is always 2 for DataFrames
 
     def shift(
-        self, periods: int = 1, freq: int = None, axis: Axis = 0, fill_value: Any = None
+        self,
+        periods: Union[int, Sequence[int]] = 1,
+        freq: int = None,
+        axis: Axis = 0,
+        fill_value: Any = None,
+        suffix: Optional[str] = None,
     ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        if isinstance(periods, Sequence):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
+            )
+        if suffix is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.shift does not yet support the `suffix` parameter"
+            )
         if not isinstance(periods, int):
             raise TypeError(
                 f"Periods must be integer, but {periods} is {type(periods)}."
