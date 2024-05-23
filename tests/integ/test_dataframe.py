@@ -1970,6 +1970,10 @@ def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
         new_session.close()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Connections with paramstyle are not supported in local testing",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
     from snowflake.snowpark._internal.analyzer import analyzer
