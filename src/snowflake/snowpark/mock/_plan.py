@@ -173,6 +173,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -1855,14 +1856,26 @@ def calculate_expression(
                 scale=exp.to.scale,
                 try_cast=exp.try_,
             )
-        elif isinstance(exp.to, IntegerType):
+        elif isinstance(
+            exp.to, _IntegralType
+        ):  # includes ByteType, ShortType, IntegerType, LongType
             res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
                 column, try_cast=exp.try_
             )
-            res.set_sf_type(ColumnType(IntegerType(), nullable=column.sf_type.nullable))
+            res.set_sf_type(ColumnType(exp.to, nullable=column.sf_type.nullable))
+            return res
+        elif isinstance(exp.to, LongType):
+            res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
+                column, try_cast=exp.try_
+            )
+            res.set_sf_type(ColumnType(LongType(), nullable=column.sf_type.nullable))
             return res
         elif isinstance(exp.to, BinaryType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, BooleanType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["boolean"](
                 column, try_cast=exp.try_
             )
         elif isinstance(exp.to, StringType):
