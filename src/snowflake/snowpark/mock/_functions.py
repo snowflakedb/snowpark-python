@@ -80,9 +80,11 @@ class LocalTimezone:
         cls.LOCAL_TZ = tz
 
     @classmethod
-    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+    def to_local_timezone(
+        cls, d: Optional[datetime.datetime]
+    ) -> Optional[datetime.datetime]:
         """Converts an input datetime to the local timezone."""
-        return d.astimezone(tz=cls.LOCAL_TZ)
+        return d.astimezone(tz=cls.LOCAL_TZ) if d is not None else d
 
     @classmethod
     def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
@@ -822,7 +824,9 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) for x in result],
+        data=[
+            try_convert(lambda x: x.replace(tzinfo=None), try_cast, x) for x in result
+        ],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),

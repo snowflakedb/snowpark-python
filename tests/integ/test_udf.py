@@ -2329,10 +2329,6 @@ def test_numpy_udf(session, func):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370447: mock_timestamp_ntz raises error",
-)
-@pytest.mark.skipif(
     not is_pandas_available, reason="pandas required for vectorized UDF"
 )
 def test_udf_timestamp_type_hint(session):
@@ -2389,6 +2385,57 @@ def test_udf_timestamp_type_hint(session):
             func_tz_udf('"tz"'),
         ),
         expected_res,
+    )
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas required for vectorized UDF"
+)
+def test_udf_return_none(session):
+    data = [
+        [
+            1,
+            "a",
+            "a",
+        ],
+        [
+            2,
+            "b",
+            "b",
+        ],
+        [None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"int"', IntegerType()),
+            StructField('"str"', StringType()),
+            StructField('"var"', VariantType()),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x if x is not None else None
+
+    @udf
+    def func_int_udf(x: int) -> int:
+        return f(x)
+
+    @udf
+    def func_str_udf(x: str) -> str:
+        return f(x)
+
+    @udf
+    def func_var_udf(x: Variant) -> Variant:
+        return f(x)
+
+    Utils.check_answer(
+        df.select(
+            func_int_udf('"int"'),
+            func_str_udf('"str"'),
+            func_var_udf('"var"'),
+        ),
+        [Row(1, "a", '"a"'), Row(2, "b", '"b"'), Row(None, None, None)],
     )
 
 
