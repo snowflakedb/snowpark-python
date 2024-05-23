@@ -21,7 +21,6 @@ from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
@@ -43,6 +42,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
@@ -642,7 +642,7 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal(str(v))
+                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
                         if isinstance(sf_types[i].datatype, DecimalType)
                         and v is not None
                         else v
@@ -786,14 +786,25 @@ $$"""
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type,
+                datatype=column_data.sf_type
+                if column_data.sf_type
+                else res.sf_types[column_name],
             )
             for column_name, column_data in res.items()
         ]
 
-        rows = [
-            Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
-        ]
+        rows = []
+        for i in range(len(res)):
+            values = []
+            for j, attr in enumerate(attrs):
+                value = res.iloc[i, j]
+                if isinstance(attr.datatype.datatype, DecimalType):
+                    value = Decimal(
+                        "{0:.{1}f}".format(value, attr.datatype.datatype.scale)
+                    )
+                values.append(value)
+            rows.append(Row(*values))
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:

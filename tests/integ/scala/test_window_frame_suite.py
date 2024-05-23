@@ -21,6 +21,7 @@ from snowflake.snowpark.functions import (
     min as min_,
     sum as sum_,
 )
+from snowflake.snowpark.types import DecimalType, LongType, StructField, StructType
 from tests.utils import Utils
 
 
@@ -327,11 +328,9 @@ def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
             assert "Sliding window frame unsupported for function MIN" in str(ex_info)
 
 
-# [Local Testing PuPr] enable for local testing when we align precision.
-# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1348452: Precision not fully aligned for local testing.",
+    reason="SNOW-1435114: windowed aggregations do not have a consistent precision in live.",
 )
 def test_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
@@ -350,11 +349,9 @@ def test_sliding_rows_between_with_aggregation(session):
     )
 
 
-# [Local Testing PuPr] enable for local testing when we align precision.
-# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1348452: Precision not fully aligned for local testing.",
+    reason="SNOW-1435114: windowed aggregations do not have a consistent precision in live.",
 )
 def test_reverse_sliding_rows_between_with_aggregation(session):
     df = session.create_dataframe(
@@ -364,8 +361,16 @@ def test_reverse_sliding_rows_between_with_aggregation(session):
     window = (
         Window.partition_by("value").order_by(col("key").desc()).rows_between(-1, 2)
     )
+
+    result = df.select("key", avg("key").over(window).alias("avg"))
+    assert result.schema == StructType(
+        [
+            StructField("KEY", LongType(), nullable=False),
+            StructField("AVG", DecimalType(38, 3), nullable=True),
+        ]
+    )
     Utils.check_answer(
-        df.select("key", avg("key").over(window)),
+        result,
         [
             Row(1, Decimal("1.000")),
             Row(1, Decimal("1.333")),
