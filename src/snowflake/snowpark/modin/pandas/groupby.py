@@ -617,8 +617,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             # Example: say we have new_col1=('A', 'max'), new_col2=('B', 'min'), new_col3=('A', 'min')
             # Our result will have columns ordered like so: [new_col1, new_col3, new_col2]. We need
             # to throw an additional reindex in order to ensure the correct ordering.
-            if result.columns.tolist() != list(kwargs.keys()):
-                result = result[list(kwargs.keys())]
+            if result.columns.tolist()[-len(kwargs.keys()) :] != list(kwargs.keys()):
+                # Need to grab any by columns that may be present in the result.
+                indexer = result.columns.tolist()[
+                    : len(result.columns) - len(kwargs.keys())
+                ]
+                indexer += list(kwargs.keys())
+                result = result[indexer]
         return result
 
     agg = aggregate
