@@ -49,7 +49,7 @@ True
 """
 
 
-def _add_cache_result_docstring(func: Fn) -> Fn:
+def add_cache_result_docstring(func: Fn) -> Fn:
     """
     Decorator to add docstring to cache_result method.
     """

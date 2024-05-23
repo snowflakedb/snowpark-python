@@ -19,7 +19,7 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_series_acces
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
-from snowflake.snowpark.modin.plugin.extensions.utils import _add_cache_result_docstring
+from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 
 
 @register_series_accessor("to_snowflake")
@@ -207,7 +207,7 @@ def to_pandas(
 
 
 @register_series_accessor("cache_result")
-@_add_cache_result_docstring
+@add_cache_result_docstring
 @snowpark_pandas_telemetry_method_decorator
 def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
     """

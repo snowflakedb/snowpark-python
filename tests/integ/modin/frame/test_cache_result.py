@@ -99,10 +99,10 @@ def test_cache_result_empty_dataframe(init_kwargs, inplace):
 
 @pytest.mark.parametrize("inplace", [True, False])
 def test_cache_result_dataframe_complex_correctness(
-    time_index_string_column_data,
+    date_index_string_column_data,
     inplace,
 ):
-    df_data, kwargs = time_index_string_column_data
+    df_data, kwargs = date_index_string_column_data
     snow_df, native_df = create_test_dfs(df_data, **kwargs)
 
     snow_df = snow_df.resample("2H").mean()

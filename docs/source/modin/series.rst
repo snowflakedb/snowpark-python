@@ -33,6 +33,14 @@ Series
     Series.values
 
 
+.. rubric:: Snowflake Specific
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_snowflake
+    Series.to_snowpark
+    Series.cache_result
 
 .. rubric:: Conversion
 
@@ -213,15 +221,6 @@ Series
 
     Series.str
     Series.dt
-
-.. rubric:: Snowflake Specific
-
-.. autosummary::
-    :toctree: pandas_api/
-
-    Series.to_snowflake
-    Series.to_snowpark
-    Series.cache_result
 
 .. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
 .. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`

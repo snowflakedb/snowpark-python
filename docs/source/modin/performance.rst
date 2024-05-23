@@ -8,7 +8,7 @@ Caching Intermediate Results
 Snowpark pandas uses a lazy paradigm - when operations are called on a Snowpark pandas object,
 a lazy operator graph is built up and executed only when an output operation is called (e.g. printing
 the data, or persisting it to a table in Snowflake). This paradigm mirrors the Snowpark DataFrame paradigm,
-and enables larger queries to be optimized using Snowflake's SQL Query Optimizer. Certain workloads; however,
+and enables larger queries to be optimized using Snowflake's SQL Query Optimizer. Certain workloads, however,
 can generate large operator graphs that include repeated, computationally expensive, subgraphs.
 Take the following code snippet as an example:
 

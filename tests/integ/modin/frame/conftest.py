@@ -151,7 +151,7 @@ def time_index_native_df():
 
 
 @pytest.fixture(scope="function")
-def time_index_string_column_data():
+def date_index_string_column_data():
     kwargs = {
         "index": date_columns_no_tz,
         "columns": list(ascii_lowercase[: df_data.shape[1]]),
