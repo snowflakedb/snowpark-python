@@ -564,6 +564,19 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         if isinstance(value, pd.NamedAgg) or (
             isinstance(value, tuple) and len(value) == 2
         ):
+            if is_series_like:
+                # pandas does not allow pd.NamedAgg or 2-tuples for named aggregations
+                # when the base object is a Series, but has different errors depending
+                # on whether we are doing a Series.agg or Series.groupby.agg.
+                if isinstance(obj, Series):
+                    raise SpecificationError("nested renamer is not supported")
+                else:
+                    value_type_str = (
+                        "NamedAgg" if isinstance(value, pd.NamedAgg) else "tuple"
+                    )
+                    raise TypeError(
+                        f"func is expected but received {value_type_str} in **kwargs."
+                    )
             if axis == 0:
                 # If axis == 1, we would need a query to materialize the index to check its existence
                 # so we defer the error checking to later.

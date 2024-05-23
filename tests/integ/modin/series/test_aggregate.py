@@ -353,3 +353,21 @@ def test_named_agg_not_supported_function(native_series):
         ),
     ):
         snow_series.agg(x=np.exp)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "agg_kwargs",
+    [{"x": ("y", "min")}, {"x": pd.NamedAgg("y", "min")}],
+    ids=["2-tuple", "NamedAgg"],
+)
+def test_2_tuple_named_agg_errors_for_series(native_series, agg_kwargs):
+    eval_snowpark_pandas_result(
+        pd.Series(native_series),
+        native_series,
+        lambda series: series.agg(**agg_kwargs),
+        expect_exception=True,
+        expect_exception_match="nested renamer is not supported",
+        expect_exception_type=SpecificationError,
+        assert_exception_equal=True,
+    )
