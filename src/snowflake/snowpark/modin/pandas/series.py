@@ -2335,7 +2335,7 @@ class Series(BasePandasDataset):
         if not is_datetime64_any_dtype(current_dtype):
             raise AttributeError("Can only use .dt accessor with datetimelike values")
 
-        from .series_utils import DatetimeProperties
+        from modin.pandas.series_utils import DatetimeProperties
 
         return DatetimeProperties(self)
 
