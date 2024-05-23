@@ -2688,7 +2688,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         new_data_column_pandas_labels, new_data_column_quoted_identifier
                     )
                 )
-                data_column_label_to_quoted_identifier = list(
+                new_data_column_pandas_labels, new_data_column_quoted_identifier = list(
                     zip(
                         *[
                             pair
@@ -2699,12 +2699,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             )
                         ]
                     )
-                )
-                new_data_column_pandas_labels = list(
-                    data_column_label_to_quoted_identifier[0]
-                )
-                new_data_column_quoted_identifier = list(
-                    data_column_label_to_quoted_identifier[1]
                 )
         if sort:
             # when sort is True, the result is ordered by the groupby keys
