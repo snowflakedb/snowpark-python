@@ -778,10 +778,6 @@ def test_df_stat_crosstab(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: sample by wrong result",
-)
 def test_df_stat_sampleBy(session):
     sample_by = (
         TestData.monthly_sales(session)
@@ -798,13 +794,7 @@ def test_df_stat_sampleBy(session):
         [2, 800, "APR"],
         [2, 4500, "APR"],
     ]
-    assert len(sample_by) == len(expected_data)
-    for i, row in enumerate(sample_by):
-        assert (
-            row["EMPID"] == expected_data[i][0]
-            and row["AMOUNT"] == expected_data[i][1]
-            and row["MONTH"] == expected_data[i][2]
-        )
+    Utils.check_answer(sample_by, expected_data)
 
     sample_by_2 = (
         TestData.monthly_sales(session)
@@ -817,13 +807,7 @@ def test_df_stat_sampleBy(session):
         [2, 4500, "JAN"],
         [2, 35000, "JAN"],
     ]
-    assert len(sample_by_2) == len(expected_data_2)
-    for i, row in enumerate(sample_by_2):
-        assert (
-            row["EMPID"] == expected_data_2[i][0]
-            and row["AMOUNT"] == expected_data_2[i][1]
-            and row["MONTH"] == expected_data_2[i][2]
-        )
+    Utils.check_answer(sample_by_2, expected_data_2)
 
     sample_by_3 = TestData.monthly_sales(session).stat.sample_by(col("month"), {})
     schema_names = sample_by_3.schema.names
