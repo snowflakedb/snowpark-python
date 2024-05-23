@@ -3007,10 +3007,11 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ) -> BasePandasDataset:
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         if periods == 0 and freq is None:
@@ -3030,7 +3031,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if fill_value == no_default:
             fill_value = None
 
-        new_query_compiler = self._query_compiler.shift(periods, freq, axis, fill_value)
+        new_query_compiler = self._query_compiler.shift(
+            periods, freq, axis, fill_value, suffix
+        )
         return self._create_or_update_from_compiler(new_query_compiler, False)
 
     def skew(

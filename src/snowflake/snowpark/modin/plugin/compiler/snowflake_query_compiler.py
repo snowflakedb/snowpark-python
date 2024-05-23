@@ -1352,10 +1352,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: Union[int, Sequence[int]] = 1,
         freq: Any = None,
-        axis: Union[Literal[0], Literal[1]] = 0,
+        axis: Literal[0, 1] = 0,
         fill_value: Hashable = no_default,
+        suffix: Optional[str] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Implements shift operation for DataFrame/Series.
@@ -1368,14 +1369,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-
+        if suffix is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter"
+            )
+        if not isinstance(periods, int):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
+            )
         # if frequency is None, shift data by periods
         # else if frequency is given, shift index only
         if freq is None:
-            return self._shift_values(periods, axis, fill_value)
+            # mypy isn't smart enough to recognize that periods is an int here
+            return self._shift_values(periods, axis, fill_value)  # type: ignore
         else:
             # axis parameter ignored, should be 0 for manipulating index. Revisit in SNOW-1023324
-            return self._shift_index(periods, freq)  # pragma: no cover
+            return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
     def index(self) -> pd.Index:
