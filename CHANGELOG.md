@@ -19,6 +19,10 @@
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 
+#### Bug Fixes
+
+- Fixed how we support mixed columns for string methods (`Series.str.*`)
+
 ### Snowpark Local Testing Updates
 
 #### Breaking changes
