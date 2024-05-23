@@ -1135,6 +1135,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index, index_label
         )
 
+    def cache_result(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a materialized view of this QueryCompiler.
+        """
+        return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
+
     @property
     def columns(self) -> native_pd.Index:
         """
