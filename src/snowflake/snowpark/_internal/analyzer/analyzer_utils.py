@@ -792,12 +792,20 @@ def batch_insert_into_statement(
     table_name: str, column_names: List[str], paramstyle: str
 ) -> str:
     num_cols = len(column_names)
+    paramstyle = paramstyle.lower()
+    supported_paramstyle = ["qmark", "numeric", "format", "pyformat"]
+
     if paramstyle == "qmark":
         placeholder_marks = [QUESTION_MARK] * num_cols
     elif paramstyle == "numeric":
         placeholder_marks = [f"{SINGLE_COLON}{i+1}" for i in range(num_cols)]
-    else:  # for pyformat and format
+    elif paramstyle in ("format", "pyformat"):
         placeholder_marks = [PERCENT_S] * num_cols
+    else:
+        raise ValueError(
+            f"'{paramstyle}' is not a recognized paramstyle. "
+            f"Supported values are: {', '.join(supported_paramstyle)}"
+        )
 
     return (
         f"{INSERT}{INTO}{table_name}"

@@ -1957,14 +1957,33 @@ def test_create_dataframe_large_without_batch_insert(session):
 def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
     from snowflake.snowpark._internal.analyzer import analyzer
 
-    db_parameters["paramstyle"] = paramstyle
     original_value = analyzer.ARRAY_BIND_THRESHOLD
+    db_parameters["paramstyle"] = paramstyle
     session_builder = Session.builder.configs(db_parameters)
     new_session = session_builder.create()
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
         df = new_session.create_dataframe([[1], [2], [3]])
         Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        new_session.close()
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    session_builder = Session.builder.configs(db_parameters)
+    new_session = session_builder.create()
+    new_session._conn._conn._paramstyle = "unsupported"
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        with pytest.raises(
+            ValueError, match="'unsupported' is not a recognized paramstyle"
+        ):
+            new_session.create_dataframe([[1], [2], [3]])
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
         new_session.close()
