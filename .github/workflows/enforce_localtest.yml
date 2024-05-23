@@ -22,4 +22,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
       run: |
-        (gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from @snowflakedb/local-testing") || echo "PR does not seem to contain Local Testing changes"
+        (gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr edit "$url" --add-reviewer "snowflakedb/local-testing") || echo "PR does not seem to contain Local Testing changes"
