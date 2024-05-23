@@ -3,6 +3,7 @@
 #
 from typing import Dict, NamedTuple, Optional, Union
 
+from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -20,14 +21,8 @@ from snowflake.snowpark.types import (
 
 # pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
 # not installed, here we redefine the base class to avoid ImportError
-try:
-    import pandas as pd
-
-    PandasDataframeType = pd.DataFrame
-    PandasSeriesType = pd.Series
-except ImportError:
-    PandasDataframeType = object
-    PandasSeriesType = object
+PandasDataframeType = object if not installed_pandas else pd.DataFrame
+PandasSeriesType = object if not installed_pandas else pd.Series
 
 
 class Operator:

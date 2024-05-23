@@ -40,6 +40,7 @@
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 - Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
 - Fixed a bug that mocked UDFs handles output data of None improperly.
+- Removed dependency check for `pyarrow` as it is not used.
 
 #### Improvements
 
@@ -98,7 +99,6 @@
 - Standardized the error experience by raising `SnowparkLocalTestingException` in error cases which is on par with `SnowparkSQLException` raised in non-local execution.
 - Improved error experience of `Session.write_pandas` method that `NotImplementError` will be raised when called.
 - Aligned error experience with reusing a closed session in non-local execution.
-- Removed dependency check for `pyarrow` as it is not used.
 
 ## 1.16.0 (2024-05-07)
 

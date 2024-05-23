@@ -52,7 +52,6 @@ if TYPE_CHECKING:
 
 from contextlib import ExitStack
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
     INTERSECT,
@@ -137,6 +136,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import _MOCK_FUNCTION_IMPLEMENTATION_MAP
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,

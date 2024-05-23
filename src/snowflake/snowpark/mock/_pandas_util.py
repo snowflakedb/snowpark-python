@@ -5,11 +5,11 @@
 import math
 from typing import TYPE_CHECKING, Any, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
