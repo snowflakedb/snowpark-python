@@ -1791,11 +1791,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: assertion error timestamp type mismatch",
-)
-def test_createDataFrame_with_given_schema_timestamp(session):
+def test_createDataFrame_with_given_schema_timestamp(session, local_testing_mode):
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),
@@ -1813,9 +1809,10 @@ def test_createDataFrame_with_given_schema_timestamp(session):
     ]
     df = session.create_dataframe(data, schema)
     schema_str = str(df.schema)
+
     assert (
         schema_str
-        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
+        == f"StructType([StructField('TIMESTAMP', TimestampType({'' if local_testing_mode else 'tz=ntz'}), nullable=True), "
         "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
         "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
         "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"

@@ -138,10 +138,6 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: dtype and value mismatch",
-)
 def test_to_pandas_precision_for_number_38_0(session):
     # Assert that we try to fit into int64 when possible and keep precision
 
