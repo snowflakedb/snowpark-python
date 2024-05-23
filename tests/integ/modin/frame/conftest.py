@@ -3,6 +3,8 @@
 #
 
 
+from string import ascii_lowercase
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -146,6 +148,15 @@ def time_index_native_df():
     return native_pd.DataFrame(
         df_data, index=date_columns_no_tz, columns=date_columns_no_tz
     )
+
+
+@pytest.fixture(scope="function")
+def date_index_string_column_data():
+    kwargs = {
+        "index": date_columns_no_tz,
+        "columns": list(ascii_lowercase[: df_data.shape[1]]),
+    }
+    return df_data, kwargs
 
 
 @pytest.fixture(scope="function")
