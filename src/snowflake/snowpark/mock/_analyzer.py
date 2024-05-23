@@ -117,6 +117,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Filter,
     Pivot,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -642,6 +643,13 @@ class MockAnalyzer:
     ) -> MockExecutionPlan:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
+
+        if isinstance(logical_plan, Rename):
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
+            )
+
         if isinstance(logical_plan, TableFunctionJoin):
             self._conn.log_not_supported_error(
                 external_feature_name="table_function.TableFunctionJoin",
