@@ -16,6 +16,7 @@ from pandas._typing import Scalar
 
 from snowflake.snowpark import QueryRecord
 from snowflake.snowpark.session import Session
+from tests.utils import IS_IN_STORED_PROC
 
 UPDATED_SUFFIX = "updated"
 ORIGINAL_SUFFIX = "original"
@@ -363,6 +364,9 @@ def sql_count_checker(
         high_count_expected=high_count_expected,
         high_count_reason=high_count_reason,
     )
+
+    if IS_IN_STORED_PROC:
+        return
 
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
