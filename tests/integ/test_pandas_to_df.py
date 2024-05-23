@@ -3,14 +3,16 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import decimal
+import json
 import logging
-from datetime import datetime, timedelta, timezone
+import math
+from datetime import date, datetime, time, timedelta, timezone
 
 import pytest
 
-from snowflake.snowpark.types import TimestampTimeZone, TimestampType
-
 try:
+    import pandas as pd
     from pandas import DataFrame as PandasDF, to_datetime
     from pandas.testing import assert_frame_equal
 except ImportError:
@@ -18,7 +20,7 @@ except ImportError:
 
 
 from snowflake.connector.errors import ProgrammingError
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_in_stored_procedure,
@@ -26,11 +28,16 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkPandasException
 from snowflake.snowpark.types import (
+    BooleanType,
+    DoubleType,
     FloatType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
 )
 from tests.utils import IS_IN_STORED_PROC, Utils
 
@@ -345,7 +352,6 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_create_dataframe_from_pandas(session, local_testing_mode):
     pd = PandasDF(
         [
@@ -409,25 +415,32 @@ def test_write_pandas_temp_table_and_irregular_column_names(session, table_type)
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_write_pandas_with_timestamps(session, local_testing_mode):
+    # SNOW-1439717 add support for pandas datetime with tzinfo
     datetime_with_tz = datetime(
         1997, 6, 3, 14, 21, 32, 00, tzinfo=timezone(timedelta(hours=+10))
     )
     datetime_with_ntz = datetime(1997, 6, 3, 14, 21, 32, 00)
-    pd = PandasDF(
-        [
-            [datetime_with_tz, datetime_with_ntz],
-        ],
-        columns=["tm_tz", "tm_ntz"],
-    )
 
     if local_testing_mode:
+        pd = PandasDF(
+            [
+                [datetime_with_ntz],
+            ],
+            columns=["tm_ntz"],
+        )
         sp_df = session.create_dataframe(pd)
         data = sp_df.select("*").collect()
-        assert data[0]["tm_tz"] == datetime(1997, 6, 3, 4, 21, 32, 00)
-        assert data[0]["tm_ntz"] == 865347692000000
+        assert data[0]["tm_ntz"] == datetime(1997, 6, 3, 14, 21, 32)
     else:
+        pd = PandasDF(
+            [
+                [datetime_with_tz, datetime_with_ntz],
+            ],
+            columns=["tm_tz", "tm_ntz"],
+        )
+        sp_df = session.create_dataframe(pd)
+        data = sp_df.select("*").collect()
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         try:
             session.write_pandas(
@@ -551,3 +564,343 @@ def test_write_to_different_schema(session, local_testing_mode):
     finally:
         if not local_testing_mode:
             Utils.drop_schema(session, test_schema_name)
+
+
+def test_create_from_pandas_basic_pandas_types(session):
+    now_time = datetime(
+        year=2023, month=10, day=25, hour=13, minute=46, second=12, microsecond=123
+    )
+    delta_time = timedelta(days=1)
+    pandas_df = pd.DataFrame(
+        data=[
+            ("Name1", 1.2, 1234567890, True, now_time, delta_time),
+            ("nAme_2", 20, 1, False, now_time - delta_time, delta_time),
+        ],
+        columns=[
+            "sTr",
+            "dOublE",
+            "LoNg",
+            "booL",
+            "timestamp",
+            "TIMEDELTA",  # note that in the current snowpark, column name with all upper case is not double quoted
+        ],
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        sp_df.schema[0].name == '"sTr"'
+        and isinstance(sp_df.schema[0].datatype, StringType)
+        and sp_df.schema[0].nullable
+    )
+    assert (
+        sp_df.schema[1].name == '"dOublE"'
+        and isinstance(sp_df.schema[1].datatype, DoubleType)
+        and sp_df.schema[1].nullable
+    )
+    assert (
+        sp_df.schema[2].name == '"LoNg"'
+        and isinstance(sp_df.schema[2].datatype, LongType)
+        and sp_df.schema[2].nullable
+    )
+    assert (
+        sp_df.schema[3].name == '"booL"'
+        and isinstance(sp_df.schema[3].datatype, BooleanType)
+        and sp_df.schema[3].nullable
+    )
+    assert (
+        sp_df.schema[4].name == '"timestamp"'
+        and isinstance(sp_df.schema[4].datatype, TimestampType)
+        and sp_df.schema[4].nullable
+    )
+    assert (
+        sp_df.schema[5].name == "TIMEDELTA"
+        and isinstance(sp_df.schema[5].datatype, LongType)
+        and sp_df.schema[5].nullable
+    )
+    assert isinstance(sp_df, Table)
+    assert (
+        str(sp_df.schema)
+        == """\
+StructType([\
+StructField('"sTr"', StringType(16777216), nullable=True), \
+StructField('"dOublE"', DoubleType(), nullable=True), \
+StructField('"LoNg"', LongType(), nullable=True), \
+StructField('"booL"', BooleanType(), nullable=True), \
+StructField('"timestamp"', TimestampType(tz=ntz), nullable=True), \
+StructField('TIMEDELTA', LongType(), nullable=True)\
+])\
+"""
+    )
+    assert sp_df.select('"sTr"').collect() == [Row("Name1"), Row("nAme_2")]
+    assert sp_df.select('"dOublE"').collect() == [Row(1.2), Row(20)]
+    assert sp_df.select('"LoNg"').collect() == [Row(1234567890), Row(1)]
+    assert sp_df.select('"booL"').collect() == [Row(True), Row(False)]
+    assert sp_df.select('"timestamp"').collect() == [
+        Row(timestamp=datetime(2023, 10, 25, 13, 46, 12, 123)),
+        Row(timestamp=datetime(2023, 10, 24, 13, 46, 12, 123)),
+    ]
+    assert sp_df.select("TIMEDELTA").collect() == [
+        Row(86400000000000),
+        Row(86400000000000),
+    ]
+
+    pandas_df = pd.DataFrame(
+        data=[
+            float("inf"),
+            float("-inf"),
+        ],
+        columns=["float"],
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        sp_df.schema[0].name == '"float"'
+        and isinstance(sp_df.schema[0].datatype, DoubleType)
+        and sp_df.schema[0].nullable
+    )
+
+    assert sp_df.select('"float"').collect() == [
+        Row(float("inf")),
+        Row(float("-inf")),
+    ]
+
+
+def test_create_from_pandas_basic_python_types(session):
+    date_data = date(year=2023, month=10, day=26)
+    time_data = time(hour=12, minute=12, second=12)
+    byte_data = b"bytedata"
+    dict_data = {"a": 123}
+    array_data = [1, 2, 3, 4]
+    decimal_data = decimal.Decimal("1.23")
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([date_data]),
+            "B": pd.Series([time_data]),
+            "C": pd.Series([byte_data]),
+            "D": pd.Series([dict_data]),
+            "E": pd.Series([array_data]),
+            "F": pd.Series([decimal_data]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        str(sp_df.schema)
+        == """\
+StructType([StructField('A', DateType(), nullable=True), StructField('B', TimeType(), nullable=True), StructField('C', BinaryType(), nullable=True), StructField('D', VariantType(), nullable=True), StructField('E', VariantType(), nullable=True), StructField('F', DecimalType(3, 2), nullable=True)])\
+"""
+    )
+    assert sp_df.select("*").collect() == [
+        Row(
+            date_data,
+            time_data,
+            bytearray(byte_data),
+            json.dumps(dict_data, indent=2),
+            json.dumps(array_data, indent=2),
+            decimal_data,
+        )
+    ]
+
+
+def test_create_from_pandas_datetime_types(session):
+    # SNOW-1439717 support pandas with timestamp containing tzinfo
+    now_time = datetime(
+        year=2023,
+        month=10,
+        day=25,
+        hour=13,
+        minute=46,
+        second=12,
+        microsecond=123,
+    )
+    delta_time = timedelta(days=1)
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([now_time]).dt.tz_localize(None),
+            "B": pd.Series([delta_time]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(datetime(2023, 10, 25, 13, 46, 12, 123))]
+    assert sp_df.select("B").collect() == [Row(86400000000000)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(
+                [
+                    datetime(
+                        1997,
+                        6,
+                        3,
+                        14,
+                        21,
+                        32,
+                        00,
+                    )
+                ]
+            )
+        }
+    )
+    sp_df = session.create_dataframe(
+        data=pandas_df,
+        schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
+    )
+    assert (
+        str(sp_df.schema)
+        == "StructType([StructField('A', TimestampType(tz=ntz), nullable=True)])"
+    )
+    assert sp_df.select("A").collect() == [Row(datetime(1997, 6, 3, 14, 21, 32, 00))]
+
+
+def test_create_from_pandas_extension_types(session):
+    """
+
+    notes:
+        pd.SparseDtype is not supported in the live mode due to pyarrow
+    """
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(["a", "b", "c", "a"], dtype=pd.CategoricalDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c"), Row("a")]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1, 2, 3], dtype=pd.Int8Dtype()),
+            "B": pd.Series([1, 2, 3], dtype=pd.Int16Dtype()),
+            "C": pd.Series([1, 2, 3], dtype=pd.Int32Dtype()),
+            "D": pd.Series([1, 2, 3], dtype=pd.Int64Dtype()),
+            "E": pd.Series([1, 2, 3], dtype=pd.UInt8Dtype()),
+            "F": pd.Series([1, 2, 3], dtype=pd.UInt16Dtype()),
+            "G": pd.Series([1, 2, 3], dtype=pd.UInt32Dtype()),
+            "H": pd.Series([1, 2, 3], dtype=pd.UInt64Dtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert (
+        sp_df.select("A").collect()
+        == sp_df.select("B").collect()
+        == sp_df.select("C").collect()
+        == sp_df.select("D").collect()
+        == sp_df.select("E").collect()
+        == sp_df.select("F").collect()
+        == sp_df.select("G").collect()
+        == sp_df.select("H").collect()
+        == [Row(1), Row(2), Row(3)]
+    )
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1.1, 2.2, 3.3]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([1.1, 2.2, 3.3], dtype=pd.Float64Dtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(1.1), Row(2.2), Row(3.3)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(["a", "b", "c"], dtype=pd.StringDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row("a"), Row("b"), Row("c")]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([True, False, True], dtype=pd.BooleanDtype()),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(True), Row(False), Row(True)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series(
+                [pd.Period("2022-01", freq="M")], dtype=pd.PeriodDtype(freq="M")
+            ),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(624)]
+
+    pandas_df = pd.DataFrame(
+        {
+            "A": pd.Series([pd.Interval(left=0, right=5)], dtype=pd.IntervalDtype()),
+            "B": pd.Series(
+                [
+                    pd.Interval(
+                        pd.Timestamp("2017-01-01 00:00:00"),
+                        pd.Timestamp("2018-01-01 00:00:00"),
+                    )
+                ],
+                dtype=pd.IntervalDtype(),
+            ),
+        }
+    )
+    # TODO: SNOW-1338196 on parse_json
+    sp_df = session.create_dataframe(data=pandas_df)
+    ret = sp_df.select("*").collect()
+    assert (
+        str(sp_df.schema)
+        == """\
+StructType([StructField('A', VariantType(), nullable=True), StructField('B', VariantType(), nullable=True)])\
+"""
+    )
+    assert (
+        str(ret)
+        == """\
+[Row(A='{\\n  "left": 0,\\n  "right": 5\\n}', B='{\\n  "left": "2017-01-01 00:00:00.000",\\n  "right": "2018-01-01 00:00:00.000"\\n}')]\
+"""
+    )
+    assert ret == [
+        Row(
+            '{\n  "left": 0,\n  "right": 5\n}',
+            '{\n  "left": "2017-01-01 00:00:00.000",\n  "right": "2018-01-01 00:00:00.000"\n}',
+        )
+    ]
+
+
+def test_na_and_null_data(session):
+    pandas_df = pd.DataFrame(
+        data={
+            "A": pd.Series([1, None, 2, math.nan]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row(1.0), Row(None), Row(2.0), Row(None)]
+
+    pandas_df = pd.DataFrame(
+        data={
+            "A": pd.Series(["abc", None, "a", ""]),
+        }
+    )
+    sp_df = session.create_dataframe(data=pandas_df)
+    assert sp_df.select("A").collect() == [Row("abc"), Row(None), Row("a"), Row("")]
+
+
+def test_datetime_nat_nan(session):
+
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(
+                [None, "2020-01-13", "2020-02-01", "2020-02-23", "2020-03-05"]
+            ),
+            "num": [None, 1.0, 2.0, 3.0, 4.0],
+        }
+    )
+
+    expected_schema = StructType(
+        [
+            StructField('"date"', TimestampType(TimestampTimeZone.NTZ), nullable=True),
+            StructField('"num"', DoubleType(), nullable=True),
+        ]
+    )
+    sf_df = session.create_dataframe(data=df)
+    assert sf_df.schema == expected_schema

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import re
+from typing import Sequence
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -338,14 +339,20 @@ def test_groupby_shift_non_integer_period_negative(periods):
         index=["tuna", "salmon", "catfish", "goldfish", "shark"],
     )
     snow_df = pd.DataFrame(pandas_df)
-    eval_snowpark_pandas_result(
-        snow_df,
-        pandas_df,
-        lambda df: df.groupby("LEXLUTHOR").shift(periods=periods),
-        expect_exception=True,
-        expect_exception_type=TypeError,
-        expect_exception_match="Periods must be integer",
-    )
+    if isinstance(periods, Sequence):
+        # Technically sequence of str isn't supported by pandas (sequence of int is),
+        # but we only check if the argument is a sequence
+        with pytest.raises(NotImplementedError):
+            snow_df.groupby("LEXLUTHOR").shift(periods=periods)
+    else:
+        eval_snowpark_pandas_result(
+            snow_df,
+            pandas_df,
+            lambda df: df.groupby("LEXLUTHOR").shift(periods=periods),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            expect_exception_match="Periods must be integer",
+        )
 
 
 @sql_count_checker(query_count=0)
@@ -485,6 +492,33 @@ def test_groupby_shift_with_by_index_negative(by):
             snow_df,
             pandas_df,
             lambda df: df.groupby(by).shift(periods=1),
+        )
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"periods": [1, 2, 3]},  # sequence periods is unsupported
+        {"periods": [1], "suffix": "_suffix"},  # suffix is unsupported
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_groupby_shift_unsupported_args_negative(params):
+    pandas_df = native_pd.DataFrame(
+        data=[
+            ["Lois", 42],
+            ["Lois", 42],
+            ["Lana", 76],
+            ["Lana", 76],
+            ["Lima", 888],
+        ],
+        columns=["LEXLUTHOR", "RATING"],
+        index=["tuna", "salmon", "catfish", "goldfish", "shark"],
+    )
+    snow_df = pd.DataFrame(pandas_df)
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            snow_df, pandas_df, lambda df: df.groupby("RATING").shift(**params)
         )
 
 

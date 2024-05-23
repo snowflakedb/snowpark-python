@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -80,9 +80,11 @@ class LocalTimezone:
         cls.LOCAL_TZ = tz
 
     @classmethod
-    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+    def to_local_timezone(
+        cls, d: Optional[datetime.datetime]
+    ) -> Optional[datetime.datetime]:
         """Converts an input datetime to the local timezone."""
-        return d.astimezone(tz=cls.LOCAL_TZ)
+        return d.astimezone(tz=cls.LOCAL_TZ) if d is not None else d
 
     @classmethod
     def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
@@ -488,8 +490,15 @@ def mock_to_decimal(
         [x] If the variant contains JSON null value, the output is NULL.
     """
 
+    def is_str_int(s):
+        if s[0] in ("-", "+"):
+            return s[1:].isdigit()
+        return s.isdigit()
+
     def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
-        x = float(x)
+        # casting int of big value to float leads to precision loss
+        # e.g. float(9223372036854775807) = 9.223372036854776e+18
+        x = int(x) if is_str_int(str(x)) else float(x)
         if x in (math.inf, -math.inf, math.nan):
             SnowparkLocalTestingException.raise_from_error(
                 ValueError("Values of infinity and NaN cannot be converted to decimal")
@@ -675,6 +684,9 @@ def _to_timestamp(
 
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    if len(column) == 0:
+        return []
+
     import dateutil.parser
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
@@ -806,11 +818,9 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    return ColumnEmulator(
-        data=_to_timestamp(column, fmt, try_cast),
-        sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
-        dtype=object,
-    )
+    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    return result
 
 
 @patch("to_timestamp_ntz")
@@ -822,7 +832,9 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) for x in result],
+        data=[
+            try_convert(lambda x: x.replace(tzinfo=None), try_cast, x) for x in result
+        ],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
