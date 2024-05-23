@@ -773,17 +773,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
-    expected_exception = (
-        SnowparkSQLException if not local_testing_mode else ModuleNotFoundError
-    )
-
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
 
@@ -795,13 +788,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
         imports=[],
     )
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     # clean
     session.clear_imports()
@@ -1072,10 +1062,6 @@ def test_permanent_udf_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370028: align error behavior when UDF receives bad input",
-)
 def test_udf_negative(session, local_testing_mode):
     def f(x):
         return x
@@ -1128,7 +1114,11 @@ def test_udf_negative(session, local_testing_mode):
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert (
+        local_testing_mode
+        or "Numeric value" in str(ex_info)
+        and "is not recognized" in str(ex_info)
+    )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
