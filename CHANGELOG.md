@@ -38,6 +38,8 @@
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
 - Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
+- Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
+- Fixed a bug that mocked UDFs handles output data of None improperly.
 
 #### Improvements
 
@@ -90,8 +92,6 @@
 - Fixed a bug that prevented users from being able to select multiple columns with the same alias.
 - Fixed a bug that `Session.get_current_[schema|database|role|user|account|warehouse]` returns upper-cased identifiers when identifiers are quoted.
 - Fixed a bug that function `substr` and `substring` can not handle 0-based `start_expr`.
-- Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
-- Fixed a bug that mocked UDFs handles output data of None improperly.
 
 #### Improvements
 
