@@ -1,5 +1,3 @@
-name: "GitHub PR Labeler"
-
 snowpark-pandas:
   - changed-files:
     - any-glob-to-any-file:
