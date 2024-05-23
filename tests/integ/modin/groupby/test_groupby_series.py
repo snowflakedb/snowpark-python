@@ -8,6 +8,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
@@ -91,6 +92,23 @@ def test_groupby_agg_series(agg_func, sort):
         series,
         series.to_pandas(),
         perform_groupby,
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_groupby_agg_series_dict_func_negative():
+    index = native_pd.Index(["a", "b", "b", "a", "c"])
+    index.names = ["grp_col"]
+    series = pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
+
+    eval_snowpark_pandas_result(
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby(by="grp_col").agg({"x": "min"}),
+        expect_exception=True,
+        expect_exception_match="Value for func argument in dict format is not allowed for SeriesGroupBy.",
+        expect_exception_type=SpecificationError,
+        assert_exception_equal=True,
     )
 
 

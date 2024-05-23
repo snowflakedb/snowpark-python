@@ -172,97 +172,93 @@ def test_agg_dup_col(numeric_native_df, func, expected_union_count):
         eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
 
 
-def test_named_agg_dup_col_pandas_fails_snowpark_pandas_supports(numeric_native_df):
-    # rename to have duplicated column
-    numeric_native_df.columns = ["A", "B", "A"]
-    snow_df = pd.DataFrame(numeric_native_df)
+class TestNamedAggDupColPandasFails:
+    def test_single_agg_on_dup_column(self, numeric_native_df):
+        # rename to have duplicated column
+        numeric_native_df.columns = ["A", "B", "A"]
+        snow_df = pd.DataFrame(numeric_native_df)
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Data must be 1-dimensional, got ndarray of shape (1, 2) instead"
-        ),
-    ):
-        numeric_native_df.agg(x=("A", "min"))
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Data must be 1-dimensional, got ndarray of shape (1, 2) instead"
+            ),
+        ):
+            numeric_native_df.agg(x=("A", "min"))
 
-    result_df = native_pd.DataFrame(
-        [[0, np.nan], [np.nan, 2.0]], columns=["A", "A"], index=["x", "x"]
-    ).reset_index(drop=False)
-
-    with SqlCounter(query_count=1, union_count=1):
-        assert_snowpark_pandas_equal_to_pandas(
-            snow_df.agg(x=("A", "min")).reset_index(drop=False), result_df
+        result_df = native_pd.DataFrame(
+            [[0, np.nan], [np.nan, 2.0]], columns=["A", "A"], index=["x", "x"]
         )
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Data must be 1-dimensional, got ndarray of shape (2, 2) instead"
-        ),
-    ):
-        numeric_native_df.agg(x=("A", "min"), y=("B", "min"))
+        with SqlCounter(query_count=1, union_count=1):
+            assert_snowpark_pandas_equal_to_pandas(
+                snow_df.agg(x=("A", "min")), result_df
+            )
 
-    result_df = native_pd.DataFrame(
-        [[0, np.nan, np.nan], [np.nan, 2.0, np.nan], [np.nan, np.nan, 0]],
-        columns=["A", "A", "B"],
-        index=["x", "x", "y"],
-    ).reset_index(drop=False)
+    @pytest.mark.parametrize("order", [True, False], ids=["dup_first", "dup_last"])
+    def test_single_agg_on_dup_and_non_dup_columns(self, numeric_native_df, order):
+        # rename to have duplicated column
+        numeric_native_df.columns = ["A", "B", "A"]
+        snow_df = pd.DataFrame(numeric_native_df)
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Data must be 1-dimensional, got ndarray of shape (2, 2) instead"
+            ),
+        ):
+            numeric_native_df.agg(x=("A", "min"), y=("B", "min"))
 
-    with SqlCounter(query_count=1, union_count=2):
-        assert_snowpark_pandas_equal_to_pandas(
-            snow_df.agg(x=("A", "min"), y=("B", "min")).reset_index(drop=False),
-            result_df,
+        if order:
+            kwargs = {"x": ("A", "min"), "y": ("B", "min")}
+        else:
+            kwargs = {"x": ("B", "min"), "y": ("A", "min")}
+        result_df = native_pd.DataFrame(
+            [[0, np.nan, np.nan], [np.nan, 2.0, np.nan], [np.nan, np.nan, 0]],
+            columns=["A", "A", "B"],
+            index=["x", "x", "y"] if order else ["y", "y", "x"],
+        )
+        if not order:
+            b_col = result_df.pop("B")
+            result_df.insert(0, "B", b_col)
+            result_df = result_df.sort_index()
+
+        with SqlCounter(query_count=1, union_count=2):
+            assert_snowpark_pandas_equal_to_pandas(
+                snow_df.agg(**kwargs),
+                result_df,
+            )
+
+    def test_multiple_agg_on_only_dup_columns(self, numeric_native_df):
+        # rename to have duplicated column
+        numeric_native_df.columns = ["A", "A", "A"]
+        snow_df = pd.DataFrame(numeric_native_df)
+
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Data must be 1-dimensional, got ndarray of shape (2, 3) instead"
+            ),
+        ):
+            numeric_native_df.agg(x=("A", "min"), y=("A", "max"))
+
+        result_df = native_pd.DataFrame(
+            [
+                [0, np.nan, np.nan],
+                [np.nan, 0, np.nan],
+                [np.nan, np.nan, 2.0],
+                [4, np.nan, np.nan],
+                [np.nan, 8, np.nan],
+                [np.nan, np.nan, 8.2],
+            ],
+            columns=["A", "A", "A"],
+            index=["x", "x", "x", "y", "y", "y"],
         )
 
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Data must be 1-dimensional, got ndarray of shape (2, 2) instead"
-        ),
-    ):
-        numeric_native_df.agg(x=("B", "min"), y=("A", "min"))
-
-    result_df = native_pd.DataFrame(
-        [[0, np.nan, np.nan], [np.nan, 0, np.nan], [np.nan, np.nan, 2.0]],
-        columns=["B", "A", "A"],
-        index=["x", "y", "y"],
-    ).reset_index(drop=False)
-
-    with SqlCounter(query_count=1, union_count=2):
-        assert_snowpark_pandas_equal_to_pandas(
-            snow_df.agg(x=("B", "min"), y=("A", "min")).reset_index(drop=False),
-            result_df,
-        )
-
-    numeric_native_df.columns = ["A", "A", "A"]
-    snow_df = pd.DataFrame(numeric_native_df)
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Data must be 1-dimensional, got ndarray of shape (2, 3) instead"
-        ),
-    ):
-        numeric_native_df.agg(x=("A", "min"), y=("A", "max"))
-
-    result_df = native_pd.DataFrame(
-        [
-            [0, np.nan, np.nan],
-            [np.nan, 0, np.nan],
-            [np.nan, np.nan, 2.0],
-            [4, np.nan, np.nan],
-            [np.nan, 8, np.nan],
-            [np.nan, np.nan, 8.2],
-        ],
-        columns=["A", "A", "A"],
-        index=["x", "x", "x", "y", "y", "y"],
-    ).reset_index(drop=False)
-
-    with SqlCounter(query_count=1, union_count=5):
-        assert_snowpark_pandas_equal_to_pandas(
-            snow_df.agg(x=("A", "min"), y=("A", "max")).reset_index(drop=False),
-            result_df,
-        )
+        with SqlCounter(query_count=1, union_count=5):
+            assert_snowpark_pandas_equal_to_pandas(
+                snow_df.agg(x=("A", "min"), y=("A", "max")),
+                result_df,
+            )
 
 
 @pytest.mark.parametrize(

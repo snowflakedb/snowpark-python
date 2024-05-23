@@ -4475,32 +4475,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         identifier_pair,
                         agg_func_with_label,
                     ) in column_to_agg_func.items():
-                        if isinstance(agg_func_with_label, list):
-                            for agg_func in agg_func_with_label:
-                                new_qc = generate_agg_qc(
-                                    generate_single_agg_column_func_map(
-                                        identifier_pair, agg_func
-                                    ),
-                                    agg_func.pandas_label,
-                                )
-                                index_label_to_generated_qcs[
-                                    agg_func.pandas_label
-                                ] = index_label_to_generated_qcs.get(
-                                    agg_func.pandas_label, []
-                                ) + [
-                                    new_qc
-                                ]
-                        else:
+                        if not isinstance(agg_func_with_label, list):
+                            agg_func_with_label = [agg_func_with_label]
+                        for agg_func in agg_func_with_label:
                             new_qc = generate_agg_qc(
                                 generate_single_agg_column_func_map(
-                                    identifier_pair, agg_func_with_label
+                                    identifier_pair, agg_func
                                 ),
-                                agg_func_with_label.pandas_label,
+                                agg_func.pandas_label,
                             )
                             index_label_to_generated_qcs[
-                                agg_func_with_label.pandas_label
+                                agg_func.pandas_label
                             ] = index_label_to_generated_qcs.get(
-                                agg_func_with_label.pandas_label, []
+                                agg_func.pandas_label, []
                             ) + [
                                 new_qc
                             ]

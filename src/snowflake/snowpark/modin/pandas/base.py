@@ -704,14 +704,21 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
-        if func is None:
+        # If aggregate is called on a Series, named aggregations can be passed in via a dictionary
+        # to func.
+        if func is None or (is_dict_like(func) and not self._is_dataframe):
             if axis == 1:
                 raise ValueError(
                     "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
                 )
+            if func is not None:
+                # If named aggregations are passed in via a dictionary to func, then we
+                # ignore the kwargs.
+                kwargs = func
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
                 self, allow_duplication=False, axis=axis, **kwargs
             )
+
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
                 agg_func=func,
