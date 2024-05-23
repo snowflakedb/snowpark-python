@@ -517,6 +517,7 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
+        self._ast_expr = ast_stmt.expr
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
@@ -1125,6 +1126,11 @@ class DataFrame:
         exprs = parse_positional_args_to_list(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
+        
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        ast.sp_dataframe_select__columns.variadic = False
 
         names = []
         table_func = None
@@ -1133,8 +1139,11 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
+                ast.sp_dataframe_select__columns.cols.append(e.ast)
             elif isinstance(e, str):
-                names.append(Column(e)._named())
+                col = Column(e)
+                names.append(col._named())
+                ast.sp_dataframe_select__columns.cols.append(col.ast)
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1198,9 +1207,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":

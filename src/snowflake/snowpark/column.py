@@ -79,6 +79,7 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -226,16 +227,22 @@ class Column:
     """
 
     def __init__(
-        self, expr1: Union[str, Expression], expr2: Optional[str] = None
+        self, expr1: Union[str, Expression], expr2: Optional[str] = None, ast: Optional[proto.SpColumnExpr] = None
     ) -> None:
+        self._ast = proto.SpColumnExpr() if ast is None else ast
+
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
                     self._expression = Star([], df_alias=expr1)
                 else:
+                    col_name = quote_name(expr2)
                     self._expression = UnresolvedAttribute(
-                        quote_name(expr2), df_alias=expr1
+                        col_name, df_alias=expr1
                     )
+                    # TODO: figure out why basic aliasing is breaking above
+                    self._ast.sp_column_alias.col.sp_column.name = col_name
+                    self._ast.sp_column_alias.name = expr1
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
@@ -244,11 +251,21 @@ class Column:
             if expr1 == "*":
                 self._expression = Star([])
             else:
-                self._expression = UnresolvedAttribute(quote_name(expr1))
+                col_name = quote_name(expr1)
+                self._expression = UnresolvedAttribute(col_name)
+                self._ast.sp_column.name = col_name
+
         elif isinstance(expr1, Expression):
             self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
+
+    @property
+    def ast(self) -> proto.SpColumnExpr:
+        # TODO: remove hack to generate SQL from Expression class
+        if self._ast.WhichOneof("variant") is None:
+            self._ast.sp_column_sql_expr.sql = self._expression.sql
+        return self._ast
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
