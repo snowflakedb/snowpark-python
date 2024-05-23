@@ -183,48 +183,46 @@ class StringMethods:
             - If found splits <= n, make all splits
             - If for a certain row the number of found splits < n, append None for padding up to n if expand=True
             - If using expand=True, Series and Index callers return DataFrame and MultiIndex objects, respectively.
-        """
-        # TODO: SNOW-1432416 Add examples to docstring when implemented.
-        # Examples
-        # --------
-        # >>> s = pd.Series(
-        # ...     [
-        # ...         "this is a regular sentence",
-        # ...         "https://docs.python.org/3/tutorial/index.html",
-        # ...         np.nan
-        # ...     ]
-        # ... )
-        # >>> s
-        # 0                       this is a regular sentence
-        # 1    https://docs.python.org/3/tutorial/index.html
-        # 2                                             None
-        # dtype: object
-        #
-        # In the default setting, the string is split by whitespace.
-        #
-        # >>> s.str.split()
-        # 0                   [this, is, a, regular, sentence]
-        # 1    [https://docs.python.org/3/tutorial/index.html]
-        # 2                                               None
-        # dtype: object
-        #
-        # The n parameter can be used to limit the number of splits on the delimiter.
-        #
-        # >>> s.str.split(n=2)
-        # 0                     [this, is, a regular sentence]
-        # 1    [https://docs.python.org/3/tutorial/index.html]
-        # 2                                               None
-        # dtype: object
-        #
-        # The pat parameter can be used to split by other characters.
-        #
-        # >>> s.str.split(pat="/")
-        # 0                         [this is a regular sentence]
-        # 1    [https:, , docs.python.org, 3, tutorial, index...
-        # 2                                                 None
-        # dtype: object
-        ErrorMessage.method_not_implemented_error("split", "Series.str")
 
+        Examples
+        --------
+        >>> s = pd.Series(
+        ...     [
+        ...         "this is a regular sentence",
+        ...         "https://docs.python.org/3/tutorial/index.html",
+        ...         np.nan
+        ...     ]
+        ... )
+        >>> s
+        0                       this is a regular sentence
+        1    https://docs.python.org/3/tutorial/index.html
+        2                                             None
+        dtype: object
+
+        In the default setting, the string is split by whitespace.
+
+        >>> s.str.split()
+        0                   [this, is, a, regular, sentence]
+        1    [https://docs.python.org/3/tutorial/index.html]
+        2                                               None
+        dtype: object
+
+        The n parameter can be used to limit the number of splits on the delimiter.
+
+        >>> s.str.split(n=2)
+        0                     [this, is, a regular sentence]
+        1    [https://docs.python.org/3/tutorial/index.html]
+        2                                               None
+        dtype: object
+
+        The pat parameter can be used to split by other characters.
+
+        >>> s.str.split(pat="/")
+        0                         [this is a regular sentence]
+        1    [https:, , docs.python.org, 3, tutorial, index...
+        2                                                 None
+        dtype: object
+        """
         if not pat and pat is not None:
             raise ValueError("split() requires a non-empty pattern match.")
 
