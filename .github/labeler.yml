@@ -3,7 +3,3 @@ snowpark-pandas:
     - any-glob-to-any-file:
       - src/snowflake/snowpark/modin/**
       - tests/integ/modin/**
-
-workflow-change:
-  - changed-files:
-    - any-glob-to-any-file: .github/**
