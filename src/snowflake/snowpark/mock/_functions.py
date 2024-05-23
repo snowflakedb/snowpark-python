@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
