@@ -17,6 +17,7 @@
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Aligned error experience when calling udf and sprocs.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 
