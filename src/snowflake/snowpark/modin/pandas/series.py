@@ -2468,7 +2468,7 @@ class Series(BasePandasDataset):
         if not is_string_dtype(current_dtype):
             raise AttributeError("Can only use .str accessor with string values!")
 
-        from .series_utils import StringMethods
+        from modin.pandas.series_utils import StringMethods
 
         return StringMethods(self)
 
