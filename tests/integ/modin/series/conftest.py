@@ -111,10 +111,5 @@ def native_series_with_duplicate_boolean_index():
 
 
 @pytest.fixture(scope="function")
-def time_index_snowpark_pandas_series():
-    return pd.Series(list(range(7)), index=date_columns_no_tz)
-
-
-@pytest.fixture(scope="function")
-def time_index_native_series():
-    return native_pd.Series(list(range(7)), index=date_columns_no_tz)
+def time_index_series_data():
+    return list(range(7)), {"index": date_columns_no_tz}

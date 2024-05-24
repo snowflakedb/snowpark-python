@@ -469,7 +469,12 @@ jobs:
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage
-    needs: test
+    needs:
+      - test
+      - test-local-testing
+      - test-enable-cte-optimization
+      - test-snowpark-pandas
+      - test-modin-extra-without-pandas-extra
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

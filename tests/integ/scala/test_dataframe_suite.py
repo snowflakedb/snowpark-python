@@ -1668,11 +1668,7 @@ def test_flatten_in_session(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: RecursionError: maximum recursion depth exceeded while calling a Python object",
-)
-def test_createDataFrame_with_given_schema(session):
+def test_createDataFrame_with_given_schema(session, local_testing_mode):
     schema = StructType(
         [
             StructField("string", StringType(84)),
@@ -1747,7 +1743,10 @@ def test_createDataFrame_with_given_schema(session):
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField(
-                "timestamp", TimestampType(TimestampTimeZone.NTZ)
+                "timestamp",
+                TimestampType(TimestampTimeZone.NTZ)
+                if not local_testing_mode
+                else TimestampType(),
             ),  # depends on TIMESTAMP_TYPE_MAPPING
             StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
@@ -1775,11 +1774,7 @@ def test_createDataFrame_with_given_schema_time(session):
     assert df.collect() == data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: assertion error timestamp type mismatch",
-)
-def test_createDataFrame_with_given_schema_timestamp(session):
+def test_createDataFrame_with_given_schema_timestamp(session, local_testing_mode):
     schema = StructType(
         [
             StructField("timestamp", TimestampType()),
@@ -1797,9 +1792,10 @@ def test_createDataFrame_with_given_schema_timestamp(session):
     ]
     df = session.create_dataframe(data, schema)
     schema_str = str(df.schema)
+
     assert (
         schema_str
-        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
+        == f"StructType([StructField('TIMESTAMP', TimestampType({'' if local_testing_mode else 'tz=ntz'}), nullable=True), "
         "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
         "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
         "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"
@@ -2644,7 +2640,7 @@ def test_rename_basic(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: AttributeError: 'NoneType' object has no attribute 'expr_to_alias'",
+    reason="DataFrame.rename is not supported in Local Testing",
 )
 def test_rename_function_basic(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
@@ -2659,7 +2655,7 @@ def test_rename_function_basic(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: AttributeError: 'NoneType' object has no attribute 'expr_to_alias'",
+    reason="DataFrame.rename is not supported in Local Testing",
 )
 def test_rename_function_multiple(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
@@ -2674,7 +2670,7 @@ def test_rename_function_multiple(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: ValueError: Unable to rename column Column[A] because it doesn't exist.",
+    reason="DataFrame.rename is not supported in Local Testing",
 )
 def test_rename_join_dataframe(session):
     df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
@@ -2701,10 +2697,6 @@ def test_rename_join_dataframe(session):
     Utils.check_answer(df4, [Row(1, 2, 3, 4)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: assertion error column rename mismatch",
-)
 def test_rename_to_df_and_joined_dataframe(session):
     df1 = session.create_dataframe([[1, 2]]).to_df("a", "b")
     df2 = session.create_dataframe([[1, 2]]).to_df("a", "b")

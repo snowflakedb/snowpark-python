@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -490,8 +490,15 @@ def mock_to_decimal(
         [x] If the variant contains JSON null value, the output is NULL.
     """
 
+    def is_str_int(s):
+        if s[0] in ("-", "+"):
+            return s[1:].isdigit()
+        return s.isdigit()
+
     def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
-        x = float(x)
+        # casting int of big value to float leads to precision loss
+        # e.g. float(9223372036854775807) = 9.223372036854776e+18
+        x = int(x) if is_str_int(str(x)) else float(x)
         if x in (math.inf, -math.inf, math.nan):
             SnowparkLocalTestingException.raise_from_error(
                 ValueError("Values of infinity and NaN cannot be converted to decimal")
@@ -677,6 +684,9 @@ def _to_timestamp(
 
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    if len(column) == 0:
+        return []
+
     import dateutil.parser
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
@@ -808,11 +818,9 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    return ColumnEmulator(
-        data=_to_timestamp(column, fmt, try_cast),
-        sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
-        dtype=object,
-    )
+    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    return result
 
 
 @patch("to_timestamp_ntz")
@@ -1362,7 +1370,7 @@ def _object_construct(exprs, drop_nulls):
             if x[i] is not None and not (drop_nulls and x[i + 1] is None)
         }
 
-    combined = pandas.concat(exprs, axis=1)
+    combined = pandas.concat(exprs, axis=1, ignore_index=True)
     return combined.apply(construct_dict, axis=1)
 
 
@@ -1402,7 +1410,7 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
-    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+    return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
 @patch("dateadd")
