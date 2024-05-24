@@ -38,6 +38,7 @@ class TestDataFrames:
         self.internal_frame: InternalFrame = internal
 
 
+@pytest.mark.short_regress
 @pytest.fixture(scope="function")
 @patch("snowflake.snowpark.dataframe.DataFrame")
 def test_dataframes(mock_dataframe) -> TestDataFrames:
@@ -78,6 +79,7 @@ def test_dataframes(mock_dataframe) -> TestDataFrames:
     return TestDataFrames(ordered_dataframe, internal_frame)
 
 
+@pytest.mark.short_regress
 @pytest.fixture(scope="function")
 @patch("snowflake.snowpark.dataframe.DataFrame")
 def test_dataframes_with_multiindex_on_column(mock_dataframe) -> TestDataFrames:
@@ -114,6 +116,7 @@ def test_dataframes_with_multiindex_on_column(mock_dataframe) -> TestDataFrames:
     return TestDataFrames(ordered_dataframe, internal_frame)
 
 
+@pytest.mark.short_regress
 def test_snowflake_quoted_identifier_without_quote_negative(test_dataframes) -> None:
     with pytest.raises(AssertionError) as exc:
         InternalFrame.create(
@@ -128,6 +131,7 @@ def test_snowflake_quoted_identifier_without_quote_negative(test_dataframes) -> 
     assert "Found not-quoted identifier for 'dataframe column':'a'" in str(exc.value)
 
 
+@pytest.mark.short_regress
 def test_column_labels_and_quoted_identifiers_have_same_length_negative(
     test_dataframes,
 ) -> None:
@@ -154,6 +158,7 @@ def test_column_labels_and_quoted_identifiers_have_same_length_negative(
         )
 
 
+@pytest.mark.short_regress
 def test_internal_frame_missing_data_column_negative(test_dataframes):
     with pytest.raises(AssertionError) as exc:
         InternalFrame.create(
@@ -170,6 +175,7 @@ def test_internal_frame_missing_data_column_negative(test_dataframes):
     )
 
 
+@pytest.mark.short_regress
 def test_internal_frame_missing_index_column_negative(test_dataframes):
     with pytest.raises(AssertionError) as exc:
         InternalFrame.create(
@@ -186,6 +192,7 @@ def test_internal_frame_missing_index_column_negative(test_dataframes):
     )
 
 
+@pytest.mark.short_regress
 def test_internal_frame_properties(test_dataframes) -> None:
     internal_frame = test_dataframes.internal_frame
     # check index_column_snowflake_quoted_identifiers
@@ -215,6 +222,7 @@ def test_internal_frame_properties(test_dataframes) -> None:
     assert ordering_column_snowflake_quoted_identifiers == ['"INDEX"']
 
 
+@pytest.mark.short_regress
 def test_pandas_label_as_empty_and_none(test_dataframes) -> None:
     internal_frame = InternalFrame.create(
         ordered_dataframe=test_dataframes.ordered_dataframe,
@@ -233,6 +241,7 @@ def test_pandas_label_as_empty_and_none(test_dataframes) -> None:
     ]
 
 
+@pytest.mark.short_regress
 def test_ordering_column_snowpark_column() -> None:
     ordering_column = OrderingColumn('"A"')
     snowpark_column = ordering_column.snowpark_column
@@ -263,6 +272,7 @@ def test_ordering_column_snowpark_column() -> None:
     assert isinstance(snowpark_column._expression.null_ordering, NullsFirst)
 
 
+@pytest.mark.short_regress
 def test_internal_frame_ordering_columns(test_dataframes) -> None:
     # ordering column is part of the index + data column
     test_dataframes.ordered_dataframe._ordering_columns_tuple = (
@@ -321,6 +331,7 @@ def test_internal_frame_ordering_columns(test_dataframes) -> None:
     ]
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize("pandas_label", VALID_PANDAS_LABELS)
 def test_data_column_pandas_index_names(pandas_label, test_dataframes) -> None:
     test_dataframes.ordered_dataframe._ordering_columns_tuple_tuple = (
@@ -339,6 +350,7 @@ def test_data_column_pandas_index_names(pandas_label, test_dataframes) -> None:
     assert internal_frame.data_column_pandas_index_names == [pandas_label]
 
 
+@pytest.mark.short_regress
 def test_data_column_pandas_multiindex(
     test_dataframes_with_multiindex_on_column,
 ) -> None:
@@ -348,6 +360,7 @@ def test_data_column_pandas_multiindex(
     )
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "data_column_pandas_labels, data_column_pandas_index_names, expected_error_message",
     [
@@ -408,6 +421,7 @@ def test_data_column_pandas_multiindex_negative(
         )
 
 
+@pytest.mark.short_regress
 def test_get_snowflake_quoted_identifiers_by_pandas_labels_empty(
     test_dataframes,
 ) -> None:
@@ -418,6 +432,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_empty(
     )
 
 
+@pytest.mark.short_regress
 def test_get_snowflake_quoted_identifiers_by_pandas_labels_empty_not_include_index(
     test_dataframes,
 ) -> None:
@@ -440,6 +455,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_empty_not_include_ind
     ) == [(), ('"a"',), ('"b"',), ('"C"',)]
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "labels, expected_identifiers",
     [
@@ -461,6 +477,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels(
     )
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "labels, expected_identifiers",
     [(["a", "b"], [('"a"', '"d"'), ('"b"',)]), (["C", None], [('"C"',), ('"INDEX"',)])],
@@ -477,6 +494,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_multiple(
     )
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "labels, expected_identifiers",
     [(["A"], [()]), (["B"], [()]), (["c"], [()])],
@@ -493,6 +511,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_case_sensitive(
     )
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "labels, expected_identifiers", [(["ABC"], [()]), (["abc"], [()])]
 )
@@ -508,6 +527,7 @@ def test_get_snowflake_quoted_identifiers_by_pandas_labels_missing(
     )
 
 
+@pytest.mark.short_regress
 def test_data_columns_index(test_dataframes, test_dataframes_with_multiindex_on_column):
     assert_index_equal(
         test_dataframes.internal_frame.data_columns_index,
@@ -519,6 +539,7 @@ def test_data_columns_index(test_dataframes, test_dataframes_with_multiindex_on_
     )
 
 
+@pytest.mark.short_regress
 def test_is_multiindex(test_dataframes, test_dataframes_with_multiindex_on_column):
     assert not test_dataframes.internal_frame.is_multiindex(axis=0)
     assert not test_dataframes.internal_frame.is_multiindex(axis=1)
@@ -533,6 +554,7 @@ def test_is_multiindex(test_dataframes, test_dataframes_with_multiindex_on_colum
         test_dataframes.internal_frame.is_multiindex(axis=-1)
 
 
+@pytest.mark.short_regress
 def test_immutability(test_dataframes):
     frame = test_dataframes.internal_frame
 
@@ -566,6 +588,7 @@ def test_immutability(test_dataframes):
     assert type(frame.data_column_index_names) == tuple
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize("level0, level1", [(1, 1), (2, 1), (1, 2), (2, 3)])
 @patch("snowflake.snowpark.dataframe.DataFrame")
 def test_num_levels(mock_dataframe, level0, level1):
@@ -608,6 +631,7 @@ def test_num_levels(mock_dataframe, level0, level1):
     assert frame.num_index_levels(axis=1) == level1
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "pandas_labels, frame_identifier, expected_message",
     [
@@ -694,6 +718,7 @@ def test_validation_duplicated_data_columns_for_labels(
         )
 
 
+@pytest.mark.short_regress
 def test_update_columns_quoted_identifier_with_expressions_negative(test_dataframes):
     with pytest.raises(ValueError, match="is not in"):
         test_dataframes.internal_frame.update_snowflake_quoted_identifiers_with_expressions(
