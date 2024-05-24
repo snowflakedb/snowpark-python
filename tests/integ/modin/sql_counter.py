@@ -365,6 +365,9 @@ def sql_count_checker(
         high_count_reason=high_count_reason,
     )
 
+    # Bypassing sql counter since
+    #   1. it is an unnecessary metric for tests running in stored proc
+    #   2. pytest-assume package is not available in conda
     if IS_IN_STORED_PROC:
         return
 
