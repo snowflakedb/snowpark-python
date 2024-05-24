@@ -342,7 +342,6 @@ class DataFrameAnalyticsFunctions:
 
                     # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
                     agg_col = builtin(agg_func)(col(column)).over(window_spec)
-                    # expr(f"{agg_func}({column})").over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
@@ -423,7 +422,6 @@ class DataFrameAnalyticsFunctions:
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
                 agg_col = builtin(agg_func)(col(column)).over(window_spec)
-                # expr(f"{agg_func}({column})").over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
                 agg_df = agg_df.with_column(formatted_col_name, agg_col)
