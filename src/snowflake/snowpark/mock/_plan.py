@@ -39,7 +39,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock._udf_utils import types_are_compatible
+from snowflake.snowpark.mock._udf_utils import (
+    coerce_variant_input,
+    remove_null_wrapper,
+    types_are_compatible,
+)
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -536,24 +540,36 @@ def handle_udf_expression(
         else:
             udf_handler = udf.func
 
-        # Compute
-        function_input = TableEmulator(index=input_data.index)
-        for child in exp.children:
-            col_name = analyzer.analyze(child, expr_to_alias)
-            function_input[col_name] = calculate_expression(
-                child, input_data, analyzer, expr_to_alias
-            )
-        # Validate function inputs
-        actual_types = [col.datatype for col in function_input.sf_types.values()]
-        if len(actual_types) != len(udf._input_types):
+        # Compute input data and validate typing
+        if len(exp.children) != len(udf._input_types):
             raise SnowparkLocalTestingException(
-                f"Expected {len(udf._input_types)} arguments, but received {len(actual_types)}"
+                f"Expected {len(udf._input_types)} arguments, but received {len(exp.children)}"
             )
 
-        for expected, actual in zip(udf._input_types, actual_types):
-            if not types_are_compatible(expected, actual):
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, udf._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # SNOW-929218: Once proper type coercion is supported use that instead.
+            if isinstance(expected_type, VariantType) and not isinstance(
+                column_data.sf_type.datatype, VariantType
+            ):
+                column_data.sf_type = ColumnType(
+                    VariantType(), column_data.sf_type.nullable
+                )
+
+            # Variant Data is often cast to specific python types when passed to a udf.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            function_input[col_name] = column_data
+
+            if not types_are_compatible(column_data.sf_type.datatype, expected_type):
                 raise SnowparkLocalTestingException(
-                    f"UDF received input types {actual_types}, but expected inputs types of {udf._input_types}"
+                    f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
 
         try:
@@ -568,7 +584,10 @@ def handle_udf_expression(
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
             res = ColumnEmulator(
-                data=[udf_handler(*row) for _, row in function_input.iterrows()],
+                data=[
+                    remove_null_wrapper(udf_handler(*row))
+                    for _, row in function_input.iterrows()
+                ],
                 sf_type=ColumnType(exp.datatype, exp.nullable),
                 name=quote_name(
                     f"{exp.udf_name}({', '.join(input_data.columns)})".upper()

@@ -3,6 +3,8 @@
 #
 
 import os
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Optional, Tuple
 
 from snowflake.snowpark.mock._stage_registry import (
@@ -10,6 +12,33 @@ from snowflake.snowpark.mock._stage_registry import (
     extract_stage_name_and_prefix,
 )
 from snowflake.snowpark.types import NullType, _NumericType
+
+VARIANT_INPUT_MAPPING = {
+    bytes: lambda x: x.decode("utf-8"),
+    Decimal: float,
+    date: str,
+    datetime: str,
+    time: str,
+    type(None): lambda _: SqlNullWrapper(),
+}
+
+
+class SqlNullWrapper:
+    def __init__(self) -> None:
+        self.is_sql_null = True
+
+
+def remove_null_wrapper(value):
+    if isinstance(value, SqlNullWrapper):
+        return None
+    return value
+
+
+def coerce_variant_input(value):
+    input_type = type(value)
+    if input_type in VARIANT_INPUT_MAPPING:
+        value = VARIANT_INPUT_MAPPING[input_type](value)
+    return value
 
 
 def types_are_compatible(x, y):
