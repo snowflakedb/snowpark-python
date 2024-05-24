@@ -21,6 +21,11 @@
 - Aligned error experience when calling udf and sprocs.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
+- Re-added support for `Series.str.split`.
+
+#### Bug Fixes
+
+- Fixed how we support mixed columns for string methods (`Series.str.*`).
 
 ### Snowpark Local Testing Updates
 
