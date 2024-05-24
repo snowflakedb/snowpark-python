@@ -52,10 +52,12 @@
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 - Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
 - Fixed a bug that mocked UDFs handles output data of None improperly.
+- Fixed a bug where DataFrame.with_column_renamed ignores attributes from parent DataFrames after join operations.
 - Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
 - Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
 - Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
 - Fixed a bug where DataFrame.drop ignore attributes from parent DataFrames after join operations.
+
 
 #### Improvements
 
