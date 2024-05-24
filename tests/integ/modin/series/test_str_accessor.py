@@ -36,6 +36,7 @@ TEST_DATA = [
     " \t\r\n\f",
     "",
     None,
+    1,
 ]
 
 
@@ -154,7 +155,7 @@ def test_str_count(pat, flags):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
-        snow_ser, native_ser, lambda ser: ser.str.count(pat, flags=flags)
+        snow_ser, native_ser, lambda ser: ser.str.count(pat=pat, flags=flags)
     )
 
 
@@ -248,27 +249,15 @@ def test_str_replace_neg(pat, n, repl, error):
 
 @pytest.mark.parametrize("pat", [None, "a", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.NaN, 3, 2, 1, 0, -1, -2])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_str_split(pat, n):
-    snow_ser = pd.Series(TEST_DATA)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
-        snow_ser.str.split(pat=pat, n=n)
-
-
-@sql_count_checker(query_count=0)
-def test_str_split_negative():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
-        eval_snowpark_pandas_result(
-            snow_ser,
-            native_ser,
-            lambda ser: ser.str.split(pat=None, n=None, expand=False, regex=None),
-        )
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.split(pat=pat, n=n, expand=False, regex=None),
+    )
 
 
 @pytest.mark.parametrize("regex", [None, True])
@@ -286,22 +275,20 @@ def test_str_split_regex(regex):
 
 
 @pytest.mark.parametrize(
-    "pat, n, expand",
+    "pat, n, expand, error",
     [
-        ("", 1, False),
-        (re.compile("a"), 1, False),
-        (-2.0, 1, False),
-        ("a", "a", False),
-        ("a", 1, True),
+        ("", 1, False, ValueError),
+        (re.compile("a"), 1, False, NotImplementedError),
+        (-2.0, 1, False, NotImplementedError),
+        ("a", "a", False, NotImplementedError),
+        ("a", 1, True, NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_split_neg(pat, n, expand):
+def test_str_split_neg(pat, n, expand, error):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
+    with pytest.raises(error):
         snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
 
 
@@ -346,7 +333,7 @@ def test_str_len():
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["1", "*this", "%THAT", "4*FINAL test"],
     ],
@@ -363,7 +350,7 @@ def test_str_capitalize_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -384,7 +371,7 @@ def test_str_capitalize_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*this", "%THAT", "4*FINAL test"],
@@ -415,7 +402,7 @@ def test_str_title_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -436,7 +423,7 @@ def test_str_title_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["Foo", "BAR", "Blah", "blurg"],
+        ["Foo", "BAR", "Blah", "blurg", 1],
         ["this TEST", "That", "test", "Final Test Here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*This", "%THAT", "4*FINAL test"],
@@ -467,7 +454,7 @@ def test_str_istitle_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here"],
+        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "Str1", None, "STR2"],
         [None, None, None],
