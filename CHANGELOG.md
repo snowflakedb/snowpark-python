@@ -55,7 +55,7 @@
 - Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
 - Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
 - Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
-- Fixed a bug that `DataFrameWriter.save_as_table` did not check nullability of the data.
+- Fixed a bug where `DataFrameWriter.save_as_table` does not raise exceptions when inserting null data into non-nullable columns .
 
 #### Improvements
 
