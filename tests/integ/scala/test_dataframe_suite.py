@@ -1684,11 +1684,7 @@ def test_flatten_in_session(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: RecursionError: maximum recursion depth exceeded while calling a Python object",
-)
-def test_createDataFrame_with_given_schema(session):
+def test_createDataFrame_with_given_schema(session, local_testing_mode):
     schema = StructType(
         [
             StructField("string", StringType(84)),
@@ -1763,7 +1759,10 @@ def test_createDataFrame_with_given_schema(session):
             StructField("boolean", BooleanType()),
             StructField("binary", BinaryType()),
             StructField(
-                "timestamp", TimestampType(TimestampTimeZone.NTZ)
+                "timestamp",
+                TimestampType(TimestampTimeZone.NTZ)
+                if not local_testing_mode
+                else TimestampType(),
             ),  # depends on TIMESTAMP_TYPE_MAPPING
             StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
