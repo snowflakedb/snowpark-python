@@ -390,18 +390,33 @@ def handle_function_expression(
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:
-            to_pass_args.extend(
-                [
-                    calculate_expression(
-                        c,
-                        input_data,
-                        analyzer,
-                        expr_to_alias,
-                        keep_literal=keep_literal,
+            # SNOW-1441602: Move Star logic to calculate_expression once it can handle table returns
+            args = []
+            for c in exp.children[idx:]:
+                if isinstance(c, Star):
+                    args.extend(
+                        [
+                            calculate_expression(
+                                cc,
+                                input_data,
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=keep_literal,
+                            )
+                            for cc in c.expressions
+                        ]
                     )
-                    for c in exp.children[idx:]
-                ]
-            )
+                else:
+                    args.append(
+                        calculate_expression(
+                            c,
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                    )
+            to_pass_args.extend(args)
         else:
             try:
                 to_pass_args.append(
@@ -430,7 +445,13 @@ def handle_function_expression(
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
 
-    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    try:
+        result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    except Exception as err:
+        SnowparkLocalTestingException.raise_from_error(
+            err,
+            error_message=f"Error executing mocked function '{func_name}'. See error traceback for detailed information.",
+        )
 
     # If none of the args are column emulators and the function result only has one item
     # assume that the single value should be repeated instead of Null filled. This allows
@@ -691,7 +712,7 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
-            result_df = result_df[condition]
+            result_df = result_df[condition.fillna(value=False)]
 
         if order_by:
             result_df = handle_order_by_clause(
@@ -1088,7 +1109,7 @@ def execute_mock_plan(
 
             condition = calculate_expression(
                 source_plan.join_condition, result_df, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
                 result_df = left[outer_join(left)]
@@ -1212,7 +1233,7 @@ def execute_mock_plan(
             # Select rows to be updated based on condition
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
 
             matched = target.apply(tuple, 1).isin(
                 intermediate[condition][target.columns].apply(tuple, 1)
@@ -1270,7 +1291,7 @@ def execute_mock_plan(
         if source_plan.condition:
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             intermediate = intermediate[condition]
             matched = target.apply(tuple, 1).isin(
                 intermediate[target.columns].apply(tuple, 1)
@@ -1319,7 +1340,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     rows_to_update = join_result[condition]
                 else:
                     rows_to_update = join_result
@@ -1349,7 +1370,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     intermediate = join_result[condition]
                 else:
                     intermediate = join_result
@@ -1381,7 +1402,7 @@ def execute_mock_plan(
                         unmatched_rows_in_source,
                         analyzer,
                         expr_to_alias,
-                    )
+                    ).fillna(value=False)
                     unmatched_rows_in_source = unmatched_rows_in_source[condition]
 
                 # filter out the unmatched rows that have been inserted in previous clauses
@@ -1681,10 +1702,13 @@ def calculate_expression(
         )
         res = []
         for data in child_column:
-            try:
-                res.append(math.isnan(data))
-            except TypeError:
-                res.append(False)
+            if data is None:
+                res.append(None)
+            else:
+                try:
+                    res.append(math.isnan(data))
+                except TypeError:
+                    res.append(False)
         return ColumnEmulator(
             data=res, dtype=object, sf_type=ColumnType(BooleanType(), True)
         )
@@ -1921,7 +1945,7 @@ def calculate_expression(
                 break
             condition = calculate_expression(
                 case[0], input_data, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             value = calculate_expression(case[1], input_data, analyzer, expr_to_alias)
 
             true_index = remaining[condition].index
