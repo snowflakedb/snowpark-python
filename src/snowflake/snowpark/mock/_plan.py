@@ -712,7 +712,7 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
-            result_df = result_df[condition]
+            result_df = result_df[condition.fillna(value=False)]
 
         if order_by:
             result_df = handle_order_by_clause(
@@ -1109,7 +1109,7 @@ def execute_mock_plan(
 
             condition = calculate_expression(
                 source_plan.join_condition, result_df, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
                 result_df = left[outer_join(left)]
@@ -1233,7 +1233,7 @@ def execute_mock_plan(
             # Select rows to be updated based on condition
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
 
             matched = target.apply(tuple, 1).isin(
                 intermediate[condition][target.columns].apply(tuple, 1)
@@ -1291,7 +1291,7 @@ def execute_mock_plan(
         if source_plan.condition:
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             intermediate = intermediate[condition]
             matched = target.apply(tuple, 1).isin(
                 intermediate[target.columns].apply(tuple, 1)
@@ -1340,7 +1340,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     rows_to_update = join_result[condition]
                 else:
                     rows_to_update = join_result
@@ -1370,7 +1370,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     intermediate = join_result[condition]
                 else:
                     intermediate = join_result
@@ -1402,7 +1402,7 @@ def execute_mock_plan(
                         unmatched_rows_in_source,
                         analyzer,
                         expr_to_alias,
-                    )
+                    ).fillna(value=False)
                     unmatched_rows_in_source = unmatched_rows_in_source[condition]
 
                 # filter out the unmatched rows that have been inserted in previous clauses
@@ -1702,10 +1702,13 @@ def calculate_expression(
         )
         res = []
         for data in child_column:
-            try:
-                res.append(math.isnan(data))
-            except TypeError:
-                res.append(False)
+            if data is None:
+                res.append(None)
+            else:
+                try:
+                    res.append(math.isnan(data))
+                except TypeError:
+                    res.append(False)
         return ColumnEmulator(
             data=res, dtype=object, sf_type=ColumnType(BooleanType(), True)
         )
@@ -1942,7 +1945,7 @@ def calculate_expression(
                 break
             condition = calculate_expression(
                 case[0], input_data, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             value = calculate_expression(case[1], input_data, analyzer, expr_to_alias)
 
             true_index = remaining[condition].index
