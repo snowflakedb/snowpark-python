@@ -9,9 +9,9 @@ from snowflake.snowpark._internal.utils import experimental
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     add_months,
+    builtin,
     col,
     dateadd,
-    expr,
     from_unixtime,
     lag,
     lead,
@@ -21,7 +21,6 @@ from snowflake.snowpark.functions import (
     unix_timestamp,
     year,
 )
-from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.window import Window
 
 # "s" (seconds), "m" (minutes), "h" (hours), "d" (days), "w" (weeks), "mm" (months), "y" (years)
@@ -257,7 +256,7 @@ class DataFrameAnalyticsFunctions:
                     if col_formatter
                     else f"{column}_{func}{rename_suffix}"
                 )
-                agg_expression = expr(f"{func}({column}{rename_suffix})").alias(
+                agg_expression = builtin(func)(col(column + rename_suffix)).alias(
                     agg_column_name
                 )
                 agg_df = input_df.group_by(group_by_cols).agg(agg_expression)
@@ -323,11 +322,6 @@ class DataFrameAnalyticsFunctions:
             --------------------------------------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
-        if isinstance(self._df.session._conn, MockServerConnection):
-            self._df.session._conn.log_not_supported_error(
-                external_feature_name="DataFrameAnalyticsFunctions.moving_agg",
-                raise_error=NotImplementedError,
-            )
         # Validate input arguments
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
@@ -347,7 +341,8 @@ class DataFrameAnalyticsFunctions:
                     )
 
                     # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                    agg_col = expr(f"{agg_func}({column})").over(window_spec)
+                    agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                    # expr(f"{agg_func}({column})").over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     agg_df = agg_df.with_column(formatted_col_name, agg_col)
@@ -410,11 +405,6 @@ class DataFrameAnalyticsFunctions:
             ----------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
-        if isinstance(self._df.session._conn, MockServerConnection):
-            self._df.session._conn.log_not_supported_error(
-                external_feature_name="DataFrameAnalyticsFunctions.cumulative_agg",
-                raise_error=NotImplementedError,
-            )
         # Validate input arguments
         self._validate_aggs_argument(aggs)
         self._validate_string_list_argument(order_by, "order_by")
@@ -432,7 +422,8 @@ class DataFrameAnalyticsFunctions:
         for column, agg_funcs in aggs.items():
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                agg_col = expr(f"{agg_func}({column})").over(window_spec)
+                agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                # expr(f"{agg_func}({column})").over(window_spec)
 
                 formatted_col_name = col_formatter(column, agg_func)
                 agg_df = agg_df.with_column(formatted_col_name, agg_col)
