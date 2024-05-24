@@ -7,6 +7,7 @@ import sys
 from typing import Optional, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -79,7 +80,6 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -227,7 +227,10 @@ class Column:
     """
 
     def __init__(
-        self, expr1: Union[str, Expression], expr2: Optional[str] = None, ast: Optional[proto.SpColumnExpr] = None
+        self,
+        expr1: Union[str, Expression],
+        expr2: Optional[str] = None,
+        ast: Optional[proto.SpColumnExpr] = None,
     ) -> None:
         self._ast = proto.SpColumnExpr() if ast is None else ast
 
@@ -237,9 +240,7 @@ class Column:
                     self._expression = Star([], df_alias=expr1)
                 else:
                     col_name = quote_name(expr2)
-                    self._expression = UnresolvedAttribute(
-                        col_name, df_alias=expr1
-                    )
+                    self._expression = UnresolvedAttribute(col_name, df_alias=expr1)
                     # TODO: figure out why basic aliasing is breaking above
                     self._ast.sp_column_alias.col.sp_column.name = col_name
                     self._ast.sp_column_alias.name = expr1
