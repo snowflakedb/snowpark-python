@@ -907,7 +907,8 @@ class StringMethods:
         pass
 
 
-class DatetimeProperties:
+# Docstrings for DatetimeProperties (need to match the name of the pandas class inherited from)
+class CombinedDatetimelikeProperties:
     @property
     def date(self):
         """
