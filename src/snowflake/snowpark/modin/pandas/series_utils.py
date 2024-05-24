@@ -183,48 +183,46 @@ class StringMethods:
             - If found splits <= n, make all splits
             - If for a certain row the number of found splits < n, append None for padding up to n if expand=True
             - If using expand=True, Series and Index callers return DataFrame and MultiIndex objects, respectively.
-        """
-        # TODO: SNOW-1432416 Add examples to docstring when implemented.
-        # Examples
-        # --------
-        # >>> s = pd.Series(
-        # ...     [
-        # ...         "this is a regular sentence",
-        # ...         "https://docs.python.org/3/tutorial/index.html",
-        # ...         np.nan
-        # ...     ]
-        # ... )
-        # >>> s
-        # 0                       this is a regular sentence
-        # 1    https://docs.python.org/3/tutorial/index.html
-        # 2                                             None
-        # dtype: object
-        #
-        # In the default setting, the string is split by whitespace.
-        #
-        # >>> s.str.split()
-        # 0                   [this, is, a, regular, sentence]
-        # 1    [https://docs.python.org/3/tutorial/index.html]
-        # 2                                               None
-        # dtype: object
-        #
-        # The n parameter can be used to limit the number of splits on the delimiter.
-        #
-        # >>> s.str.split(n=2)
-        # 0                     [this, is, a regular sentence]
-        # 1    [https://docs.python.org/3/tutorial/index.html]
-        # 2                                               None
-        # dtype: object
-        #
-        # The pat parameter can be used to split by other characters.
-        #
-        # >>> s.str.split(pat="/")
-        # 0                         [this is a regular sentence]
-        # 1    [https:, , docs.python.org, 3, tutorial, index...
-        # 2                                                 None
-        # dtype: object
-        ErrorMessage.method_not_implemented_error("split", "Series.str")
 
+        Examples
+        --------
+        >>> s = pd.Series(
+        ...     [
+        ...         "this is a regular sentence",
+        ...         "https://docs.python.org/3/tutorial/index.html",
+        ...         np.nan
+        ...     ]
+        ... )
+        >>> s
+        0                       this is a regular sentence
+        1    https://docs.python.org/3/tutorial/index.html
+        2                                             None
+        dtype: object
+
+        In the default setting, the string is split by whitespace.
+
+        >>> s.str.split()
+        0                   [this, is, a, regular, sentence]
+        1    [https://docs.python.org/3/tutorial/index.html]
+        2                                               None
+        dtype: object
+
+        The n parameter can be used to limit the number of splits on the delimiter.
+
+        >>> s.str.split(n=2)
+        0                     [this, is, a regular sentence]
+        1    [https://docs.python.org/3/tutorial/index.html]
+        2                                               None
+        dtype: object
+
+        The pat parameter can be used to split by other characters.
+
+        >>> s.str.split(pat="/")
+        0                         [this is a regular sentence]
+        1    [https:, , docs.python.org, 3, tutorial, index...
+        2                                                 None
+        dtype: object
+        """
         if not pat and pat is not None:
             raise ValueError("split() requires a non-empty pattern match.")
 
@@ -850,13 +848,13 @@ class StringMethods:
         ...                 [2, 3, 5, 7],
         ...                 ('one', 'two', 'three')])
         >>> s.str.len()
-        0     3
-        1     0
-        2     1
-        3    13
-        4     9
-        5    21
-        dtype: int64
+        0    3.0
+        1    0.0
+        2    NaN
+        3    NaN
+        4    NaN
+        5    NaN
+        dtype: float64
         """
         return Series(query_compiler=self._query_compiler.str_len())
 
@@ -896,22 +894,22 @@ class StringMethods:
         5         True
         dtype: object
 
-        >>> s.str.strip()  # doctest: +SKIP
+        >>> s.str.strip()
         0    1. Ant.
         1    2. Bee!
         2    3. Cat?
-        3        NaN
-        4        NaN
-        5        NaN
+        3       None
+        4       None
+        5       None
         dtype: object
 
-        >>> s.str.strip('123.!? \\n\\t')  # doctest: +SKIP
-        0    Ant
-        1    Bee
-        2    Cat
-        3    NaN
-        4    NaN
-        5    NaN
+        >>> s.str.strip('123.!? \\n\\t')
+        0     Ant
+        1     Bee
+        2     Cat
+        3    None
+        4    None
+        5    None
         dtype: object
         """
         # TODO: SNOW-1432420 fix bug in docstring.
