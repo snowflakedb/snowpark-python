@@ -318,9 +318,18 @@ class MockAnalyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             func_name = expr.name.upper()
+
+            children = []
+            for c in expr.children:
+                extracted = self.to_sql_avoid_offset(c, expr_to_alias)
+                if isinstance(extracted, list):
+                    children.extend(extracted)
+                else:
+                    children.append(extracted)
+
             return function_expression(
                 func_name,
-                [self.to_sql_avoid_offset(c, expr_to_alias) for c in expr.children],
+                children,
                 expr.is_distinct,
             )
 
