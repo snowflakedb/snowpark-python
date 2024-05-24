@@ -5,11 +5,11 @@
 import math
 from typing import TYPE_CHECKING, Any, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     VariantType,
 )
@@ -104,8 +105,9 @@ def _extract_schema_and_data_from_pandas_df(
                 else:
                     # pandas.Timestamp.value gives nanoseconds
                     # snowpark will convert it to microseconds
-                    plain_data[row_idx][col_idx] = int(
-                        plain_data[row_idx][col_idx].value / 1000
+                    # snowflake also treats pandas int as string in a timestamp column
+                    plain_data[row_idx][col_idx] = str(
+                        int(plain_data[row_idx][col_idx].value / 1000)
                     )
             elif isinstance(plain_data[row_idx][col_idx], pd.Timedelta):
                 # pandas.Timedetla.value gives nanoseconds
@@ -121,7 +123,10 @@ def _extract_schema_and_data_from_pandas_df(
                         # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
-                        return int(obj.value / 1000)
+                        # pd.Timestamp inside pd.Interval is treated as VariantType
+                        # and for variant type datetime is treated as string according to
+                        # https://docs.snowflake.com/en/sql-reference/data-types-semistructured
+                        return obj.to_pydatetime().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                     else:
                         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
                             external_feature_name=f"{type(obj).__name__} within pandas.Interval",
@@ -202,17 +207,23 @@ def _extract_schema_and_data_from_pandas_df(
     for idx, pandas_type in enumerate(data.dtypes):
         if isinstance(pandas_type, pd.IntervalDtype):
             data_type = VariantType()
-        elif isinstance(pandas_type, pd.DatetimeTZDtype):
-            data_type = TimestampType()
+        elif (
+            isinstance(pandas_type, pd.DatetimeTZDtype)
+            or pandas_type.type == numpy.datetime64
+        ):
+            if isinstance(pandas_type, pd.DatetimeTZDtype) and pandas_type.tz:
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="DataFrame creation from pandas DataFrame containg pd.DatetimeTZDtype with timezone information",
+                    internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                    raise_error=NotImplementedError,
+                )
+            else:
+                data_type = TimestampType(TimestampTimeZone.NTZ)
         elif pandas_type.type == numpy.float64:
             data_type = DoubleType()
         elif isinstance(pandas_type, (pd.Float32Dtype, pd.Float64Dtype)):
             data_type = DoubleType()
-        elif (
-            pandas_type.type == numpy.int64
-            or pandas_type.type == numpy.datetime64
-            or pandas_type.type == numpy.timedelta64
-        ):
+        elif pandas_type.type == numpy.int64 or pandas_type.type == numpy.timedelta64:
             data_type = LongType()
         elif isinstance(pandas_type, PANDAS_INTEGER_TYPES):
             data_type = LongType()

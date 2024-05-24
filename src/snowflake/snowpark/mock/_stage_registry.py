@@ -14,7 +14,6 @@ from functools import partial
 from logging import getLogger
 from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -22,6 +21,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.mock._functions import mock_to_char
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,

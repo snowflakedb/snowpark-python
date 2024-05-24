@@ -487,10 +487,6 @@ def test_coalesce(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
-)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
@@ -4621,16 +4617,14 @@ def test_rank(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1374081: row_number over window does not have consistent result.",
-)
 def test_row_number(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
-        ),
-        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        TestData.xyz(session)
+        .select(
+            "X", row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
+        )
+        .order_by("X"),
+        [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2), Row(2, 3)],
         sort=False,
     )
 

@@ -1267,6 +1267,11 @@ class DataFrame:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name

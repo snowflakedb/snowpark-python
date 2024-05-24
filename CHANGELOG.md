@@ -13,11 +13,19 @@
 #### New Features
 
 - Added support for `if_not_exists` parameter during udf and sproc registration.
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames' and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Aligned error experience when calling udf and sprocs.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
+- Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
+- Re-added support for `Series.str.split`.
+
+#### Bug Fixes
+
+- Fixed how we support mixed columns for string methods (`Series.str.*`).
 
 ### Snowpark Local Testing Updates
 
@@ -36,15 +44,25 @@
 #### Bug Fixes
 
 - Fixed a bug that when processing time format, fractional second part is not handled properly.
+- Fixed a bug that caused function calls on `*` to fail.
+- Fixed a bug that prevented creation of map and struct type objects.
+- Fixed a bug that function `date_add` was unable to handle some numeric types.
+- Fixed bugs in TimestampType casting that resulted in incorrect data.
 - Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 - Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
 - Fixed a bug that mocked UDFs handles output data of None improperly.
 - Fixed a bug where DataFrame.with_column_renamed ignores attributes from parent DataFrames after join operations.
+- Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
+- Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
+- Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
+- Fixed a bug where DataFrame.drop ignore attributes from parent DataFrames after join operations.
+
 
 #### Improvements
 
 - Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
+- Removed dependency check for `pyarrow` as it is not used.
 
 ## 1.17.0 (2024-05-21)
 
