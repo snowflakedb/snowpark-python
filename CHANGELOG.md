@@ -57,12 +57,14 @@
 - Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
 - Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
 - Fixed a bug where DataFrame.drop ignore attributes from parent DataFrames after join operations.
+- Fixed a bug in mocked function `date_part` where Column type is set wrong.
 
 
 #### Improvements
 
 - Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
 - Removed dependency check for `pyarrow` as it is not used.
+- Improved target type coverage of `Column.cast`, adding suppot for casting to boolean and all integral types.
 
 ## 1.17.0 (2024-05-21)
 

@@ -369,10 +369,6 @@ def test_compute_lead(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: result data type snowpark LongType and LongType() do not match",
-)
 def test_compute_lag(session):
     """Tests df.analytics.compute_lag() happy path."""
 
@@ -634,7 +630,7 @@ def test_time_series_agg_year_sliding_window(session):
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: result data type snowpark LongType and LongType() do not match",
+    reason="[Bug] Aggregate expression UnresolvedAttribute is not supported",
 )
 def test_time_series_agg_invalid_inputs(session):
     """Tests time_series_agg function with invalid inputs."""
