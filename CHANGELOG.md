@@ -40,6 +40,7 @@
   - PATTERN
   - INFER_SCHEMA with value being `False`
   - ENCODING with value being `UTF8`
+- Added support for DataFrame.analytics.moving_agg and DataFrame.analytics.cumulative_agg_agg.
 
 #### Bug Fixes
 
@@ -62,7 +63,6 @@
 
 #### Improvements
 
-- Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
 - Removed dependency check for `pyarrow` as it is not used.
 - Improved target type coverage of `Column.cast`, adding suppot for casting to boolean and all integral types.
 
