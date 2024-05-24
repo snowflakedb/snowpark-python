@@ -32,6 +32,7 @@
   - PATTERN
   - INFER_SCHEMA with value being `False`
   - ENCODING with value being `UTF8`
+- Added support for DataFrame.analytics.moving_agg and DataFrame.analytics.cumulative_agg_agg.
 
 #### Bug Fixes
 
@@ -41,9 +42,6 @@
 - Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
 - Fixed a bug that mocked UDFs handles output data of None improperly.
 
-#### Improvements
-
-- Improved error experience of `DataFrameAnalyticsFunctions.moving_agg` and `DataFrameAnalyticsFunctions.cumulative_agg` methods that `NotImplementError` will be raised when called.
 
 ## 1.17.0 (2024-05-21)
 
