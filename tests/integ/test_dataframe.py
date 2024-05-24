@@ -2618,10 +2618,6 @@ def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
@@ -2643,7 +2639,13 @@ def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
-def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
+def test_save_as_table_nullable_test(
+    session, save_mode, data_type, large_data, local_testing_mode
+):
+    if isinstance(data_type, DecimalType) and local_testing_mode:
+        pytest.skip(
+            "SNOW-1447052 local testing nullable information loss in decimal type column because of to_decimal call"
+        )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2665,10 +2667,6 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
