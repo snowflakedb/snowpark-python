@@ -1869,7 +1869,7 @@ def calculate_expression(
                 column, try_cast=exp.try_
             )
         elif isinstance(exp.to, BooleanType):
-            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["boolean"](
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_boolean"](
                 column, try_cast=exp.try_
             )
         elif isinstance(exp.to, StringType):
