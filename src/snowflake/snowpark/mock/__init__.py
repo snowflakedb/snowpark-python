@@ -7,7 +7,7 @@ from ._functions import patch
 from ._snowflake_data_type import ColumnEmulator, ColumnType, TableEmulator
 
 
-class NumpyEncoder(JSONEncoder):
+class _NumpyEncoder(JSONEncoder):
     def default(self, obj):
         import numpy
 
@@ -23,7 +23,7 @@ class NumpyEncoder(JSONEncoder):
         return super().default(obj)
 
 
-CUSTOM_JSON_ENCODER = NumpyEncoder
+CUSTOM_JSON_ENCODER = _NumpyEncoder
 CUSTOM_JSON_DECODER = None
 
 
