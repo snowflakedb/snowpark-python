@@ -487,10 +487,6 @@ def test_coalesce(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
-)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
