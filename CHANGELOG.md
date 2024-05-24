@@ -27,7 +27,7 @@
 
 - File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
 
-### New Features
+#### New Features
 
 - Added support for the following DataFrameReader read options to file formats `csv` and `json`:
   - PURGE
