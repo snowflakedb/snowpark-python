@@ -2,23 +2,17 @@
 
 ## 1.18.0 (2024-05-28)
 
-### Snowpark Python API Updates
-
-#### New Features
-
-#### Improvements
-
 ### Snowpark pandas API Updates
 
 #### New Features
 
-- Added support for `if_not_exists` parameter during udf and sproc registration.
-- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames' and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+- Added support for if_not_exists parameter during UDF and stored procedure registration.
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
-- Aligned error experience when calling udf and sprocs.
+- Aligned error experience when calling UDFs and stored procedures.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
