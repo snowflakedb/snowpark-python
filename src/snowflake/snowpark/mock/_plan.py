@@ -174,6 +174,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -295,7 +296,7 @@ def handle_range_frame_indexing(
     res_index: "pd.Index",
     res: "pd.api.typing.DataFrameGroupBy",
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     unbounded_preceding: bool,
     unbounded_following: bool,
 ) -> "pd.api.typing.RollingGroupby":
@@ -339,7 +340,7 @@ def handle_function_expression(
     exp: FunctionExpression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     current_row=None,
 ):
     # Special case for count_distinct
@@ -474,7 +475,7 @@ def handle_udf_expression(
     exp: FunctionExpression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     current_row=None,
 ):
     udf_registry = analyzer.session.udf._registry
@@ -611,7 +612,8 @@ def execute_mock_plan(
     import numpy as np
 
     if expr_to_alias is None:
-        expr_to_alias = {}
+        expr_to_alias = plan.expr_to_alias
+
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
         source_plan = plan.source_plan
         analyzer = plan.session._analyzer
@@ -796,7 +798,7 @@ def execute_mock_plan(
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
             execution_plan = entity_registry.get_review(entity_name)
-            res_df = execute_mock_plan(execution_plan)
+            res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
         else:
             db_schme_table = parse_table_name(entity_name)
@@ -805,7 +807,7 @@ def execute_mock_plan(
                 f"Object '{table}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
-        child_rf = execute_mock_plan(source_plan.child)
+        child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
         if (
             not source_plan.aggregate_expressions
             and not source_plan.grouping_expressions
@@ -1163,7 +1165,7 @@ def execute_mock_plan(
                 parameters_info={"source_plan.column_names": "True"},
                 raise_error=NotImplementedError,
             )
-        res_df = execute_mock_plan(source_plan.query)
+        res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
             source_plan.table_name, res_df, source_plan.mode
         )
@@ -1173,7 +1175,7 @@ def execute_mock_plan(
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
             execution_plan = entity_registry.get_review(entity_name)
-            res_df = execute_mock_plan(execution_plan)
+            res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
         else:
             obj_name_tuple = parse_table_name(entity_name)
@@ -1192,7 +1194,7 @@ def execute_mock_plan(
                 f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
-        res_df = execute_mock_plan(source_plan.child)
+        res_df = execute_mock_plan(source_plan.child, expr_to_alias)
 
         if source_plan.row_count and (
             source_plan.row_count < 0 or source_plan.row_count > 100000
@@ -1481,7 +1483,7 @@ def execute_mock_plan(
 
         return [Row(*res)]
     elif isinstance(source_plan, Pivot):
-        child_rf = execute_mock_plan(source_plan.child)
+        child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
 
         assert (
             len(source_plan.aggregates) == 1
@@ -1906,14 +1908,20 @@ def calculate_expression(
                 scale=exp.to.scale,
                 try_cast=exp.try_,
             )
-        elif isinstance(exp.to, IntegerType):
+        elif isinstance(
+            exp.to, _IntegralType
+        ):  # includes ByteType, ShortType, IntegerType, LongType
             res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
                 column, try_cast=exp.try_
             )
-            res.set_sf_type(ColumnType(IntegerType(), nullable=column.sf_type.nullable))
+            res.set_sf_type(ColumnType(exp.to, nullable=column.sf_type.nullable))
             return res
         elif isinstance(exp.to, BinaryType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, BooleanType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_boolean"](
                 column, try_cast=exp.try_
             )
         elif isinstance(exp.to, StringType):
