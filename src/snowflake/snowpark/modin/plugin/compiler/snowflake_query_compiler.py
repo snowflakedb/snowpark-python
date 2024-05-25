@@ -2589,7 +2589,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             else:
                 # Named aggregates are passed in via agg_kwargs. We should not pass `agg_func` since we have modified
-                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause pandas to error out.
+                # it to be of the form {column_name: (agg_func, new_column_name), ...}, which will cause the error message
+                # to be misformatted. Instead, we re-format into the form f"agg(**named_aggregations)" so that the error message
+                # is recognizable to the user.
                 if using_named_aggregations_for_func(agg_func):
                     agg_func = ", ".join(
                         [f"{key}={value}" for key, value in agg_kwargs.items()]

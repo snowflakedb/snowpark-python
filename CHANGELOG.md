@@ -25,7 +25,7 @@
 - Aligned error experience when calling udf and sprocs.
 - Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
-- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate`.
+- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 
 ### Snowpark Local Testing Updates
 

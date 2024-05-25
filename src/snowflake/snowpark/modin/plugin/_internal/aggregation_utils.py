@@ -1104,12 +1104,24 @@ def generate_column_agg_info(
 def using_named_aggregations_for_func(func: Any) -> bool:
     """
     Helper method to check if func is formatted in a way that indicates that we are using named aggregations.
+
+    If the user specifies named aggregations, we parse them into the func variable as a dictionary mapping
+    Hashable pandas labels to either a single AggFuncWithLabel or a list of AggFuncWithLabel NamedTuples. To know if
+    a SnowflakeQueryCompiler aggregation method (agg(), groupby_agg()) was called with named aggregations, we can check
+    if the `func` argument passed in obeys this formatting.
+    This function checks the following:
+    1. `func` is dict-like.
+    2. Every value in `func` is either:
+        a) an AggFuncWithLabel object
+        b) a list of AggFuncWithLabel objects.
+    If both conditions are met, that means that this func is the result of our internal processing of an aggregation
+    API with named aggregations specified by the user.
     """
-    return is_dict_like(func) and any(
+    return is_dict_like(func) and all(
         isinstance(value, AggFuncWithLabel)
         or (
             isinstance(value, list)
-            and any(isinstance(v, AggFuncWithLabel) for v in value)
+            and all(isinstance(v, AggFuncWithLabel) for v in value)
         )
         for value in func.values()
     )
