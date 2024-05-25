@@ -60,6 +60,9 @@
 - Fixed a bug where DataFrame.drop ignore attributes from parent DataFrames after join operations.
 - Fixed a bug in mocked function `date_part` where Column type is set wrong.
 - Fixed a bug where `DataFrameWriter.save_as_table` does not raise exceptions when inserting null data into non-nullable columns.
+- Fixed a bug in the implementation of DataFrameWriter.save_as_table where
+  - Append or Truncate fails when incoming data has different schema than existing table.
+  - Truncate fails when incoming data does not specify columns that are nullable.
 
 #### Improvements
 
