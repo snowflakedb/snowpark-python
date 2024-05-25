@@ -163,6 +163,14 @@ class MockServerConnection:
                 # Fix append by index
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
+
+                    if len(table.columns.to_list()) != len(
+                        target_table.columns.to_list()
+                    ):
+                        raise SnowparkLocalTestingException(
+                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                        )
+
                     table.columns = target_table.columns
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
@@ -183,8 +191,21 @@ class MockServerConnection:
             elif mode == SaveMode.TRUNCATE:
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
-                    if table.columns != target_table.columns:
-                        raise SnowparkLocalTestingException("Column mismatch detected")
+                    input_schema = table.columns.to_list()
+                    existing_schema = target_table.columns.to_list()
+                    if len(input_schema) <= len(existing_schema) and (
+                        all(
+                            target_table[col].sf_type.nullable
+                            for col in (existing_schema[len(input_schema) :])
+                        )
+                    ):
+                        for col in existing_schema[len(input_schema) :]:
+                            table[col] = None
+                            table.sf_types[col] = target_table[col].sf_type
+                    else:
+                        raise SnowparkLocalTestingException(
+                            f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                        )
 
                 self.table_registry[name] = table
             else:
