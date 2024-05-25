@@ -232,25 +232,29 @@ class Column:
         expr2: Optional[str] = None,
         ast: Optional[proto.SpColumnExpr] = None,
     ) -> None:
-        self._ast = proto.SpColumnExpr() if ast is None else ast
+        if ast is not None:
+            self._ast = ast
 
         if expr2 is not None:
+            # TODO: Find correct entities in AST for df_aliasing
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
                     self._expression = Star([], df_alias=expr1)
                 else:
-                    col_name = quote_name(expr2)
-                    self._expression = UnresolvedAttribute(col_name, df_alias=expr1)
-                    # TODO: figure out why basic aliasing is breaking above
-                    self._ast.sp_column_alias.col.sp_column.name = col_name
-                    self._ast.sp_column_alias.name = expr1
+                    self._expression = UnresolvedAttribute(
+                        quote_name(expr2), df_alias=expr1
+                    )
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
                 )
         elif isinstance(expr1, str):
+            if ast is None:
+                self._ast = proto.SpColumnExpr()
             if expr1 == "*":
                 self._expression = Star([])
+                # TODO: Determine whether SpColumnSqlExpr is correct entity here
+                self._ast.sp_column_sql_expr.sql = "*"
             else:
                 col_name = quote_name(expr1)
                 self._expression = UnresolvedAttribute(col_name)
@@ -260,13 +264,6 @@ class Column:
             self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
-
-    @property
-    def ast(self) -> proto.SpColumnExpr:
-        # TODO: remove hack to generate SQL from Expression class
-        if self._ast.WhichOneof("variant") is None:
-            self._ast.sp_column_sql_expr.sql = self._expression.sql
-        return self._ast
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""

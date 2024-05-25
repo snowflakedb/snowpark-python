@@ -517,7 +517,6 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_expr = ast_stmt.expr
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
@@ -1066,10 +1065,15 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
+        col_expr_ast = proto.SpColumnExpr()
         if col_name == "*":
+            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
             return Column(Star(self._output))
         else:
-            return Column(self._resolve(col_name))
+            resolved_name = self._resolve(col_name)
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
+            return Column(resolved_name, ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1130,7 +1134,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
-        ast.sp_dataframe_select__columns.variadic = False
+        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or isinstance(cols[0], (list, tuple, set)))
 
         names = []
         table_func = None
@@ -1139,11 +1143,15 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                ast.sp_dataframe_select__columns.cols.append(e.ast)
+                ast.sp_dataframe_select__columns.cols.append(e._ast)
+
             elif isinstance(e, str):
-                col = Column(e)
+                col_expr_ast = ast.sp_dataframe_select__columns.cols.add()
+                col = Column(e, ast=col_expr_ast)
+
+                col_expr_ast.sp_column.name = col.get_name()
                 names.append(col._named())
-                ast.sp_dataframe_select__columns.cols.append(col.ast)
+
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
