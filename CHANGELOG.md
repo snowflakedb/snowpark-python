@@ -6,14 +6,11 @@
 
 #### New Features
 
-- Added support for `if_not_exists` parameter during UDF and stored procedure registration.
 - Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
-- Aligned error experience when calling UDFs and stored procedures.
-- Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
 
@@ -35,6 +32,7 @@
   - INFER_SCHEMA with value being `False`
   - ENCODING with value being `UTF8`
 - Added support for DataFrame.analytics.moving_agg and DataFrame.analytics.cumulative_agg_agg.
+- Added support for `if_not_exists` parameter during UDF and stored procedure registration.
 
 #### Bug Fixes
 
@@ -62,6 +60,8 @@
 
 - Removed dependency check for `pyarrow` as it is not used.
 - Improved target type coverage of `Column.cast`, adding suppot for casting to boolean and all integral types.
+- Aligned error experience when calling UDFs and stored procedures.
+- Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 
 ## 1.17.0 (2024-05-21)
 
