@@ -2516,19 +2516,20 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
-def test_truncate_preserves_schema(session):
+def test_truncate_preserves_schema(session, local_testing_mode):
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
     df2 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=["a", "b", "c"])
 
     df1.write.save_as_table(tmp_table_name, table_type="temp")
+    exception_msg = (
+        "invalid identifier 'C'"
+        if not local_testing_mode
+        else "incoming data has different schema"
+    )
 
     # truncate preserves old schema
-    with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+    with pytest.raises(SnowparkSQLException, match=exception_msg):
         df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
 
     # overwrite drops old schema
@@ -2536,10 +2537,6 @@ def test_truncate_preserves_schema(session):
     Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
 def test_truncate_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
@@ -2565,14 +2562,10 @@ def test_table_types_in_save_as_table(
         Utils.assert_table_type(session, table_name, table_type)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
-def test_save_as_table_respects_schema(session, save_mode):
+def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     schema1 = StructType(
@@ -2611,7 +2604,12 @@ def test_save_as_table_respects_schema(session, save_mode):
             df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
-            with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+            exception_msg = (
+                "invalid identifier 'C'"
+                if not local_testing_mode
+                else "Cannot truncate because incoming data has different schema"
+            )
+            with pytest.raises(SnowparkSQLException, match=exception_msg):
                 df3.write.save_as_table(table_name, mode=save_mode)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
@@ -2620,10 +2618,6 @@ def test_save_as_table_respects_schema(session, save_mode):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
@@ -2645,7 +2639,13 @@ def test_save_as_table_respects_schema(session, save_mode):
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
-def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
+def test_save_as_table_nullable_test(
+    session, save_mode, data_type, large_data, local_testing_mode
+):
+    if isinstance(data_type, DecimalType) and local_testing_mode:
+        pytest.skip(
+            "SNOW-1447052 local testing nullable information loss in decimal type column because of to_decimal call"
+        )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2667,10 +2667,6 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )

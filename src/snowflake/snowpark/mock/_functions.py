@@ -1533,7 +1533,7 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
                 f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
             )
         )
-    return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
+    return ColumnEmulator(res, sf_type=ColumnType(LongType(), nullable=True))
 
 
 @patch("date_trunc")
