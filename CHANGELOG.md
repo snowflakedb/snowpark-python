@@ -1,25 +1,16 @@
 # Release History
 
-## 1.18.0 (TBD)
-
-### Snowpark Python API Updates
-
-#### New Features
-
-#### Improvements
+## 1.18.0 (2024-05-28)
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
-- Added support for `if_not_exists` parameter during udf and sproc registration.
-- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames' and Series' to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Improvements
 
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
-- Aligned error experience when calling udf and sprocs.
-- Added appropriate error messages for is_permanent/anonymous udf/sproc registration to make it more clear that those features are not yet supported.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
 
@@ -33,14 +24,15 @@
 
 - File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
 
-### New Features
+#### New Features
 
 - Added support for the following DataFrameReader read options to file formats `csv` and `json`:
   - PURGE
   - PATTERN
   - INFER_SCHEMA with value being `False`
   - ENCODING with value being `UTF8`
-- Added support for DataFrame.analytics.moving_agg and DataFrame.analytics.cumulative_agg_agg.
+- Added support for `DataFrame.analytics.moving_agg` and `DataFrame.analytics.cumulative_agg_agg`.
+- Added support for `if_not_exists` parameter during UDF and stored procedure registration.
 
 #### Bug Fixes
 
@@ -48,26 +40,28 @@
 - Fixed a bug that caused function calls on `*` to fail.
 - Fixed a bug that prevented creation of map and struct type objects.
 - Fixed a bug that function `date_add` was unable to handle some numeric types.
-- Fixed bugs in TimestampType casting that resulted in incorrect data.
-- Fixed a bug that caused DecimalType data to have incorrect precision in some cases.
+- Fixed a bug that `TimestampType` casting resulted in incorrect data.
+- Fixed a bug that caused `DecimalType` data to have incorrect precision in some cases.
 - Fixed a bug where referencing missing table or view raises confusing `IndexError`.
 - Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
 - Fixed a bug that mocked UDFs handles output data of None improperly.
-- Fixed a bug where DataFrame.with_column_renamed ignores attributes from parent DataFrames after join operations.
+- Fixed a bug where `DataFrame.with_column_renamed` ignores attributes from parent DataFrames after join operations.
 - Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
 - Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
 - Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
-- Fixed a bug where DataFrame.drop ignore attributes from parent DataFrames after join operations.
+- Fixed a bug where `DataFrame.drop` ignore attributes from parent DataFrames after join operations.
 - Fixed a bug in mocked function `date_part` where Column type is set wrong.
 - Fixed a bug where `DataFrameWriter.save_as_table` does not raise exceptions when inserting null data into non-nullable columns.
-- Fixed a bug in the implementation of DataFrameWriter.save_as_table where
+- Fixed a bug in the implementation of `DataFrameWriter.save_as_table` where
   - Append or Truncate fails when incoming data has different schema than existing table.
   - Truncate fails when incoming data does not specify columns that are nullable.
 
 #### Improvements
 
 - Removed dependency check for `pyarrow` as it is not used.
-- Improved target type coverage of `Column.cast`, adding suppot for casting to boolean and all integral types.
+- Improved target type coverage of `Column.cast`, adding support for casting to boolean and all integral types.
+- Aligned error experience when calling UDFs and stored procedures.
+- Added appropriate error messages for `is_permanent` and `anonymous` options in UDFs and stored procedures registration to make it more clear that those features are not yet supported.
 
 ## 1.17.0 (2024-05-21)
 
