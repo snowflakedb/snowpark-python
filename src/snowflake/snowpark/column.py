@@ -232,8 +232,7 @@ class Column:
         expr2: Optional[str] = None,
         ast: Optional[proto.SpColumnExpr] = None,
     ) -> None:
-        if ast is not None:
-            self._ast = ast
+        self._ast = ast
 
         if expr2 is not None:
             # TODO: Find correct entities in AST for df_aliasing
@@ -249,16 +248,18 @@ class Column:
                     "When Column constructor gets two arguments, both need to be <str>"
                 )
         elif isinstance(expr1, str):
-            if ast is None:
-                self._ast = proto.SpColumnExpr()
             if expr1 == "*":
                 self._expression = Star([])
-                # TODO: Determine whether SpColumnSqlExpr is correct entity here
-                self._ast.sp_column_sql_expr.sql = "*"
             else:
-                col_name = quote_name(expr1)
-                self._expression = UnresolvedAttribute(col_name)
-                self._ast.sp_column.name = col_name
+                self._expression = UnresolvedAttribute(quote_name(expr1))
+
+            # some repitition here, but _expression logic will be eliminated eventually
+            if self._ast is None:
+                self._ast = proto.SpColumnExpr()
+                if expr1 == "*":
+                    self._ast.sp_column_sql_expr.sql = "*"
+                else:
+                    self._ast.sp_column.name = quote_name(expr1)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1

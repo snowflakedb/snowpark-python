@@ -1134,7 +1134,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
-        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or isinstance(cols[0], (list, tuple, set)))
+        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
 
         names = []
         table_func = None

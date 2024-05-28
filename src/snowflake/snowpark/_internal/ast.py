@@ -27,7 +27,7 @@ class AstBatch:
         self._init_batch()
         # TODO: extended version from the branch snowpark-ir.
 
-    def assign(self, symbol=None):
+    def assign(self, symbol = None):
         stmt = self._request.body.add()
         stmt.assign.uid = next(self._id_gen)
         stmt.assign.var_id.bitfield1 = stmt.assign.uid
