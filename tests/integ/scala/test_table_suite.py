@@ -260,10 +260,6 @@ def test_table_with_semi_structured_types(session, semi_structured_table):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1374013: Local testing fails to parse time '09:15:29.999999'",
-)
 def test_table_with_time_type(session, table_with_time):
     df = session.table(table_with_time)
     # snowflake time has accuracy to 0.99999999. Python has accuracy to 0.999999.

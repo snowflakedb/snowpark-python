@@ -163,6 +163,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
     VariantType,
 )
 from tests.utils import TestData, Utils
@@ -388,13 +390,15 @@ def test_date_or_time_to_char(session, convert_func):
             datetime.datetime(2021, 12, 21, 9, 12, 56),
             datetime.datetime(1969, 1, 1, 1, 1, 1),
         ],
-        schema=["a"],
+        schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
     )
     assert df.select(convert_func(col("a"), "mm-dd-yyyy mi:ss:hh24")).collect() == [
         Row("12-21-2021 12:56:09"),
         Row("01-01-1969 01:01:01"),
     ]
-    assert df.select(convert_func(col("a"))).collect() == [
+    # we explicitly set format here because in some test env the default output format is changed
+    # leading to different result
+    assert df.select(convert_func(col("a"), "yyyy-mm-dd hh24:mi:ss.FF3")).collect() == [
         Row("2021-12-21 09:12:56.000"),
         Row("1969-01-01 01:01:01.000"),
     ]
@@ -486,10 +490,6 @@ def test_startswith(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 KeyError: 2 raised",
-)
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
     # case sensitive
@@ -596,10 +596,7 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    # TODO: SNOW-1235716 error experience
-    with pytest.raises(
-        SnowparkSQLException if not local_testing_mode else ValueError
-    ) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sqrt(lit(-1))).collect()
     if not local_testing_mode:
         assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
@@ -643,16 +640,12 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
     assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338: substring raises unsupported operand type(s) for -: 'str' and 'int'",
-)
-def test_basic_string_operations(session):
+def test_basic_string_operations(session, local_testing_mode):
     # Substring
     df = session.create_dataframe(["a not that long string"], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
-    assert "Numeric value 'b' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'b' is not recognized" in str(ex_info)
 
     # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
@@ -662,19 +655,21 @@ def test_basic_string_operations(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", 1, "c")).collect()
-    assert "Numeric value 'c' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'c' is not recognized" in str(ex_info)
 
-    # split
-    res = df.select(split("a", lit("not"))).collect()
-    assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
+    # Split is not yet supported by local testing mode
+    if not local_testing_mode:
+        # split
+        res = df.select(split("a", lit("not"))).collect()
+        assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split([1, 2, 3], "b")).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split([1, 2, 3], "b")).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split("a", [1, 2, 3])).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split("a", [1, 2, 3])).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # upper
     with pytest.raises(TypeError) as ex_info:
@@ -797,11 +792,6 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
-# Enable for local testing after addressing SNOW-850268
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338: count_distinct raises TypeError: sequence item 0: expected str instance, list found",
-)
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -1754,11 +1744,6 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-# TODO: enable for local testing after addressing SNOW-850263
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 TypeError: unsupported type for timedelta days component: numpy.int64",
-)
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
@@ -1923,10 +1908,6 @@ def test_array_unique_agg(session):
     ), f"Unexpected result: {result_list}, expected: {expected_result}"
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370338 KeyError: 2 raised",
-)
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],

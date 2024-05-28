@@ -90,6 +90,7 @@ from snowflake.snowpark.functions import (
     hour,
     iff,
     initcap,
+    is_char,
     is_null,
     lag,
     last_value,
@@ -223,6 +224,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 )
 from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
     expand_pivot_result_with_pivot_table_margins,
+    expand_pivot_result_with_pivot_table_margins_no_groupby_columns,
     generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings,
     generate_single_pivot_labels,
     pivot_helper,
@@ -1207,6 +1209,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index, index_label
         )
 
+    def cache_result(self) -> "SnowflakeQueryCompiler":
+        """
+        Returns a materialized view of this QueryCompiler.
+        """
+        return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
+
     @property
     def columns(self) -> native_pd.Index:
         """
@@ -1424,10 +1432,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: Union[int, Sequence[int]] = 1,
         freq: Any = None,
-        axis: Union[Literal[0], Literal[1]] = 0,
+        axis: Literal[0, 1] = 0,
         fill_value: Hashable = no_default,
+        suffix: Optional[str] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Implements shift operation for DataFrame/Series.
@@ -1440,14 +1449,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler
         """
-
+        if suffix is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter"
+            )
+        if not isinstance(periods, int):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
+            )
         # if frequency is None, shift data by periods
         # else if frequency is given, shift index only
         if freq is None:
-            return self._shift_values(periods, axis, fill_value)
+            # mypy isn't smart enough to recognize that periods is an int here
+            return self._shift_values(periods, axis, fill_value)  # type: ignore
         else:
             # axis parameter ignored, should be 0 for manipulating index. Revisit in SNOW-1023324
-            return self._shift_index(periods, freq)  # pragma: no cover
+            return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
     def index(self) -> pd.Index:
@@ -6414,14 +6431,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             raise TypeError("Must provide 'func' or named aggregation **kwargs.")
 
-        # With margins, a dictionary aggfunc that maps to list of aggregations is not supported by pandas.  We return
-        # friendly error message in this case.
-        if (
-            margins
-            and isinstance(aggfunc, dict)
-            and any(not isinstance(af, str) for af in aggfunc.values())
+        if isinstance(aggfunc, dict) and any(
+            not isinstance(af, str) for af in aggfunc.values()
         ):
-            raise ValueError("Margins not supported if list of aggregation functions")
+            # With margins, a dictionary aggfunc that maps to list of aggregations is not supported by pandas.  We return
+            # friendly error message in this case.
+            if margins:
+                raise ValueError(
+                    "Margins not supported if list of aggregation functions"
+                )
+            elif index is None:
+                raise NotImplementedError(
+                    "Not implemented index is None and list of aggregation functions."
+                )
 
         # Duplicate pivot column and index are not allowed, but duplicate aggregation values are supported.
         index_and_data_column_pandas_labels = (
@@ -6458,11 +6480,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else []
         )
 
-        if len(groupby_snowflake_quoted_identifiers) == 0:
-            raise NotImplementedError(
-                "pivot_table with no index configuration is currently not supported"
-            )
-
         if values is None:
             # If no values (aggregation columns) are specified, then we use all data columns that are neither
             # groupby (index) nor pivot columns as the aggregation columns.  For example, a dataframe with
@@ -6483,13 +6500,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 values, self._modin_frame
             )
         )
-
+        multiple_agg_funcs_single_values = (
+            isinstance(aggfunc, list) and len(aggfunc) > 1
+        ) and not isinstance(values, list)
+        include_aggr_func_in_label = (
+            len(groupby_snowflake_quoted_identifiers) != 0
+            or multiple_agg_funcs_single_values
+        )
         pivot_aggr_groupings = list(
             generate_single_pivot_labels(
                 values_label_to_identifier_pairs_list,
                 aggfunc,
                 len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list),
+                isinstance(values, list)
+                and (not margins or len(values) > 1)
+                and include_aggr_func_in_label,
                 sort,
             )
         )
@@ -6503,6 +6528,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             columns,
             groupby_snowflake_quoted_identifiers,
             pivot_snowflake_quoted_identifiers,
+            (isinstance(aggfunc, list) and len(aggfunc) > 1),
+            (isinstance(values, list) and len(values) > 1),
             index,
         )
 
@@ -6520,16 +6547,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
-        if margins and pivot_aggr_groupings and pivot_snowflake_quoted_identifiers:
-            pivot_qc = expand_pivot_result_with_pivot_table_margins(
-                pivot_aggr_groupings,
-                groupby_snowflake_quoted_identifiers,
-                pivot_snowflake_quoted_identifiers,
-                self._modin_frame.ordered_dataframe,
-                pivot_qc,
-                margins_name,
-                fill_value,
-            )
+        # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins, since the result
+        # will still be an empty DataFrame (but we will have increased the join and union count) for no reason.
+        if (
+            margins
+            and pivot_aggr_groupings
+            and pivot_snowflake_quoted_identifiers
+            and len(pivot_qc.columns) != 0
+        ):
+            if len(groupby_snowflake_quoted_identifiers) > 0:
+                pivot_qc = expand_pivot_result_with_pivot_table_margins(
+                    pivot_aggr_groupings,
+                    groupby_snowflake_quoted_identifiers,
+                    pivot_snowflake_quoted_identifiers,
+                    self._modin_frame.ordered_dataframe,
+                    pivot_qc,
+                    margins_name,
+                    fill_value,
+                )
+            else:
+                pivot_qc = (
+                    expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
+                        pivot_qc,
+                        self._modin_frame,
+                        pivot_aggr_groupings,
+                        dropna,
+                        columns,
+                        aggfunc,
+                        pivot_snowflake_quoted_identifiers,
+                        values,
+                        margins_name,
+                    )
+                )
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
@@ -9738,7 +9788,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Helper function to compute the mode ("top") and frequency with which the mode
                 appears ("count") for a given column.
 
-                This helper returns a 1-row OrderedFrame with the columns "__index__", "top" and "freq",
+                This helper returns a 1-row OrderedDataFrame with the columns "__index__", "top" and "freq",
                 containing the column name, the mode of this column, and the number of times the mode
                 occurs. This result should be UNION ALL'd together with the results from the other
                 columns of the original frame, then transposed so "top" and "freq" are rows.
@@ -9761,7 +9811,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert len(col_labels_tuple) == len(
                     new_index_identifiers
                 ), f"level of labels {col_labels_tuple} did not match level of identifiers {new_index_identifiers}"
-                # The below OrderedFrame operations are analogous to the following SQL for column "a":
+                # The below OrderedDataFrame operations are analogous to the following SQL for column "a":
                 # SELECT 'a' AS __index__,
                 #        a::VARIANT AS top,
                 #        IFF(a IS NULL, NULL, COUNT(a)) AS freq
@@ -11524,6 +11574,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    def _replace_non_str(
+        self,
+        in_col: SnowparkColumn,
+        out_col: SnowparkColumn,
+        replacement_value: Optional[object] = None,
+    ) -> SnowparkColumn:
+        """
+        Handle the case where the input column to the string method may contain mixed types.
+        In this case, we follow the pandas behavior, where all non-string input value results
+        in a Null value (for most string methods). For some string methods, those resulting
+        Null values are replaced by some configured value based on a parameter in the method's
+        signature (e.g., `str_contains` has an `na` parameter).
+
+        Parameters
+        ----------
+        in_col : SnowparkColumn
+            Input column to the string method.
+        out_col : SnowparkColumn
+            Output column from the string method if in_col was not null.
+        replacement_value : Optional[str], default None.
+            value to use for out_col when the value of in_col is non-string.
+        """
+        return iff(
+            not_(is_char(to_variant(in_col))), pandas_lit(replacement_value), out_col
+        )
+
     def _str_startswith_endswith(
         self,
         pat: Union[str, tuple],
@@ -11570,7 +11646,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = col(col_name).rlike(pandas_lit(new_pat))
                 if any([not isinstance(p, str) for p in pat]):
                     new_col = iff(new_col, pandas_lit(True), pandas_lit(None))
-            return new_col if na is None else coalesce(new_col, pandas_lit(na))
+            new_col = new_col if na is None else coalesce(new_col, pandas_lit(na))
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, na)
@@ -11628,7 +11705,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             # We use delimeters and set it as the empty string so that we treat the entire string as one word
             # and thus only capitalize the first character of the first word
-            lambda col: initcap(col, delimiters=pandas_lit(""))
+            lambda col: self._replace_non_str(
+                col, initcap(col, delimiters=pandas_lit(""))
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11641,7 +11720,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name).rlike("[0-9]+")
+            lambda col_name: self._replace_non_str(
+                col(col_name), col(col_name).rlike("[0-9]+")
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11654,9 +11735,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name)
-            .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-            .__and__(col(col_name).__eq__(lower(col_name)))
+            lambda col_name: self._replace_non_str(
+                col(col_name),
+                col(col_name)
+                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
+                .__and__(col(col_name).__eq__(lower(col_name))),
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11669,9 +11753,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name)
-            .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-            .__and__(col(col_name).__eq__(upper(col_name)))
+            lambda col_name: self._replace_non_str(
+                col(col_name),
+                col(col_name)
+                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
+                .__and__(col(col_name).__eq__(upper(col_name))),
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11690,8 +11777,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_identifier: col(col_identifier).rlike(
-                "^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"
+            lambda col_identifier: self._replace_non_str(
+                col(col_identifier),
+                col(col_identifier).rlike(
+                    "^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"
+                ),
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -11705,7 +11795,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: lower(col_name)
+            lambda col_name: self._replace_non_str(col(col_name), lower(col_name))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11718,7 +11808,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: upper(col_name)
+            lambda col_name: self._replace_non_str(col(col_name), upper(col_name))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11733,7 +11823,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             # Capitalize the first character of each word
-            lambda col: initcap(col)
+            lambda col: self._replace_non_str(col, initcap(col))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11811,7 +11901,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_col = builtin("rlike")(
                 col(col_name), pandas_lit(pat), pandas_lit(params)
             )
-            return new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            new_col = (
+                new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            )
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col
@@ -11845,10 +11938,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if pat == "":
                 # Special case to handle empty search pattern.
                 # Snowflake's regexp_count returns 0, while pandas returns string length + 1.
-                return length(col(col_name)) + 1
-            return builtin("regexp_count")(
-                col(col_name), pandas_lit(pat), 1, pandas_lit(params)
-            )
+                new_col = length(col(col_name)) + 1
+            else:
+                new_col = builtin("regexp_count")(
+                    col(col_name), pandas_lit(pat), 1, pandas_lit(params)
+                )
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col
@@ -11868,8 +11963,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
+        # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
         return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_data_columns(length)
+            self._modin_frame.apply_snowpark_function_to_data_columns(
+                lambda col: self._replace_non_str(col, length(col))
+            )
         )
 
     def str_slice(
@@ -12000,7 +12098,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
                     pandas_lit("\\2"),
                 )
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, start, stop, step)
@@ -12134,7 +12232,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit([]),
                     new_col,
                 )
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, n)
@@ -12259,7 +12357,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 # Replace all occurrences using SQL's replace.
                 new_col = builtin("replace")(col(col_name), pat, repl)
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, n, flags)
@@ -12285,11 +12383,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't support non-str 'to_strip' argument"
             )
+        if to_strip is None:
+            to_strip = "\t\n\r\f "
 
         def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            if to_strip is None:
-                return builtin("trim")(col(col_name), pandas_lit("\t\n\r\f "))
-            return builtin("trim")(col(col_name), pandas_lit(to_strip))
+            new_col = builtin("trim")(col(col_name), pandas_lit(to_strip))
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col
