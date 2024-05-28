@@ -333,7 +333,7 @@ class PandasOnSnowflakeIO(BaseIO):
 
         WarningMessage.mismatch_with_pandas(
             "read_csv",
-            "Staged files use the snowflake CSV parser, which has different behavior than the pandas CSV parser",
+            "Staged files use the Snowflake CSV parser, which has different behavior than the pandas CSV parser",
         )
         _validate_read_staged_csv_and_read_table_args("pd.read_csv", **kwargs)
 

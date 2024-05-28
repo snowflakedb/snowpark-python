@@ -132,7 +132,7 @@ def get_columns_to_keep_for_usecols(
     _usecols = usecols
     if callable(_usecols):
         keep = [column for column in columns if _usecols(column)]
-    elif len(_usecols) <= 0:
+    elif len(_usecols) == 0:
         keep = []
     else:
         if isinstance(_usecols, native_pandas.core.series.Series):

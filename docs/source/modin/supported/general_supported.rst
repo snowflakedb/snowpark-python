@@ -50,7 +50,7 @@ Data manipulations
 | ``read_csv``                | P                               |                                  | Reads both local and staged file(s) into a Snowpark|
 |                             |                                 |                                  | pandas DataFrame. Note, the order of rows in the   |
 |                             |                                 |                                  | may differ from the order of rows in the original  |
-|                             |                                 |                                  | file(s).                                           |
+|                             |                                 |                                  | file(s) if using staged csvs.                      |
 |                             |                                 |                                  |                                                    |
 |                             |                                 |                                  | Local files are parsed with native pandas and thus |
 |                             |                                 |                                  | support most of the parameters supported by pandas |

@@ -70,20 +70,20 @@ def test_read_csv_header_none(resources_path):
 
 
 @pytest.mark.parametrize("header", [0, 1])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_read_csv_header_simple(resources_path, header):
     test_files = TestFiles(resources_path)
 
-    expected = pd.read_csv(test_files.test_file_csv_header, header=header)
+    expected = native_pd.read_csv(test_files.test_file_csv_header, header=header)
     got = pd.read_csv(test_files.test_file_csv_header, header=header)
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_read_csv_header_skiprows(resources_path):
     test_files = TestFiles(resources_path)
 
-    expected = pd.read_csv(test_files.test_file_csv_header, header=1, skiprows=1)
+    expected = native_pd.read_csv(test_files.test_file_csv_header, header=1, skiprows=1)
     got = pd.read_csv(test_files.test_file_csv_header, header=1, skiprows=1)
 
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
