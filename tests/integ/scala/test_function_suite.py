@@ -3835,6 +3835,28 @@ def test_convert_timezone(session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
+def test_convert_timezone_with_source(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives2(session)
+
+        Utils.check_answer(
+            df.select(convert_timezone(lit("UTC"), "timestamp", lit("US/Eastern"))),
+            [
+                Row(datetime(9999, 12, 31, 5, 0, 0, 123456)),
+                Row(datetime(1583, 1, 2, 4, 56, 1, 567890)),
+            ],
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="time_from_parts is not yet supported in local testing mode.",
