@@ -253,7 +253,7 @@ class Column:
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
-            # some repitition here, but _expression logic will be eliminated eventually
+            # some repetition here, but _expression logic will be eliminated eventually
             if self._ast is None:
                 self._ast = proto.SpColumnExpr()
                 if expr1 == "*":
