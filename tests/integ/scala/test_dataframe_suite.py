@@ -1839,7 +1839,6 @@ def test_createDataFrame_with_given_schema_vector(session):
     Utils.check_answer(df, data_float)
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector(session):
     schema_int = StructType([StructField("vec", VectorType(int, 3))])
     data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]

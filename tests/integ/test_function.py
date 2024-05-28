@@ -149,6 +149,7 @@ from snowflake.snowpark.functions import (
     uniform,
     upper,
     vector_cosine_distance,
+    vector_cosine_similarity,
     vector_inner_product,
     vector_l2_distance,
 )
@@ -1398,11 +1399,15 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
-@pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
 def test_vector_distances(session):
     df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
 
     res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(
+        res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
+    )
+
+    res = df.select(vector_cosine_similarity(df.a, df.b).as_("distance")).collect()
     Utils.check_answer(
         res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
     )
@@ -1416,18 +1421,19 @@ def test_vector_distances(session):
     df = session.sql(
         "select [1.1,2.2]::vector(float,2) as a, [2.2,3.3]::vector(float,2) as b"
     )
+
     res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
     inner_product = 1.1 * 2.2 + 2.2 * 3.3
-    Utils.check_answer(
-        res,
-        [
-            Row(
-                DISTANCE=inner_product
-                / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
-            )
-        ],
-        float_equality_threshold=0.0005,
-    )
+    cosine_similarity_output = [
+        Row(
+            DISTANCE=inner_product
+            / ((1.1**2 + 2.2**2) ** 0.5 * (2.2**2 + 3.3**2) ** 0.5)
+        )
+    ]
+    Utils.check_answer(res, cosine_similarity_output, float_equality_threshold=0.0005)
+
+    res = df.select(vector_cosine_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, cosine_similarity_output, float_equality_threshold=0.0005)
 
     res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
     Utils.check_answer(
