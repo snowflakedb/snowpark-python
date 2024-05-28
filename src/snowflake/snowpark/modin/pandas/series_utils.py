@@ -20,9 +20,7 @@
 # Version 2.0.
 
 """
-Implement Series's accessors public API as pandas does.
-
-Accessors: `Series.cat`, `Series.str`, `Series.dt`
+Overrides the `Series.cat` accessor. `Series.str` and `Series.dt` are inherited from modin.
 """
 
 # add this line to enable doc tests to run
