@@ -605,11 +605,18 @@ def handle_udf_expression(
             # And these code would look like:
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
+
+            strict = analyzer.session.udf.get_strictness(udf_name)
+            data = []
+            for _, row in function_input.iterrows():
+                if strict and any([v is None for v in row]):
+                    result = None
+                else:
+                    result = remove_null_wrapper(udf_handler(*row))
+                data.append(result)
+
             res = ColumnEmulator(
-                data=[
-                    remove_null_wrapper(udf_handler(*row))
-                    for _, row in function_input.iterrows()
-                ],
+                data=data,
                 sf_type=ColumnType(exp.datatype, exp.nullable),
                 name=quote_name(
                     f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
