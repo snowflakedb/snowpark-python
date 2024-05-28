@@ -117,6 +117,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Filter,
     Pivot,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -318,9 +319,18 @@ class MockAnalyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             func_name = expr.name.upper()
+
+            children = []
+            for c in expr.children:
+                extracted = self.to_sql_avoid_offset(c, expr_to_alias)
+                if isinstance(extracted, list):
+                    children.extend(extracted)
+                else:
+                    children.append(extracted)
+
             return function_expression(
                 func_name,
-                [self.to_sql_avoid_offset(c, expr_to_alias) for c in expr.children],
+                children,
                 expr.is_distinct,
             )
 
@@ -642,6 +652,13 @@ class MockAnalyzer:
     ) -> MockExecutionPlan:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
+
+        if isinstance(logical_plan, Rename):
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
+            )
+
         if isinstance(logical_plan, TableFunctionJoin):
             self._conn.log_not_supported_error(
                 external_feature_name="table_function.TableFunctionJoin",

@@ -39,7 +39,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock._udf_utils import types_are_compatible
+from snowflake.snowpark.mock._udf_utils import (
+    coerce_variant_input,
+    remove_null_wrapper,
+    types_are_compatible,
+)
 from snowflake.snowpark.mock._util import get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
@@ -174,6 +178,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -295,7 +300,7 @@ def handle_range_frame_indexing(
     res_index: "pd.Index",
     res: "pd.api.typing.DataFrameGroupBy",
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     unbounded_preceding: bool,
     unbounded_following: bool,
 ) -> "pd.api.typing.RollingGroupby":
@@ -339,7 +344,7 @@ def handle_function_expression(
     exp: FunctionExpression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     current_row=None,
 ):
     # Special case for count_distinct
@@ -390,18 +395,33 @@ def handle_function_expression(
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:
-            to_pass_args.extend(
-                [
-                    calculate_expression(
-                        c,
-                        input_data,
-                        analyzer,
-                        expr_to_alias,
-                        keep_literal=keep_literal,
+            # SNOW-1441602: Move Star logic to calculate_expression once it can handle table returns
+            args = []
+            for c in exp.children[idx:]:
+                if isinstance(c, Star):
+                    args.extend(
+                        [
+                            calculate_expression(
+                                cc,
+                                input_data,
+                                analyzer,
+                                expr_to_alias,
+                                keep_literal=keep_literal,
+                            )
+                            for cc in c.expressions
+                        ]
                     )
-                    for c in exp.children[idx:]
-                ]
-            )
+                else:
+                    args.append(
+                        calculate_expression(
+                            c,
+                            input_data,
+                            analyzer,
+                            expr_to_alias,
+                            keep_literal=keep_literal,
+                        )
+                    )
+            to_pass_args.extend(args)
         else:
             try:
                 to_pass_args.append(
@@ -430,7 +450,13 @@ def handle_function_expression(
         )  # the row's 0-base index in the window
         to_pass_args.append(row_idx)
 
-    result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    try:
+        result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+    except Exception as err:
+        SnowparkLocalTestingException.raise_from_error(
+            err,
+            error_message=f"Error executing mocked function '{func_name}'. See error traceback for detailed information.",
+        )
 
     # If none of the args are column emulators and the function result only has one item
     # assume that the single value should be repeated instead of Null filled. This allows
@@ -453,7 +479,7 @@ def handle_udf_expression(
     exp: FunctionExpression,
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer: "MockAnalyzer",
-    expr_to_alias: Optional[Dict[str, str]],
+    expr_to_alias: Dict[str, str],
     current_row=None,
 ):
     udf_registry = analyzer.session.udf._registry
@@ -536,24 +562,36 @@ def handle_udf_expression(
         else:
             udf_handler = udf.func
 
-        # Compute
-        function_input = TableEmulator(index=input_data.index)
-        for child in exp.children:
-            col_name = analyzer.analyze(child, expr_to_alias)
-            function_input[col_name] = calculate_expression(
-                child, input_data, analyzer, expr_to_alias
-            )
-        # Validate function inputs
-        actual_types = [col.datatype for col in function_input.sf_types.values()]
-        if len(actual_types) != len(udf._input_types):
+        # Compute input data and validate typing
+        if len(exp.children) != len(udf._input_types):
             raise SnowparkLocalTestingException(
-                f"Expected {len(udf._input_types)} arguments, but received {len(actual_types)}"
+                f"Expected {len(udf._input_types)} arguments, but received {len(exp.children)}"
             )
 
-        for expected, actual in zip(udf._input_types, actual_types):
-            if not types_are_compatible(expected, actual):
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, udf._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # SNOW-929218: Once proper type coercion is supported use that instead.
+            if isinstance(expected_type, VariantType) and not isinstance(
+                column_data.sf_type.datatype, VariantType
+            ):
+                column_data.sf_type = ColumnType(
+                    VariantType(), column_data.sf_type.nullable
+                )
+
+            # Variant Data is often cast to specific python types when passed to a udf.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            function_input[col_name] = column_data
+
+            if not types_are_compatible(column_data.sf_type.datatype, expected_type):
                 raise SnowparkLocalTestingException(
-                    f"UDF received input types {actual_types}, but expected inputs types of {udf._input_types}"
+                    f"UDF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
                 )
 
         try:
@@ -568,7 +606,10 @@ def handle_udf_expression(
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
             res = ColumnEmulator(
-                data=[udf_handler(*row) for _, row in function_input.iterrows()],
+                data=[
+                    remove_null_wrapper(udf_handler(*row))
+                    for _, row in function_input.iterrows()
+                ],
                 sf_type=ColumnType(exp.datatype, exp.nullable),
                 name=quote_name(
                     f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
@@ -590,7 +631,8 @@ def execute_mock_plan(
     import numpy as np
 
     if expr_to_alias is None:
-        expr_to_alias = {}
+        expr_to_alias = plan.expr_to_alias
+
     if isinstance(plan, (MockExecutionPlan, SnowflakePlan)):
         source_plan = plan.source_plan
         analyzer = plan.session._analyzer
@@ -691,7 +733,7 @@ def execute_mock_plan(
 
         if where:
             condition = calculate_expression(where, result_df, analyzer, expr_to_alias)
-            result_df = result_df[condition]
+            result_df = result_df[condition.fillna(value=False)]
 
         if order_by:
             result_df = handle_order_by_clause(
@@ -775,7 +817,7 @@ def execute_mock_plan(
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
             execution_plan = entity_registry.get_review(entity_name)
-            res_df = execute_mock_plan(execution_plan)
+            res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
         else:
             db_schme_table = parse_table_name(entity_name)
@@ -784,7 +826,7 @@ def execute_mock_plan(
                 f"Object '{table}' does not exist or not authorized."
             )
     if isinstance(source_plan, Aggregate):
-        child_rf = execute_mock_plan(source_plan.child)
+        child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
         if (
             not source_plan.aggregate_expressions
             and not source_plan.grouping_expressions
@@ -1088,7 +1130,7 @@ def execute_mock_plan(
 
             condition = calculate_expression(
                 source_plan.join_condition, result_df, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             sf_types = result_df.sf_types
             if "SEMI" in source_plan.join_type.sql:  # left semi
                 result_df = left[outer_join(left)]
@@ -1142,7 +1184,7 @@ def execute_mock_plan(
                 parameters_info={"source_plan.column_names": "True"},
                 raise_error=NotImplementedError,
             )
-        res_df = execute_mock_plan(source_plan.query)
+        res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
             source_plan.table_name, res_df, source_plan.mode
         )
@@ -1152,7 +1194,7 @@ def execute_mock_plan(
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):
             execution_plan = entity_registry.get_review(entity_name)
-            res_df = execute_mock_plan(execution_plan)
+            res_df = execute_mock_plan(execution_plan, expr_to_alias)
             return res_df
         else:
             obj_name_tuple = parse_table_name(entity_name)
@@ -1171,7 +1213,7 @@ def execute_mock_plan(
                 f"Object '{obj_database[1:-1]}.{obj_schema[1:-1]}.{obj_name[1:-1]}' does not exist or not authorized."
             )
     if isinstance(source_plan, Sample):
-        res_df = execute_mock_plan(source_plan.child)
+        res_df = execute_mock_plan(source_plan.child, expr_to_alias)
 
         if source_plan.row_count and (
             source_plan.row_count < 0 or source_plan.row_count > 100000
@@ -1212,7 +1254,7 @@ def execute_mock_plan(
             # Select rows to be updated based on condition
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
 
             matched = target.apply(tuple, 1).isin(
                 intermediate[condition][target.columns].apply(tuple, 1)
@@ -1270,7 +1312,7 @@ def execute_mock_plan(
         if source_plan.condition:
             condition = calculate_expression(
                 source_plan.condition, intermediate, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             intermediate = intermediate[condition]
             matched = target.apply(tuple, 1).isin(
                 intermediate[target.columns].apply(tuple, 1)
@@ -1319,7 +1361,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     rows_to_update = join_result[condition]
                 else:
                     rows_to_update = join_result
@@ -1349,7 +1391,7 @@ def execute_mock_plan(
                 if clause.condition:
                     condition = calculate_expression(
                         clause.condition, join_result, analyzer, expr_to_alias
-                    )
+                    ).fillna(value=False)
                     intermediate = join_result[condition]
                 else:
                     intermediate = join_result
@@ -1381,7 +1423,7 @@ def execute_mock_plan(
                         unmatched_rows_in_source,
                         analyzer,
                         expr_to_alias,
-                    )
+                    ).fillna(value=False)
                     unmatched_rows_in_source = unmatched_rows_in_source[condition]
 
                 # filter out the unmatched rows that have been inserted in previous clauses
@@ -1460,7 +1502,7 @@ def execute_mock_plan(
 
         return [Row(*res)]
     elif isinstance(source_plan, Pivot):
-        child_rf = execute_mock_plan(source_plan.child)
+        child_rf = execute_mock_plan(source_plan.child, expr_to_alias)
 
         assert (
             len(source_plan.aggregates) == 1
@@ -1681,10 +1723,13 @@ def calculate_expression(
         )
         res = []
         for data in child_column:
-            try:
-                res.append(math.isnan(data))
-            except TypeError:
-                res.append(False)
+            if data is None:
+                res.append(None)
+            else:
+                try:
+                    res.append(math.isnan(data))
+                except TypeError:
+                    res.append(False)
         return ColumnEmulator(
             data=res, dtype=object, sf_type=ColumnType(BooleanType(), True)
         )
@@ -1882,14 +1927,20 @@ def calculate_expression(
                 scale=exp.to.scale,
                 try_cast=exp.try_,
             )
-        elif isinstance(exp.to, IntegerType):
+        elif isinstance(
+            exp.to, _IntegralType
+        ):  # includes ByteType, ShortType, IntegerType, LongType
             res = _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_decimal"](
                 column, try_cast=exp.try_
             )
-            res.set_sf_type(ColumnType(IntegerType(), nullable=column.sf_type.nullable))
+            res.set_sf_type(ColumnType(exp.to, nullable=column.sf_type.nullable))
             return res
         elif isinstance(exp.to, BinaryType):
             return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_binary"](
+                column, try_cast=exp.try_
+            )
+        elif isinstance(exp.to, BooleanType):
+            return _MOCK_FUNCTION_IMPLEMENTATION_MAP["to_boolean"](
                 column, try_cast=exp.try_
             )
         elif isinstance(exp.to, StringType):
@@ -1921,7 +1972,7 @@ def calculate_expression(
                 break
             condition = calculate_expression(
                 case[0], input_data, analyzer, expr_to_alias
-            )
+            ).fillna(value=False)
             value = calculate_expression(case[1], input_data, analyzer, expr_to_alias)
 
             true_index = remaining[condition].index
