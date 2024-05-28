@@ -23,6 +23,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -86,7 +87,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -1065,10 +1065,15 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
+        col_expr_ast = proto.SpColumnExpr()
         if col_name == "*":
+            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
             return Column(Star(self._output))
         else:
-            return Column(self._resolve(col_name))
+            resolved_name = self._resolve(col_name)
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
+            return Column(resolved_name, ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1126,6 +1131,11 @@ class DataFrame:
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+
         names = []
         table_func = None
         join_plan = None
@@ -1133,8 +1143,15 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
+                ast.sp_dataframe_select__columns.cols.append(e._ast)
+
             elif isinstance(e, str):
-                names.append(Column(e)._named())
+                col_expr_ast = ast.sp_dataframe_select__columns.cols.add()
+                col = Column(e, ast=col_expr_ast)
+
+                col_expr_ast.sp_column.name = col.get_name()
+                names.append(col._named())
+
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1198,9 +1215,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1339,14 +1356,14 @@ class DataFrame:
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
                 ),
-                ast_stmt=stmt
+                ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             ),
-            ast_stmt=stmt
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -3311,10 +3328,10 @@ class DataFrame:
             repr = self._session._ast_batch.assign()
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
-            
-            print(f'Original: {self._plan.queries}')
-            print(f'AST: {self._session._ast_batch._request}')
-            
+
+            print(f"Original: {self._plan.queries}")
+            print(f"AST: {self._session._ast_batch._request}")
+
             ast = self._session._ast_batch.flush()
             # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
             # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
