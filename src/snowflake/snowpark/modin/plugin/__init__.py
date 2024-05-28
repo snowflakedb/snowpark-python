@@ -5,9 +5,10 @@
 import sys
 import warnings
 
-from packaging import version
-
 import snowflake.snowpark._internal.utils
+
+# from packaging import version
+
 
 if sys.version_info.major == 3 and sys.version_info.minor == 8:
     raise RuntimeError(
@@ -21,28 +22,28 @@ install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-supported_pandas_version = "2.2.1"
-if pandas.__version__ != supported_pandas_version:
-    raise RuntimeError(
-        f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
-        + f" Snowpark pandas ({supported_pandas_version}). "
-        + install_msg
-    )  # pragma: no cover
+# supported_pandas_version = "2.2.1"
+# if pandas.__version__ != supported_pandas_version:
+#     raise RuntimeError(
+#         f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
+#         + f" Snowpark pandas ({supported_pandas_version}). "
+#         + install_msg
+#     )  # pragma: no cover
 
 try:
-    import modin  # type: ignore
+    import modin  # type: ignore  # noqa: F401
 except ModuleNotFoundError:  # pragma: no cover
     raise ModuleNotFoundError(
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.28.1"
-if version.parse(modin.__version__) != version.parse(supported_modin_version):
-    raise ImportError(
-        f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
-        + f" Snowpark pandas ({supported_modin_version}). "
-        + install_msg
-    )  # pragma: no cover
+# supported_modin_version = "0.28.1"
+# if version.parse(modin.__version__) != version.parse(supported_modin_version):
+#     raise ImportError(
+#         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
+#         + f" Snowpark pandas ({supported_modin_version}). "
+#         + install_msg
+#     )  # pragma: no cover
 
 
 warnings.warn(
@@ -57,7 +58,7 @@ warnings.warn(
 # circular dependencies from manifesting, apparently snowflake.snowpark.modin.pandas needs to
 # be imported first.
 # These imports also all need to occur after modin + pandas dependencies are validated.
-from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401,F811
 from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
 
