@@ -7,6 +7,7 @@ import sys
 from typing import Optional, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -226,9 +227,15 @@ class Column:
     """
 
     def __init__(
-        self, expr1: Union[str, Expression], expr2: Optional[str] = None
+        self,
+        expr1: Union[str, Expression],
+        expr2: Optional[str] = None,
+        ast: Optional[proto.SpColumnExpr] = None,
     ) -> None:
+        self._ast = ast
+
         if expr2 is not None:
+            # TODO: Find correct entities in AST for df_aliasing
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
                     self._expression = Star([], df_alias=expr1)
@@ -245,6 +252,15 @@ class Column:
                 self._expression = Star([])
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
+
+            # some repetition here, but _expression logic will be eliminated eventually
+            if self._ast is None:
+                self._ast = proto.SpColumnExpr()
+                if expr1 == "*":
+                    self._ast.sp_column_sql_expr.sql = "*"
+                else:
+                    self._ast.sp_column.name = quote_name(expr1)
+
         elif isinstance(expr1, Expression):
             self._expression = expr1
         else:  # pragma: no cover
