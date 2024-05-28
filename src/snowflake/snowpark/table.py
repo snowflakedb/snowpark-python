@@ -8,6 +8,7 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -20,7 +21,6 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark.column import Column
