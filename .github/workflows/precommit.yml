@@ -519,9 +519,10 @@ jobs:
         with:
           name: overall_cov_xml
           path: .tox/coverage.xml
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v4
         with:
           file: .tox/coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
       - name: Show coverage diff
         run: |
           pip install diff_cover
