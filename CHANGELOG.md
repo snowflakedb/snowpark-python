@@ -2,6 +2,9 @@
 
 ## 1.18.0 (2024-05-28)
 
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+- Improved error handling for `Session.create_dataframe` when called with more than 512 rows and using `format` or `pyformat` `paramstyle`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
