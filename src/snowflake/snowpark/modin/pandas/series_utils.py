@@ -28,7 +28,6 @@ Accessors: `Series.cat`, `Series.str`, `Series.dt`
 # add this line to enable doc tests to run
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
-from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
 class CategoryMethods:
