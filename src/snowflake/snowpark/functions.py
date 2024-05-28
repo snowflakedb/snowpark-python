@@ -5774,6 +5774,9 @@ def object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> C
 def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """Returns the cosine distance between two vectors of equal dimension and element type.
 
+    This function has been deprecated in favor of vector_cosine_similarity, whose semantics are
+    the same.
+
     Example::
         >>> from snowflake.snowpark.functions import vector_cosine_distance
         >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
@@ -5788,6 +5791,25 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     v1 = _to_col_if_str(v1, "vector_cosine_distance")
     v2 = _to_col_if_str(v2, "vector_cosine_distance")
     return builtin("vector_cosine_distance")(v1, v2)
+
+
+def vector_cosine_similarity(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+    """Returns the cosine similarity metric between two vectors of equal dimension and element type.
+
+    Example::
+        >>> from snowflake.snowpark.functions import vector_cosine_similarity
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_cosine_similarity(df.a, df.b).as_("dist")).show()
+        ----------------------
+        |"DIST"              |
+        ----------------------
+        |0.9925833339709303  |
+        ----------------------
+        <BLANKLINE>
+    """
+    v1 = _to_col_if_str(v1, "vector_cosine_similarity")
+    v2 = _to_col_if_str(v2, "vector_cosine_similarity")
+    return builtin("vector_cosine_similarity")(v1, v2)
 
 
 def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
