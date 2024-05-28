@@ -1913,6 +1913,9 @@ def calculate_expression(
     if isinstance(exp, CaseWhen):
         remaining = input_data
         output_data = ColumnEmulator([None] * len(input_data))
+        output_data.sf_type = ColumnType(
+            NullType(), True
+        )  # This is temporary fix, the correct solution is to calculate target type from coercion
         for case in exp.branches:
             if len(remaining) == 0:
                 break
@@ -1925,14 +1928,13 @@ def calculate_expression(
             output_data[true_index] = value[true_index]
             remaining = remaining[~remaining.index.isin(true_index)]
 
-            if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type != value.sf_type
-                ):
-                    raise SnowparkLocalTestingException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
-                    )
+            if (
+                not isinstance(output_data.sf_type.datatype, NullType)
+                and output_data.sf_type != value.sf_type
+            ):
+                raise SnowparkLocalTestingException(
+                    f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                )
             else:
                 output_data.sf_type = value.sf_type
 
@@ -1941,14 +1943,13 @@ def calculate_expression(
                 exp.else_value, remaining, analyzer, expr_to_alias
             )
             output_data[remaining.index] = value[remaining.index]
-            if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type.datatype != value.sf_type.datatype
-                ):
-                    raise SnowparkLocalTestingException(
-                        f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
-                    )
+            if (
+                not isinstance(output_data.sf_type.datatype, NullType)
+                and output_data.sf_type.datatype != value.sf_type.datatype
+            ):
+                raise SnowparkLocalTestingException(
+                    f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
+                )
             else:
                 output_data.sf_type = value.sf_type
         return output_data
@@ -2042,7 +2043,7 @@ def calculate_expression(
                         window_function, w, analyzer, expr_to_alias, current_row
                     )
                 )
-            res_col = pd.concat(res_cols)
+            res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
             res_col.index = res_index
             if res_cols:
                 res_col.set_sf_type(res_cols[0].sf_type)
