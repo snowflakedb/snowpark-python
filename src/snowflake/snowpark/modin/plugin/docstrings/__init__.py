@@ -12,14 +12,20 @@ from snowflake.snowpark.modin.plugin.docstrings.groupby import (
 )
 from snowflake.snowpark.modin.plugin.docstrings.resample import Resampler
 from snowflake.snowpark.modin.plugin.docstrings.series import Series
+from snowflake.snowpark.modin.plugin.docstrings.series_utils import (
+    CombinedDatetimelikeProperties,
+    StringMethods,
+)
 from snowflake.snowpark.modin.plugin.docstrings.window import Rolling
 
 __all__ = [
     "BasePandasDataset",
     "DataFrame",
     "DataFrameGroupBy",
+    "CombinedDatetimelikeProperties",
     "Resampler",
     "Rolling",
     "Series",
     "SeriesGroupBy",
+    "StringMethods",
 ]
