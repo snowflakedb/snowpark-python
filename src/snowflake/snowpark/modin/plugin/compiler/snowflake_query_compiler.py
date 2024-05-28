@@ -8482,6 +8482,105 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self
 
+    def dt_date(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("date")
+
+    def dt_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("time")
+
+    def dt_timetz(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("timetz")
+
+    def dt_year(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("year")
+
+    def dt_month(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("month")
+
+    def dt_day(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("day")
+
+    def dt_hour(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("hour")
+
+    def dt_minute(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("minute")
+
+    def dt_second(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("second")
+
+    def dt_microsecond(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("microsecond")
+
+    def dt_nanosecond(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("nanosecond")
+
+    def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("dayofweek")
+
+    def dt_weekday(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("weekday")
+
+    def dt_dayofyear(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("dayofyear")
+
+    def dt_quarter(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("quarter")
+
+    def dt_is_month_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_month_start")
+
+    def dt_is_month_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_month_end")
+
+    def dt_is_quarter_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_quarter_start")
+
+    def dt_is_quarter_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_quarter_end")
+
+    def dt_is_year_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_year_start")
+
+    def dt_is_year_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_year_end")
+
+    def dt_is_leap_year(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_leap_year")
+
+    def dt_daysinmonth(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("daysinmonth")
+
+    def dt_days_in_month(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("days_in_month")
+
+    def dt_freq(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("freq")
+
+    def dt_seconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("seconds")
+
+    def dt_days(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("days")
+
+    def dt_microseconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("microseconds")
+
+    def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("nanoseconds")
+
+    def dt_components(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("components")
+
+    def dt_qyear(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("qyear")
+
+    def dt_start_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("start_time")
+
+    def dt_end_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("end_time")
+
     def dt_property(self, property_name: str) -> "SnowflakeQueryCompiler":
         """
         Extracts the specified date or time part from the timestamp.

@@ -2337,6 +2337,12 @@ class Series(BasePandasDataset):
 
         from modin.pandas.series_utils import DatetimeProperties
 
+        if DatetimeProperties._Series is not Series:
+            del (
+                DatetimeProperties._Series
+            )  # Replace modin's Series class with Snowpark pandas Series
+            DatetimeProperties._Series = Series
+
         return DatetimeProperties(self)
 
     @property
@@ -2469,6 +2475,12 @@ class Series(BasePandasDataset):
             raise AttributeError("Can only use .str accessor with string values!")
 
         from modin.pandas.series_utils import StringMethods
+
+        if StringMethods._Series is not Series:
+            del (
+                StringMethods._Series
+            )  # Replace modin's Series class with Snowpark pandas Series
+            StringMethods._Series = Series
 
         return StringMethods(self)
 
