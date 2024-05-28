@@ -23,10 +23,6 @@
 
 ### Snowpark Local Testing Updates
 
-#### Breaking changes
-
-- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
-
 #### New Features
 
 - Added support for the following DataFrameReader read options to file formats `csv` and `json`:
@@ -65,6 +61,7 @@
 - Improved target type coverage of `Column.cast`, adding support for casting to boolean and all integral types.
 - Aligned error experience when calling UDFs and stored procedures.
 - Added appropriate error messages for `is_permanent` and `anonymous` options in UDFs and stored procedures registration to make it more clear that those features are not yet supported.
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings and unclear error information.
 
 ## 1.17.0 (2024-05-21)
 
