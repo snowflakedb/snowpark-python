@@ -9,7 +9,7 @@
 ### Snowpark pandas API Updates
 
 #### New Features
-- Added an Index class in Snowpark pandas. This class contains a native pandas index for now, but we plan to turn this into a lazily evaluated index in future updates.
+- Initial work to support an Index directly in Snowpark pandas. Currently, this class is a simple wrapper for a pandas index. Support for Index as a first-class component of Snowpark pandas is coming soon.
 
 #### Improvements
 
