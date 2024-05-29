@@ -8524,6 +8524,105 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self
 
+    def dt_date(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("date")
+
+    def dt_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("time")
+
+    def dt_timetz(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("timetz")
+
+    def dt_year(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("year")
+
+    def dt_month(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("month")
+
+    def dt_day(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("day")
+
+    def dt_hour(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("hour")
+
+    def dt_minute(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("minute")
+
+    def dt_second(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("second")
+
+    def dt_microsecond(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("microsecond")
+
+    def dt_nanosecond(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("nanosecond")
+
+    def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("dayofweek")
+
+    def dt_weekday(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("weekday")
+
+    def dt_dayofyear(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("dayofyear")
+
+    def dt_quarter(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("quarter")
+
+    def dt_is_month_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_month_start")
+
+    def dt_is_month_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_month_end")
+
+    def dt_is_quarter_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_quarter_start")
+
+    def dt_is_quarter_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_quarter_end")
+
+    def dt_is_year_start(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_year_start")
+
+    def dt_is_year_end(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_year_end")
+
+    def dt_is_leap_year(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("is_leap_year")
+
+    def dt_daysinmonth(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("daysinmonth")
+
+    def dt_days_in_month(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("days_in_month")
+
+    def dt_freq(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("freq")
+
+    def dt_seconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("seconds")
+
+    def dt_days(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("days")
+
+    def dt_microseconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("microseconds")
+
+    def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("nanoseconds")
+
+    def dt_components(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("components")
+
+    def dt_qyear(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("qyear")
+
+    def dt_start_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("start_time")
+
+    def dt_end_time(self) -> "SnowflakeQueryCompiler":
+        return self.dt_property("end_time")
+
     def dt_property(self, property_name: str) -> "SnowflakeQueryCompiler":
         """
         Extracts the specified date or time part from the timestamp.
@@ -11623,6 +11722,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def str_cat(
+        self,
+        others: ListLike,
+        sep: Optional[str] = None,
+        na_rep: Optional[str] = None,
+        join: Literal["left", "right", "outer", "inner"] = "left",
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("cat", "Series.str")
+
+    def str_decode(self, encoding: str, errors: str) -> None:
+        ErrorMessage.method_not_implemented_error("decode", "Series.str")
+
+    def str_encode(self, encoding: str, errors: str) -> None:
+        ErrorMessage.method_not_implemented_error("encode", "Series.str")
+
     def str_startswith(
         self, pat: Union[str, tuple], na: object = None
     ) -> "SnowflakeQueryCompiler":
@@ -11661,6 +11775,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._str_startswith_endswith(pat, na, is_startswith=False)
 
+    def str_find(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
+        ErrorMessage.method_not_implemented_error("find", "Series.str")
+
+    def str_rfind(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
+        ErrorMessage.method_not_implemented_error("rfind", "Series.str")
+
+    def str_findall(self, pat: str, flags: int = 0) -> None:
+        ErrorMessage.method_not_implemented_error("findall", "Series.str")
+
+    def str_index(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
+        ErrorMessage.method_not_implemented_error("index", "Series.str")
+
+    def str_rindex(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
+        ErrorMessage.method_not_implemented_error("rindex", "Series.str")
+
+    def str_fullmatch(
+        self, pat: str, case: bool = True, flags: int = 0, na: object = None
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("fullmatch", "Series.str")
+
+    def str_match(
+        self, pat: str, case: bool = True, flags: int = 0, na: object = None
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("match", "Series.str")
+
+    def str_extract(self, pat: str, flags: int = 0, expand: bool = True) -> None:
+        ErrorMessage.method_not_implemented_error("extract", "Series.str")
+
+    def str_extractall(self, pat: str, flags: int = 0, expand: bool = True) -> None:
+        ErrorMessage.method_not_implemented_error("extractall", "Series.str")
+
     def str_capitalize(self) -> "SnowflakeQueryCompiler":
         """
         Capitalize the string
@@ -11679,6 +11824,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def str_isalnum(self) -> None:
+        ErrorMessage.method_not_implemented_error("isalnum", "Series.str")
+
+    def str_isalpha(self) -> None:
+        ErrorMessage.method_not_implemented_error("isalpha", "Series.str")
+
     def str_isdigit(self) -> "SnowflakeQueryCompiler":
         """
         Check whether all characters in each string are digits.
@@ -11693,6 +11844,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_isspace(self) -> None:
+        ErrorMessage.method_not_implemented_error("isspace", "Series.str")
 
     def str_islower(self) -> "SnowflakeQueryCompiler":
         """
@@ -11753,6 +11907,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_isnumeric(self) -> None:
+        ErrorMessage.method_not_implemented_error("isnumeric", "Series.str")
+
+    def str_isdecimal(self) -> None:
+        ErrorMessage.method_not_implemented_error("isdecimal", "Series.str")
 
     def str_lower(self) -> "SnowflakeQueryCompiler":
         """
@@ -11820,6 +11980,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if flags & re.DOTALL:
             params = params + "s"
         return params
+
+    def str_center(self, width: int, fillchar: str = " ") -> None:
+        ErrorMessage.method_not_implemented_error("center", "Series.str")
 
     def str_contains(
         self,
@@ -11918,6 +12081,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def str_get(self, i: int) -> None:
+        ErrorMessage.method_not_implemented_error("get", "Series.str")
+
+    def str_get_dummies(self, sep: str) -> None:
+        ErrorMessage.method_not_implemented_error("get_dummies", "Series.str")
+
+    def str_join(self, sep: str) -> None:
+        ErrorMessage.method_not_implemented_error("join", "Series.str")
+
+    def str_pad(
+        self,
+        width: int,
+        side: Literal["left", "right", "both"] = "left",
+        fillchar: str = " ",
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("pad", "Series.str")
+
+    def str_partition(self, sep: str = " ", expand: bool = True) -> None:
+        ErrorMessage.method_not_implemented_error("partition", "Series.str")
+
+    def str_rpartition(self, sep: str = " ", expand: bool = True) -> None:
+        ErrorMessage.method_not_implemented_error("rpartition", "Series.str")
+
     def str_len(self, **kwargs: Any) -> "SnowflakeQueryCompiler":
         """
         Compute the length of each element in the Series/Index
@@ -11937,6 +12123,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 lambda col: self._replace_non_str(col, length(col))
             )
         )
+
+    def str_ljust(self, width: int, fillchar: str = " ") -> None:
+        ErrorMessage.method_not_implemented_error("ljust", "Series.str")
+
+    def str_rjust(self, width: int, fillchar: str = " ") -> None:
+        ErrorMessage.method_not_implemented_error("rjust", "Series.str")
+
+    def str_normalize(self, form: Literal["NFC", "NFKC", "NFD", "NFKD"]) -> None:
+        ErrorMessage.method_not_implemented_error("normalize", "Series.str")
 
     def str_slice(
         self,
@@ -12073,6 +12268,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def str_slice_replace(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        repl: Optional[Union[str, Callable]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("slice_replace", "Series.str")
+
     def str_split(
         self,
         pat: Optional[str] = None,
@@ -12118,6 +12321,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if pandas.isnull(regex):
             regex = False
+        if not pat and pat is not None:
+            raise ValueError("split() requires a non-empty pattern match.")
 
         if n is None:
             n = -1
@@ -12206,6 +12411,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             lambda col_name: output_col(col_name, pat, n)
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_rsplit(
+        self, pat: Optional[str] = None, *, n: int = -1, expand: bool = False
+    ) -> None:
+        ErrorMessage.method_not_implemented_error("rsplit", "Series.str")
 
     def str_replace(
         self,
@@ -12332,6 +12542,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def str_repeat(self, repeats: int) -> None:
+        ErrorMessage.method_not_implemented_error("repeat", "Series.str")
+
+    def str_removeprefix(self, prefix: str) -> None:
+        ErrorMessage.method_not_implemented_error("removeprefix", "Series.str")
+
+    def str_removesuffix(self, prefix: str) -> None:
+        ErrorMessage.method_not_implemented_error("removesuffix", "Series.str")
+
     def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading and trailing characters.
@@ -12362,6 +12581,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             output_col
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_lstrip(self, to_strip: Union[str, None] = None) -> None:
+        ErrorMessage.method_not_implemented_error("lstrip", "Series.str")
+
+    def str_rstrip(self, to_strip: Union[str, None] = None) -> None:
+        ErrorMessage.method_not_implemented_error("rstrip", "Series.str")
+
+    def str_swapcase(self) -> None:
+        ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
+
+    def str_translate(self, table: dict) -> None:
+        ErrorMessage.method_not_implemented_error("translate", "Series.str")
+
+    def str_wrap(self, width: int, **kwargs: Any) -> None:
+        ErrorMessage.method_not_implemented_error("wrap", "Series.str")
+
+    def str_zfill(self, width: int) -> None:
+        ErrorMessage.method_not_implemented_error("zfill", "Series.str")
 
     def qcut(
         self,
@@ -12769,13 +13006,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return bins, SnowflakeQueryCompiler(ret_frame)
 
     def str_casefold(self) -> None:
-        """
-        Returns:
-            New query compiler with updated values.
-        """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support casefold method"
-        )
+        ErrorMessage.method_not_implemented_error("casefold", "Series.str")
 
     def dt_to_period(self, freq: Optional[str] = None) -> None:
         """
