@@ -840,6 +840,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Returns a SnowflakeQueryCompiler whose internal frame holds the data read from
+        a file or multiple files.
+
+        This method *only* handles local files, parsed using the native pandas parser.
+        """
         # Arguments which must be handled as part of a post-processing stage
         local_exclude_set = ["index_col", "usecols"]
         local_kwargs = {k: v for k, v in kwargs.items() if k not in local_exclude_set}
@@ -853,7 +859,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             local_names = [str(n) for n in kwargs["names"]]
             local_kwargs["names"] = local_names
 
-        # We explicitly do not support chucksize yet
+        # We explicitly do not support chunksize yet
         if local_kwargs["chunksize"] is not None:
             ErrorMessage.not_implemented("chunksize parameter not supported for files")
         # We could return an empty dataframe here, but it does not seem worth it.
@@ -875,7 +881,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 df = df.reset_index()
 
             # Integer columns are not writable to snowflake; so we need to save
-            # these names are fix the header during post processing
+            # these names to fix the header during post processing
             if not is_names_set(kwargs) and kwargs["header"] is None:
                 kwargs["names"] = list(df.columns.values)
                 df.columns = df.columns.astype(str)
@@ -962,6 +968,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Performs final porocessing of a file and returns a SnowflakeQueryCompiler. When
+        reading files into snowpandas we need perform some work after the table has
+        been loaded for certain arguments, specifically header names, dtypes, and usecols.
+        These parameters can be given arguments which are not currently supported by
+        snowflake or they can use positional references.
+        """
         if not kwargs.get("parse_header", True):
             # Rename df header since default header in pandas is
             # 0, 1, 2, ... n.  while default header in SF is c1, c2, ... cn.

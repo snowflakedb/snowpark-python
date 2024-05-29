@@ -1,5 +1,18 @@
 # Release History
 
+## 1.18.1 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
+
 ## 1.18.0 (2024-05-28)
 
 ### Snowpark Python API Updates
@@ -20,7 +33,6 @@
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
-- `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 
 #### Bug Fixes
 

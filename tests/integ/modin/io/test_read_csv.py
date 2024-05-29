@@ -669,7 +669,7 @@ def test_read_csv_dtype_negative(
 
 
 # usecols is applied after the parsing, so changing the dtypes w/ usecols will
-# fail if the original dataset has non-convertable types
+# fail if the original dataset has non-convertible types
 @sql_count_checker(query_count=0)
 def test_read_csv_dtype_usecols_negative(resources_path):
     test_files = TestFiles(resources_path)

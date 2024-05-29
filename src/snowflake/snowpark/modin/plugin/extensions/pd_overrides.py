@@ -251,7 +251,8 @@ def read_csv(
     on_bad_lines : {{'error', 'warn', 'skip'}} or callable, default 'error'
        This parameter is only supported on local files.
     delim_whitespace : bool, default False
-       This parameter is only supported on local files.
+       This parameter is only supported on local files, not files which have been
+       uploaded to a snowflake stage.
     low_memory : bool, default True
         This parameter is not supported and will be ignored.
     memory_map : bool, default False

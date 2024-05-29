@@ -50,20 +50,19 @@ Data manipulations
 | ``read_csv``                | P                               |                                  | Reads both local and staged file(s) into a Snowpark|
 |                             |                                 |                                  | pandas DataFrame. Note, the order of rows in the   |
 |                             |                                 |                                  | may differ from the order of rows in the original  |
-|                             |                                 |                                  | file(s) if using staged csvs. You can use the      |
-|                             |                                 |                                  | ``engine=snowflake`` parameter to force the use of |
-|                             |                                 |                                  | the snowflake CSV parser.                          |
+|                             |                                 |                                  | file(s) if using staged csvs.                      |
 |                             |                                 |                                  |                                                    |
 |                             |                                 |                                  | Local files are parsed with native pandas and thus |
 |                             |                                 |                                  | support most of the parameters supported by pandas |
 |                             |                                 |                                  | itself. The ``usecols`` and ``names`` parameter are|
 |                             |                                 |                                  | applied after creating a temp table in snowflake.  |
 |                             |                                 |                                  |                                                    |
-|                             |                                 |                                  | Previously staged files will usse the Snowflake    |
+|                             |                                 |                                  | Previously staged files will use the Snowflake     |
 |                             |                                 |                                  | ``COPY FROM`` parser and schema inference. If you  |
 |                             |                                 |                                  | need to use staged files often, it is recommended  |
 |                             |                                 |                                  | that you upload these as parquet files to improve  |
-|                             |                                 |                                  | performance.                                       |
+|                             |                                 |                                  | performance. You can force the use of the Snowflake|
+|                             |                                 |                                  | parser with ``engine=snowflake``                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``read_json``               | P                               | ``orient``, ``typ``, ``dtype``,  | ``P``:                                             |
 |                             |                                 | ``convert_axes``, ``lines``,     | - if ndjson files are passed                       |
