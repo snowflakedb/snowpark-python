@@ -1099,3 +1099,39 @@ def generate_column_agg_info(
         new_data_column_index_names += [None]
 
     return column_agg_ops, new_data_column_index_names
+
+
+def using_named_aggregations_for_func(func: Any) -> bool:
+    """
+    Helper method to check if func is formatted in a way that indicates that we are using named aggregations.
+
+    If the user specifies named aggregations, we parse them into the func variable as a dictionary mapping
+    Hashable pandas labels to either a single AggFuncWithLabel or a list of AggFuncWithLabel NamedTuples. To know if
+    a SnowflakeQueryCompiler aggregation method (agg(), groupby_agg()) was called with named aggregations, we can check
+    if the `func` argument passed in obeys this formatting.
+    This function checks the following:
+    1. `func` is dict-like.
+    2. Every value in `func` is either:
+        a) an AggFuncWithLabel object
+        b) a list of AggFuncWithLabel objects.
+    If both conditions are met, that means that this func is the result of our internal processing of an aggregation
+    API with named aggregations specified by the user.
+    """
+    return is_dict_like(func) and all(
+        isinstance(value, AggFuncWithLabel)
+        or (
+            isinstance(value, list)
+            and all(isinstance(v, AggFuncWithLabel) for v in value)
+        )
+        for value in func.values()
+    )
+
+
+def format_kwargs_for_error_message(kwargs: dict[Any, Any]) -> str:
+    """
+    Helper method to format a kwargs dictionary for an error message.
+
+    Returns a string containing the keys + values of kwargs formatted like so:
+    "key1=value1, key2=value2, ..."
+    """
+    return ", ".join([f"{key}={value}" for key, value in kwargs.items()])

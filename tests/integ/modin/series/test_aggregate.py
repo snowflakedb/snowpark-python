@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -41,12 +43,23 @@ def validate_scalar_result(res1, res2):
     "func, is_scalar, has_count_aggregate, expected_union_count",
     [
         (lambda df: df.aggregate(["min"]), False, False, 0),
+        (lambda df: df.aggregate(x="min"), False, False, 0),
         (lambda df: df.aggregate(["min", np.max]), False, False, 1),
+        (lambda df: df.aggregate(x="min", y=np.max), False, False, 1),
+        (
+            lambda df: df.aggregate(y="min", x=np.max),
+            False,
+            False,
+            1,
+        ),  # Test order of index is correct.
         (lambda df: df.aggregate(["min", np.max, "count"]), False, True, 2),
+        (lambda df: df.aggregate(x="min", y=np.max, z="count"), False, True, 2),
         (lambda df: df.aggregate(min), True, False, 0),
         (lambda df: df.max(), True, False, 0),
         (lambda df: df.max(skipna=False), True, False, 0),
         (lambda df: df.count(), True, False, 0),
+        (lambda df: df.agg({"x": "min", "y": "max"}), False, False, 1),
+        (lambda df: df.agg({"x": "min"}, y="max"), False, False, 0),
     ],
 )
 @pytest.mark.parametrize(
@@ -184,6 +197,8 @@ def test_general_agg_numeric_series(skipna_agg_method, data, dtype, skipna):
         (lambda df: df.aggregate(["min"]), False, 0),
         (lambda df: df.aggregate(["min", np.max]), False, 1),
         (lambda df: df.aggregate(min), True, 0),
+        (lambda df: df.aggregate(y="min", z=np.max), False, 1),
+        (lambda df: df.aggregate(x=min), False, 0),
         (lambda df: df.count(), True, 0),
     ],
 )
@@ -222,9 +237,9 @@ def test_min_max_with_mixed_str_numeric_type():
     [
         (
             lambda se: se.aggregate({"index": {"index": min}}),
-            "Value for func argument in dict format is not allowed for Series aggregate",
+            "nested renamer is not supported",
             SpecificationError,
-            False,
+            True,
         ),
         (
             lambda se: se.max(axis=1),
@@ -270,6 +285,14 @@ def test_duplicate_agg_funcs_raise(native_series):
     # in general for consistency.
     with pytest.raises(SpecificationError, match="Function names must be unique"):
         snow_series.aggregate([min, max, min])
+
+
+@sql_count_checker(query_count=1, union_count=1)
+def test_duplicate_named_agg_funcs_succeeds(native_series):
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series, native_series, lambda df: df.agg(x="min", y="min")
+    )
 
 
 @pytest.mark.parametrize("agg_func", ["sum", "std", "var", "mean", "median"])
@@ -319,3 +342,34 @@ def test_skew_series():
     native_df = native_pd.DataFrame(np.array([1, 2, 1]), columns=["A"])
     snow_df = pd.DataFrame(native_df)
     assert round(snow_df["A"].skew(), 4) == round(native_df["A"].skew(), 4)
+
+
+@sql_count_checker(query_count=0)
+def test_named_agg_not_supported_function(native_series):
+    snow_series = pd.Series(native_series)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Aggregate with func=None and parameters "
+            + f"x={np.exp} not supported yet in Snowpark pandas."
+        ),
+    ):
+        snow_series.agg(x=np.exp)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "agg_kwargs",
+    [{"x": ("y", "min")}, {"x": pd.NamedAgg("y", "min")}],
+    ids=["2-tuple", "NamedAgg"],
+)
+def test_2_tuple_named_agg_errors_for_series(native_series, agg_kwargs):
+    eval_snowpark_pandas_result(
+        pd.Series(native_series),
+        native_series,
+        lambda series: series.agg(**agg_kwargs),
+        expect_exception=True,
+        expect_exception_match="nested renamer is not supported",
+        expect_exception_type=SpecificationError,
+        assert_exception_equal=True,
+    )
