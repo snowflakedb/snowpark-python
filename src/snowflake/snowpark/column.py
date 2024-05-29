@@ -228,6 +228,7 @@ class Column:
     def __init__(
         self, expr1: Union[str, Expression], expr2: Optional[str] = None
     ) -> None:
+        self._pandas_type = None
         if expr2 is not None:
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
@@ -249,6 +250,10 @@ class Column:
             self._expression = expr1
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
+
+    @property
+    def pandas_type(self):
+        return self._pandas_type
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
@@ -658,7 +663,9 @@ class Column:
 
     def name(self, alias: str) -> "Column":
         """Returns a new renamed Column."""
-        return Column(Alias(self._expression, quote_name(alias)))
+        result = Column(Alias(self._expression, quote_name(alias)))
+        result._pandas_type = self._pandas_type
+        return result
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
@@ -666,7 +673,9 @@ class Column:
         """
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self._expression)
+        result = window._with_aggregate(self._expression)
+        result._pandas_type = self._pandas_type
+        return result
 
     def within_group(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]

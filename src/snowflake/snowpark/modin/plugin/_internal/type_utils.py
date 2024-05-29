@@ -250,6 +250,8 @@ class TypeMapper:
             return LongType()
         if is_float_dtype(p):
             return DoubleType()
+        if isinstance(p, native_pd.IntervalDtype):
+            return VariantType()
 
         try:
             return PANDAS_TO_SNOWFLAKE_MAP[p]
