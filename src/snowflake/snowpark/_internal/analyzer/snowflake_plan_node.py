@@ -24,6 +24,10 @@ class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
 
+    @property
+    def individual_query_complexity(self) -> int:
+        return 1
+
 
 class LeafNode(LogicalPlan):
     pass
@@ -38,6 +42,11 @@ class Range(LeafNode):
         self.end = end
         self.step = step
         self.num_slices = num_slices
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
+        return 6
 
 
 class UnresolvedRelation(LeafNode):
@@ -57,6 +66,13 @@ class SnowflakeValues(LeafNode):
         self.output = output
         self.data = data
         self.schema_query = schema_query
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
+        # (n+1) * m
+        # TODO: use ARRAY_BIND_THRESHOLD
+        return (len(self.data) + 1) * len(self.output)
 
 
 class SaveMode(Enum):
@@ -88,6 +104,17 @@ class SnowflakeCreateTable(LogicalPlan):
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
 
+    @property
+    def individual_query_complexity(self) -> int:
+        estimate = 1  # mode is always present
+        # column estimate
+        estimate += 0 if self.column_names else len(self.column_names)
+        # clustering exprs
+        estimate += sum(expr.expression_complexity for expr in self.clustering_exprs)
+        # comment estimate
+        estimate += 0 if self.comment else 1
+        return estimate
+
 
 class Limit(LogicalPlan):
     def __init__(
@@ -98,6 +125,14 @@ class Limit(LogicalPlan):
         self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # for limit and offset
+        return (
+            self.limit_expr.expression_complexity
+            + self.offset_expr.expression_complexity
+        )
 
 
 class CopyIntoTableNode(LeafNode):
@@ -133,6 +168,24 @@ class CopyIntoTableNode(LeafNode):
         self.cur_options = cur_options
         self.create_table_from_infer_schema = create_table_from_infer_schema
 
+    @property
+    def individual_query_complexity(self) -> int:
+        # for columns
+        estimate = len(self.column_names) if self.column_names else 0
+        # for transformations
+        estimate += (
+            len(expr.expression_complexity for expr in self.transformations)
+            if self.transformations
+            else 0
+        )
+        # for pattern
+        estimate += 1 if self.pattern else 0
+        # for files
+        estimate += len(self.files) if self.files else 0
+        # for copy options
+        estimate += len(self.copy_options) if self.copy_options else 0
+        return estimate
+
 
 class CopyIntoLocationNode(LogicalPlan):
     def __init__(
@@ -157,3 +210,21 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # for stage location
+        estimate = 1
+        # for partition
+        estimate += self.partition_by.expression_complexity if self.partition_by else 0
+        # for file format name
+        estimate += 1 if self.file_format_name else 0
+        # for file format type
+        estimate += 1 if self.file_format_type else 0
+        # for file format options
+        estimate += len(self.format_type_options) if self.format_type_options else 0
+        # for copy options
+        estimate += len(self.copy_options)
+        # for header
+        estimate += 1 if self.header else 0
+        return estimate

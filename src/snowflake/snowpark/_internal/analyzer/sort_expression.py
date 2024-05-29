@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from functools import cached_property
 from typing import AbstractSet, Optional, Type
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -55,3 +56,10 @@ class SortOrder(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        # ORDER BY child [null ordering]
+        estimate = self.child.expression_complexity + 1
+        estimate += 1 if self.null_ordering else 0
+        return estimate

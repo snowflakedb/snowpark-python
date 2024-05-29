@@ -352,10 +352,6 @@ class SnowflakePlan(LogicalPlan):
     def num_duplicate_nodes(self) -> int:
         return len(find_duplicate_subtrees(self))
 
-    @cached_property
-    def individual_query_complexity(self) -> int:
-        return len(self.output)
-
     @property
     def subtree_query_complexity(self) -> int:
         if self._subtree_query_complexity is None:

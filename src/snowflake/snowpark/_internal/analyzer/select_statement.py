@@ -203,7 +203,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
-        self._subtree_query_complexity = None
+        self._subtree_query_complexity: Optional[int] = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -301,7 +301,11 @@ class Selectable(LogicalPlan, ABC):
         columns. Specific cases are handled in child classes with additional
         explanation.
         """
-        return len(self.column_states.active_columns)
+        return (
+            self.snowflake_plan.source_plan.individual_query_complexity
+            if self.snowflake_plan.source_plan
+            else len(self.column_states.active_columns)
+        )
 
     @property
     def subtree_query_complexity(self) -> int:
@@ -376,7 +380,7 @@ class SelectableEntity(Selectable):
 
     @property
     def individual_query_complexity(self) -> int:
-        # select * from entity has 1 char '*' to represent columns
+        # SELECT * FROM entity
         return 1
 
     @property
@@ -438,7 +442,7 @@ class SelectSQL(Selectable):
     def individual_query_complexity(self):
         if self.pre_actions:
             # having pre-actions implies we have a non-select query followed by a
-            # select * from table(result_scan) statement
+            # SELECT * FROM table(result_scan(query_id)) statement
             return 1
 
         # no pre-action implies the best estimate we have is of # active columns
@@ -699,6 +703,19 @@ class SelectStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return [self.from_]
 
+    @property
+    def individual_query_complexity(self) -> int:
+        # projection component
+        estimate = sum(expr.expression_complexity for expr in self.projection) if self.projection else 0
+        # order by component - add complexity for each sort expression but remove len(order_by) - 1 since we only
+        # include "ORDER BY" once in sql test
+        estimate += sum(expr.expression_complexity for expr in self.order_by) - (len(self.order_by) - 1) if self.order_by else 0
+        # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
+        estimate += (1 + self.where.expression_complexity) if self.where else 0
+        # limit component
+        estimate += 1 if self.limit_ else 0
+        return estimate
+
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
         convert it to subqueryable and create a new SelectStatement with from_ being the new subqueryable。
@@ -954,16 +971,6 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
         return new
-
-    @property
-    def individual_query_complexity(self) -> int:
-        # projection component
-        estimate = 1 if self.projection is None else len(self.projection)
-        # order by component
-        estimate += 0 if self.order_by is None else len(self.order_by)
-        # filter component
-        estimate += 0 if self.where is None else self.where.total_children_count
-        return estimate
 
 
 class SelectTableFunction(Selectable):

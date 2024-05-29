@@ -187,3 +187,17 @@ class Join(BinaryNode):
     @property
     def sql(self) -> str:
         return self.join_type.sql
+
+    @property
+    def individual_query_complexity(self) -> int:
+        #  SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
+        estimate = 3
+        if isinstance(self.join_type, UsingJoin):
+            estimate += 1 + len(self.join_type.using_columns)
+        estimate += (
+            self.join_condition.expression_complexity if self.join_condition else 0
+        )
+        estimate += (
+            self.match_condition.expression_complexity if self.match_condition else 0
+        )
+        return estimate
