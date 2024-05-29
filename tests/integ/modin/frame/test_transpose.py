@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UNPIVOT_NULL_REPLACE_VALUE,
 )
-from tests.integ.conftest import running_on_public_ci
+from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -293,7 +293,7 @@ def test_dataframe_transpose_empty_with_failing_values():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.T)
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
 @pytest.mark.skip(
     reason="SNOW-928130: Fallback converts non-json serializable to string type failed inteferred_type check"
 )

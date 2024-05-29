@@ -148,7 +148,6 @@ def create_func_with_return_type_hint(func: Callable, return_type: str) -> Calla
 TEST_NUMPY_FUNCS = [np.min, np.sqrt, np.tan, np.sum, np.median]
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=4, udf_count=1)
 def test_apply_basic_without_type_hints(data, func, return_type):
@@ -157,7 +156,6 @@ def test_apply_basic_without_type_hints(data, func, return_type):
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.apply(func))
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=8, udf_count=2)
 def test_apply_and_map_basic_with_type_hints(data, func, return_type):
@@ -173,7 +171,6 @@ def test_apply_and_map_basic_with_type_hints(data, func, return_type):
     )
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=4, udf_count=1)
 def test_apply_and_map_type(data, func, return_type):
@@ -205,7 +202,6 @@ def test_apply_and_map_type(data, func, return_type):
     )
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize(
     "data,func,return_type,expected_result",
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
@@ -219,7 +215,6 @@ def test_apply_date_time_timestamp(data, func, return_type, expected_result):
     assert_snowpark_pandas_equal_to_pandas(result, expected_result)
 
 
-@pytest.mark.bptp
 def test_variant_apply(session):
     data = [
         None,
@@ -295,7 +290,6 @@ def test_variant_apply(session):
         ]
 
 
-@pytest.mark.bptp
 def test_apply_null_nan():
     # data becomes 1, 1.1, NaN and NULL in a FLOAT column in Snowflake, which correspond to
     # 1, 1.1, np.nan, np.nan in vectorized UDF and returned as float64 type instead of Float64 type
@@ -328,7 +322,6 @@ def test_apply_null_nan():
         ]
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=3)
 def test_apply_json_serializable_negative():
     snow_series = pd.Series([1])
@@ -340,7 +333,6 @@ def test_apply_json_serializable_negative():
         snow_series.apply(type).to_pandas()
 
 
-@pytest.mark.bptp
 def test_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x + y + z
@@ -381,7 +373,6 @@ def test_apply_args_kwargs():
         )
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=0)
 def test_apply_args_kwargs_with_snowpark_pandas_object_not_implemented():
     def f(x, y=None) -> int:
@@ -395,7 +386,6 @@ def test_apply_args_kwargs_with_snowpark_pandas_object_not_implemented():
         snow_series.apply(f, y=pd.Series([1, 2]))
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize("func", [str, int, float, bytes, list, dict])
 @sql_count_checker(query_count=8, udf_count=2)
 def test_apply_builtin(func):
@@ -411,7 +401,6 @@ def test_apply_builtin(func):
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.map(func))
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize("func", TEST_NUMPY_FUNCS)
 @sql_count_checker(query_count=8, udf_count=2)
 def test_apply_and_map_numpy(func):
@@ -422,7 +411,6 @@ def test_apply_and_map_numpy(func):
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.map(func))
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize(
     "native_series, expected_query_count, expected_udf_count",
     [
@@ -444,7 +432,6 @@ def test_apply_and_map_empty(native_series, expected_query_count, expected_udf_c
     eval_snowpark_pandas_result(snow_series, native_series, lambda x: x.map(f))
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=3)
 def test_apply_convert_dtype(caplog):
     snow_series = pd.Series([1])
@@ -456,7 +443,6 @@ def test_apply_convert_dtype(caplog):
         assert "convert_dtype is ignored in Snowflake backend" in caplog.text
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize(
     "func",
     [[np.min], {2: np.min, 1: "max"}]
@@ -471,7 +457,6 @@ def test_apply_input_type_str_list_dict(func):
         snow_series.apply(func)
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=0)
 def test_map_na_action_ignore_not_implemented():
     snow_series = pd.Series([1, 1.1, "NaN", None], dtype="Float64")
@@ -485,7 +470,6 @@ def test_map_na_action_ignore_not_implemented():
         snow_series.map("I am a {}".format, na_action="ignore")
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=0)
 def test_map_dict_not_implemented():
     s = pd.Series(["cat", "dog", np.nan, "rabbit"])
@@ -494,7 +478,6 @@ def test_map_dict_not_implemented():
         s.map({"cat": "kitten", "dog": "puppy"})
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=8, udf_count=2)
 def test_apply_variant_json_null():
     def f(x):
@@ -522,7 +505,6 @@ def test_apply_variant_json_null():
 import scipy  # noqa: E402
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize(
     "package,expected_query_count",
     [
@@ -578,7 +560,6 @@ import numpy as np  # noqa: E402
 import statsmodels  # noqa: E402
 
 
-@pytest.mark.bptp
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
@@ -654,7 +635,6 @@ def test_3rd_party_package_mix_and_match(udf_packages, session_packages):
     assert len(ans) == 3
 
 
-@pytest.mark.bptp
 @sql_count_checker(query_count=7, udf_count=1)
 def test_SNOW_1344784_udf_decorator():
     # tests udf decorator with no packages specified
