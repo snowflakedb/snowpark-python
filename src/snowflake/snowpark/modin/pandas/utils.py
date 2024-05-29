@@ -808,7 +808,9 @@ _original_pandas_MultiIndex_from_frame = pandas.MultiIndex.from_frame
 pandas.MultiIndex.from_frame = from_modin_frame_to_mi
 
 
-def ensure_index(index_like: Axes, copy: bool = False) -> pd.Index | pandas.MultiIndex:
+def ensure_index(
+    index_like: Axes | pd.Index | pd.Series, copy: bool = False
+) -> pd.Index | pandas.MultiIndex:
     """
     Ensure that we have an index from some index-like object.
 
@@ -847,7 +849,7 @@ def ensure_index(index_like: Axes, copy: bool = False) -> pd.Index | pandas.Mult
 def try_convert_to_native_index(index_like: Any) -> Any:
     """
     Try to convert the given item to a native pandas Index.
-    This conversion is only required if `index_like` is a Snowpark pandas Index.
+    This conversion is only performed if `index_like` is a Snowpark pandas Index. Otherwise, the original input will be returned.
 
     Parameters
     ----------
