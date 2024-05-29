@@ -47,7 +47,6 @@ from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
-from pandas.errors import SpecificationError
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseAccessor
@@ -754,12 +753,6 @@ class Series(BasePandasDataset):
     def aggregate(
         self, func: AggFuncType = None, axis: Axis = 0, *args: Any, **kwargs: Any
     ):
-        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if is_dict_like(func):
-            raise SpecificationError(
-                "Value for func argument in dict format is not allowed for Series aggregate."
-            )
-
         return super().aggregate(func, axis, *args, **kwargs)
 
     agg = aggregate
