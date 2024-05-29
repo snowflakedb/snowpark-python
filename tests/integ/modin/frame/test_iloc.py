@@ -700,11 +700,10 @@ def test_df_iloc_get_key_bool(
         elif key_type == "series" and isinstance(_df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
-        return (
-            _df.iloc[try_convert_to_native_index(_key, _df)]
-            if axis == "row"
-            else _df.iloc[:, try_convert_to_native_index(_key, _df)]
-        )
+
+        if isinstance(_df, native_pd.DataFrame):
+            _key = try_convert_to_native_index(_key)
+        return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
     expected_join_count = 0
@@ -930,11 +929,10 @@ def test_df_iloc_get_key_numeric(
         elif key_type == "series" and isinstance(df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
-        return (
-            df.iloc[try_convert_to_native_index(_key, df)]
-            if axis == "row"
-            else df.iloc[:, try_convert_to_native_index(_key, df)]
-        )
+
+        if isinstance(df, native_pd.DataFrame):
+            _key = try_convert_to_native_index(_key)
+        return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
     join_count = 2 if axis == "row" else 0

@@ -40,7 +40,6 @@ from pandas._typing import (
     Scalar,
 )
 from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
-from pandas.core.dtypes.generic import ABCSeries
 from pandas.errors import SpecificationError
 from pandas.util._decorators import doc
 
@@ -835,10 +834,6 @@ def ensure_index(index_like: Axes, copy: bool = False) -> pd.Index | pandas.Mult
         if copy:
             index_like = index_like.copy()
         return index_like
-
-    if isinstance(index_like, ABCSeries):
-        name = index_like.name
-        return pd.Index(index_like, name=name, copy=copy)
 
     if isinstance(index_like, list):
         if len(index_like) and lib.is_all_arraylike(index_like):
