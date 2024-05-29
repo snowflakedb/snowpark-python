@@ -20,10 +20,12 @@
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
+- Expand support for empty DataFrames in `DataFrame.pivot_table`.
 
 #### Bug Fixes
 
 - Fixed how we support mixed columns for string methods (`Series.str.*`).
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 ### Snowpark Local Testing Updates
 
