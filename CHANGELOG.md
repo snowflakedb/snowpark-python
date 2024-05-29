@@ -1,5 +1,33 @@
 # Release History
 
+## 1.18.1 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### Breaking changes
+
+### New Features
+
+#### Bug Fixes
+
+- Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
+
+#### Improvements
+
 ## 1.18.0 (2024-05-28)
 
 ### Snowpark Python API Updates
