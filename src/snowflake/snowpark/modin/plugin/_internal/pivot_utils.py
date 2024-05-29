@@ -194,6 +194,20 @@ def pivot_helper(
     if ordered_dataframe.queries.get("post_actions"):
         ordered_dataframe = cache_result(ordered_dataframe)
 
+    if pivot_aggr_groupings is None:
+        # When pivot_aggr_groupings is None, there are no `values` to compute on. In that case, we simply return
+        # a DataFrame with no columns, whose index is the result of grouping by the index columns.
+        ordered_dataframe = ordered_dataframe.group_by(
+            groupby_snowflake_quoted_identifiers
+        )
+        return InternalFrame.create(
+            ordered_dataframe=ordered_dataframe,
+            data_column_pandas_index_names=[None] + columns,
+            data_column_pandas_labels=[],
+            data_column_snowflake_quoted_identifiers=[],
+            index_column_pandas_labels=index,
+            index_column_snowflake_quoted_identifiers=groupby_snowflake_quoted_identifiers,
+        )
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
 
