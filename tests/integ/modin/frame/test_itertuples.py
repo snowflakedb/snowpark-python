@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import PARTITION_SIZE
-from tests.integ.conftest import running_on_public_ci
+from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -150,7 +150,7 @@ def test_df_itertuples_nan_data_negative():
 
 
 @pytest.mark.parametrize("size", [100000, 10000, PARTITION_SIZE])
-@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
+@pytest.mark.skipif(running_on_github(), reason="slow test")
 def test_df_itertuples_large_df(size):
     data = rng.integers(low=-1500, high=1500, size=size)
     native_df = native_pd.DataFrame(data)

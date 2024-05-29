@@ -8,7 +8,7 @@ import pytest
 from pandas import _testing as tm
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
+from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
@@ -17,7 +17,7 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 #   APIs, which is time consuming. we will set up a daily jenkins job to run those daily.
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
-    if running_on_public_ci():
+    if running_on_github():
         pytest.skip(
             "Disable series str tests for public ci",
             allow_module_level=True,

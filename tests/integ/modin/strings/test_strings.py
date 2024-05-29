@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
+from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -22,7 +22,7 @@ from tests.integ.modin.utils import (
 # APIs, which is time-consuming, and it will run the daily jenkins job.
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
-    if running_on_public_ci():
+    if running_on_github():
         pytest.skip(
             "Disable series str tests for public ci",
             allow_module_level=True,
