@@ -28,9 +28,13 @@ def parse_file(file):
 
     try:
         test_case_start = src.index("## TEST CASE\n")
+    except ValueError as e:
+        raise ValueError("Required header ## TEST CASE missing in the file: " + file.name)
+
+    try:
         expected_output_start = src.index("## EXPECTED OUTPUT\n")
     except ValueError as e:
-        raise ValueError("Required header missing in the file: " + file)
+        raise ValueError("Required header ## EXPECTED OUTPUT missing in the file: " + file.name)
     
     test_case = "".join(src[test_case_start + 1:expected_output_start])
     expected_output = "".join(src[expected_output_start + 1:])
