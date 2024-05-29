@@ -18,6 +18,7 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     lit,
     max,
     min,
+    to_char,
     to_date,
 )
 
@@ -281,3 +282,10 @@ def test_show(session):
 |3....|4   |de...|
 ----------------\n""".lstrip()
     )
+
+
+def test_to_char_is_row_index_agnostic(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    assert df.filter(col("a") > 3).select(to_char(col("a")), col("b")).collect() == [
+        Row("5", 6)
+    ]

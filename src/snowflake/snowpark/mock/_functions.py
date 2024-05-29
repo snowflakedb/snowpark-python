@@ -907,11 +907,8 @@ def mock_to_char(
     """
     source_datatype = column.sf_type.datatype
 
-    fmt = (
-        ColumnEmulator([fmt] * len(column))
-        if not isinstance(fmt, ColumnEmulator)
-        else fmt
-    )
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
     def convert_char(data, _fmt):
         if isinstance(source_datatype, _NumericType):
