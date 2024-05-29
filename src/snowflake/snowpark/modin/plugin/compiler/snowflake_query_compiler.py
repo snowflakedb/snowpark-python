@@ -970,7 +970,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         """
         Performs final porocessing of a file and returns a SnowflakeQueryCompiler. When
-        reading files into snowpandas we need perform some work after the table has
+        reading files into Snowpark pandas we need perform some work after the table has
         been loaded for certain arguments, specifically header names, dtypes, and usecols.
         These parameters can be given arguments which are not currently supported by
         snowflake or they can use positional references.
