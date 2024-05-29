@@ -805,12 +805,6 @@ def assert_index_equal(
     obj : str, default 'Index'
         Specify object name being compared, internally used to show appropriate
         assertion message.
-
-    Examples
-    --------
-    >>> a = pd.Index([1, 2, 3])
-    >>> b = pd.Index([1, 2, 3])
-    >>> assert_index_equal(a, b)
     """
     left = try_convert_to_native_index(left)
     right = try_convert_to_native_index(right)
