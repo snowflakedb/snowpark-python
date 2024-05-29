@@ -136,6 +136,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     column_quantile,
     convert_agg_func_arg_to_col_agg_func_map,
     drop_non_numeric_data_columns,
+    format_kwargs_for_error_message,
     generate_column_agg_info,
     generate_rowwise_aggregation_function,
     get_agg_func_to_col_map,
@@ -687,7 +688,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if args and kwargs:
             args_str += ", "
         if kwargs:
-            args_str += ", ".join(f"{key}={value}" for key, value in kwargs.items())
+            args_str += format_kwargs_for_error_message(kwargs)
         ErrorMessage.not_implemented(
             f"Snowpark pandas doesn't yet support the method {object_type}.{fn_name}({args_str})"
         )
@@ -2594,9 +2595,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # to be misformatted. Instead, we re-format into the form f"agg(**named_aggregations)" so that the error message
                 # is recognizable to the user.
                 if using_named_aggregations_for_func(agg_func):
-                    agg_func = ", ".join(
-                        [f"{key}={value}" for key, value in agg_kwargs.items()]
-                    )
+                    agg_func = format_kwargs_for_error_message(agg_kwargs)
                     agg_func = f"agg({agg_func})"
 
                 ErrorMessage.not_implemented(
@@ -4184,14 +4183,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if uses_named_aggs:
                 # Format the error message a little differently, so it looks nicer.
                 error_msg = (
-                    "Aggregate with func=None and parameters"
-                    + f" {kwargs['_formatted_named_kwargs']}"
+                    "Aggregate with func=None and parameters "
+                    + format_kwargs_for_error_message(kwargs)
                     + " not supported yet in Snowpark pandas."
                 )
             else:
                 error_msg = (
                     f"Aggregate function {func} with parameters "
-                    + ", ".join([f"{k}={v}" for k, v in kwargs.items()])
+                    + format_kwargs_for_error_message(kwargs)
                     + " not supported yet in Snowpark pandas."
                 )
             ErrorMessage.not_implemented(error_msg)
@@ -4448,6 +4447,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if uses_named_aggs:
                     # If this is true, then we are dealing with agg with NamedAggregations.
 
+                    # When we have multiple columns with the same pandas label, we need to
+                    # generate dummy aggregations over all of the columns, as otherwise,
+                    # when we union the QueryCompilers, the duplicate columns will stack up
+                    # into one column. Example:
+                    #    A  A
+                    # 0  0  1
+                    # 1  2  3
+                    # If we call `df.agg(x=("A", "max"))` on the above DataFrame, we expect:
+                    #      A    A
+                    # x  2.0  NaN
+                    # x  NaN  3.0
+                    # but without the dummy aggregations, we get QC's that correspond to the following
+                    # frames:
+                    #      A
+                    # x  2.0
+                    # and
+                    #      A
+                    # x  3.0
+                    # so when we concatenate, we get a result that looks like this:
+                    #      A
+                    # x  2.0
+                    # x  3.0
+                    # which is wrong. Adding dummy aggregations means that our individual QCs will look like
+                    #      A    A
+                    # x  2.0  NaN
+                    # and
+                    #      A    A
+                    # x  NaN  3.0
+                    # so concatenation will give us the correct result.
+                    # We first check if it is the case that we are aggregating over multiple columns with the same pandas label
+                    has_col_with_duplicate_pandas_label = len(
+                        {id_pair.pandas_label for id_pair in column_to_agg_func.keys()}
+                    ) < len(column_to_agg_func.keys())
+
                     def generate_single_agg_column_func_map(
                         identifier_pair: PandasLabelToSnowflakeIdentifierPair,
                         agg_func: AggFuncWithLabel,
@@ -4487,10 +4520,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         if not isinstance(agg_func_with_label, list):
                             agg_func_with_label = [agg_func_with_label]
                         for agg_func in agg_func_with_label:
-                            new_qc = generate_agg_qc(
-                                generate_single_agg_column_func_map(
+                            if not has_col_with_duplicate_pandas_label:
+                                agg_func_map = {
+                                    identifier_pair: AggFuncInfo(
+                                        agg_func.func, is_dummy_agg=False
+                                    )
+                                }
+                            else:
+                                agg_func_map = generate_single_agg_column_func_map(
                                     identifier_pair, agg_func
-                                ),
+                                )
+
+                            new_qc = generate_agg_qc(
+                                agg_func_map,
                                 agg_func.pandas_label,
                             )
                             index_label_to_generated_qcs[
@@ -4500,7 +4542,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             ) + [
                                 new_qc
                             ]
-                    correct_order_of_index_labels = kwargs["_correct_aggregation_order"]
+                    correct_order_of_index_labels = list(kwargs.keys())
                     for index_label in correct_order_of_index_labels:
                         single_agg_func_query_compilers.extend(
                             index_label_to_generated_qcs[index_label]

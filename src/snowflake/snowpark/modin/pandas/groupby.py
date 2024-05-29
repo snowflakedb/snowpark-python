@@ -1200,9 +1200,7 @@ class SeriesGroupBy(DataFrameGroupBy):
     ):
         # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         if is_dict_like(func):
-            raise SpecificationError(
-                "Value for func argument in dict format is not allowed for SeriesGroupBy."
-            )
+            raise SpecificationError("nested renamer is not supported")
 
         return super().aggregate(
             func, *args, engine=engine, engine_kwargs=engine_kwargs, **kwargs

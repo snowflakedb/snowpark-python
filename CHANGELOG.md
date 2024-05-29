@@ -12,6 +12,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+
 #### Improvements
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
@@ -32,8 +34,6 @@
 - Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
 
 #### Bug Fixes
-
-- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 
 #### Improvements
 

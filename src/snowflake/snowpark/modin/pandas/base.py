@@ -67,6 +67,7 @@ from pandas.core.dtypes.common import (
 )
 from pandas.core.dtypes.inference import is_integer
 from pandas.core.indexes.api import ensure_index
+from pandas.errors import SpecificationError
 from pandas.util._validators import (
     validate_ascending,
     validate_bool_kwarg,
@@ -704,6 +705,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
+        # If we are using named kwargs, then we do not clear the kwargs (need them in the QC for processing
+        # order, as well as formatting error messages.)
+        uses_named_kwargs = False
         # If aggregate is called on a Series, named aggregations can be passed in via a dictionary
         # to func.
         if func is None or (is_dict_like(func) and not self._is_dataframe):
@@ -714,11 +718,16 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             if func is not None:
                 # If named aggregations are passed in via a dictionary to func, then we
                 # ignore the kwargs.
+                if any(is_dict_like(value) for value in func.values()):
+                    # We can only get to this codepath if self is a Series, and func is a dictionary.
+                    # In this case, if any of the values of func are themselves dictionaries, we must raise
+                    # a Specification Error, as that is what pandas does.
+                    raise SpecificationError("nested renamer is not supported")
                 kwargs = func
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
                 self, allow_duplication=False, axis=axis, **kwargs
             )
-
+            uses_named_kwargs = True
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
                 agg_func=func,
@@ -789,17 +798,8 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # dtype: int8
         # >>> pd.DataFrame([[np.nan], [0]]).count(skipna=True, axis=0)
         # TypeError: got an unexpected keyword argument 'skipna'
-        if is_dict_like(func):
-            order_of_aggregations = list(kwargs.keys())
-            formatted_kwargs = ", ".join(
-                [f"{key}={value}" for key, value in kwargs.items()]
-            )
+        if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
-            # Used to make error message formatting a little cleaner
-            # when using named aggregations.
-            kwargs["_formatted_named_kwargs"] = formatted_kwargs
-            # Used to correctly order the aggregations when using named aggregations.
-            kwargs["_correct_aggregation_order"] = order_of_aggregations
 
         result = self.__constructor__(
             query_compiler=self._query_compiler.agg(

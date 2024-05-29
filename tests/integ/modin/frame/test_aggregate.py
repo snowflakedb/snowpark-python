@@ -68,6 +68,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
         ),
         (lambda df: df.aggregate(x=("A", "max")), 0),
         (lambda df: df.aggregate(x=("A", "max"), y=pd.NamedAgg("A", "max")), 1),
+        (lambda df: df.aggregate(x=("A", "max"), y=("C", "min"), z=("A", "min")), 2),
         # note following aggregation requires transpose
         (lambda df: df.aggregate(max), 0),
         (lambda df: df.min(), 0),
@@ -225,6 +226,38 @@ class TestNamedAggDupColPandasFails:
         with SqlCounter(query_count=1, union_count=2):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_df.agg(**kwargs),
+                result_df,
+            )
+
+    def test_multiple_agg_on_dup_and_single_agg_on_non_dup_columns(
+        self, numeric_native_df
+    ):
+        # rename to have duplicated column
+        numeric_native_df.columns = ["A", "B", "A"]
+        snow_df = pd.DataFrame(numeric_native_df)
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Data must be 1-dimensional, got ndarray of shape (3, 2) instead"
+            ),
+        ):
+            numeric_native_df.agg(x=("A", "min"), y=("B", "min"), z=("A", "max"))
+
+        result_df = native_pd.DataFrame(
+            [
+                [0, np.nan, np.nan],
+                [np.nan, 2.0, np.nan],
+                [np.nan, np.nan, 0],
+                [4, np.nan, np.nan],
+                [np.nan, 8.2, np.nan],
+            ],
+            columns=["A", "A", "B"],
+            index=["x", "x", "y", "z", "z"],
+        )
+
+        with SqlCounter(query_count=1, union_count=4):
+            assert_snowpark_pandas_equal_to_pandas(
+                snow_df.agg(x=("A", "min"), y=("B", "min"), z=("A", "max")),
                 result_df,
             )
 

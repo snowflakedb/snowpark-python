@@ -1125,3 +1125,13 @@ def using_named_aggregations_for_func(func: Any) -> bool:
         )
         for value in func.values()
     )
+
+
+def format_kwargs_for_error_message(kwargs: dict[Any, Any]) -> str:
+    """
+    Helper method to format a kwargs dictionary for an error message.
+
+    Returns a string containing the keys + values of kwargs formatted like so:
+    "key1=value1, key2=value2, ..."
+    """
+    return ", ".join([f"{key}={value}" for key, value in kwargs.items()])

@@ -237,9 +237,9 @@ def test_min_max_with_mixed_str_numeric_type():
     [
         (
             lambda se: se.aggregate({"index": {"index": min}}),
-            "Value for func argument in dict format is not allowed for Series aggregate",
+            "nested renamer is not supported",
             SpecificationError,
-            False,
+            True,
         ),
         (
             lambda se: se.max(axis=1),
