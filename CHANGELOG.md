@@ -1,6 +1,6 @@
 # Release History
 
-## 1.18.1 (TBH)
+## 1.18.1 (TBD)
 
 ### Snowpark Python API Updates
 
