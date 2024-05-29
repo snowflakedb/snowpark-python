@@ -1015,6 +1015,7 @@ def fill_missing_levels_for_pandas_label(
     return final_label
 
 
+
 def create_ordered_dataframe_from_pandas(
     df: native_pd.DataFrame,
     snowflake_quoted_identifiers: list[str],
@@ -1048,11 +1049,13 @@ def create_ordered_dataframe_from_pandas(
     # np.nan, pd.NA, pd.NaT and None all as missing value.
     isna_data = df.isna().to_numpy().tolist()
 
+    pandas_schema = []
     struct_fields = []
-    for i, (label, _) in enumerate(df.dtypes.items()):
+    for i, (label, pandas_dtype) in enumerate(df.dtypes.items()):
         quoted_identifier = snowflake_quoted_identifiers[i]
         snowflake_type = infer_series_type(df[label])
         struct_fields.append(StructField(quoted_identifier, snowflake_type))
+        pandas_schema.append(pandas_dtype)
 
     # in pandas, missing value can be represented ad np.nan, pd.NA, pd.NaT and None,
     # and should be mapped to None in Snowpark input, and eventually be mapped to NULL
@@ -1062,6 +1065,7 @@ def create_ordered_dataframe_from_pandas(
     for x in range(len(data)):
         for y in range(len(data[x])):
             data[x][y] = (
+                serialize_interval(data[x][y]) if isinstance(data[x][y], native_pd.Interval) else 
                 None
                 if isna_data[x][y]
                 else (
@@ -1070,10 +1074,10 @@ def create_ordered_dataframe_from_pandas(
                     else data[x][y]
                 )
             )
-
     snowpark_df = pd.session.create_dataframe(data, StructType(struct_fields))
     return OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
+        pandas_schema=pandas_schema,
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
         ordering_columns=ordering_columns,
         row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
@@ -1218,6 +1222,21 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
     return False
 
 
+def _load_from_object_string(value: str):
+    # don't count on our type tracking to tell us which columns consist of
+    # native_pd.Interval
+    value_json = json.loads(value)
+    return (
+        deserialize_interval(value_json) if (
+            isinstance(value_json, dict) and '_snowpark_pandas_object' in value_json and
+            value_json['_snowpark_pandas_object'] == 'Interval'
+        ) else  deserialize_timedelta(value_json) if (
+            isinstance(value_json, dict) and '_snowpark_pandas_object' in value_json and
+            value_json['_snowpark_pandas_object'] == 'Timedelta'
+        )
+        else value_json
+    )
+
 def snowpark_to_pandas_helper(
     ordered_dataframe: OrderedDataFrame,
     *,
@@ -1308,7 +1327,7 @@ def snowpark_to_pandas_helper(
                 if type == "TIME":
                     return native_pd.to_datetime(value.replace('"', "")).time()
                 # Variant is stored as JSON internally, so decode here always.
-                return json.loads(value)
+                return _load_from_object_string(value)
 
             for id, type_of_id in zip(
                 variant_type_identifiers, variant_type_typeof_identifiers
@@ -1325,7 +1344,7 @@ def snowpark_to_pandas_helper(
                 if isinstance(datatype, (ArrayType, MapType)):
                     pandas_df[id_to_label_mapping[quoted_name]] = pandas_df[
                         id_to_label_mapping[quoted_name]
-                    ].apply(lambda value: None if value is None else json.loads(value))
+                    ].apply(lambda value: None if value is None else _load_from_object_string(value))
 
     # Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
@@ -1418,6 +1437,29 @@ def fillna_label_to_value_map(
             label_to_value_map[label] = val
     return label_to_value_map
 
+def serialize_interval(interval: native_pd.Interval):
+    return {
+        '_snowpark_pandas_object': 'Interval',
+        'left': convert_numpy_pandas_scalar_to_snowpark_literal(interval.left),
+        'right': convert_numpy_pandas_scalar_to_snowpark_literal(interval.right),
+        'open_left': interval.open_left,
+        'open_right': interval.open_right,
+    }
+
+def deserialize_interval(interval_dict: dict):
+    return native_pd.Interval(
+        left=interval_dict['left'],
+        right=interval_dict['right'],
+        closed=(
+            'neither' if interval_dict['open_left'] and interval_dict['open_right'] else 'left' if interval_dict['open_left'] else 'right' if interval_dict['open_right'] else 'both'
+        )
+    )
+
+def deserialize_timedelta(interval_dict):
+    return native_pd.Timedelta(
+        interval_dict['nanos']
+    )
+
 
 def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     """
@@ -1425,6 +1467,8 @@ def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     to a Snowpark literal value.
     """
     assert is_scalar(value), f"{value} is not a scalar"
+    if  isinstance(value, native_pd.Interval):
+        value = serialize_interval(value)
     if isinstance(value, np.generic):
         value = value.item()
     elif isinstance(value, native_pd.Timestamp):

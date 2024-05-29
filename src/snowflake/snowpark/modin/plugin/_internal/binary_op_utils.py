@@ -5,10 +5,11 @@ import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
 
+import pandas as native_pd
 from pandas._typing import Callable, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when
+from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when, object_construct, datediff, lit, date_part
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinOrAlignInternalFrameResult,
@@ -22,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     _FractionalType,
     _IntegralType,
+    TimestampType
 )
 
 NAN_COLUMN = pandas_lit("nan").cast("float")
@@ -267,6 +269,16 @@ def compute_binary_op_between_snowpark_columns(
                 repeat(first_operand, second_operand),
                 pandas_lit(""),
             )
+    elif op == "sub" and isinstance(first_datatype(), TimestampType) and isinstance(second_datatype(), TimestampType):
+        # TODO: this is likely not the correct serialization. the nanoseconds between two days depends on the date.
+        binary_op_result_column = object_construct(
+            lit('_snowpark_pandas_object'), 
+            lit("Timedelta"),
+            lit('nanos'),
+            datediff('nanosecond', second_operand, first_operand)
+        )
+        binary_op_result_column._pandas_type = native_pd.Timedelta
+
 
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded

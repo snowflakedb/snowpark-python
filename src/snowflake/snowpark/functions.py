@@ -157,6 +157,9 @@ The return type is always ``Column``. The input types tell you the acceptable va
     --------------------
     <BLANKLINE>
 """
+import pandas as native_pd
+import numpy as np
+
 import functools
 import sys
 import typing
@@ -697,11 +700,13 @@ def count(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "count")
-    return (
+    result = (
         builtin("count")(Literal(1))
         if isinstance(c._expression, Star)
         else builtin("count")(c._expression)
     )
+    result._pandas_type = np.dtype('int64')
+    return result
 
 
 def count_distinct(*cols: ColumnOrName) -> Column:
@@ -5044,7 +5049,9 @@ def typeof(col: ColumnOrName) -> Column:
 
     """
     c = _to_col_if_str(col, "typeof")
-    return builtin("typeof")(c)
+    result = builtin("typeof")(c)
+    result._pandas_type = native_pd.StringDtype()
+    return result
 
 
 def check_json(col: ColumnOrName) -> Column:
