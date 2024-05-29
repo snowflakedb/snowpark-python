@@ -69,6 +69,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
@@ -6410,8 +6411,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # groupby (index) nor pivot columns as the aggregation columns.  For example, a dataframe with
             # index=['A','B'], data=['C','E'] and if 'A' is used in groupby, and 'C' used as pivot, then 'E' would be
             # used as the values column, and unused index column 'B' would be dropped.
-            full_columns_and_index = (
-                list(columns) if columns else [] + list(index) if index else []
+            full_columns_and_index = (list(columns) if columns else []) + (
+                list(index) if index else []
             )
             values = self._modin_frame.data_column_pandas_labels.copy()
             for pandas_label_tuple in full_columns_and_index:
@@ -6420,43 +6421,76 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if is_list_like(values):
             values = list(values)
 
-        values_label_to_identifier_pairs_list = (
-            generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
+        if len(values) > 0:
+            values_label_to_identifier_pairs_list = generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
                 values, self._modin_frame
             )
-        )
-        multiple_agg_funcs_single_values = (
-            isinstance(aggfunc, list) and len(aggfunc) > 1
-        ) and not isinstance(values, list)
-        include_aggr_func_in_label = (
-            len(groupby_snowflake_quoted_identifiers) != 0
-            or multiple_agg_funcs_single_values
-        )
-        pivot_aggr_groupings = list(
-            generate_single_pivot_labels(
-                values_label_to_identifier_pairs_list,
-                aggfunc,
-                len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list)
-                and (not margins or len(values) > 1)
-                and include_aggr_func_in_label,
-                sort,
+            multiple_agg_funcs_single_values = (
+                isinstance(aggfunc, list) and len(aggfunc) > 1
+            ) and not isinstance(values, list)
+            include_aggr_func_in_label = (
+                len(groupby_snowflake_quoted_identifiers) != 0
+                or multiple_agg_funcs_single_values
             )
-        )
+            pivot_aggr_groupings = list(
+                generate_single_pivot_labels(
+                    values_label_to_identifier_pairs_list,
+                    aggfunc,
+                    len(pivot_snowflake_quoted_identifiers) > 0,
+                    isinstance(values, list)
+                    and (not margins or len(values) > 1)
+                    and include_aggr_func_in_label,
+                    sort,
+                )
+            )
+        else:
+            # If there are no values, we simply return an empty DataFrame with no columns
+            # whose index is the result of grouping by the index columns. We pass
+            # pivot_aggr_groupings = None to signify that case in the `pivot_helper`
+            # function.
+            pivot_aggr_groupings = None
 
         # When aggfunc is not a list, we should sort the outer level of pandas labels.
-        pivotted_frame = pivot_helper(
-            self._modin_frame,
-            pivot_aggr_groupings,
-            not dropna,
-            not isinstance(aggfunc, list),
-            columns,
-            groupby_snowflake_quoted_identifiers,
-            pivot_snowflake_quoted_identifiers,
-            (isinstance(aggfunc, list) and len(aggfunc) > 1),
-            (isinstance(values, list) and len(values) > 1),
-            index,
-        )
+        try:
+            pivotted_frame = pivot_helper(
+                self._modin_frame,
+                pivot_aggr_groupings,
+                not dropna,
+                not isinstance(aggfunc, list),
+                columns,
+                groupby_snowflake_quoted_identifiers,
+                pivot_snowflake_quoted_identifiers,
+                (isinstance(aggfunc, list) and len(aggfunc) > 1),
+                (isinstance(values, list) and len(values) > 1),
+                index,
+            )
+        except SnowparkSQLException as e:
+            # Error Code 1146 corresponds to the Snowflake Exception when
+            # a dynamic pivot is called and there are no pivot values and no
+            # groupby columns specified. If we hit this error, that means that
+            # we have attempted a pivot on an empty DataFrame, so we catch
+            # the exception and return an empty DataFrame.
+            if e.sql_error_code == 1146:
+                from snowflake.snowpark.modin.pandas.utils import from_pandas
+
+                return from_pandas(
+                    native_pd.DataFrame(
+                        index=self.index, columns=self.columns
+                    ).pivot_table(
+                        index=index,
+                        values=values,
+                        columns=columns,
+                        margins=margins,
+                        margins_name=margins_name,
+                        dropna=dropna,
+                        aggfunc=aggfunc,
+                        fill_value=fill_value,
+                        observed=observed,
+                        sort=sort,
+                    )
+                )._query_compiler
+            else:
+                raise e
 
         pivot_qc = SnowflakeQueryCompiler(pivotted_frame)
 
@@ -6473,8 +6507,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
         # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
-        # this means that we pivoted on an empty table - in that case, we can skip adding margins, since the result
-        # will still be an empty DataFrame (but we will have increased the join and union count) for no reason.
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins, and just add
+        # an extra layer to the columns Index, since the result will still be an empty DataFrame (but we
+        # will have increased the join and union count) for no reason.
         if (
             margins
             and pivot_aggr_groupings
@@ -6505,6 +6540,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         margins_name,
                     )
                 )
+        elif (
+            margins
+            and len(pivot_qc.columns) == 0
+            and len(pivot_qc.columns.names) != (len(columns) + 1)
+        ):
+            levels: list[list] = [[]] * (len(pivot_qc.columns.names) + 1)
+            codes: list[list] = levels
+            pivot_qc = pivot_qc.set_columns(
+                pd.MultiIndex(
+                    levels=levels, codes=codes, names=[None] + pivot_qc.columns.names
+                )
+            )
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
