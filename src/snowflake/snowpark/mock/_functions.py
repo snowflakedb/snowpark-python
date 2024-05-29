@@ -906,12 +906,13 @@ def mock_to_char(
     """
     source_datatype = column.sf_type.datatype
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    fmt = (
+        ColumnEmulator([fmt] * len(column))
+        if not isinstance(fmt, ColumnEmulator)
+        else fmt
+    )
 
-    def convert_char(row):
-        _fmt = fmt[row.name]
-        data = row[0]
-
+    def convert_char(data, _fmt):
         if isinstance(source_datatype, _NumericType):
             if _fmt:
                 # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
@@ -1026,7 +1027,7 @@ def mock_to_char(
             )
 
     # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
-    res = column.to_frame().apply(convert_char, axis=1)
+    res = column.combine(fmt, convert_char)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
 
