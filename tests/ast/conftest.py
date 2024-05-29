@@ -2,7 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
 import pytest
+
+from snowflake.snowpark import Session
+from snowflake.snowpark.mock._connection import MockServerConnection
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -15,13 +19,6 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     pytest.update_expectations = config.getoption("--update-expectations")
-
-
-import os
-
-
-from snowflake.snowpark import Session
-from snowflake.snowpark.mock._connection import MockServerConnection
 
 
 @pytest.fixture(scope="function")
