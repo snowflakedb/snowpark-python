@@ -62,8 +62,22 @@ def render(ast_base64: str) -> str:
 
 def run_test(session, test_source):
     source = f"""
+# Set up mock data.
+mock = session.create_dataframe(
+    [
+        [1, "one"],
+        [2, "two"],
+        [3, "three"],
+    ],
+    schema=['num', 'str']
+)
+mock.write.save_as_table("test_table")
+session._ast_batch.flush()  # Clear the AST.
+
+# Run the test.
 {test_source}
 
+# Retrieve the AST corresponding to the test.
 (_, result) = session._ast_batch.flush()
 """
     locals = {"session": session}
