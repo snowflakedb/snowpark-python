@@ -8,9 +8,11 @@ import pathlib
 import pytest
 import subprocess
 
-TEST_DIR = pathlib.Path(__file__).parent / "data"
+TEST_DIR = pathlib.Path(__file__).parent
 
-UNPARSER_PATH="/Users/azwiegincew/src/snowflake/Snowpark/unparser/run.sh"
+DATA_DIR = TEST_DIR / "data"
+
+UNPARSER_PATH = TEST_DIR / "run-unparser.sh"
 
 @dataclass
 class TestCase:
@@ -42,7 +44,7 @@ def load_test_cases():
     
     Returns: a list of test cases.
     """
-    test_files = TEST_DIR.glob("*.test")
+    test_files = DATA_DIR.glob("*.test")
     test_cases = []
     for file in test_files:
         test_cases.append(parse_file(file))
