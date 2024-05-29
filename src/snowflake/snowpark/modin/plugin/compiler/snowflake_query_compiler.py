@@ -962,7 +962,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
-        # breakpoint()
         if not kwargs.get("parse_header", True):
             # Rename df header since default header in pandas is
             # 0, 1, 2, ... n.  while default header in SF is c1, c2, ... cn.
