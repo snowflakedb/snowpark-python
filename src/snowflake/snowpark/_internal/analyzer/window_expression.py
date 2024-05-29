@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from functools import cached_property
 from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -63,6 +64,11 @@ class SpecifiedWindowFrame(WindowFrame):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.lower, self.upper)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        # frame_type BETWEEN lower AND upper
+        return 2 + self.lower.expression_complexity + self.upper.expression_complexity
+
 
 class WindowSpecDefinition(Expression):
     def __init__(
@@ -81,6 +87,22 @@ class WindowSpecDefinition(Expression):
             *self.partition_spec, *self.order_spec, self.frame_spec
         )
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        # PARTITION BY COMMA.join(exprs) ORDER BY frame_spec
+        estimate = self.frame_spec.expression_complexity
+        estimate += (
+            (1 + sum(expr.expression_complexity for expr in self.partition_spec))
+            if self.partition_spec
+            else 0
+        )
+        estimate += (
+            (1 + sum(expr.expression_complexity for expr in self.order_spec))
+            if self.order_spec
+            else 0
+        )
+        return estimate
+
 
 class WindowExpression(Expression):
     def __init__(
@@ -92,6 +114,14 @@ class WindowExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.window_function, self.window_spec)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        # window_function OVER ( window_spec )
+        return (
+            self.window_function.expression_complexity
+            + self.window_spec.expression_complexity
+        )
 
 
 class RankRelatedFunctionExpression(Expression):
@@ -112,6 +142,15 @@ class RankRelatedFunctionExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.default)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        # func_name (expr [, offset] [, default]) [IGNORE NULLS]
+        estimate = 1 + self.expr.expression_complexity
+        estimate += 1 if self.offset else 0
+        estimate += self.default.expression_complexity if self.default else 0
+        estimate += 1 if self.ignore_nulls else 0
+        return estimate
 
 
 class Lag(RankRelatedFunctionExpression):

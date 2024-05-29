@@ -3,8 +3,8 @@
 #
 
 import copy
-from functools import cached_property
 import uuid
+from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
@@ -82,17 +82,8 @@ class Expression:
         return f"{self.pretty_name}({children_sql})"
 
     @cached_property
-    def total_children_count(self) -> int:
-        count = 0
-        current_layer = [self]
-        while current_layer:
-            next_layer = []
-            for expression in current_layer:
-                count += 1
-                if expression.children:
-                    next_layer.extend(expression.children)
-            current_layer = next_layer
-        return count
+    def expression_complexity(self) -> int:
+        return 1 + sum(expr.expression_complexity for expr in (self.children or []))
 
     def __str__(self) -> str:
         return self.pretty_name
@@ -113,6 +104,10 @@ class NamedExpression:
         new._expr_id = None  # type: ignore
         return new
 
+    @property
+    def expression_complexity(self) -> int:
+        return 1
+
 
 class ScalarSubquery(Expression):
     def __init__(self, plan: "SnowflakePlan") -> None:
@@ -121,6 +116,11 @@ class ScalarSubquery(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        # get plan complexity
+        return self.plan.subtree_query_complexity
 
 
 class MultipleExpression(Expression):
@@ -131,6 +131,10 @@ class MultipleExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        return sum(expr.expression_complexity for expr in self.expressions)
+
 
 class InExpression(Expression):
     def __init__(self, columns: Expression, values: List[Expression]) -> None:
@@ -140,6 +144,12 @@ class InExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.columns, *self.values)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.columns.expression_complexity + sum(
+            expr.expression_complexity for expr in self.values
+        )
 
 
 class Attribute(Expression, NamedExpression):
@@ -169,6 +179,10 @@ class Attribute(Expression, NamedExpression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return {self.name}
 
+    @property
+    def expression_complexity(self) -> int:
+        return 1
+
 
 class Star(Expression):
     def __init__(
@@ -180,6 +194,10 @@ class Star(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return max(1, sum(expr.expression_complexity for expr in self.expressions))
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
@@ -286,6 +304,10 @@ class Interval(Expression):
     def __str__(self) -> str:
         return self.sql
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        return len(self.values_dict)
+
 
 class Like(Expression):
     def __init__(self, expr: Expression, pattern: Expression) -> None:
@@ -295,6 +317,10 @@ class Like(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + self.pattern.expression_complexity
 
 
 class RegExp(Expression):
@@ -306,6 +332,10 @@ class RegExp(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, self.pattern)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + self.pattern.expression_complexity
+
 
 class Collate(Expression):
     def __init__(self, expr: Expression, collation_spec: str) -> None:
@@ -315,6 +345,10 @@ class Collate(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + 1
 
 
 class SubfieldString(Expression):
@@ -326,6 +360,10 @@ class SubfieldString(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + 1
+
 
 class SubfieldInt(Expression):
     def __init__(self, expr: Expression, field: int) -> None:
@@ -335,6 +373,10 @@ class SubfieldInt(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + 1
 
 
 class FunctionExpression(Expression):
@@ -368,6 +410,12 @@ class FunctionExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        estimate = sum(expr.expression_complexity for expr in self.children)
+        estimate += 1 if self.is_distinct else 0
+        return estimate
+
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:
@@ -378,6 +426,12 @@ class WithinGroup(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        return self.expr.expression_complexity + sum(
+            expr.expression_complexity for expr in self.order_by_cols
+        )
 
 
 class CaseWhen(Expression):
@@ -397,6 +451,17 @@ class CaseWhen(Expression):
         if self.else_value is not None:
             exps.append(self.else_value)
         return derive_dependent_columns(*exps)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        estimate = sum[
+            (
+                condition.expression_complexity + value.expression_complexity
+                for condition, value in self.branches
+            )
+        ]
+        estimate += self.else_value if self.else_value else 0
+        return estimate
 
 
 class SnowflakeUDF(Expression):
@@ -418,6 +483,10 @@ class SnowflakeUDF(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)
 
+    @cached_property
+    def expression_complexity(self) -> int:
+        return 1 + sum(expr.expression_complexity for expr in self.children)
+
 
 class ListAgg(Expression):
     def __init__(self, col: Expression, delimiter: str, is_distinct: bool) -> None:
@@ -428,3 +497,9 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.col)
+
+    @cached_property
+    def expression_complexity(self) -> int:
+        estimate = self.col.expression_complexity + 1
+        estimate += 1 if self.is_distinct else 0
+        return estimate
