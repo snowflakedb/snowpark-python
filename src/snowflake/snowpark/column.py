@@ -4,13 +4,14 @@
 #
 
 import sys
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
+    BinaryExpression,
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
@@ -59,6 +60,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     IsNotNull,
     IsNull,
     Not,
+    UnaryExpression,
     UnaryMinus,
     UnresolvedAlias,
 )
@@ -281,125 +283,85 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators (for now, assume Expression objects never used for AST)
+    def _bin_op_impl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+        ast = proto.SpColumnExpr()
+        property(ast).lhs.CopyFrom(self._ast)
+        Column._fill_ast(property(ast).rhs, other)
+        return Column(operator(self._expression, Column._to_expr(other)), ast = ast)
+    
+    def _bin_op_rimpl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+        ast = proto.SpColumnExpr()
+        Column._fill_ast(property(ast).lhs, other)
+        property(ast).rhs.CopyFrom(self._ast)
+        return Column(operator(Column._to_expr(other), self._expression), ast = ast)
+    
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_equal_to.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_equal_to.rhs, other)
-        return Column(EqualTo(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_equal_to, EqualTo, other)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_not_equal.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_not_equal.rhs, other)
-        return Column(NotEqualTo(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_not_equal, NotEqualTo, other)
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_gt.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_gt.rhs, other)
-        return Column(GreaterThan(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_gt, GreaterThan, other)
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_lt.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_lt.rhs, other)
-        return Column(LessThan(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_lt, LessThan, other)
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_geq.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_geq.rhs, other)
-        return Column(GreaterThanOrEqual(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_geq, GreaterThanOrEqual, other)
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_leq.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_leq.rhs, other)
-        return Column(LessThanOrEqual(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_leq, LessThanOrEqual, other)
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_plus.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_plus.rhs, other)
-        return Column(Add(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_plus, Add, other)
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(ast.sp_column_plus.lhs, other)
-        ast.sp_column_plus.rhs.CopyFrom(self._ast)
-        return Column(Add(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_plus, Add, other)
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_minus.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_minus.rhs, other)
-        return Column(Subtract(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_minus, Subtract, other)
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(ast.sp_column_minus.lhs, other)
-        ast.sp_column_minus.rhs.CopyFrom(self._ast)
-        return Column(Subtract(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_minus, Subtract, other)
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_multiply.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_multiply.rhs, other)
-        return Column(Multiply(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_multiply, Multiply, other)
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(ast.sp_column_multiply.lhs, other)
-        ast.sp_column_multiply.rhs.CopyFrom(self._ast)
-        return Column(Multiply(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_multiply, Multiply, other)
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_divide.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_divide.rhs, other)
-        return Column(Divide(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_divide, Divide, other)
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(ast.sp_column_divide.lhs, other)
-        ast.sp_column_divide.rhs.CopyFrom(self._ast)
-        return Column(Divide(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_divide, Divide, other)
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Reminder."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_mod.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_mod.rhs, other)
-        return Column(Remainder(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_mod, Remainder, other)
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(ast.sp_column_mod.lhs, other)
-        ast.sp_column_mod.rhs.CopyFrom(self._ast)
-        return Column(Remainder(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_mod, Remainder, other)
 
     # TODO: Create a new SpColumnPow IR entity and uncomment below
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        # ast = proto.SpColumnExpr()
-        # ast.sp_column_pow.lhs.CopyFrom(self._ast)
-        # Column._fill_ast(ast.sp_column_pow.rhs, other)
+        # return self._bin_op_impl(lambda ast: ast.sp_column_pow, Pow, other)
         return Column(Pow(self._expression, Column._to_expr(other)))
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        # ast = proto.SpColumnExpr()
-        # Column._fill_ast(ast.sp_column_pow.lhs, other)
-        # ast.sp_column_pow.rhs.CopyFrom(self._ast)
+        # return self._bin_op_rimpl(lambda ast: ast.sp_column_pow, Pow, other)
         return Column(Pow(Column._to_expr(other), self._expression))
 
     def __bool__(self) -> bool:
@@ -530,89 +492,62 @@ class Column:
 
     def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise and."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_bit_and.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_bit_and.rhs, other)
-        return Column(BitwiseAnd(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_and, BitwiseAnd, other)
 
     def bitor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise or."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_bit_or.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_bit_or.rhs, other)
-        return Column(BitwiseOr(Column._to_expr(other), self._expression), ast = ast)
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_or, BitwiseOr, other)
 
     def bitxor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise xor."""
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_xor, BitwiseXor, other)
+
+    def _unary_op_impl(self, property: Callable, operator: UnaryExpression) -> "Column":
         ast = proto.SpColumnExpr()
-        ast.sp_column_bit_xor.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_bit_xor.rhs, other)
-        return Column(BitwiseXor(Column._to_expr(other), self._expression), ast = ast)
+        property(ast).col.CopyFrom(self._ast)
+        return Column(operator(self._expression), ast = ast)
 
     def __neg__(self) -> "Column":
         """Unary minus."""
         # TODO: Need SpColumnNeg IR entity
-        # ast = proto.SpColumnExpr()
-        # ast.sp_column_neg.col.CopyFrom(self._ast)
+        # return self._unary_op_impl(lambda ast: ast.sp_column_neg, UnaryMinus)
         return Column(UnaryMinus(self._expression))
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_equal_null.lhs.CopyFrom(self._ast)
-        ast.sp_column_equal_null.rhs.CopyFrom(other._ast)
-        return Column(EqualNullSafe(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_equal_null, EqualNullSafe, other)
 
     def equal_nan(self) -> "Column":
         """Is NaN."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_equal_nan.col.CopyFrom(self._ast)
-        return Column(IsNaN(self._expression), ast = ast)
+        return self._unary_op_impl(lambda ast: ast.sp_column_equal_nan, IsNaN)
 
     def is_null(self) -> "Column":
         """Is null."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_is_null.col.CopyFrom(self._ast)
-        return Column(IsNull(self._expression), ast = ast)
+        return self._unary_op_impl(lambda ast: ast.sp_column_is_null, IsNull)
 
     def is_not_null(self) -> "Column":
         """Is not null."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_is_not_null.col.CopyFrom(self._ast)
-        return Column(IsNotNull(self._expression), ast = ast)
+        return self._unary_op_impl(lambda ast: ast.sp_column_is_not_null, IsNotNull)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: "Column") -> "Column":
         """And."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_and.lhs.CopyFrom(self._ast)
-        ast.sp_column_and.rhs.CopyFrom(other._ast)
-        return Column(And(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_and, And, other)
 
     def __rand__(self, other: "Column") -> "Column":
-        ast = proto.SpColumnExpr()
-        ast.sp_column_and.lhs.CopyFrom(other._ast)
-        ast.sp_column_and.rhs.CopyFrom(self._ast)
-        return Column(And(Column._to_expr(other), self._expression), ast = ast)  # pragma: no cover
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_and, And, other)    # pragma: no cover
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_or.lhs.CopyFrom(self._ast)
-        ast.sp_column_or.rhs.CopyFrom(other._ast)
-        return Column(Or(self._expression, Column._to_expr(other)), ast = ast)
+        return self._bin_op_impl(lambda ast: ast.sp_column_or, Or, other)
 
     def __ror__(self, other: "Column") -> "Column":
-        ast = proto.SpColumnExpr()
-        ast.sp_column_or.lhs.CopyFrom(other._ast)
-        ast.sp_column_or.rhs.CopyFrom(self._ast)
-        return Column(And(Column._to_expr(other), self._expression), ast = ast)  # pragma: no cover
+        return self._bin_op_rimpl(lambda ast: ast.sp_column_or, Or, other)      # pragma: no cover
 
     def __invert__(self) -> "Column":
         """Unary not."""
         # TODO: Need an SpColumnNot IR entity
-        # ast = proto.SpColumnExpr()
-        # ast.sp_column_not.col.CopyFrom(self._ast)
+        # return self._unary_op_impl(lambda ast: ast.sp_column_not, Not)
         return Column(Not(self._expression))
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
