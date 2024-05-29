@@ -7,7 +7,7 @@ import json
 import logging
 import re
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from datetime import tzinfo
+from datetime import timedelta, tzinfo
 from typing import Any, Callable, Literal, Optional, Union, get_args
 
 import numpy as np
@@ -13429,4 +13429,82 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         ErrorMessage.not_implemented(
             "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
+        )
+
+    def pct_change(
+        self,
+        periods: int = 1,
+        fill_method: Literal["backfill", "bfill", "pad", "ffill", None] = no_default,
+        limit: Optional[int] = None,
+        freq: Optional[Union[pd.DateOffset, timedelta, str]] = None,
+        axis: Axis = 0,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Fractional change between the current and a prior element.
+
+        Computes the fractional change from the immediately previous row by default.
+        This is useful in comparing the fraction of change in a time series of elements.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Periods to shift for forming percent change.
+
+        fill_method : {'backfill', 'bfill', 'pad', 'ffill'}, optional
+            How to handle NAs before computing percent changes.
+
+            Snowpark pandas only supports fill_method=None.
+
+            Deprecated since version 2.1: All options of fill_method are deprecated except fill_method=None.
+
+        limit : int, optional
+            The number of consecutive NAs to fill before stopping.
+
+            Snowpark pandas does not support this parameter.
+
+            Deprecated since version 2.1.
+
+        freq : DateOffset, timedelta, or str, optional
+            Increment to use from time series API (e.g. ‘ME’ or BDay()).
+
+            Snowpark pandas does not currently support this parameter.
+
+        axis : Axis, default 0
+            This is not part of the documented `pct_change` API, but pandas forwards kwargs like this
+            to `shift`. To avoid unnecessary JOIN operations, we cannot compositionally use `QueryCompiler.shift`,
+            and instead have to validate the axis argument here.
+
+            Snowpark pandas currently only supports axis=0.
+        """
+        # `periods` is validated by the frontend
+        deprecated_error_template = "Snowpark pandas DataFrame/Series.pct_change does not support the {} parameter since it is deprecated in pandas"
+        if fill_method not in (None, no_default):
+            ErrorMessage.not_implemented(
+                deprecated_error_template.format("fill_method")
+            )
+        if limit is not None:
+            ErrorMessage.not_implemented(deprecated_error_template.format("limit"))
+        if freq is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.pct_change does not yet support the 'freq' parameter"
+            )
+        if axis != 0:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.pct_change does not yet support axis=1"
+            )
+        frame = self._modin_frame
+        return SnowflakeQueryCompiler(
+            frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    quoted_identifier: col(quoted_identifier)
+                    / lag(quoted_identifier, offset=periods).over(
+                        Window.orderBy(
+                            col(frame.row_position_snowflake_quoted_identifier)
+                        )
+                    )
+                    - 1
+                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                }
+            ).frame
         )
