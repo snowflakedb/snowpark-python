@@ -13,7 +13,7 @@ from tests.integ.modin.pivot.pivot_utils import (
     pivot_table_test_helper,
     pivot_table_test_helper_expects_exception,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
@@ -263,37 +263,56 @@ def test_pivot_on_inline_data_using_temp_table():
 @pytest.mark.parametrize("margins", [True, False])
 def test_pivot_empty_frame_snow_1013918(index, columns, margins):
     snow_df, native_df = create_test_dfs(columns=["a", "b", "c", "d"])
-    snow_df = snow_df.pivot_table(index=index, columns=columns, margins=margins)
-    if margins and index is not None and len(list(index) + list(columns)) == 4:
+    query_count = 2 if index is None else 1
+    join_count = 1 if index is not None and len(columns) == 1 else 0
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        snow_df = snow_df.pivot_table(index=index, columns=columns, margins=margins)
+        if margins and index is not None and len(list(index) + list(columns)) == 4:
+            # When margins is True, and there are no values (i.e. all of the
+            # columns in the DataFrame are passed in to either the `index`
+            # or `columns` parameter), pandas errors out. We return an empty
+            # DataFrame instead.
+            with pytest.raises(TypeError, match="'str' object is not callable"):
+                native_df.pivot_table(index=index, columns=columns, margins=margins)
+            if isinstance(columns, list):
+                levels = codes = [[]] * (len(columns) + 1)
+                columns = [None] + columns
+            else:
+                levels = codes = [[]]
+            native_df = native_pd.DataFrame(
+                index=pd.Index([], name=index if isinstance(index, str) else index[0]),
+                columns=pd.MultiIndex(levels=levels, codes=codes, names=columns),
+            )
+        else:
+            native_df = native_df.pivot_table(
+                index=index, columns=columns, margins=margins
+            )
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df, native_df, check_index_type=False, check_column_type=False
+        )
+
+
+@pytest.mark.parametrize("margins", [True, False])
+@sql_count_checker(query_count=1)
+def test_pivot_empty_frame_no_values(margins):
+    snow_df, native_df = create_test_dfs(columns=["a", "b", "c", "d"])
+    snow_df = snow_df.pivot_table(index=["c", "d"], columns=["a", "b"], margins=margins)
+    if margins:
         # When margins is True, and there are no values (i.e. all of the
         # columns in the DataFrame are passed in to either the `index`
         # or `columns` parameter), pandas errors out. We return an empty
         # DataFrame instead.
         with pytest.raises(TypeError, match="'str' object is not callable"):
-            native_df.pivot_table(index=index, columns=columns, margins=margins)
-        if isinstance(columns, list):
-            levels = codes = [[]] * (len(columns) + 1)
-            columns = [None] + columns
-        else:
-            levels = codes = [[]]
-        native_df = native_pd.DataFrame(
-            index=pd.Index([], name=index if isinstance(index, str) else index[0]),
-            columns=pd.MultiIndex(levels=levels, codes=codes, names=columns),
-        )
+            native_df.pivot_table(index=["c", "d"], columns=["a", "b"], margins=margins)
+        levels = codes = [[], []]
+        ind = pd.MultiIndex(levels=levels, codes=codes, names=["c", "d"])
+        levels = codes = [[], [], []]
+        cols = pd.MultiIndex(levels=levels, codes=codes, names=[None, "a", "b"])
+        native_df = native_pd.DataFrame(index=ind, columns=cols)
     else:
-        native_df = native_df.pivot_table(index=index, columns=columns, margins=margins)
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_df, native_df, check_index_type=False, check_column_type=False
-    )
-
-
-@pytest.mark.parametrize("margins", [True, False])
-def test_pivot_empty_frame_no_values(margins):
-    snow_df, native_df = create_test_dfs(columns=["a", "b", "c", "d"])
-    snow_df = snow_df.pivot_table(index=["c", "d"], columns=["a", "b"], margins=margins)
-    native_df = native_df.pivot_table(
-        index=["c", "d"], columns=["a", "b"], margins=margins
-    )
+        native_df = native_df.pivot_table(
+            index=["c", "d"], columns=["a", "b"], margins=margins
+        )
     assert_snowpark_pandas_equal_to_pandas(
         snow_df, native_df, check_index_type=False, check_column_type=False
     )

@@ -1,5 +1,21 @@
 # Release History
 
+## 1.19.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
+- Expand support for empty DataFrames in `DataFrame.pivot_table`.
+
 ## 1.18.0 (2024-05-28)
 
 ### Snowpark Python API Updates
@@ -20,7 +36,6 @@
 - Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
 - Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
 - Re-added support for `Series.str.split`.
-- Expand support for empty DataFrames in `DataFrame.pivot_table`.
 
 #### Bug Fixes
 

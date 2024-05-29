@@ -6466,6 +6466,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index,
             )
         except SnowparkSQLException as e:
+            # `pivot_table` is implemented on the server side via the dynamic pivot
+            # feature. The dynamic pivot issues an eager query in order to determine
+            # what the pivot values are. If there are no pivot values, and no groupby
+            # columns are specified, we eagerly raise an error on the server side.
             # Error Code 1146 corresponds to the Snowflake Exception when
             # a dynamic pivot is called and there are no pivot values and no
             # groupby columns specified. If we hit this error, that means that
@@ -6508,9 +6512,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
         # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
-        # this means that we pivoted on an empty table - in that case, we can skip adding margins, and just add
-        # an extra layer to the columns Index, since the result will still be an empty DataFrame (but we
-        # will have increased the join and union count) for no reason.
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins. We may need to add
+        # an additional layer to the columns Index (since margins is True), but the expand_pivot_result_with_pivot_table_margins
+        # codepath will add additional joins and unions to our query that aren't necessary, since the DataFrame is empty either way.
         if (
             margins
             and pivot_aggr_groupings
@@ -6546,6 +6550,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             and len(pivot_qc.columns) == 0
             and len(pivot_qc.columns.names) != (len(columns) + 1)
         ):
+            # If `margins` is True, and our result is empty, we must add an additional level to
+            # the columns Index. One caveat is when there are no values columns - in that case
+            # pandas adds an extra level to the columns Index regardless of if margins is True or not
+            # (which we handle in pivot_utils.py), so in that case, we shouldn't add a second
+            # extra level to the columns Index.
             levels: list[list] = [[]] * (len(pivot_qc.columns.names) + 1)
             codes: list[list] = levels
             pivot_qc = pivot_qc.set_columns(
