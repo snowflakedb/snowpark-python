@@ -22,7 +22,7 @@ class TestCase:
 
 
 def parse_file(file):
-    """Parses a test case file. N.B. Pytest requires a tuple wrapper, so we turn it into a 1-tuple."""
+    """Parses a test case file."""
     with open(file, "r", encoding="utf-8") as f:
         src = f.readlines()
 
