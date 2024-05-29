@@ -91,7 +91,7 @@ session._ast_batch.flush()  # Clear the AST.
 def test_ast(session, test_case):
     actual = run_test(session, test_case.source)
     if pytest.update_expectations:
-        with open(TEST_DIR / test_case.filename, "w", encoding="utf-8") as f:
+        with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines([
                 "## TEST CASE\n",
                 test_case.source,
