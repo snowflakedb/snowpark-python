@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
-import pandas
+import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -932,7 +932,7 @@ def get_valid_col_positions_from_col_labels(
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
         # Throw a KeyError in case there are any missing column labels
         if len(col_loc) > 0 and all(label not in columns for label in col_loc):
-            raise KeyError(f"None of {pandas.Index(col_loc)} are in the [columns]")
+            raise KeyError(f"None of {native_pd.Index(col_loc)} are in the [columns]")
         elif any(label not in columns for label in col_loc):
             raise KeyError(f"{[k for k in col_loc if k not in columns]} not in index")
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to

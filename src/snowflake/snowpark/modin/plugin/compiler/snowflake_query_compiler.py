@@ -53,7 +53,6 @@ from pandas.api.types import (
 )
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
-from pandas.core.indexes.api import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
@@ -368,8 +367,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             TypeMapper.to_pandas(col_to_type[c])
             for c in self._modin_frame.data_column_snowflake_quoted_identifiers
         ]
+
+        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+
         return native_pd.Series(
-            data=types, index=self._modin_frame.data_columns_index, dtype=object
+            data=types,
+            index=try_convert_to_native_index(self._modin_frame.data_columns_index),
+            dtype=object,
         )
 
     @property
@@ -642,8 +646,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.index_column_pandas_labels
         )
 
+        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+
         # set column names and potential casting
-        native_df.columns = self._modin_frame.data_columns_index
+        native_df.columns = try_convert_to_native_index(
+            self._modin_frame.data_columns_index
+        )
         return native_df
 
     def finalize(self) -> None:
@@ -1142,7 +1150,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> native_pd.Index:
+    def columns(self) -> pd.Index:
         """
         Get pandas column labels.
 
@@ -1163,6 +1171,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
+        from snowflake.snowpark.modin.pandas.utils import ensure_index
+
         new_pandas_labels = ensure_index(new_pandas_labels)
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
             raise ValueError(
@@ -1401,7 +1411,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             The index (row labels) of the DataFrame.
         """
-        return self._modin_frame.index_columns_index
+        if self.is_multiindex():
+            return self._modin_frame.index_columns_index
+        else:
+            return pd.Index(self)
 
     def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
         """
@@ -2221,6 +2234,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(internal_frame)
+
+    def reindex(
+        self, axis: int, labels: Any, *args: dict, **kwargs: dict
+    ) -> BaseQueryCompiler:
+        """
+        Align QueryCompiler data with a new index along specified axis.
+
+        Parameters
+        ----------
+        axis : {0, 1}
+            Axis to align labels along. 0 is for index, 1 is for columns.
+        labels : list-like
+            Index-labels to align with.
+        limit : int
+        *args : dict
+        **kwargs : dict
+            For compatibility purposes. Does not affect the result.
+
+        Returns
+        -------
+        BaseQueryCompiler
+            QueryCompiler with aligned axis.
+        """
+        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+
+        labels = try_convert_to_native_index(labels)
+        return super().reindex(axis, labels, *args, **kwargs)
 
     # TODO: Eliminate from Modin QC layer and call `first_last_valid_index` directly from frontend
     def first_valid_index(self) -> Union[Scalar, tuple[Scalar]]:
@@ -3604,7 +3644,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             #
             # into {2: pd.Index([0, 4]), 9: pd.Index([0])}
             aggregated_as_pandas.iloc[:, 0].map(
-                lambda v: pd.Index(
+                lambda v: native_pd.Index(
                     v,
                     # note that the index dtype has to match the original
                     # index's dtype, even if we could use a more restrictive
@@ -3630,7 +3670,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         # note that the index dtype has to match the original
                         # index's dtype, even if we could use a more restrictive
                         # type for this portion of the index.
-                        pd.Index(
+                        native_pd.Index(
                             row.iloc[i],
                             name=original_index_name,
                             dtype=index_dtype,
@@ -6081,8 +6121,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             in self._modin_frame.data_column_snowflake_quoted_identifiers
         ]
 
+        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+
         # current columns
-        column_index = self._modin_frame.data_columns_index
+        column_index = try_convert_to_native_index(self._modin_frame.data_columns_index)
 
         # Extract return type from annotations (or lookup for known pandas functions) for func object,
         # if not return type could be extracted the variable will hold None.

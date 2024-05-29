@@ -141,16 +141,20 @@ class Series(BasePandasDataset):
             if name is None:
                 name = MODIN_UNNAMED_SERIES_LABEL
                 if (
-                    isinstance(data, (pandas.Series, pandas.Index))
+                    isinstance(data, (pandas.Series, pandas.Index, pd.Index))
                     and data.name is not None
                 ):
                     name = data.name
 
+            from snowflake.snowpark.modin.pandas.utils import (
+                try_convert_to_native_index,
+            )
+
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
-                        data=data,
-                        index=index,
+                        data=try_convert_to_native_index(data),
+                        index=try_convert_to_native_index(index),
                         dtype=dtype,
                         name=name,
                         copy=copy,

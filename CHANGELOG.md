@@ -1,5 +1,28 @@
 # Release History
 
+## 1.18.1 (TBH)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added an Index class in Snowpark pandas. This class contains a native pandas index for now, but we plan to turn this into a lazily evaluated index in future updates.
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
 ## 1.18.0 (2024-05-28)
 
 ### Snowpark Python API Updates

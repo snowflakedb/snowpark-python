@@ -9,6 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -64,10 +65,12 @@ def _test_isin_with_snowflake_logic(s, values):
         # (native_pd.Series(index=["A", "B"]), 1), # not supported anymore because of index type mismatch
         (native_pd.Series([None, -10]), 5),
         (native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}), 5),
-        (pd.Index([4, 5, 6]), 3),
+        (native_pd.Index([4, 5, 6]), 3),
     ],
 )
 def test_isin_integer_data(values, expected_query_count):
+    if isinstance(values, native_pd.Index):
+        values = pd.Index(values)
     data = [3, 4, 2, 1, None, 0, 5, 4, 2, -10, -20, -42, None]
     with SqlCounter(query_count=expected_query_count):
         snow_series = pd.Series(data)
@@ -76,7 +79,9 @@ def test_isin_integer_data(values, expected_query_count):
         eval_snowpark_pandas_result(
             snow_series,
             native_series,
-            lambda s: _test_isin_with_snowflake_logic(s, values),
+            lambda s: _test_isin_with_snowflake_logic(
+                s, try_convert_to_native_index(values)
+            ),
         )
 
 
