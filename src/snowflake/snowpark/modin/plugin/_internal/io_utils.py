@@ -8,7 +8,7 @@ from collections.abc import Hashable
 from typing import Any, Callable, Union
 
 import numpy as np
-import pandas as native_pandas
+import pandas as native_pd
 
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.session import Session
@@ -135,7 +135,7 @@ def get_columns_to_keep_for_usecols(
     elif len(_usecols) == 0:
         keep = []
     else:
-        if isinstance(_usecols, native_pandas.core.series.Series):
+        if isinstance(_usecols, native_pd.core.series.Series):
             _usecols = _usecols.values
 
         if isinstance(_usecols[0], str):  # type: ignore
