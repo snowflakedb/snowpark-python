@@ -281,8 +281,8 @@ def read_csv(
     with ``engine=snowflake``
 
     If parsing the file using Snowflake, certain parameters may not be supported
-    and the order of rows in the dataframe may be different than the order of 
-    records in an input file. When reading multiple files, there is no 
+    and the order of rows in the dataframe may be different than the order of
+    records in an input file. When reading multiple files, there is no
     deterministic order in which the files are read.
 
     Examples
