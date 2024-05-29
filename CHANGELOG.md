@@ -23,6 +23,8 @@
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
 - Fixed a bug that table merge fails when update clause exists but no update takes place.
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
+- Fixed a bug in handling of `CaseExpr` expressions that raises `IndexError` when incoming column has inconsecutive row index.
+- Fixed a bug in implementation of `Column.like` that raises `IndexError` when incoming column has inconsecutive row index.
 
 ### Snowpark pandas API Updates
 
