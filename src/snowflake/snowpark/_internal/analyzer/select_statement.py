@@ -706,10 +706,21 @@ class SelectStatement(Selectable):
     @property
     def individual_query_complexity(self) -> int:
         # projection component
-        estimate = sum(expr.expression_complexity for expr in self.projection) if self.projection else 0
+        estimate = (
+            sum(expr.expression_complexity for expr in self.projection)
+            if self.projection
+            else 0
+        )
         # order by component - add complexity for each sort expression but remove len(order_by) - 1 since we only
         # include "ORDER BY" once in sql test
-        estimate += sum(expr.expression_complexity for expr in self.order_by) - (len(self.order_by) - 1) if self.order_by else 0
+        estimate += (
+            (
+                sum(expr.expression_complexity for expr in self.order_by)
+                - (len(self.order_by) - 1)
+            )
+            if self.order_by
+            else 0
+        )
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
         estimate += (1 + self.where.expression_complexity) if self.where else 0
         # limit component

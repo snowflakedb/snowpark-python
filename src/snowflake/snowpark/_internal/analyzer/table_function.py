@@ -65,8 +65,8 @@ class TableFunctionExpression(Expression):
 
     @cached_property
     def expression_complexity(self) -> int:
-        return (
-            1 + self.partition_spec.expression_complexity if self.partition_spec else 0
+        return 1 + (
+            self.partition_spec.expression_complexity if self.partition_spec else 0
         )
 
 
@@ -117,7 +117,9 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
 
     @cached_property
     def expression_complexity(self) -> int:
-        estimate = 1 + sum((1 + arg.expression_complexity) for arg in self.args.values())
+        estimate = 1 + sum(
+            (1 + arg.expression_complexity) for arg in self.args.values()
+        )
         estimate += (
             self.partition_spec.expression_complexity if self.partition_spec else 0
         )

@@ -37,7 +37,7 @@ class Sample(UnaryNode):
     def individual_query_complexity(self) -> int:
         # child SAMPLE (probability) -- if probability is provided
         # child SAMPLE (row_count ROWS) -- if not probability but row count is provided
-        return 2 + 1 if self.row_count else 0
+        return 2 + (1 if self.row_count else 0)
 
 
 class Sort(UnaryNode):
@@ -88,7 +88,9 @@ class Pivot(UnaryNode):
 
     @property
     def individual_query_complexity(self) -> int:
-        estimate = sum(expr.expression_complexity for expr in self.grouping_columns)
+        # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
+        estimate = 3
+        estimate += sum(expr.expression_complexity for expr in self.grouping_columns)
         estimate += self.pivot_column.expression_complexity
         if isinstance(self.pivot_values, ScalarSubquery):
             estimate += self.pivot_values.expression_complexity
@@ -124,7 +126,8 @@ class Unpivot(UnaryNode):
 
     @property
     def individual_query_complexity(self) -> int:
-        return 2 + sum(expr.expression_complexity for expr in self.column_list)
+        # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
+        return 4 + sum(expr.expression_complexity for expr in self.column_list)
 
 
 class Rename(UnaryNode):
