@@ -14,9 +14,12 @@ from pandas._typing import IndexLabel
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
+from snowflake.snowpark.modin.plugin._internal.index import Index
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
+
+register_pd_accessor("Index")(Index)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
