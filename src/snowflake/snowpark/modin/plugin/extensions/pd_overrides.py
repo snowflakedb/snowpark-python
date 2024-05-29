@@ -172,8 +172,10 @@ def read_csv(
         to preserve and not interpret dtype.
         If converters are specified, they will be applied INSTEAD
         of dtype conversion.
-    engine : {{'c', 'python', 'pyarrow'}}, optional
-        This parameter is not supported and will be ignored.
+    engine : {{'c', 'python', 'pyarrow', 'snowflake'}}, optional
+        Changes the parser for reading CSVs. 'snowflake' will use the parser
+        from Snowflake itself, which matches the behavior of the COPY INTO
+        command.
     converters : dict, optional
        This parameter is only supported on local files.
     true_values : list, optional

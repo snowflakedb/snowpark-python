@@ -79,6 +79,25 @@ def test_read_csv_header_simple(resources_path, header):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
+@pytest.mark.parametrize("engine", ["c", "python", "pyarrow"])
+@sql_count_checker(query_count=2)
+def test_read_csv_engine_local(resources_path, engine):
+    test_files = TestFiles(resources_path)
+
+    expected = native_pd.read_csv(test_files.test_file_csv_header)
+    got = pd.read_csv(test_files.test_file_csv_header, engine=engine)
+    assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
+
+
+@sql_count_checker(query_count=9)
+def test_read_csv_engine_snowflake(resources_path):
+    test_files = TestFiles(resources_path)
+
+    expected = native_pd.read_csv(test_files.test_file_csv_header)
+    got = pd.read_csv(test_files.test_file_csv_header, engine="snowflake")
+    assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
+
+
 @sql_count_checker(query_count=2)
 def test_read_csv_header_skiprows(resources_path):
     test_files = TestFiles(resources_path)

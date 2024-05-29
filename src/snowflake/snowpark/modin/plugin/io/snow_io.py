@@ -61,7 +61,7 @@ READ_CSV_DEFAULTS = {
     "converters": None,
     "true_values": None,
     "false_values": None,
-    "skipinitialspace": None,
+    "skipinitialspace": False,
     "skiprows": None,
     "skipfooter": 0,
     "nrows": None,
@@ -93,7 +93,7 @@ READ_CSV_DEFAULTS = {
     "dialect": None,
     "on_bad_lines": "error",
     "delim_whitespace": no_default,
-    "low_memory": False,  # Different from default because we want better dtype detection
+    "low_memory": True,
     "memory_map": False,
     "float_precision": None,
     "storage_options": None,
@@ -328,7 +328,8 @@ class PandasOnSnowflakeIO(BaseIO):
                 "filepath_or_buffer must be a path to a file or folder stored locally or on a Snowflake stage."
             )
 
-        if is_local_filepath(filepath_or_buffer):
+        if kwargs["engine"] != "snowflake" and is_local_filepath(filepath_or_buffer):
+
             return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
 
         WarningMessage.mismatch_with_pandas(
