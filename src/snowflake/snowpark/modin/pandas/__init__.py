@@ -46,6 +46,7 @@ with warnings.catch_warnings():
         Float32Dtype,
         Float64Dtype,
         Grouper,
+        Index,
         IndexSlice,
         Int8Dtype,
         Int16Dtype,
@@ -88,7 +89,6 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
-from snowflake.snowpark.modin.plugin._internal.index import Index  # isort:skip
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     concat,
