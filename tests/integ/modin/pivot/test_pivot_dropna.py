@@ -150,7 +150,7 @@ def test_pivot_table_single_nuance_aggfuncs_dropna_and_null_data(
             ("mean", "E", "up"): [None, 1.0],
         }
     )
-    native_df.index = pd.Index(["bar", "foo"], dtype="object", name="A")
+    native_df.index = native_pd.Index(["bar", "foo"], dtype="object", name="A")
     native_df.columns.names = [None, None, "C"]
 
     eval_snowpark_pandas_result(

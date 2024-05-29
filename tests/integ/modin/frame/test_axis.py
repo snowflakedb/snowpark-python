@@ -8,12 +8,16 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import VALID_PANDAS_LABELS, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    VALID_PANDAS_LABELS,
+    assert_index_equal,
+    eval_snowpark_pandas_result,
+)
 
 
 def assert_axes_result_equal(snow_res, pd_res):
@@ -126,7 +130,10 @@ def test_columns(test_df):
 
 
 def set_columns_func(df, labels):
-    df.columns = labels
+    if isinstance(df, pd.DataFrame):
+        df.columns = labels
+    else:
+        df.columns = try_convert_to_native_index(labels)
     return df.columns
 
 
@@ -135,18 +142,23 @@ def set_columns_func(df, labels):
     [
         ["a", "b"],
         [1.3, 2],
-        pd.Index([1.3, 2]),
+        native_pd.Index([1.3, 2]),
         [None, int],
         [(42, "test"), (1, 2, 3)],
-        pd.Index(["a", "b"]),
+        native_pd.Index(["a", "b"]),
         [("A",), ("B",)],
         [("A", "a", 1), ("B", "b", 1)],
         [["A", "a"], ["B", "b"]],
-        pd.MultiIndex.from_tuples([("A", "a"), ("B", "b")]),
+        native_pd.MultiIndex.from_tuples([("A", "a"), ("B", "b")]),
     ],
 )
 @sql_count_checker(query_count=0)
 def test_set_columns(columns):
+    if isinstance(columns, native_pd.Index) and not isinstance(
+        columns, native_pd.MultiIndex
+    ):
+        columns = pd.Index(columns)
+
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dfs[0].copy()),
         test_dfs[0].copy(),
@@ -241,7 +253,7 @@ def test_duplicate_labels_assignment():
 
     # Duplicate between index and data label
     snow_df = pd.DataFrame(
-        {"b": [1, 2]}, index=pd.RangeIndex(start=4, stop=6, step=1, name="a")
+        {"b": [1, 2]}, index=native_pd.RangeIndex(start=4, stop=6, step=1, name="a")
     )
     snow_df.columns = ["a"]
     assert snow_df.columns.tolist() == ["a"]

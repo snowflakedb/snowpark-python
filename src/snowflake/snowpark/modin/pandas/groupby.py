@@ -26,7 +26,6 @@ from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import numpy as np  # noqa: F401
 import numpy.typing as npt
-import pandas
 import pandas.core.groupby
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import AggFuncType, Axis, IndexLabel
@@ -409,7 +408,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 series_groupby=False,
             )
         )
-        if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
+        if dataframe_result.columns.equals(pd.Index([MODIN_UNNAMED_SERIES_LABEL])):
             return dataframe_result.squeeze(axis=1)
         return dataframe_result
 
@@ -1209,7 +1208,7 @@ class SeriesGroupBy(DataFrameGroupBy):
                 series_groupby=True,
             )
         )
-        if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
+        if dataframe_result.columns.equals(pd.Index([MODIN_UNNAMED_SERIES_LABEL])):
             # rename to the last column of self._df
             # note that upstream modin does not do this yet due to
             # https://github.com/modin-project/modin/issues/7097

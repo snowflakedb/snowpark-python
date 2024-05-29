@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Callable, NamedTuple, Optional, Union
 
-import pandas as pd
+import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_object_dtype
 
@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import col, last_value
+from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
@@ -376,7 +377,7 @@ class InternalFrame:
         the data from snowflake and filing a query to snowflake.
         """
         if self.is_multiindex(axis=1):
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 self.data_column_pandas_labels,
                 names=self.data_column_pandas_index_names,
             )
@@ -391,7 +392,7 @@ class InternalFrame:
             )
 
     @property
-    def index_columns_index(self) -> pd.Index:
+    def index_columns_index(self) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
@@ -407,7 +408,7 @@ class InternalFrame:
         ).values
         if self.is_multiindex(axis=0):
             value_tuples = [tuple(row) for row in index_values]
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 value_tuples, names=self.index_column_pandas_labels
             )
         else:
@@ -416,7 +417,7 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
-            ret = pd.Index(
+            ret = native_pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex

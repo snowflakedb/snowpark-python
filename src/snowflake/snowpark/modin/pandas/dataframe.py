@@ -238,8 +238,17 @@ class DataFrame(BasePandasDataset):
                     k: v._to_pandas() if isinstance(v, Series) else v
                     for k, v in data.items()
                 }
+
+            from snowflake.snowpark.modin.pandas.utils import (
+                try_convert_to_native_index,
+            )
+
             pandas_df = pandas.DataFrame(
-                data=data, index=index, columns=columns, dtype=dtype, copy=copy
+                data=try_convert_to_native_index(data),
+                index=try_convert_to_native_index(index),
+                columns=try_convert_to_native_index(columns),
+                dtype=dtype,
+                copy=copy,
             )
             self._query_compiler = from_pandas(pandas_df)._query_compiler
         else:
@@ -307,14 +316,14 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pandas.Index:
+    def _get_columns(self) -> pd.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 
         Returns
         -------
-        pandas.Index
-            The all columns.
+        pd.Index or pandas.MultiIndex
+            the columns
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._query_compiler.columns
@@ -2291,7 +2300,7 @@ class DataFrame(BasePandasDataset):
                 label_or_series.append(key._query_compiler)
             elif isinstance(key, (np.ndarray, list, Iterator)):
                 label_or_series.append(pd.Series(key)._query_compiler)
-            elif isinstance(key, pd.Index):
+            elif isinstance(key, (pd.Index, pandas.MultiIndex)):
                 label_or_series += [
                     s._query_compiler for s in self._to_series_list(key)
                 ]

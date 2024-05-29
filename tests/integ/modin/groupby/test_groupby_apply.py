@@ -16,6 +16,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -848,7 +849,7 @@ class TestFuncReturnsScalar:
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 operation(snow_df),
                 native_pd.Series(
-                    [None, None], index=pd.Index(["i0", "i1"], name="level_0")
+                    [None, None], index=native_pd.Index(["i0", "i1"], name="level_0")
                 ),
             )
         else:
@@ -862,9 +863,6 @@ class TestFuncReturnsScalar:
         query_count=8,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
-    )
-    @pytest.mark.xfail(
-        reason="SNOW-1434962 groupby.apply order is not deterministic",
     )
     def test_group_apply_return_df_from_lambda(self):
         diamonds_path = (
@@ -970,7 +968,7 @@ class TestFuncReturnsSeries:
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
-        pandas_index = pd.Index(index, name="index")
+        pandas_index = native_pd.Index(index, name="index")
         if dropna and pandas_index.isna().all():
             pytest.xfail(
                 reason="We drop all the rows, apply the UDTF, and try to "
@@ -1126,7 +1124,10 @@ class TestSeriesGroupBy:
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2], index=["a", "a", "b"]),
             lambda s: s.groupby(
-                s.index, dropna=dropna, group_keys=group_keys, sort=sort
+                try_convert_to_native_index(s.index),
+                dropna=dropna,
+                group_keys=group_keys,
+                sort=sort,
             ).apply(func),
         )
 

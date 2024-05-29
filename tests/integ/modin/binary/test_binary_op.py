@@ -16,6 +16,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -1008,7 +1009,9 @@ def test_binary_arithmetic_ops_between_df_and_list_like_on_axis_1(op, rhs):
 def test_binary_div_between_series_and_list_like(op, rhs):
     lhs = [25, 2.5, 0.677, -3.33, -12]
     eval_snowpark_pandas_result(
-        *create_test_series(lhs), lambda df: getattr(df, op)(rhs), atol=0.001
+        *create_test_series(lhs),
+        lambda df: getattr(df, op)(try_convert_to_native_index(rhs)),
+        atol=0.001,
     )
 
 

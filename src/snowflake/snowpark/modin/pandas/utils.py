@@ -20,23 +20,27 @@
 # Version 2.0.
 
 """Implement utils for pandas component."""
+from __future__ import annotations
 
 from collections.abc import Hashable, Iterator, Sequence
 from types import BuiltinFunctionType
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 import numpy as np
 import pandas
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+from pandas._libs import lib
 from pandas._typing import (
     AggFuncType,
     AggFuncTypeBase,
     AggFuncTypeDict,
     AnyArrayLike,
+    Axes,
     IndexLabel,
     Scalar,
 )
 from pandas.core.dtypes.common import is_array_like, is_dict_like, is_list_like
+from pandas.core.dtypes.generic import ABCSeries
 from pandas.errors import SpecificationError
 from pandas.util._decorators import doc
 
@@ -290,7 +294,7 @@ def check_both_not_none(option1, option2):
 
 def _walk_aggregation_func(
     key: IndexLabel, value: AggFuncType, depth: int = 0
-) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, Optional[str], bool]]:
+) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, str | None, bool]]:
     """
     Walk over a function from a dictionary-specified aggregation.
 
@@ -342,7 +346,7 @@ def _walk_aggregation_func(
 
 def walk_aggregation_dict(
     agg_dict: AggFuncTypeDict,
-) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, Optional[str], bool]]:
+) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, str | None, bool]]:
     """
     Walk over an aggregation dictionary.
 
@@ -383,10 +387,8 @@ def raise_if_native_pandas_objects(obj: Any) -> None:
 
 
 def replace_external_data_keys_with_empty_pandas_series(
-    keys: Optional[
-        Union[Hashable, AnyArrayLike, Sequence[Union[Hashable, AnyArrayLike]]]
-    ] = None
-) -> Optional[Union[Hashable, pandas.Series, list[Union[Hashable, pandas.Series]]]]:
+    keys: None | (Hashable | AnyArrayLike | Sequence[Hashable | AnyArrayLike]) = None,
+) -> Hashable | pandas.Series | list[Hashable | pandas.Series] | None:
     """
     Replace any array-like key with empty series.
     Args:
@@ -430,9 +432,7 @@ def create_empty_pandas_series_from_array_like(obj: AnyArrayLike) -> pandas.Seri
     return obj.head(0)
 
 
-def create_empty_native_pandas_frame(
-    obj: Union["pd.Series", "pd.DataFrame"]
-) -> pandas.DataFrame:
+def create_empty_native_pandas_frame(obj: pd.Series | pd.DataFrame) -> pandas.DataFrame:
     """
     Create an empty native pandas DataFrame using the columns and index labels info from
     the given object. Empty here implies zero rows.
@@ -454,13 +454,9 @@ def create_empty_native_pandas_frame(
 
 
 def replace_external_data_keys_with_query_compiler(
-    frame: "pd.DataFrame",
-    keys: Optional[
-        Union[Hashable, AnyArrayLike, Sequence[Union[Hashable, AnyArrayLike]]]
-    ] = None,
-) -> Optional[
-    Union[Hashable, BaseQueryCompiler, list[Union[Hashable, BaseQueryCompiler]]]
-]:
+    frame: pd.DataFrame,
+    keys: None | (Hashable | AnyArrayLike | Sequence[Hashable | AnyArrayLike]) = None,
+) -> None | (Hashable | BaseQueryCompiler | list[Hashable | BaseQueryCompiler]):
     """
     Replace any array-like join key(s) with query compiler.
 
@@ -497,8 +493,8 @@ def replace_external_data_keys_with_query_compiler(
 
 
 def try_convert_builtin_func_to_str(
-    fn: Union[AggFuncTypeBase, list[AggFuncTypeBase]], obj: object
-) -> Union[AggFuncTypeBase, list[AggFuncTypeBase]]:
+    fn: AggFuncTypeBase | list[AggFuncTypeBase], obj: object
+) -> AggFuncTypeBase | list[AggFuncTypeBase]:
     """
     Try to convert an aggregation function to a string or list of such if the function is a
     builtin function and supported in the current object dir.
@@ -772,12 +768,11 @@ def _doc_binary_op(operation, bin_op, left="Series", right="right", returns="Ser
 
 
 def get_as_shape_compatible_dataframe_or_series(
-    other: Union["pd.DataFrame", "pd.Series", Callable, AnyArrayLike, Scalar],
-    reference_df: "pd.DataFrame",
-    shape_mismatch_message: Optional[
-        str
-    ] = "Array conditional must be same shape as self",
-) -> Union["pd.DataFrame", "pd.Series"]:
+    other: pd.DataFrame | pd.Series | Callable | AnyArrayLike | Scalar,
+    reference_df: pd.DataFrame,
+    shape_mismatch_message: None
+    | (str) = "Array conditional must be same shape as self",
+) -> pd.DataFrame | pd.Series:
     """
     Get the "other" type as a shape compatible dataframe or series using the reference_df as a reference for
     compatible shape and construction.  If there is no shape on the other type then wrap as a numpy array.
@@ -812,3 +807,62 @@ def get_as_shape_compatible_dataframe_or_series(
 
 _original_pandas_MultiIndex_from_frame = pandas.MultiIndex.from_frame
 pandas.MultiIndex.from_frame = from_modin_frame_to_mi
+
+
+def ensure_index(index_like: Axes, copy: bool = False) -> pd.Index | pandas.MultiIndex:
+    """
+    Ensure that we have an index from some index-like object.
+
+    Parameters
+    ----------
+    index_like : sequence
+        An Index or other sequence
+    copy : bool, default False
+
+    Returns
+    -------
+    index : Index
+
+    Examples
+    --------
+    >>> ensure_index(['a', 'b'])
+    Index(['a', 'b'], dtype='object')
+
+    >>> ensure_index([('a', 'a'),  ('b', 'c')])
+    Index([('a', 'a'), ('b', 'c')], dtype='object')
+    """
+    if isinstance(index_like, (pandas.MultiIndex, pd.Index)):
+        if copy:
+            index_like = index_like.copy()
+        return index_like
+
+    if isinstance(index_like, ABCSeries):
+        name = index_like.name
+        return pd.Index(index_like, name=name, copy=copy)
+
+    if isinstance(index_like, list):
+        if len(index_like) and lib.is_all_arraylike(index_like):
+            return pandas.MultiIndex.from_arrays(index_like)
+        else:
+            return pd.Index(index_like, copy=copy, tupleize_cols=False)
+    else:
+        return pd.Index(index_like, copy=copy)
+
+
+def try_convert_to_native_index(index_like: Any) -> Any:
+    """
+    Try to convert the given item to a native pandas Index.
+    This conversion is only required if `index_like` is a Snowpark pandas Index.
+
+    Parameters
+    ----------
+    index_like : Any
+        An index-like object, such as a list, ndarray or Index object that we would like to try to convert to pandas Index
+
+    Return
+    ----------
+        A pandas Index if index_like is a Snowpark pandas Index, otherwise return index_like
+    """
+    if isinstance(index_like, pd.Index):
+        index_like = index_like.to_pandas()
+    return index_like

@@ -1589,7 +1589,7 @@ def to_datetime(
         else:
             name = None
             # keep index name
-            if isinstance(arg, pandas.Index):
+            if isinstance(arg, pd.Index):
                 name = arg.name
             arg = Series(arg)
             arg.name = name

@@ -5,7 +5,6 @@
 from typing import get_type_hints
 
 import modin.pandas as pd
-import pandas
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -15,7 +14,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
     "method,type_hints",
     [
         (pd.Series.empty.fget, {"return": bool}),
-        (pd.DataFrame.columns.fget, {"return": pandas.Index}),
+        (pd.DataFrame.columns.fget, {"return": pd.Index}),
     ],
 )
 def test_properties_snow_1374293(method, type_hints):

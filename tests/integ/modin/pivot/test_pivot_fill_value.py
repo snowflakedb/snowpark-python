@@ -167,7 +167,7 @@ def test_pivot_table_single_nuance_aggfuncs_fill_value_and_null_data(
             [TEST_AGGFUNC, TEST_VALUES, TEST_COLUMN_VALUES],
             names=[None, None] + TEST_COLUMNS,
         ),
-        index=pd.Index(["bar", "foo"], name=TEST_INDEX),
+        index=native_pd.Index(["bar", "foo"], name=TEST_INDEX),
     )
 
     assert_frame_equal(
