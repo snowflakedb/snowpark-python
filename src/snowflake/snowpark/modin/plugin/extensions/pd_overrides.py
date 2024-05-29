@@ -274,9 +274,16 @@ def read_csv(
     -----
     Both local files and files staged on Snowflake can be passed into
     ``filepath_or_buffer``. A single file or a folder that matches
-    a set of files can be passed into ``filepath_or_buffer``. The order of rows in the
-    dataframe may be different than the order of records in an input file. When reading
-    multiple files, there is no deterministic order in which the files are read.
+    a set of files can be passed into ``filepath_or_buffer``. Local files
+    will be processed locally by default using the stand pandas parser
+    before they are uploaded to a staging location as parquet files. This
+    behavior can be overriden by explicitly using the snowflake engine
+    with ``engine=snowflake``
+
+    If parsing the file using Snowflake, certain parameters may not be supported
+    and the order of rows in the dataframe may be different than the order of 
+    records in an input file. When reading multiple files, there is no 
+    deterministic order in which the files are read.
 
     Examples
     --------
