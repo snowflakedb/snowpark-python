@@ -89,6 +89,7 @@ from snowflake.snowpark.functions import (
     hour,
     iff,
     initcap,
+    is_char,
     is_null,
     lag,
     last_value,
@@ -11546,6 +11547,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    def _replace_non_str(
+        self,
+        in_col: SnowparkColumn,
+        out_col: SnowparkColumn,
+        replacement_value: Optional[object] = None,
+    ) -> SnowparkColumn:
+        """
+        Handle the case where the input column to the string method may contain mixed types.
+        In this case, we follow the pandas behavior, where all non-string input value results
+        in a Null value (for most string methods). For some string methods, those resulting
+        Null values are replaced by some configured value based on a parameter in the method's
+        signature (e.g., `str_contains` has an `na` parameter).
+
+        Parameters
+        ----------
+        in_col : SnowparkColumn
+            Input column to the string method.
+        out_col : SnowparkColumn
+            Output column from the string method if in_col was not null.
+        replacement_value : Optional[str], default None.
+            value to use for out_col when the value of in_col is non-string.
+        """
+        return iff(
+            not_(is_char(to_variant(in_col))), pandas_lit(replacement_value), out_col
+        )
+
     def _str_startswith_endswith(
         self,
         pat: Union[str, tuple],
@@ -11592,7 +11619,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = col(col_name).rlike(pandas_lit(new_pat))
                 if any([not isinstance(p, str) for p in pat]):
                     new_col = iff(new_col, pandas_lit(True), pandas_lit(None))
-            return new_col if na is None else coalesce(new_col, pandas_lit(na))
+            new_col = new_col if na is None else coalesce(new_col, pandas_lit(na))
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, na)
@@ -11650,7 +11678,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             # We use delimeters and set it as the empty string so that we treat the entire string as one word
             # and thus only capitalize the first character of the first word
-            lambda col: initcap(col, delimiters=pandas_lit(""))
+            lambda col: self._replace_non_str(
+                col, initcap(col, delimiters=pandas_lit(""))
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11663,7 +11693,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name).rlike("[0-9]+")
+            lambda col_name: self._replace_non_str(
+                col(col_name), col(col_name).rlike("[0-9]+")
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11676,9 +11708,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name)
-            .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-            .__and__(col(col_name).__eq__(lower(col_name)))
+            lambda col_name: self._replace_non_str(
+                col(col_name),
+                col(col_name)
+                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
+                .__and__(col(col_name).__eq__(lower(col_name))),
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11691,9 +11726,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: col(col_name)
-            .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
-            .__and__(col(col_name).__eq__(upper(col_name)))
+            lambda col_name: self._replace_non_str(
+                col(col_name),
+                col(col_name)
+                .rlike("(.|\n)*[a-zA-Z]+(.|\n)*")
+                .__and__(col(col_name).__eq__(upper(col_name))),
+            )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11712,8 +11750,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_identifier: col(col_identifier).rlike(
-                "^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"
+            lambda col_identifier: self._replace_non_str(
+                col(col_identifier),
+                col(col_identifier).rlike(
+                    "^([^a-zA-Z]*[A-Z]{1}[a-z]*([^a-zA-Z]|$)+)+$"
+                ),
             )
         )
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -11727,7 +11768,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: lower(col_name)
+            lambda col_name: self._replace_non_str(col(col_name), lower(col_name))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11740,7 +11781,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler representing result of the string operation.
         """
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            lambda col_name: upper(col_name)
+            lambda col_name: self._replace_non_str(col(col_name), upper(col_name))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11755,7 +11796,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             # Capitalize the first character of each word
-            lambda col: initcap(col)
+            lambda col: self._replace_non_str(col, initcap(col))
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11833,7 +11874,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_col = builtin("rlike")(
                 col(col_name), pandas_lit(pat), pandas_lit(params)
             )
-            return new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            new_col = (
+                new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            )
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col
@@ -11867,10 +11911,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if pat == "":
                 # Special case to handle empty search pattern.
                 # Snowflake's regexp_count returns 0, while pandas returns string length + 1.
-                return length(col(col_name)) + 1
-            return builtin("regexp_count")(
-                col(col_name), pandas_lit(pat), 1, pandas_lit(params)
-            )
+                new_col = length(col(col_name)) + 1
+            else:
+                new_col = builtin("regexp_count")(
+                    col(col_name), pandas_lit(pat), 1, pandas_lit(params)
+                )
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col
@@ -11890,8 +11936,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
+        # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
         return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_data_columns(length)
+            self._modin_frame.apply_snowpark_function_to_data_columns(
+                lambda col: self._replace_non_str(col, length(col))
+            )
         )
 
     def str_slice(
@@ -12022,7 +12071,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit(f"((.|\n)(.|\n){{{step-1}}})"),
                     pandas_lit("\\2"),
                 )
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, start, stop, step)
@@ -12156,7 +12205,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     pandas_lit([]),
                     new_col,
                 )
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, n)
@@ -12281,7 +12330,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 # Replace all occurrences using SQL's replace.
                 new_col = builtin("replace")(col(col_name), pat, repl)
-            return new_col
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             lambda col_name: output_col(col_name, pat, n, flags)
@@ -12307,11 +12356,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't support non-str 'to_strip' argument"
             )
+        if to_strip is None:
+            to_strip = "\t\n\r\f "
 
         def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            if to_strip is None:
-                return builtin("trim")(col(col_name), pandas_lit("\t\n\r\f "))
-            return builtin("trim")(col(col_name), pandas_lit(to_strip))
+            new_col = builtin("trim")(col(col_name), pandas_lit(to_strip))
+            return self._replace_non_str(col(col_name), new_col)
 
         new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
             output_col

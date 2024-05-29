@@ -853,18 +853,26 @@ def test_create_from_pandas_extension_types(session):
 StructType([StructField('A', VariantType(), nullable=True), StructField('B', VariantType(), nullable=True)])\
 """
     )
-    assert (
-        str(ret)
-        == """\
-[Row(A='{\\n  "left": 0,\\n  "right": 5\\n}', B='{\\n  "left": "2017-01-01 00:00:00.000",\\n  "right": "2018-01-01 00:00:00.000"\\n}')]\
-"""
-    )
+
+    # when executed in stored proc, the timestamp output format in different env is inconsistent
+    # e.g. in regression env timestamp outputs Sun, 01 Jan 2017 00:00:00 Z, while in public deployment it is
+    # 2017-01-01 00:00:00.000
+    # we should eliminate the gap: SNOW-1253700
     assert ret == [
         Row(
             '{\n  "left": 0,\n  "right": 5\n}',
             '{\n  "left": "2017-01-01 00:00:00.000",\n  "right": "2018-01-01 00:00:00.000"\n}',
         )
-    ]
+    ] or (
+        IS_IN_STORED_PROC
+        and ret
+        == [
+            Row(
+                '{\n  "left": 0,\n  "right": 5\n}',
+                '{\n  "left": "Sun, 01 Jan 2017 00:00:00 Z",\n  "right": "Mon, 01 Jan 2018 00:00:00 Z"\n}',
+            )
+        ]
+    )
 
 
 def test_na_and_null_data(session):

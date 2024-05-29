@@ -50,7 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, parse_json, udf
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -1231,11 +1231,7 @@ def test_add_import_negative(session, resources_path):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370035: date time objects are received as str inside UDF",
-)
-def test_udf_variant_type(session):
+def test_udf_variant_type(session, local_testing_mode):
     def variant_get_data_type(v):
         return str(type(v))
 
@@ -1309,10 +1305,12 @@ def test_udf_variant_type(session):
     )
 
     # dynamic typing on one single column
-    df = session.sql(
-        "select parse_json(column1) as a from values"
-        "('1'), ('1.1'), ('\"2\"'), ('true'), ('[1, 2, 3]'),"
-        ' (\'{"a": "foo"}\')'
+    df = (
+        session.create_dataframe(
+            [("1"), ("1.1"), ('"2"'), ("true"), ("[1, 2, 3]"), ('{"a": "foo"}')]
+        )
+        .to_df(["a"])
+        .select(parse_json("a").alias("a"))
     )
     Utils.check_answer(
         df.select(variant_udf("a")).collect(),
