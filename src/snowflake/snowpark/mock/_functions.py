@@ -1370,7 +1370,7 @@ def _object_construct(exprs, drop_nulls):
             if x[i] is not None and not (drop_nulls and x[i + 1] is None)
         }
 
-    combined = pandas.concat(exprs, axis=1)
+    combined = pandas.concat(exprs, axis=1, ignore_index=True)
     return combined.apply(construct_dict, axis=1)
 
 
@@ -1410,7 +1410,7 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
-    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+    return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
 @patch("dateadd")
@@ -1533,7 +1533,7 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
                 f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
             )
         )
-    return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
+    return ColumnEmulator(res, sf_type=ColumnType(LongType(), nullable=True))
 
 
 @patch("date_trunc")
