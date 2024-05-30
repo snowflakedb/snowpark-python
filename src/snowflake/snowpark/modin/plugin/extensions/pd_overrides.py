@@ -320,15 +320,12 @@ def read_csv(
     >>> with open(f'{temp_dir_name}/data2.csv', 'w') as f:
     ...     writer = csv.writer(f)
     ...     writer.writerows([['c1','c2','c3'], [1,2,3], [4,5,6], [7,8,9]])
-    >>> df3 = pd.read_csv(f'{temp_dir_name}')
+    >>> df3 = pd.read_csv(f'{temp_dir_name}/data2.csv')
     >>> df3
        c1  c2  c3
     0   1   2   3
     1   4   5   6
     2   7   8   9
-    3   1   2   3
-    4   4   5   6
-    5   7   8   9
 
     Read csv files from a staged location.
 
