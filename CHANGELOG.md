@@ -6,6 +6,12 @@
 
 #### Improvements
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+
 ### Snowpark pandas API Updates
 
 #### New Features
