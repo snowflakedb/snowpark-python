@@ -795,6 +795,10 @@ $$"""
         # get the iterator such that the data is not fetched
         result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
         return result_set["sfqid"]
+    
+    def create_coprocessor(self):
+        # It's not necessary to mock this call.
+        pass
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":

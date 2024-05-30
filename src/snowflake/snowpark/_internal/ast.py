@@ -42,6 +42,7 @@ class AstBatch:
     def flush(self) -> Tuple[str, str]:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
+        self._init_batch()
 
         print(f"encoded {batch}")
         d1 = base64.b64decode(batch)
