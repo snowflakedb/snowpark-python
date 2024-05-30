@@ -47,7 +47,6 @@ from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
-from pandas.errors import SpecificationError
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseAccessor
@@ -750,12 +749,6 @@ class Series(BasePandasDataset):
     def aggregate(
         self, func: AggFuncType = None, axis: Axis = 0, *args: Any, **kwargs: Any
     ):
-        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if is_dict_like(func):
-            raise SpecificationError(
-                "Value for func argument in dict format is not allowed for Series aggregate."
-            )
-
         return super().aggregate(func, axis, *args, **kwargs)
 
     agg = aggregate
@@ -2335,7 +2328,13 @@ class Series(BasePandasDataset):
         if not is_datetime64_any_dtype(current_dtype):
             raise AttributeError("Can only use .dt accessor with datetimelike values")
 
-        from .series_utils import DatetimeProperties
+        from modin.pandas.series_utils import DatetimeProperties
+
+        if DatetimeProperties._Series is not Series:
+            del (
+                DatetimeProperties._Series
+            )  # Replace modin's Series class with Snowpark pandas Series
+            DatetimeProperties._Series = Series
 
         return DatetimeProperties(self)
 
@@ -2442,10 +2441,11 @@ class Series(BasePandasDataset):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ):
         """
         Shift index by desired number of periods with an optional time `freq`.
@@ -2455,7 +2455,7 @@ class Series(BasePandasDataset):
             # pandas compatible error.
             raise ValueError("No axis named 1 for object type Series")
 
-        return super().shift(periods, freq, axis, fill_value)
+        return super().shift(periods, freq, axis, fill_value, suffix)
 
     @property
     def str(self):  # noqa: RT01, D200
@@ -2467,7 +2467,13 @@ class Series(BasePandasDataset):
         if not is_string_dtype(current_dtype):
             raise AttributeError("Can only use .str accessor with string values!")
 
-        from .series_utils import StringMethods
+        from modin.pandas.series_utils import StringMethods
+
+        if StringMethods._Series is not Series:
+            del (
+                StringMethods._Series
+            )  # Replace modin's Series class with Snowpark pandas Series
+            StringMethods._Series = Series
 
         return StringMethods(self)
 
