@@ -6,8 +6,6 @@
 import functools
 import json
 import logging
-import os
-import sys
 import time
 import uuid
 from copy import copy
@@ -19,7 +17,7 @@ from unittest.mock import Mock
 import snowflake.snowpark.mock._constants
 from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
+from snowflake.connector.errors import NotSupportedError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
@@ -33,9 +31,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
-    normalize_local_file,
     result_set_to_rows,
-    unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -61,24 +57,6 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
-
-
-def _build_put_statement(*args, **kwargs):
-    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-        external_feature_name="PUT stream",
-        internal_feature_name="_connection._build_put_statement",
-        raise_error=NotImplementedError,
-    )
-
-
-def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
-    qualified_stage_name = unwrap_stage_location_single_quote(stage_location)
-    dest_prefix_name = (
-        dest_prefix
-        if not dest_prefix or dest_prefix.startswith("/")
-        else f"/{dest_prefix}"
-    )
-    return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
 
 
 class MockedSnowflakeConnection(SnowflakeConnection):
@@ -404,33 +382,10 @@ class MockServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():  # pragma: no cover
-            file_name = os.path.basename(path)
-            target_path = _build_target_path(stage_location, dest_prefix)
-            try:
-                # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    open(path, "rb"), f"{target_path}/{file_name}"
-                )
-            except ProgrammingError as pe:
-                tb = sys.exc_info()[2]
-                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                    pe
-                )
-                raise ne.with_traceback(tb) from None
-        else:
-            uri = normalize_local_file(path)
-            return self.run_query(
-                _build_put_statement(
-                    uri,
-                    stage_location,
-                    dest_prefix,
-                    parallel,
-                    compress_data,
-                    source_compression,
-                    overwrite,
-                )
-            )
+        self.log_not_supported_error(
+            external_feature_name="MockServerConnection.upload_file",
+            raise_error=NotImplementedError,
+        )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
