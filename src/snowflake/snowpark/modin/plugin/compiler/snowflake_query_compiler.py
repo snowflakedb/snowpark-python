@@ -14,6 +14,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
+import pandas.io.parsers
+import pandas.io.parsers.readers
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from numpy import dtype
 from pandas._libs import lib
@@ -835,7 +837,70 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def from_file(
+    def from_file_with_pandas(
+        cls,
+        filetype: SnowflakeSupportedFileTypeLit,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Returns a SnowflakeQueryCompiler whose internal frame holds the data read from
+        a file or multiple files.
+
+        This method *only* handles local files, parsed using the native pandas parser.
+        """
+        # Arguments which must be handled as part of a post-processing stage
+        local_exclude_set = ["index_col", "usecols"]
+        local_kwargs = {k: v for k, v in kwargs.items() if k not in local_exclude_set}
+
+        def is_names_set(kwargs: Any) -> bool:
+            return kwargs["names"] is not no_default and kwargs["names"] is not None
+
+        # For the purposes of the initial import we need to make sure the column names
+        # are strings. These will be overriden later in post-processing.
+        if is_names_set(local_kwargs):
+            local_names = [str(n) for n in kwargs["names"]]
+            local_kwargs["names"] = local_names
+
+        # We explicitly do not support chunksize yet
+        if local_kwargs["chunksize"] is not None:
+            ErrorMessage.not_implemented("chunksize parameter not supported for files")
+        # We could return an empty dataframe here, but it does not seem worth it.
+        if is_list_like(kwargs["usecols"]) and len(kwargs["usecols"]) == 0:
+            ErrorMessage.not_implemented(
+                "empty 'usecols' parameter not supported for files"
+            )
+
+        # local file that begins with '@' (represents SF stage normally)
+        if local_kwargs["filepath_or_buffer"].startswith(r"\@"):
+            local_kwargs["filepath_or_buffer"] = local_kwargs["filepath_or_buffer"][1:]
+
+        if filetype == "csv":
+            df = native_pd.read_csv(**local_kwargs)
+            # When names is shorter than the total number of columns an index
+            # is created, regardless of the value of index_col. If this happens
+            # we reset the index so the full dataset is uploaded to snowflake.
+            if not isinstance(df.index, pandas.core.indexes.range.RangeIndex):
+                df = df.reset_index()
+
+            # Integer columns are not writable to snowflake; so we need to save
+            # these names to fix the header during post processing
+            if not is_names_set(kwargs) and kwargs["header"] is None:
+                kwargs["names"] = list(df.columns.values)
+                df.columns = df.columns.astype(str)
+
+        temporary_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        pd.session.write_pandas(
+            df=df,
+            table_name=temporary_table_name,
+            auto_create_table=True,
+            table_type="temporary",
+            use_logical_type=True,
+        )
+        qc = cls.from_snowflake(temporary_table_name)
+        return cls._post_process_file(qc, filetype="csv", **kwargs)
+
+    @classmethod
+    def from_file_with_snowflake(
         cls,
         filetype: SnowflakeSupportedFileTypeLit,
         path: str,
@@ -896,6 +961,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         qc = cls.from_snowflake(name_or_query=temporary_table_name)
 
+        return cls._post_process_file(qc=qc, filetype=filetype, **kwargs)
+
+    @classmethod
+    def _post_process_file(
+        cls,
+        qc: "SnowflakeQueryCompiler",
+        filetype: SnowflakeSupportedFileTypeLit,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Performs final porocessing of a file and returns a SnowflakeQueryCompiler. When
+        reading files into Snowpark pandas we need perform some work after the table has
+        been loaded for certain arguments, specifically header names, dtypes, and usecols.
+        These parameters can be given arguments which are not currently supported by
+        snowflake or they can use positional references.
+        """
         if not kwargs.get("parse_header", True):
             # Rename df header since default header in pandas is
             # 0, 1, 2, ... n.  while default header in SF is c1, c2, ... cn.
@@ -904,9 +985,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             }
             qc = qc.rename(columns_renamer=columns_renamed)
 
-        names = kwargs.get("names", None)
+        dtype_ = kwargs.get("dtype", None)
+        if dtype_ is not None:
+            if not isinstance(dtype_, dict):
+                dtype_ = {column: dtype_ for column in qc.columns}
 
-        if names is not None:
+            qc = qc.astype(dtype_)
+
+        names = kwargs.get("names", no_default)
+        if names is not no_default and names is not None:
+            pandas.io.parsers.readers._validate_names(names)
             if len(names) > len(qc.columns):
                 raise ValueError(
                     f"Too many columns specified: expected {len(names)} and found {len(qc.columns)}"
@@ -917,7 +1005,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 unnamed_indexes = [
                     column for column in qc.columns[: len(qc.columns) - len(names)]
                 ]
-
                 qc = qc.set_index(unnamed_indexes).set_index_names(
                     [None] * len(unnamed_indexes)
                 )
@@ -937,40 +1024,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame = create_frame_with_data_columns(
                 qc._modin_frame,
                 get_columns_to_keep_for_usecols(
-                    usecols, qc.columns, maintain_usecols_order=maintain_usecols_order
+                    usecols, qc.columns, maintain_usecols_order
                 ),
             )
             qc = SnowflakeQueryCompiler(frame)
 
-        dtype_ = kwargs.get("dtype", None)
-        if dtype_ is not None:
-            if not isinstance(dtype_, dict):
-                dtype_ = {column: dtype_ for column in qc.columns}
-
-            qc = qc.astype(dtype_)
-
         index_col = kwargs.get("index_col", None)
         if index_col:
             pandas_labeled_index_cols = []
-            for column in index_col:
+            input_index_cols = index_col
+            if is_scalar(index_col):
+                input_index_cols = [index_col]
+            for column in input_index_cols:
                 if isinstance(column, str):
                     if column not in qc.columns:
                         raise ValueError(f"Index {column} invalid")
                     pandas_labeled_index_cols.append(column)
-                else:
+                elif isinstance(column, int):
                     if column < 0:
                         column += len(qc.columns)
 
                     if column not in range(len(qc.columns)):
-                        raise IndexError("list index is out of range")
+                        raise IndexError("list index out of range")
                     pandas_labeled_index_cols.append(qc.columns[column])
+                else:
+                    raise TypeError(
+                        f"list indices must be integers or slices, not {type(column).__name__}"
+                    )
 
             if len(set(pandas_labeled_index_cols)) != len(pandas_labeled_index_cols):
                 raise ValueError("Duplicate columns in index_col are not allowed.")
 
             if len(pandas_labeled_index_cols) != 0:
                 qc = qc.set_index(pandas_labeled_index_cols)  # type: ignore[arg-type]
-
         return qc
 
     def _to_snowpark_dataframe_from_snowpark_pandas_dataframe(
@@ -3228,24 +3314,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         --------
         >>> df = pd.DataFrame({"group": ["a", "a", "a", "b", "b", "b", "b"], "value": [2, 4, 2, 3, 5, 1, 2]})
         >>> df
-            group   value
-        0   a	    2
-        1   a	    4
-        2   a	    2
-        3   b       3
-        4   b       5
-        5   b       1
-        6   b       2
+          group  value
+        0     a	     2
+        1     a	     4
+        2     a	     2
+        3     b      3
+        4     b      5
+        5     b      1
+        6     b      2
         >>> df = df.groupby("group").rank(method='min')
         >>> df
-            value
-        0   1.0
-        1   3.0
-        2   1.0
-        3   3.0
-        4   4.0
-        5   1.0
-        6   2.0
+           value
+        0      1
+        1      3
+        2      1
+        3      3
+        4      4
+        5      1
+        6      2
         """
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
@@ -9071,14 +9157,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         --------
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df
-            values
-        0      1.0
-        1      2.0
-        2      NaN
-        3      2.0
-        4      3.0
-        5      NaN
-        6      3.0
+           values
+        0     1.0
+        1     2.0
+        2     NaN
+        3     2.0
+        4     3.0
+        5     NaN
+        6     3.0
         >>> df['min'] = df['values'].rank(method='min', na_option='keep')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='keep')
         >>> df['first'] = df['values'].rank(method='first', na_option='keep')
@@ -9087,14 +9173,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using ascending order and na_option "keep" to assign NaN rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      1.0      1.0        1.0        1.0      1.0
-        1      2.0      2.0      2.0        2.0        3.0      2.5
-        2      NaN      NaN      NaN        NaN        NaN      NaN
-        3      2.0      2.0      2.0        3.0        3.0      2.5
-        4      3.0      4.0      3.0        4.0        5.0      4.5
-        5      Nan      NaN      NaN        NaN        NaN      NaN
-        6      3.0      4.0      3.0        5.0        5.0      4.5
+           values  min  dense  first  max  avg
+        0     1.0  1.0    1.0    1.0  1.0  1.0
+        1     2.0  2.0    2.0    2.0  3.0  2.5
+        2     NaN  NaN    NaN    NaN  NaN  NaN
+        3     2.0  2.0    2.0    3.0  3.0  2.5
+        4     3.0  4.0    3.0    4.0  5.0  4.5
+        5     NaN  NaN    NaN    NaN  NaN  NaN
+        6     3.0  4.0    3.0    5.0  5.0  4.5
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df['min'] = df['values'].rank(method='min', na_option='top')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='top')
@@ -9104,14 +9190,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using ascending order and na_option "top" to assign lowest rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      3.0      2.0        3.0        3.0      3.0
-        1      2.0      4.0      3.0        4.0        5.0      4.5
-        2      NaN      1.0      1.0        1.0        2.0      1.5
-        3      2.0      4.0      3.0        5.0        5.0      4.5
-        4      3.0      6.0      4.0        6.0        7.0      6.5
-        5      Nan      1.0      1.0        2.0        2.0      1.5
-        6      3.0      6.0      4.0        7.0        7.0      6.5
+           values  min  dense  first  max  avg
+        0     1.0    3      2      3    3  3.0
+        1     2.0    4      3      4    5  4.5
+        2     NaN    1      1      1    2  1.5
+        3     2.0    4      3      5    5  4.5
+        4     3.0    6      4      6    7  6.5
+        5     NaN    1      1      2    2  1.5
+        6     3.0    6      4      7    7  6.5
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df['min'] = df['values'].rank(method='min', na_option='bottom')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='bottom')
@@ -9121,14 +9207,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using descending order and na_option "bottom" to assign highest rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      5.0      3.0        5.0        5.0      5.0
-        1      2.0      3.0      2.0        3.0        4.0      3.5
-        2      NaN      6.0      4.0        6.0        7.0      6.5
-        3      2.0      3.0      2.0        4.0        4.0      3.5
-        4      3.0      1.0      1.0        1.0        2.0      1.5
-        5      Nan      6.0      4.0        7.0        7.0      6.5
-        6      3.0      1.0      1.0        2.0        2.0      1.5
+           values  min  dense  first  max  avg
+        0     1.0    1      1      1    1  1.0
+        1     2.0    2      2      2    3  2.5
+        2     NaN    6      4      6    7  6.5
+        3     2.0    2      2      3    3  2.5
+        4     3.0    4      3      4    5  4.5
+        5     NaN    6      4      7    7  6.5
+        6     3.0    4      3      5    5  4.5
 
         """
         # Rank only works correctly on valid columns - e.g. when columns have either all
@@ -9663,7 +9749,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         These rows are all UNION ALL'd together at the end in order to avoid costly JOIN or
         transpose (PIVOT/UNPIVOT) operations, as in the below diagram.
 
-        >>> pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75])
+        pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75]):
         +-------+------+------+
         | index |    a |    b |
         +-------+------+------+                    +-------+------+------+
@@ -9684,7 +9770,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by producing a single row where the columns are the different quantiles. Since there is
         only a single row, we can do a relatively cheap UNPIVOT to make the result a single column.
 
-        >>> pd.Series([0, 1], name="b").quantile([0.25, 0.75])
+        pd.Series([0, 1], name="b").quantile([0.25, 0.75]):
         +------+------+                                              +-------+------+
         |   q1 |   q2 |                                              | index |    b |
         +------+------+  -- UNPIVOT(b FOR quantile IN (q1, q2)) -->  +-------+------+
