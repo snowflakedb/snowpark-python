@@ -13434,7 +13434,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def pct_change(
         self,
         periods: int = 1,
-        fill_method: Literal["backfill", "bfill", "pad", "ffill", None] = no_default,
+        fill_method: Literal["backfill", "bfill", "pad", "ffill", None] = "pad",
         limit: Optional[int] = None,
         freq: Optional[Union[pd.DateOffset, timedelta, str]] = None,
         axis: Axis = 0,
@@ -13451,10 +13451,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         periods : int, default 1
             Periods to shift for forming percent change.
 
-        fill_method : {'backfill', 'bfill', 'pad', 'ffill'}, optional
+        fill_method : {'backfill', 'bfill', 'pad', 'ffill'}, default 'pad'
             How to handle NAs before computing percent changes.
-
-            Snowpark pandas only supports fill_method=None.
 
             Deprecated since version 2.1: All options of fill_method are deprecated except fill_method=None.
 
@@ -13479,10 +13477,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # `periods` is validated by the frontend
         deprecated_error_template = "Snowpark pandas DataFrame/Series.pct_change does not support the {} parameter since it is deprecated in pandas"
-        if fill_method not in (None, no_default):
-            ErrorMessage.not_implemented(
-                deprecated_error_template.format("fill_method")
-            )
         if limit is not None:
             ErrorMessage.not_implemented(deprecated_error_template.format("limit"))
         if freq is not None:
@@ -13494,17 +13488,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas DataFrame/Series.pct_change does not yet support axis=1"
             )
         frame = self._modin_frame
-        return SnowflakeQueryCompiler(
-            frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    quoted_identifier: col(quoted_identifier)
+        if fill_method is not None:
+            frame = (
+                SnowflakeQueryCompiler(frame)
+                .fillna(self_is_series=False, method=fill_method, axis=0)
+                ._modin_frame
+            )
+        frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+            {
+                quoted_identifier:
+                # If periods=0, we don't need to do any window computation
+                iff(is_null(col(quoted_identifier)), pandas_lit(None), pandas_lit(0))
+                if periods == 0
+                else (
+                    col(quoted_identifier)
                     / lag(quoted_identifier, offset=periods).over(
                         Window.orderBy(
                             col(frame.row_position_snowflake_quoted_identifier)
                         )
                     )
                     - 1
-                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-                }
-            ).frame
-        )
+                )
+                for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+            }
+        ).frame
+        return SnowflakeQueryCompiler(frame)
