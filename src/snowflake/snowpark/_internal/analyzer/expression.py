@@ -454,13 +454,11 @@ class CaseWhen(Expression):
 
     @cached_property
     def expression_complexity(self) -> int:
-        estimate = sum[
-            (
+        estimate = sum(
                 condition.expression_complexity + value.expression_complexity
                 for condition, value in self.branches
             )
-        ]
-        estimate += self.else_value if self.else_value else 0
+        estimate += self.else_value.expression_complexity if self.else_value else 0
         return estimate
 
 
