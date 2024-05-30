@@ -3314,24 +3314,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         --------
         >>> df = pd.DataFrame({"group": ["a", "a", "a", "b", "b", "b", "b"], "value": [2, 4, 2, 3, 5, 1, 2]})
         >>> df
-            group   value
-        0   a	    2
-        1   a	    4
-        2   a	    2
-        3   b       3
-        4   b       5
-        5   b       1
-        6   b       2
+          group  value
+        0     a	     2
+        1     a	     4
+        2     a	     2
+        3     b      3
+        4     b      5
+        5     b      1
+        6     b      2
         >>> df = df.groupby("group").rank(method='min')
         >>> df
-            value
-        0   1.0
-        1   3.0
-        2   1.0
-        3   3.0
-        4   4.0
-        5   1.0
-        6   2.0
+           value
+        0      1
+        1      3
+        2      1
+        3      3
+        4      4
+        5      1
+        6      2
         """
         level = groupby_kwargs.get("level", None)
         dropna = groupby_kwargs.get("dropna", True)
@@ -9157,14 +9157,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         --------
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df
-            values
-        0      1.0
-        1      2.0
-        2      NaN
-        3      2.0
-        4      3.0
-        5      NaN
-        6      3.0
+           values
+        0     1.0
+        1     2.0
+        2     NaN
+        3     2.0
+        4     3.0
+        5     NaN
+        6     3.0
         >>> df['min'] = df['values'].rank(method='min', na_option='keep')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='keep')
         >>> df['first'] = df['values'].rank(method='first', na_option='keep')
@@ -9173,14 +9173,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using ascending order and na_option "keep" to assign NaN rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      1.0      1.0        1.0        1.0      1.0
-        1      2.0      2.0      2.0        2.0        3.0      2.5
-        2      NaN      NaN      NaN        NaN        NaN      NaN
-        3      2.0      2.0      2.0        3.0        3.0      2.5
-        4      3.0      4.0      3.0        4.0        5.0      4.5
-        5      Nan      NaN      NaN        NaN        NaN      NaN
-        6      3.0      4.0      3.0        5.0        5.0      4.5
+           values  min  dense  first  max  avg
+        0     1.0  1.0    1.0    1.0  1.0  1.0
+        1     2.0  2.0    2.0    2.0  3.0  2.5
+        2     NaN  NaN    NaN    NaN  NaN  NaN
+        3     2.0  2.0    2.0    3.0  3.0  2.5
+        4     3.0  4.0    3.0    4.0  5.0  4.5
+        5     NaN  NaN    NaN    NaN  NaN  NaN
+        6     3.0  4.0    3.0    5.0  5.0  4.5
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df['min'] = df['values'].rank(method='min', na_option='top')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='top')
@@ -9190,14 +9190,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using ascending order and na_option "top" to assign lowest rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      3.0      2.0        3.0        3.0      3.0
-        1      2.0      4.0      3.0        4.0        5.0      4.5
-        2      NaN      1.0      1.0        1.0        2.0      1.5
-        3      2.0      4.0      3.0        5.0        5.0      4.5
-        4      3.0      6.0      4.0        6.0        7.0      6.5
-        5      Nan      1.0      1.0        2.0        2.0      1.5
-        6      3.0      6.0      4.0        7.0        7.0      6.5
+           values  min  dense  first  max  avg
+        0     1.0    3      2      3    3  3.0
+        1     2.0    4      3      4    5  4.5
+        2     NaN    1      1      1    2  1.5
+        3     2.0    4      3      5    5  4.5
+        4     3.0    6      4      6    7  6.5
+        5     NaN    1      1      2    2  1.5
+        6     3.0    6      4      7    7  6.5
         >>> df = pd.DataFrame(data={'values': [1, 2, np.nan, 2, 3, np.nan, 3]})
         >>> df['min'] = df['values'].rank(method='min', na_option='bottom')
         >>> df['dense'] = df['values'].rank(method='dense', na_option='bottom')
@@ -9207,14 +9207,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Result of all methods using descending order and na_option "bottom" to assign highest rank to NaN values.
         >>> df
-            values      min      dense      first      max      avg
-        0      1.0      5.0      3.0        5.0        5.0      5.0
-        1      2.0      3.0      2.0        3.0        4.0      3.5
-        2      NaN      6.0      4.0        6.0        7.0      6.5
-        3      2.0      3.0      2.0        4.0        4.0      3.5
-        4      3.0      1.0      1.0        1.0        2.0      1.5
-        5      Nan      6.0      4.0        7.0        7.0      6.5
-        6      3.0      1.0      1.0        2.0        2.0      1.5
+           values  min  dense  first  max  avg
+        0     1.0    1      1      1    1  1.0
+        1     2.0    2      2      2    3  2.5
+        2     NaN    6      4      6    7  6.5
+        3     2.0    2      2      3    3  2.5
+        4     3.0    4      3      4    5  4.5
+        5     NaN    6      4      7    7  6.5
+        6     3.0    4      3      5    5  4.5
 
         """
         # Rank only works correctly on valid columns - e.g. when columns have either all
@@ -9749,7 +9749,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         These rows are all UNION ALL'd together at the end in order to avoid costly JOIN or
         transpose (PIVOT/UNPIVOT) operations, as in the below diagram.
 
-        >>> pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75])
+        pd.DataFrame({"a": [0, 1], "b": [1, 2]}).quantile([0.25, 0.75]):
         +-------+------+------+
         | index |    a |    b |
         +-------+------+------+                    +-------+------+------+
@@ -9770,7 +9770,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by producing a single row where the columns are the different quantiles. Since there is
         only a single row, we can do a relatively cheap UNPIVOT to make the result a single column.
 
-        >>> pd.Series([0, 1], name="b").quantile([0.25, 0.75])
+        pd.Series([0, 1], name="b").quantile([0.25, 0.75]):
         +------+------+                                              +-------+------+
         |   q1 |   q2 |                                              | index |    b |
         +------+------+  -- UNPIVOT(b FOR quantile IN (q1, q2)) -->  +-------+------+
