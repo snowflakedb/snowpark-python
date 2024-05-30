@@ -593,6 +593,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 14,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -606,6 +607,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 14,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -619,6 +621,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 14,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -632,6 +635,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 14,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -645,6 +649,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 14,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -781,6 +786,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 54,
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -798,6 +804,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
+            "query_plan_complexity_estimate": 54,
         }
     ]
 

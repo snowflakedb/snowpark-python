@@ -162,7 +162,7 @@ def df_collect_api_telemetry(func):
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
             api_calls[0][
-                TelemetryField.QUERY_PLAN_COMPLEXITY_ESTIMATE
+                TelemetryField.QUERY_PLAN_COMPLEXITY_ESTIMATE.value
             ] = plan.subtree_query_complexity
         except Exception:
             pass

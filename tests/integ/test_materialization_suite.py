@@ -16,6 +16,14 @@ from snowflake.snowpark.session import Session
 from snowflake.snowpark.window import Window
 from tests.utils import Utils
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Breaking down queries is done for SQL translation",
+        run=False,
+    )
+]
+
 
 @pytest.fixture(autouse=True)
 def setup(session):
