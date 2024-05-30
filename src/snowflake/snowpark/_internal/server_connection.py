@@ -423,7 +423,10 @@ class ServerConnection:
         # calls to_pandas() to execute the query.
         if block:
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=results_cursor,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                ignore_results=kwargs.get("ignore_results", False),
             )
         else:
             return AsyncJob(
@@ -443,8 +446,11 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
+        ignore_results: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
+        if ignore_results:
+            return {"data": None, "sfqid": qid}
         if (
             to_iter and not to_pandas
         ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
