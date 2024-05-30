@@ -49,11 +49,7 @@ def load_test_cases():
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
-    test_cases = []
-    for file in test_files:
-        test_cases.append(parse_file(file))
-
-    return test_cases
+    return [parse_file(file) for file in test_files]
 
 
 def idfn(val):
