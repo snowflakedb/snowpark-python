@@ -28,10 +28,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    BatchInsertQuery,
-    SnowflakePlan,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -715,90 +712,11 @@ class MockServerConnection:
         ],
         List[ResultMetadata],
     ]:
-        action_id = plan.session._generate_new_action_id()
-
-        result, result_meta = None, None
-        try:
-            placeholders = {}
-            is_batch_insert = False
-            for q in plan.queries:
-                if isinstance(q, BatchInsertQuery):
-                    is_batch_insert = True
-                    break
-            # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
-                final_query = f"""EXECUTE IMMEDIATE $$
-DECLARE
-    res resultset;
-BEGIN
-    {";".join(q.sql for q in plan.queries[:-1])};
-    res := ({plan.queries[-1].sql});
-    return table(res);
-END;
-$$"""
-                # In multiple queries scenario, we are unable to get the query id of former query, so we replace
-                # place holder with fucntion last_query_id() here
-                for q in plan.queries:
-                    final_query = final_query.replace(
-                        f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
-                    )
-
-                result = self.run_query(
-                    final_query,
-                    to_pandas,
-                    to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
-                    block=block,
-                    data_type=data_type,
-                    async_job_plan=plan,
-                    **kwargs,
-                )
-
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
-                # AsyncJob instance when needed
-                result_meta = None
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-            else:
-                for i, query in enumerate(plan.queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(plan.queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        result = self.run_query(
-                            final_query,
-                            to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
-                            data_type=data_type,
-                            async_job_plan=plan,
-                            **kwargs,
-                        )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
-                        result_meta = self._cursor.description
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-        finally:
-            # delete created tmp object
-            if block:
-                for action in plan.post_actions:
-                    self.run_query(
-                        action.sql,
-                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                        block=block,
-                        **kwargs,
-                    )
-
-        if result is None:
-            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
-
-        return result, result_meta
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_set",
+            raise_error=NotImplementedError,
+        )
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
@@ -829,9 +747,11 @@ $$"""
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        # get the iterator such that the data is not fetched
-        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
-        return result_set["sfqid"]
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_query_id",
+            raise_error=NotImplementedError,
+        )
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
