@@ -31,10 +31,6 @@ def get_sample_dataframe(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
-)
 def test_moving_agg(session):
     """Tests df.analytics.moving_agg() happy path."""
 
@@ -63,10 +59,6 @@ def test_moving_agg(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG/FEAT: SNOW-1370204 improve error message, moving_agg not supported, error message windows function UnresolvedAttribute not supported is unclear",
-)
 def test_moving_agg_custom_formatting(session):
     """Tests df.analytics.moving_agg() with custom formatting of output columns."""
 
@@ -122,11 +114,7 @@ def test_moving_agg_custom_formatting(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
-)
-def test_moving_agg_invalid_inputs(session):
+def test_moving_agg_invalid_inputs(session, local_testing_mode):
     """Tests df.analytics.moving_agg() with invalid window sizes."""
 
     df = get_sample_dataframe(session)
@@ -221,14 +209,15 @@ def test_moving_agg_invalid_inputs(session):
         ).collect()
     assert "window_sizes must not be empty" in str(exc)
 
-    with pytest.raises(SnowparkSQLException) as exc:
-        df.analytics.moving_agg(
-            aggs={"SALESAMOUNT": ["INVALID_FUNC"]},
-            window_sizes=[1],
-            order_by=["ORDERDATE"],
-            group_by=["PRODUCTKEY"],
-        ).collect()
-    assert "Sliding window frame unsupported for function" in str(exc)
+    if not local_testing_mode:  # Local Testing raises NotImplementedError instead
+        with pytest.raises(SnowparkSQLException) as exc:
+            df.analytics.moving_agg(
+                aggs={"SALESAMOUNT": ["INVALID_FUNC"]},
+                window_sizes=[1],
+                order_by=["ORDERDATE"],
+                group_by=["PRODUCTKEY"],
+            ).collect()
+        assert "Sliding window frame unsupported for function" in str(exc)
 
     def bad_formatter(input_col, agg):
         return f"{agg}_{input_col}"
@@ -255,10 +244,6 @@ def test_moving_agg_invalid_inputs(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message, windows function UnresolvedAttribute not supported",
-)
 def test_cumulative_agg_forward_direction(session):
     """Tests df.analytics.cumulative_agg() with forward direction for cumulative calculations."""
 
@@ -295,10 +280,6 @@ def test_cumulative_agg_forward_direction(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1370204 improve error message windows function UnresolvedAttribute not supported",
-)
 def test_cumulative_agg_backward_direction(session):
     """Tests df.analytics.cumulative_agg() with backward direction for cumulative calculations."""
 
@@ -369,10 +350,6 @@ def test_compute_lead(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: result data type snowpark LongType and LongType() do not match",
-)
 def test_compute_lag(session):
     """Tests df.analytics.compute_lag() happy path."""
 
@@ -632,10 +609,6 @@ def test_time_series_agg_year_sliding_window(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: result data type snowpark LongType and LongType() do not match",
-)
 def test_time_series_agg_invalid_inputs(session):
     """Tests time_series_agg function with invalid inputs."""
 

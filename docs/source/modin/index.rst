@@ -19,3 +19,4 @@ For your convenience, here is all the :doc:`Supported APIs <supported/index>`
     resampling
     numpy
     All supported APIs <supported/index>
+    performance

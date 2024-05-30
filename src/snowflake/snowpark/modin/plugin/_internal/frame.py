@@ -27,6 +27,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
     assert_duplicate_free,
+    cache_result,
     count_rows,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
@@ -684,6 +685,22 @@ class InternalFrame:
         """
         return InternalFrame.create(
             ordered_dataframe=self.ordered_dataframe.ensure_row_count_column(),
+            data_column_pandas_labels=self.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=self.data_column_pandas_index_names,
+            index_column_pandas_labels=self.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+        )
+
+    def persist_to_temporary_table(self) -> "InternalFrame":
+        """
+        Persists the OrderedDataFrame backing this InternalFrame to a temporary table for the duration of the session.
+
+        Returns:
+            A new InternalFrame with the backing OrderedDataFrame persisted to a temporary table.
+        """
+        return InternalFrame.create(
+            ordered_dataframe=cache_result(self.ordered_dataframe),
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
