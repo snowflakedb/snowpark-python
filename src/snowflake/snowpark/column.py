@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Optional, Union, Callable
+from typing import Optional, Union, Callable, Dict, Any
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -257,11 +257,16 @@ class Column:
 
             # some repetition here, but _expression logic will be eliminated eventually
             if self._ast is None:
-                self._ast = proto.SpColumnExpr()
                 if expr1 == "*":
-                    self._ast.sp_column_sql_expr.sql = "*"
+                    self._ast = Column._create_ast(
+                        property = lambda ast: ast.sp_column_sql_expr,
+                        assign_fields = {"sql": "*"}
+                    )
                 else:
-                    self._ast.sp_column.name = quote_name(expr1)
+                    self._ast = Column._create_ast(
+                        property = lambda ast: ast.sp_column,
+                        assign_fields = {"name": quote_name(expr1)}
+                    )
 
         elif isinstance(expr1, Expression):
             self._expression = expr1
@@ -270,29 +275,38 @@ class Column:
 
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
-        ast = proto.SpColumnExpr()
         if isinstance(field, str):
-            ast.sp_column_apply__string.col.CopyFrom(self._ast)
-            ast.sp_column_apply__string.field = field
+            ast = Column._create_ast(
+                property = lambda ast: ast.sp_column_apply__string,
+                copy_messages = {"col": self._ast},
+                assign_fields = {"field": field},
+            )
             return Column(SubfieldString(self._expression, field), ast = ast)
         elif isinstance(field, int):
-            ast.sp_column_apply__int.col.CopyFrom(self._ast)
-            ast.sp_column_apply__int.idx = field
+            ast = Column._create_ast(
+                property = lambda ast: ast.sp_column_apply__int,
+                copy_messages = {"col": self._ast},
+                assign_fields = {"idx": field},
+            )
             return Column(SubfieldInt(self._expression, field), ast = ast)
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators (for now, assume Expression objects never used for AST)
     def _bin_op_impl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
-        ast = proto.SpColumnExpr()
-        property(ast).lhs.CopyFrom(self._ast)
-        Column._fill_ast(property(ast).rhs, other)
+        ast = Column._create_ast(
+            property = property,
+            copy_messages = {"lhs": self._ast},
+            fill_col_asts = {"rhs": other},
+        )
         return Column(operator(self._expression, Column._to_expr(other)), ast = ast)
     
     def _bin_op_rimpl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
-        ast = proto.SpColumnExpr()
-        Column._fill_ast(property(ast).lhs, other)
-        property(ast).rhs.CopyFrom(self._ast)
+        ast = Column._create_ast(
+            property = property,
+            copy_messages = {"rhs": self._ast},
+            fill_col_asts = {"lhs": other}
+        )
         return Column(operator(Column._to_expr(other), self._expression), ast = ast)
     
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -482,13 +496,16 @@ class Column:
         upper_bound: Union[ColumnOrLiteral, Expression],
     ) -> "Column":
         """Between lower bound and upper bound."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_between.col.CopyFrom(self._ast)
-        ast.sp_column_between.lower_bound = Column._to_ast(lower_bound)
-        ast.sp_column_between.upper_bound = Column._to_ast(upper_bound)
-        return Column((Column._to_expr(lower_bound) <= self) & (
-            self <= Column._to_expr(upper_bound)
-        )._expression, ast = ast)
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_between,
+            copy_messages = {"col": self._ast},
+            fill_col_asts = {"lower_bound": lower_bound,
+                             "upper_bound": upper_bound}
+        )
+        return Column(
+            (Column._to_expr(lower_bound) <= self) & (self <= Column._to_expr(upper_bound))._expression, 
+            ast = ast,
+        )
 
     def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise and."""
@@ -503,8 +520,10 @@ class Column:
         return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_xor, BitwiseXor, other)
 
     def _unary_op_impl(self, property: Callable, operator: UnaryExpression) -> "Column":
-        ast = proto.SpColumnExpr()
-        property(ast).col.CopyFrom(self._ast)
+        ast = Column._create_ast(
+            property = property, 
+            copy_messages = {"col": self._ast},
+        )
         return Column(operator(self._expression), ast = ast)
 
     def __neg__(self) -> "Column":
@@ -551,13 +570,16 @@ class Column:
         return Column(Not(self._expression))
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
-        ast = proto.SpColumnExpr()
-        ast.sp_column_cast.col.CopyFrom(self._ast)
         # TODO: Update SpColumnCast IR entity with new field "try", then uncomment
-        # ast.sp_column_cast.try = try_
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_cast,
+            copy_messages = {"col": self._ast},
+            # assign_fields = {"try": try_}
+        )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-            to.fill_ast(ast.sp_column_cast.to)
+        to.fill_ast(ast.sp_column_cast.to)
+
         return Column(Cast(self._expression, to, try_), ast = ast)
 
     def cast(self, to: Union[str, DataType]) -> "Column":
@@ -574,46 +596,58 @@ class Column:
 
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_desc.col.CopyFrom(self._ast)
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_desc,
+            copy_messages = {"col": self._ast}
+        )
         return Column(SortOrder(self._expression, Descending()), ast = ast)
 
     def desc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_desc.col.CopyFrom(self._ast)
-        ast.sp_column_desc.nulls_first = True
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_desc,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"nulls_first": True},
+        )
         return Column(SortOrder(self._expression, Descending(), NullsFirst()), ast = ast)
 
     def desc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_desc.col.CopyFrom(self._ast)
-        ast.sp_column_desc.nulls_first = False
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_desc,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"nulls_first": False},
+        )
         return Column(SortOrder(self._expression, Descending(), NullsLast()), ast = ast)
 
     def asc(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_asc.col.CopyFrom(self._ast)
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_asc,
+            copy_messages = {"col": self._ast},
+        )
         return Column(SortOrder(self._expression, Ascending()), ast = ast)
 
     def asc_nulls_first(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_asc.col.CopyFrom(self._ast)
-        ast.sp_column_asc.nulls_first = True
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_asc,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"nulls_first": True},
+        )
         return Column(SortOrder(self._expression, Ascending(), NullsFirst()), ast = ast)
 
     def asc_nulls_last(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_asc.col.CopyFrom(self._ast)
-        ast.sp_column_asc.nulls_first = False
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_asc,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"nulls_first": False},
+        )
         return Column(SortOrder(self._expression, Ascending(), NullsLast()), ast = ast)
 
     def like(self, pattern: ColumnOrLiteralStr) -> "Column":
@@ -626,9 +660,11 @@ class Column:
         For details, see the Snowflake documentation on
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
-        ast = proto.SpColumnExpr()
-        ast.sp_column_like.col.CopyFrom(self._ast)
-        Column._fill_ast(ast.sp_column_like.pattern, pattern)
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_like,
+            copy_messages = {"col": self._ast},
+            fill_col_asts = {"pattern": pattern},
+        )
         return Column(
             Like(
                 self._expression,
@@ -649,8 +685,12 @@ class Column:
         :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
-        ast = proto.SpColumnExpr()
-        ast.sp_column_regexp.col.CopyFrom(self._ast)
+        # TODO: Should SpColumnRegexp.pattern be an Expr in the IR, could sbe SpColumnExpr as in SpColumnLike?
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_regexp,
+            copy_messages = {"col", self._ast},
+            # fill_col_asts = {"pattern", pattern},
+        )
         Column._fill_ast(ast.sp_column_regexp.pattern.trait_sp_column_expr, pattern)
         return Column(
             RegExp(
@@ -681,6 +721,7 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.endswith(self, other)
 
+    # TODO: Need to figure out AST entities for string cols substr
     def substr(
         self,
         start_pos: Union["Column", int],
@@ -703,9 +744,11 @@ class Column:
         For details, see the Snowflake documentation on
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
-        ast = proto.SpColumnExpr()
-        ast.sp_column_collate.col.CopyFrom(self._ast)
-        ast.sp_column_collate.collate_spec = collation_spec
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_collate,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"collate": collation_spec},
+        )
         return Column(Collate(self._expression, collation_spec), ast = ast)
 
     # TODO: Need to figure out AST entities for string col contains
@@ -741,10 +784,12 @@ class Column:
 
     def name(self, alias: str, variant_is_as: bool = True) -> "Column":
         """Returns a new renamed Column."""
-        ast = proto.SpColumnExpr()
-        ast.sp_column_alias.col.CopyFrom(self._ast)
-        ast.sp_column_alias.name = alias
-        ast.sp_column_alias.variant_is_as = variant_is_as
+        ast = Column._create_ast(
+            property = lambda ast: ast.sp_column_alias,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"name": quote_name(alias),
+                             "variant_is_as": variant_is_as},
+        )
         return Column(Alias(self._expression, quote_name(alias)), ast = ast)
 
     # TODO: Implement AST generation for Column.over (relies on SpWindowSpec AST generation)
@@ -806,17 +851,20 @@ class Column:
             ----------------
             <BLANKLINE>
         """
-        ast = proto.SpColumnExpr()
-        ast.sp_column_within_group.col.CopyFrom(self._ast)
-        ast.sp_column_within_group.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+        prop = lambda ast: ast.sp_column_within_group
+        ast = Column._create_ast(
+            property = prop,
+            copy_messages = {"col": self._ast},
+            assign_fields = {"variadic": (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))}
+        )
 
         order_by_cols = []
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
                 order_by_cols.append(col)
-                ast.sp_column_within_group.cols.append(col._ast)
+                prop(ast).cols.append(col._ast)
             elif isinstance(col, str):
-                col_ast = ast.sp_column_within_group.cols.add()
+                col_ast = prop(ast).cols.add()
                 new_col = Column(col, ast = col_ast)
                 col_ast.sp_column.name = new_col.get_name()
                 order_by_cols.append(new_col)
@@ -832,6 +880,22 @@ class Column:
             return self._expression
         else:
             return UnresolvedAlias(self._expression)
+    
+    @staticmethod
+    def _create_ast(property: Optional[Callable] = None,
+                    assign_fields: Dict[str, Any] = {},
+                    copy_messages: Dict[str, Any] = {},
+                    fill_col_asts: Dict[str, ColumnOrLiteral] = {}
+        ) -> proto.SpColumnExpr:
+        ast = proto.SpColumnExpr()
+        if property is not None:
+            for attr, value in assign_fields.items():
+                setattr(property(ast), attr, value)
+            for attr, messg in copy_messages.items():
+                getattr(property(ast), attr).CopyFrom(messg)
+            for attr, other in fill_col_asts.items():
+                Column._fill_ast(getattr(property(ast), attr), other)
+        return ast
     
     @classmethod
     def _fill_ast(cls, ast: proto.SpColumnExpr, value: ColumnOrLiteral) -> None:
