@@ -13454,14 +13454,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         fill_method : {'backfill', 'bfill', 'pad', 'ffill'}, default 'pad'
             How to handle NAs before computing percent changes.
 
-            Deprecated since version 2.1: All options of fill_method are deprecated except fill_method=None.
-
         limit : int, optional
             The number of consecutive NAs to fill before stopping.
 
             Snowpark pandas does not support this parameter.
-
-            Deprecated since version 2.1.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. ‘ME’ or BDay()).
