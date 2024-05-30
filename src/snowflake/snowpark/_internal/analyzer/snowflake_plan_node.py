@@ -26,7 +26,7 @@ class LogicalPlan:
 
     @property
     def individual_query_complexity(self) -> int:
-        return 1
+        return 0
 
 
 class LeafNode(LogicalPlan):
@@ -53,6 +53,11 @@ class UnresolvedRelation(LeafNode):
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
+
+    @property
+    def individual_query_complexity(self) -> int:
+        # SELECT * FROM name
+        return 1
 
 
 class SnowflakeValues(LeafNode):

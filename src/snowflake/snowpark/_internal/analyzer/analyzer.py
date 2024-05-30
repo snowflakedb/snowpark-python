@@ -927,7 +927,7 @@ class Analyzer:
                 )
 
         if isinstance(logical_plan, UnresolvedRelation):
-            return self.plan_builder.table(logical_plan.name)
+            return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             return self.plan_builder.save_as_table(

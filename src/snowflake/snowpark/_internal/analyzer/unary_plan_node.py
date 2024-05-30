@@ -64,9 +64,15 @@ class Aggregate(UnaryNode):
 
     @property
     def individual_query_complexity(self) -> int:
-        return sum(
-            expr.expression_complexity for expr in self.grouping_expressions
-        ) + sum(expr.expression_complexity for expr in self.aggregate_expressions)
+        # grouping estimate
+        estimate = max(
+            1, sum(expr.expression_complexity for expr in self.grouping_expressions)
+        )
+        # aggregate estimate
+        estimate += sum(
+            expr.expression_complexity for expr in self.aggregate_expressions
+        )
+        return estimate
 
 
 class Pivot(UnaryNode):
