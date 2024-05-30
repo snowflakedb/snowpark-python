@@ -2370,23 +2370,25 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 + "to calling pct_change or specify 'fill_method=None' to not fill NA "
                 + "values.",
                 FutureWarning,
+                stacklevel=1,
             )
         if fill_method is lib.no_default:
-            if self.isna().values.any():
-                warnings.warn(
-                    "The default fill_method='pad' in "
-                    + f"{type(self).__name__}.pct_change is deprecated and will be "
-                    + "removed in a future version. Call ffill before calling "
-                    + "pct_change to retain current behavior and silence this warning.",
-                    FutureWarning,
-                )
+            warnings.warn(
+                f"The default fill_method='pad' in {type(self).__name__}.pct_change is "
+                + "deprecated and will be removed in a future version. Either fill in any "
+                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
+                + "to not fill NA values.",
+                FutureWarning,
+                stacklevel=1,
+            )
             fill_method = "pad"
+
         if limit is lib.no_default:
             limit = None
 
         # Attempting to match pandas error behavior here
         if not isinstance(periods, int):
-            raise ValueError(f"periods must be an int. got {type(periods)} instead")
+            raise TypeError(f"periods must be an int. got {type(periods)} instead")
 
         # Attempting to match pandas error behavior here
         for dtype in self._get_dtypes():
