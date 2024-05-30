@@ -6,6 +6,12 @@
 
 #### Improvements
 
+### Snowpark Local Testing Updates
+
+#### Improvements
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
 ### Snowpark pandas API Updates
 
 #### New Features
