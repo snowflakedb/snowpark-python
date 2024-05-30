@@ -50,7 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import call_udf, col, pandas_udf, udf
+from snowflake.snowpark.functions import call_udf, col, pandas_udf, parse_json, udf
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -773,17 +773,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
-    expected_exception = (
-        SnowparkSQLException if not local_testing_mode else ModuleNotFoundError
-    )
-
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     session.add_import(test_files.test_udf_py_file, "test_udf_dir.test_udf_file")
 
@@ -795,13 +788,10 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
         imports=[],
     )
-    with pytest.raises(expected_exception) as ex_info:
+    with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(plus4_then_mod5_udf("a")).collect(),
 
-    if not local_testing_mode:
-        assert "No module named" in ex_info.value.message
-    else:
-        assert "No module named" in ex_info.value.msg
+    assert "No module named" in ex_info.value.message
 
     # clean
     session.clear_imports()
@@ -1072,10 +1062,6 @@ def test_permanent_udf_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370028: align error behavior when UDF receives bad input",
-)
 def test_udf_negative(session, local_testing_mode):
     def f(x):
         return x
@@ -1128,7 +1114,11 @@ def test_udf_negative(session, local_testing_mode):
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(udf2("x")).collect()
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert (
+        local_testing_mode
+        or "Numeric value" in str(ex_info)
+        and "is not recognized" in str(ex_info)
+    )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
@@ -1241,11 +1231,7 @@ def test_add_import_negative(session, resources_path):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370035: date time objects are received as str inside UDF",
-)
-def test_udf_variant_type(session):
+def test_udf_variant_type(session, local_testing_mode):
     def variant_get_data_type(v):
         return str(type(v))
 
@@ -1319,10 +1305,12 @@ def test_udf_variant_type(session):
     )
 
     # dynamic typing on one single column
-    df = session.sql(
-        "select parse_json(column1) as a from values"
-        "('1'), ('1.1'), ('\"2\"'), ('true'), ('[1, 2, 3]'),"
-        ' (\'{"a": "foo"}\')'
+    df = (
+        session.create_dataframe(
+            [("1"), ("1.1"), ('"2"'), ("true"), ("[1, 2, 3]"), ('{"a": "foo"}')]
+        )
+        .to_df(["a"])
+        .select(parse_json("a").alias("a"))
     )
     Utils.check_answer(
         df.select(variant_udf("a")).collect(),
@@ -1446,10 +1434,6 @@ def test_udf_replace(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370035: support if_not_exists in UDF registration and enable",
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Named temporary udf is not supported in stored proc"
 )
@@ -2333,10 +2317,6 @@ def test_numpy_udf(session, func):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370447: mock_timestamp_ntz raises error",
-)
-@pytest.mark.skipif(
     not is_pandas_available, reason="pandas required for vectorized UDF"
 )
 def test_udf_timestamp_type_hint(session):
@@ -2393,6 +2373,57 @@ def test_udf_timestamp_type_hint(session):
             func_tz_udf('"tz"'),
         ),
         expected_res,
+    )
+
+
+@pytest.mark.skipif(
+    not is_pandas_available, reason="pandas required for vectorized UDF"
+)
+def test_udf_return_none(session):
+    data = [
+        [
+            1,
+            "a",
+            "a",
+        ],
+        [
+            2,
+            "b",
+            "b",
+        ],
+        [None, None, None],
+    ]
+    schema = StructType(
+        [
+            StructField('"int"', IntegerType()),
+            StructField('"str"', StringType()),
+            StructField('"var"', VariantType()),
+        ]
+    )
+    df = session.create_dataframe(data, schema=schema)
+
+    def f(x):
+        return x if x is not None else None
+
+    @udf
+    def func_int_udf(x: int) -> int:
+        return f(x)
+
+    @udf
+    def func_str_udf(x: str) -> str:
+        return f(x)
+
+    @udf
+    def func_var_udf(x: Variant) -> Variant:
+        return f(x)
+
+    Utils.check_answer(
+        df.select(
+            func_int_udf('"int"'),
+            func_str_udf('"str"'),
+            func_var_udf('"var"'),
+        ),
+        [Row(1, "a", '"a"'), Row(2, "b", '"b"'), Row(None, None, None)],
     )
 
 

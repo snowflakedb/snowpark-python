@@ -252,15 +252,17 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(col("a"))
-    assert local_testing_mode or "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(current_date())
-    assert local_testing_mode or "Invalid argument types for function" in str(ex_info)
+    assert "Invalid argument types for function" in str(
+        ex_info
+    ) or "Unexpected type" in str(ex_info)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(lit(""))
-    assert local_testing_mode or "not recognized" in str(ex_info)
+    assert "not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
 
 
 @pytest.mark.localtest
@@ -738,12 +740,13 @@ def test_sp_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus4_then_mod5_sp(3)
+
     if local_testing_mode:
-        with pytest.raises(ModuleNotFoundError) as ex_info:
-            plus4_then_mod5_sp(3)
+        # Local testing nests the error, but pytest only provides the top level error message
+        assert "Python Interpreter Error" in ex_info.value.message
     else:
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            plus4_then_mod5_sp(3)
         assert "No module named" in ex_info.value.message
 
 
@@ -934,12 +937,8 @@ def test_permanent_sp_negative(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370028",
-)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
-def test_sp_negative(session):
+def test_sp_negative(session, local_testing_mode):
     def f(_, x):
         return x
 
@@ -982,11 +981,11 @@ def test_sp_negative(session):
 
     # incorrect data type
     int_sp = sproc(
-        lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
+        lambda _, x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
@@ -1339,10 +1338,6 @@ def test_temp_sp_with_import_and_upload_stage(
             Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1374204: align error behavior on when imports has bad input value",
-)
 def test_add_import_negative(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -1361,9 +1356,7 @@ def test_add_import_negative(session, resources_path, local_testing_mode):
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        expected_exc = (
-            SnowparkSQLException if not local_testing_mode else ModuleNotFoundError
-        )
+        expected_exc = SnowparkSQLException
         with pytest.raises(expected_exc) as ex_info:
             plus4_then_mod5_sp(1)
         assert "No module named 'test.resources'" in str(ex_info.value)
@@ -1431,10 +1424,6 @@ def test_sp_replace(session):
     assert add_sp(1, 2) == 3
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370044: Support if_not_exists in Local Testing",
-)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",

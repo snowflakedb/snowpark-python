@@ -487,10 +487,6 @@ def test_coalesce(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
-)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
@@ -1361,6 +1357,18 @@ def test_to_time(session, local_testing_mode):
         [
             Row(time(1, 2, 3)),
             Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH24:MI:SS.FF4") for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
         ],
     )
 
@@ -1583,7 +1591,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_tz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1596,7 +1606,7 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         (
             to_timestamp_ntz,
             [
-                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 1, 0, 0, 0, 123456)),
                 Row(datetime(2024, 2, 2, 0, 0)),
                 Row(datetime(2024, 2, 3, 0, 0)),
             ],
@@ -1605,7 +1615,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_ltz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1626,7 +1638,7 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
     ):
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
         data = [
-            ("2024-02-01 00:00:00.000000", "YYYY-MM-DD HH24:MI:SS.FF"),
+            ("2024-02-01 00:00:00.123456789", "YYYY-MM-DD HH24:MI:SS.FF1"),
             ("20240202000000000000", "YYYYMMDDHH24MISSFF"),
             ("03 Feb 2024 00:00:00", "DD mon YYYY HH24:MI:SS"),
         ]
@@ -1833,6 +1845,19 @@ def test_to_timestamp_numeric_scale_column(
     ],
 )
 def test_to_timestamp_variant_column(to_type, expected, session, local_testing_mode):
+    data = [
+        12345678900,  # integer
+        "12345678900",  # string containing integer
+        "2024-02-01 12:34:56.789000",  # timestamp str
+        datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
+    ]
+
+    if to_type == to_timestamp_ntz and IS_IN_STORED_PROC:
+        # integer in variant type depends on local time zone of the server
+        # while in sproc reg test, the timezone is non-deterministic leading to non-deterministic result
+        # here we pop the case of integer in variant type
+        expected.pop(0)
+        data.pop(0)
     with parameter_override(
         session,
         "timezone",
@@ -1842,12 +1867,6 @@ def test_to_timestamp_variant_column(to_type, expected, session, local_testing_m
         # as we are testing Variant + Integer case
         # this timezone has to be the same as the one in session
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
-        data = [
-            12345678900,  # integer
-            "12345678900",  # string containing integer
-            "2024-02-01 12:34:56.789000",  # timestamp str
-            datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
-        ]
         df = session.create_dataframe(
             data,
             StructType(
@@ -4598,16 +4617,14 @@ def test_rank(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1374081: row_number over window does not have consistent result.",
-)
 def test_row_number(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
-        ),
-        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        TestData.xyz(session)
+        .select(
+            "X", row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
+        )
+        .order_by("X"),
+        [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2), Row(2, 3)],
         sort=False,
     )
 
