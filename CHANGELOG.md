@@ -6,6 +6,10 @@
 
 #### Improvements
 
+#### Bug Fixes
+
+- Fixed a bug that no stored procedure will run in a task because `DataFrame._execute_and_get_query_id` tries to get query results.
+
 ### Snowpark pandas API Updates
 
 #### New Features
