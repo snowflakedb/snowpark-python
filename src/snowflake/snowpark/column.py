@@ -228,6 +228,7 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
+    # NOTE: For now assume Expression instances can be safely ignored when building AST
     def __init__(
         self,
         expr1: Union[str, Expression],
@@ -237,7 +238,6 @@ class Column:
         self._ast = ast
 
         if expr2 is not None:
-            # TODO: Find correct entities in AST for df_aliasing
             if isinstance(expr1, str) and isinstance(expr2, str):
                 if expr2 == "*":
                     self._expression = Star([], df_alias=expr1)
@@ -245,6 +245,20 @@ class Column:
                     self._expression = UnresolvedAttribute(
                         quote_name(expr2), df_alias=expr1
                     )
+
+                # TODO: Add optional field "df_alias" in SpColumnSqlExpr and SpColumn and uncomment
+                # if expr2 == "*":
+                #     self._ast = Column._create_ast(
+                #         property = lambda ast: ast.sp_column_sql_expr,
+                #         assign_fields = {"sql": "*",
+                #                          "df_alias": expr1}
+                #     )
+                # else:
+                #     self._ast = Column._create_ast(
+                #         property = lambda ast: ast.sp_column,
+                #         assign_fields = {"name": quote_name(expr2),
+                #                          "df_alias": expr1}
+                #     )
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
@@ -292,7 +306,7 @@ class Column:
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
-    # overload operators (for now, assume Expression objects never used for AST)
+    # overload operators
     def _bin_op_impl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
         ast = Column._create_ast(
             property = property,
@@ -570,11 +584,11 @@ class Column:
         return Column(Not(self._expression))
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
-        # TODO: Update SpColumnCast IR entity with new field "try", then uncomment
+        # TODO: Update SpColumnCast IR entity with new field "try_", then uncomment
         ast = Column._create_ast(
             property = lambda ast: ast.sp_column_cast,
             copy_messages = {"col": self._ast},
-            # assign_fields = {"try": try_}
+            # assign_fields = {"try_": try_}
         )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
@@ -699,7 +713,6 @@ class Column:
             ), ast = ast
         )
 
-    # TODO: Need to figure out AST entities for string col startswith
     def startswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column starts with another string.
 
@@ -707,10 +720,17 @@ class Column:
             other: A :class:`Column` or a ``str`` that is used to check if this column starts with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
+        # TODO: Create SpColumnStartsWith IR entity, and uncomment
+        # ast = Column._create_ast(
+        #     property = lambda ast: ast.sp_column_starts_with,
+        #     copy_messages = {"col": self._ast},
+        #     fill_col_asts = {"pattern": other},
+        # )
+        # other = snowflake.snowpark.functions.lit(other)
+        # return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.startswith(self, other)
 
-    # TODO: Need to figure out AST entities for string col endswith
     def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
 
@@ -718,10 +738,17 @@ class Column:
             other: A :class:`Column` or a ``str`` that is used to check if this column ends with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
+        # TODO: Create SpColumnEndsWith IR entity, and uncomment
+        # ast = Column._create_ast(
+        #     property = lambda ast: ast.sp_column_ends_with,
+        #     copy_messages = {"col": self._ast},
+        #     fill_col_asts = {"pattern": other},
+        # )
+        # other = snowflake.snowpark.functions.lit(other)
+        # return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
         other = snowflake.snowpark.functions.lit(other)
         return snowflake.snowpark.functions.endswith(self, other)
 
-    # TODO: Need to figure out AST entities for string cols substr
     def substr(
         self,
         start_pos: Union["Column", int],
@@ -735,6 +762,14 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
+        # TODO: Create SpColumnSubstr IR entity, and uncomment
+        # ast = Column._create_ast(
+        #     property = lambda ast: ast.sp_column_substr,
+        #     copy_messages = {"col": self._ast},
+        #     fill_col_asts = {"start_pos": start_pos,
+        #                      "length": length},
+        # )
+        # return Column(snowflake.snowpark.functions.substring(self, start_pos, length)._expression, ast = ast)
         return snowflake.snowpark.functions.substring(self, start_pos, length)
 
     def collate(self, collation_spec: str) -> "Column":
@@ -751,13 +786,19 @@ class Column:
         )
         return Column(Collate(self._expression, collation_spec), ast = ast)
 
-    # TODO: Need to figure out AST entities for string col contains
     def contains(self, string: ColumnOrName) -> "Column":
         """Returns true if the column contains `string` for each row.
 
         Args:
             string: the string to search for in this column.
         """
+        # TODO: Create SpColumnContains IR entity, and uncomment
+        # ast = Column._create_ast(
+        #     property = lambda ast: ast.sp_column_contains,
+        #     copy_messages = {"col": self._ast},
+        #     fill_col_asts = {"pattern": string},
+        # )
+        # return Column(snowflake.snowpark.functions.contains(self, string)._expression, ast = ast)
         return snowflake.snowpark.functions.contains(self, string)
 
     def get_name(self) -> Optional[str]:
