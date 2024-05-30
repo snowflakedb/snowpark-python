@@ -3835,6 +3835,30 @@ def test_convert_timezone(session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
+def test_convert_timezone_neg(session):
+    df = TestData.datetime_primitives1(session)
+    with pytest.raises(SnowparkSQLException):
+        df.select(
+            convert_timezone(lit("UTC"), "timestamp_tz", lit("US/Eastern"))
+        ).collect()
+
+
+def test_convert_timezone_nulls(session):
+    null_df = session.create_dataframe([[None]]).to_df("timestamp")
+    Utils.check_answer(
+        null_df.select(convert_timezone(lit("UTC"), to_timestamp_ntz("timestamp"))),
+        [Row(None)],
+    )
+    Utils.check_answer(
+        null_df.select(
+            convert_timezone(
+                lit("UTC"), to_timestamp_ntz("timestamp"), lit("US/Eastern")
+            )
+        ),
+        [Row(None)],
+    )
+
+
 def test_convert_timezone_with_source(session, local_testing_mode):
     with parameter_override(
         session,
