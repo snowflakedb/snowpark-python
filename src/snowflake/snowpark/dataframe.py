@@ -1133,7 +1133,8 @@ class DataFrame:
 
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
-        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        # TODO: remove the None guard below once we generate the correct AST.
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id if self._ast_id is not None else 666
         ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
 
         names = []
