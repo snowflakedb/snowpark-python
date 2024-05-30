@@ -1,12 +1,39 @@
 # Release History
 
+## 1.19.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+
+#### Improvements
+
+- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
+
 ## 1.18.0 (2024-05-28)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+- Improved error handling for `Session.create_dataframe` when called with more than 512 rows and using `format` or `pyformat` `paramstyle`.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+
+#### Bug Fixes
 
 #### Improvements
 
@@ -19,10 +46,6 @@
 - Fixed how we support mixed columns for string methods (`Series.str.*`).
 
 ### Snowpark Local Testing Updates
-
-#### Breaking changes
-
-- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings.
 
 #### New Features
 
@@ -62,6 +85,7 @@
 - Improved target type coverage of `Column.cast`, adding support for casting to boolean and all integral types.
 - Aligned error experience when calling UDFs and stored procedures.
 - Added appropriate error messages for `is_permanent` and `anonymous` options in UDFs and stored procedures registration to make it more clear that those features are not yet supported.
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings and unclear error information.
 
 ## 1.17.0 (2024-05-21)
 
