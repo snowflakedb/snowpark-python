@@ -1,5 +1,23 @@
 # Release History
 
+## 1.19.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+
+#### Improvements
+
+- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
+
 ## 1.18.0 (2024-05-28)
 
 ### Snowpark Python API Updates
@@ -14,6 +32,8 @@
 #### New Features
 
 - Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+
+#### Bug Fixes
 
 #### Improvements
 

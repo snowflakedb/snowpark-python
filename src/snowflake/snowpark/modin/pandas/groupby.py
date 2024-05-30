@@ -585,8 +585,37 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 "axis other than 0 is not supported"
             )  # pragma: no cover
         if func is None:
+            # When func is None, we assume that the aggregation functions have been passed in via named aggregations,
+            # which can be of the form named_agg=('col_name', 'agg_func') or named_agg=pd.NamedAgg('col_name', 'agg_func').
+            # We need to parse out the following three things:
+            # 1. The new label to apply to the result of the aggregation.
+            # 2. The column to apply the aggregation over.
+            # 3. The aggregation to apply.
+            # This function checks that:
+            # 1. The kwargs contain named aggregations.
+            # 2. The kwargs do not contain anything besides named aggregations. (for pandas compatibility - see function for more details.)
+            # If both of these things are true, it then extracts the named aggregations from the kwargs, and returns a dictionary that contains
+            # a mapping from the column pandas labels to apply the aggregation over (2 above) to a tuple containing the aggregation to apply
+            # and the new label to assign it (1 and 3 above). Take for example, the following call:
+            # df.groupby(...).agg(new_col1=('A', 'min'), new_col2=('B', 'max'), new_col3=('A', 'max'))
+            # After this function returns, func will look like this:
+            # {
+            #   "A": [AggFuncWithLabel(func="min", pandas_label="new_col1"), AggFuncWithLabel(func="max", pandas_label="new_col3")],
+            #   "B": AggFuncWithLabel(func="max", pandas_label="new_col2")
+            # }
+            # This remapping causes an issue with ordering though - the dictionary above will be processed in the following order:
+            # 1. apply "min" to "A" and name it "new_col1"
+            # 2. apply "max" to "A" and name it "new_col3"
+            # 3. apply "max" to "B" and name it "new_col2"
+            # In other words - the order is slightly shifted so that named aggregations on the same column are contiguous in the ordering
+            # although the ordering of the kwargs is used to determine the ordering of named aggregations on the same columns. Since
+            # the reordering for groupby agg is a reordering of columns, its relatively cheap to do after the aggregation is over,
+            # rather than attempting to preserve the order of the named aggregations internally.
             func = extract_validate_and_try_convert_named_aggs_from_kwargs(
-                obj=self, allow_duplication=True, axis=self._axis, **kwargs
+                obj=self,
+                allow_duplication=True,
+                axis=self._axis,
+                **kwargs,
             )
         else:
             func = validate_and_try_convert_agg_func_arg_func_to_str(
@@ -615,6 +644,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             how="axis_wise",
             is_result_dataframe=is_result_dataframe,
         )
+
         return result
 
     agg = aggregate
@@ -1170,9 +1200,7 @@ class SeriesGroupBy(DataFrameGroupBy):
     ):
         # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         if is_dict_like(func):
-            raise SpecificationError(
-                "Value for func argument in dict format is not allowed for SeriesGroupBy."
-            )
+            raise SpecificationError("nested renamer is not supported")
 
         return super().aggregate(
             func, *args, engine=engine, engine_kwargs=engine_kwargs, **kwargs

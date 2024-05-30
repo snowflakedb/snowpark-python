@@ -262,8 +262,8 @@ def test_groupby_series_agg_dict_like_input_raise(series_str):
         lambda se: se.groupby(level=0).aggregate({"col2": max}),
         expect_exception=True,
         expect_exception_type=SpecificationError,
-        expect_exception_match="Value for func argument in dict format is not allowed for SeriesGroupBy.",
-        assert_exception_equal=False,
+        expect_exception_match="nested renamer is not supported",
+        assert_exception_equal=True,
     )
 
 
