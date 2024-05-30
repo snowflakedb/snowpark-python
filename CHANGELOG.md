@@ -10,6 +10,8 @@
 
 #### New Features
 
+- Added support for `Series.str.get`.
+
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.

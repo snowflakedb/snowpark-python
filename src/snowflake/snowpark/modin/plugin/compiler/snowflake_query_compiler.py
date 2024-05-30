@@ -12183,8 +12183,55 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: int) -> None:
-        ErrorMessage.method_not_implemented_error("get", "Series.str")
+    def str_get(self, i: int) -> "SnowflakeQueryCompiler":
+        """
+        Extract element from each component at specified position or with specified key.
+
+        Extract element from lists, tuples, dict, or strings in each element in the Series/Index.
+
+        Parameters
+        ----------
+        i : int
+            Position or key of element to extract.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if i is not None and not isinstance(i, int):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument"
+            )
+
+        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
+            col_len_exp = length(col(col_name))
+            if i is None:
+                new_col = pandas_lit(None)
+            elif i < 0:
+                # Index is relative to the end boundary.
+                # If it falls before the beginning boundary, Null is returned.
+                new_col = iff(
+                    pandas_lit(i) + col_len_exp < pandas_lit(0),
+                    pandas_lit(None),
+                    substring(
+                        col(col_name), pandas_lit(i + 1) + col_len_exp, pandas_lit(1)
+                    ),
+                )
+            else:
+                assert i >= 0
+                # Index is relative to the beginning boundary.
+                # If it falls after the end boundary, Null is returned.
+                new_col = iff(
+                    pandas_lit(i) >= col_len_exp,
+                    pandas_lit(None),
+                    substring(col(col_name), pandas_lit(i + 1), pandas_lit(1)),
+                )
+            return self._replace_non_str(col(col_name), new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_get_dummies(self, sep: str) -> None:
         ErrorMessage.method_not_implemented_error("get_dummies", "Series.str")
