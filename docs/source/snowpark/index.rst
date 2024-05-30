@@ -4,7 +4,6 @@ Snowpark APIs
 .. toctree::
    :maxdepth: 2
 
-   session
    io
    dataframe
    column
