@@ -347,10 +347,8 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
 
 
 @sql_count_checker(
-    query_count=10,
+    query_count=3,
     union_count=21,
-    high_count_expected=True,
-    high_count_reason="Uploading file",
 )
 # SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
 def test_describe_object_file(resources_path):
