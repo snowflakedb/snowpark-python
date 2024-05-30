@@ -67,6 +67,7 @@ from pandas.core.dtypes.common import (
 )
 from pandas.core.dtypes.inference import is_integer
 from pandas.core.indexes.api import ensure_index
+from pandas.errors import SpecificationError
 from pandas.util._validators import (
     validate_ascending,
     validate_bool_kwarg,
@@ -76,6 +77,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
     _doc_binary_op,
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
     raise_if_native_pandas_objects,
@@ -703,16 +705,45 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func,
-            obj=self,
-            allow_duplication=False,
-            axis=axis,
-        )
+        # If we are using named kwargs, then we do not clear the kwargs (need them in the QC for processing
+        # order, as well as formatting error messages.)
+        uses_named_kwargs = False
+        # If aggregate is called on a Series, named aggregations can be passed in via a dictionary
+        # to func.
+        if func is None or (is_dict_like(func) and not self._is_dataframe):
+            if axis == 1:
+                raise ValueError(
+                    "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
+                )
+            if func is not None:
+                # If named aggregations are passed in via a dictionary to func, then we
+                # ignore the kwargs.
+                if any(is_dict_like(value) for value in func.values()):
+                    # We can only get to this codepath if self is a Series, and func is a dictionary.
+                    # In this case, if any of the values of func are themselves dictionaries, we must raise
+                    # a Specification Error, as that is what pandas does.
+                    raise SpecificationError("nested renamer is not supported")
+                kwargs = func
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                self, allow_duplication=False, axis=axis, **kwargs
+            )
+            uses_named_kwargs = True
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=False,
+                axis=axis,
+            )
 
         # This is to stay consistent with pandas result format, when the func is single
         # aggregation function in format of callable or str, reduce the result dimension to
         # convert dataframe to series, or convert series to scalar.
+        # Note: When named aggregations are used, the result is not reduced, even if there
+        # is only a single function.
+        # needs_reduce_dimension cannot be True if we are using named aggregations, since
+        # the values for func in that case are either NamedTuples (AggFuncWithLabels) or
+        # lists of NamedTuples, both of which are list like.
         need_reduce_dimension = (
             (callable(func) or isinstance(func, str))
             # A Series should be returned when a single scalar string/function aggregation function, or a
@@ -767,7 +798,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # dtype: int8
         # >>> pd.DataFrame([[np.nan], [0]]).count(skipna=True, axis=0)
         # TypeError: got an unexpected keyword argument 'skipna'
-        if is_dict_like(func):
+        if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
 
         result = self.__constructor__(
@@ -1986,6 +2017,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
+    @base_not_implemented()
     def infer_objects(
         self, copy: bool | None = None
     ) -> BasePandasDataset:  # pragma: no cover # noqa: RT01, D200
@@ -1993,8 +2025,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Attempt to infer better dtypes for object columns.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        # This method is currently overriden in dataframe_overrides.py and series_overrides.py
-        # and raises NotImplementedError
         new_query_compiler = self._query_compiler.infer_objects()
         return self._create_or_update_from_compiler(
             new_query_compiler, inplace=False if copy is None else not copy
@@ -2983,10 +3013,11 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ) -> BasePandasDataset:
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         if periods == 0 and freq is None:
@@ -3006,7 +3037,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if fill_value == no_default:
             fill_value = None
 
-        new_query_compiler = self._query_compiler.shift(periods, freq, axis, fill_value)
+        new_query_compiler = self._query_compiler.shift(
+            periods, freq, axis, fill_value, suffix
+        )
         return self._create_or_update_from_compiler(new_query_compiler, False)
 
     def skew(

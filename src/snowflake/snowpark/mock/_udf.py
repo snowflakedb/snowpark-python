@@ -117,6 +117,18 @@ class MockUDFRegistration(UDFRegistration):
                 self._session._runtime_version_from_requirement
             )
 
+        if replace and if_not_exists:
+            raise ValueError("options replace and if_not_exists are incompatible")
+
+        if udf_name in self._registry and if_not_exists:
+            return UserDefinedFunction(
+                self._registry[udf_name],
+                return_type,
+                input_types,
+                udf_name,
+                packages=packages,
+            )
+
         if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
                 f"002002 (42710): SQL compilation error: \nObject '{udf_name}' already exists.",
@@ -139,11 +151,17 @@ class MockUDFRegistration(UDFRegistration):
 
         if type(func) is tuple:  # register from file
             module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name] = (module_name, func[1])
+            self._registry[udf_name] = UserDefinedFunction(
+                (module_name, func[1]),
+                return_type,
+                input_types,
+                udf_name,
+                packages=packages,
+            )
         else:
             # register from callable
-            self._registry[udf_name] = func
+            self._registry[udf_name] = UserDefinedFunction(
+                func, return_type, input_types, udf_name, packages=packages
+            )
 
-        return UserDefinedFunction(
-            func, return_type, input_types, udf_name, packages=packages
-        )
+        return self._registry[udf_name]

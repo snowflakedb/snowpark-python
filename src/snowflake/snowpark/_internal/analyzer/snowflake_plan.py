@@ -581,7 +581,9 @@ class SnowflakePlanBuilder:
             is_generated=True,
         )
         insert_stmt = batch_insert_into_statement(
-            temp_table_name, [attr.name for attr in attributes]
+            temp_table_name,
+            [attr.name for attr in attributes],
+            self.session._conn._conn._paramstyle,
         )
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
