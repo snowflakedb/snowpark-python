@@ -1,8 +1,10 @@
-## AST Tests.
+## AST Tests
 
-Enables testing of the AST generation that will be used in server-side Snowpark implementation, starting with Phase 0.
+This driver enables testing of the AST generation that will be used in the server-side Snowpark implementation, starting with Phase 0.
 
-All generated AST should be tested using this mechanism. To add a test, create a new file under `tests/ast/data`. Files look like the following example. The test driver sets up the session and looks at the value of `df` in the resulting environment.
+All generated AST should be tested using this mechanism. To add a test, create a new file under `tests/ast/data`. Files look like the following example. The test driver sets up the session and looks at the accumulated lazy values in the resulting environment.
+
+N.B. No eager evaluation is permitted, as any intermediate batches will not be observed. This can easily be changed if necessary, however.
 
 ```python
 ## TEST CASE
@@ -19,5 +21,5 @@ res2 = res1.filter('STR LIKE '%e%'')
 
 To generate the expected output the first time the test is run, or when the AST generation changes, run:
 ```bash
-pytest -vv --update-expectations tests/ast
+pytest --update-expectations tests/ast
 ```
