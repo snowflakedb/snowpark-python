@@ -23,3 +23,12 @@ To generate the expected output the first time the test is run, or when the AST 
 ```bash
 pytest --update-expectations tests/ast
 ```
+
+For these tests to work, the Unparser must be built in the monorepo:
+```bash
+cd my-monorepo-path
+cd Snowflake/unparser
+sbt assembly
+```
+
+The location of the Unparser can be set either via the environment variable `SNOWPARK_UNPARSER_JAR` or via the _pytest_ commandline argument `--unparser-jar=<path>`.
