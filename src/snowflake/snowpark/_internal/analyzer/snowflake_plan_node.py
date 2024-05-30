@@ -113,7 +113,7 @@ class SnowflakeCreateTable(LogicalPlan):
     def individual_query_complexity(self) -> int:
         estimate = 1  # mode is always present
         # column estimate
-        estimate += 0 if self.column_names else len(self.column_names)
+        estimate += sum(1 for _ in self.column_names) if self.column_names else 0
         # clustering exprs
         estimate += sum(expr.expression_complexity for expr in self.clustering_exprs)
         # comment estimate
@@ -179,7 +179,7 @@ class CopyIntoTableNode(LeafNode):
         estimate = len(self.column_names) if self.column_names else 0
         # for transformations
         estimate += (
-            len(expr.expression_complexity for expr in self.transformations)
+            sum(expr.expression_complexity for expr in self.transformations)
             if self.transformations
             else 0
         )
