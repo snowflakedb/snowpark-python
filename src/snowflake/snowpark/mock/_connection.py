@@ -797,6 +797,7 @@ $$"""
         return result_set["sfqid"]
     
     def create_coprocessor(self):
+        # It's not necessary to mock this call.
         pass
 
 
