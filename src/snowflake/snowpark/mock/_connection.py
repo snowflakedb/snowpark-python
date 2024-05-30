@@ -6,7 +6,6 @@
 import functools
 import json
 import logging
-import time
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -18,7 +17,6 @@ import snowflake.snowpark.mock._constants
 from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import NotSupportedError
-from snowflake.connector.network import ReauthenticationRequest
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
@@ -212,44 +210,6 @@ class MockServerConnection:
                 return self.view_registry[name]
             raise SnowparkLocalTestingException(f"View {name} does not exist")
 
-    class _Decorator:
-        @classmethod
-        def wrap_exception(cls, func):
-            def wrap(*args, **kwargs):
-                try:
-                    return func(*args, **kwargs)
-                except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
-                        ex.cause
-                    )
-                except Exception as ex:
-                    raise ex
-
-            return wrap
-
-        @classmethod
-        def log_msg_and_perf_telemetry(cls, msg):
-            def log_and_telemetry(func):
-                @functools.wraps(func)
-                def wrap(*args, **kwargs):
-                    logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
-                    sfqid = result["sfqid"] if result and "sfqid" in result else None
-                    # If we don't have a query id, then its pretty useless to send perf telemetry
-                    if sfqid:
-                        args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
-                        )
-                    logger.debug(f"Finished in {duration:.4f} secs")
-                    return result
-
-                return wrap
-
-            return log_and_telemetry
-
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
@@ -343,7 +303,6 @@ class MockServerConnection:
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
-    @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
             name = getattr(self, f"_active_{param}", None)
@@ -371,7 +330,6 @@ class MockServerConnection:
     # def get_result_attributes(self, query: str) -> List[Attribute]:
     #     return convert_result_meta_to_attribute(self._cursor.describe(query))
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
         self,
         path: str,
@@ -387,7 +345,6 @@ class MockServerConnection:
             raise_error=NotImplementedError,
         )
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
         input_stream: IO[bytes],
@@ -485,7 +442,6 @@ class MockServerConnection:
             input_stream, stage_location, dest_filename, overwrite=overwrite
         )
 
-    @_Decorator.wrap_exception
     def run_query(
         self,
         query: str,
