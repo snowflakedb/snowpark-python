@@ -31,7 +31,10 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_standalone_function_decorator,
 )
-from snowflake.snowpark.modin.plugin.io.snow_io import PandasOnSnowflakeIO
+from snowflake.snowpark.modin.plugin.io.snow_io import (
+    READ_CSV_DEFAULTS,
+    PandasOnSnowflakeIO,
+)
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -44,58 +47,66 @@ if TYPE_CHECKING:  # pragma: no cover
 def read_csv(
     filepath_or_buffer: FilePath,
     *,
-    sep: Optional[Union[str, NoDefault]] = no_default,
-    delimiter: Optional[str] = None,
-    header: Optional[Union[int, Sequence[int], Literal["infer"]]] = "infer",
-    names: Optional[Union[Sequence[Hashable], NoDefault]] = no_default,
-    index_col: Optional[Union[IndexLabel, Literal[False]]] = None,
-    usecols: Optional[Union[list[Hashable], Callable]] = None,
-    dtype: Optional[DtypeArg] = None,
-    engine: Optional[CSVEngine] = None,
-    converters: Optional[dict[Hashable, Callable]] = None,
-    true_values: Optional[list[Any]] = None,
-    false_values: Optional[list[Any]] = None,
-    skipinitialspace: Optional[bool] = None,
-    skiprows: Optional[int] = 0,
-    skipfooter: Optional[int] = None,
-    nrows: Optional[int] = None,
-    na_values: Optional[Sequence[Hashable]] = None,
-    keep_default_na: Optional[bool] = None,
-    na_filter: Optional[bool] = None,
-    verbose: Optional[bool] = None,
-    skip_blank_lines: Optional[bool] = None,
+    sep: Optional[Union[str, NoDefault]] = READ_CSV_DEFAULTS["sep"],
+    delimiter: Optional[str] = READ_CSV_DEFAULTS["delimiter"],
+    header: Optional[Union[int, Sequence[int], Literal["infer"]]] = READ_CSV_DEFAULTS[
+        "header"
+    ],
+    names: Optional[Union[Sequence[Hashable], NoDefault]] = READ_CSV_DEFAULTS["names"],
+    index_col: Optional[Union[IndexLabel, Literal[False]]] = READ_CSV_DEFAULTS[
+        "index_col"
+    ],
+    usecols: Optional[Union[list[Hashable], Callable]] = READ_CSV_DEFAULTS["usecols"],
+    dtype: Optional[DtypeArg] = READ_CSV_DEFAULTS["dtype"],
+    engine: Optional[CSVEngine] = READ_CSV_DEFAULTS["engine"],
+    converters: Optional[dict[Hashable, Callable]] = READ_CSV_DEFAULTS["converters"],
+    true_values: Optional[list[Any]] = READ_CSV_DEFAULTS["true_values"],
+    false_values: Optional[list[Any]] = READ_CSV_DEFAULTS["false_values"],
+    skipinitialspace: Optional[bool] = READ_CSV_DEFAULTS["skipinitialspace"],
+    skiprows: Optional[int] = READ_CSV_DEFAULTS["skiprows"],
+    skipfooter: Optional[int] = READ_CSV_DEFAULTS["skipfooter"],
+    nrows: Optional[int] = READ_CSV_DEFAULTS["nrows"],
+    na_values: Optional[Sequence[Hashable]] = READ_CSV_DEFAULTS["na_values"],
+    keep_default_na: Optional[bool] = READ_CSV_DEFAULTS["keep_default_na"],
+    na_filter: Optional[bool] = READ_CSV_DEFAULTS["na_filter"],
+    verbose: Optional[bool] = READ_CSV_DEFAULTS["verbose"],
+    skip_blank_lines: Optional[bool] = READ_CSV_DEFAULTS["skip_blank_lines"],
     parse_dates: Optional[
         Union[bool, Sequence[int], Sequence[Sequence[int]], dict[str, Sequence[int]]]
-    ] = None,
-    infer_datetime_format: Optional[bool] = None,
-    keep_date_col: Optional[bool] = None,
-    date_parser: Optional[Callable] = None,
-    date_format: Optional[Union[str, dict]] = None,
-    dayfirst: Optional[bool] = None,
-    cache_dates: Optional[bool] = None,
-    iterator: bool = None,
-    chunksize: Optional[int] = None,
+    ] = READ_CSV_DEFAULTS["parse_dates"],
+    infer_datetime_format: Optional[bool] = READ_CSV_DEFAULTS["infer_datetime_format"],
+    keep_date_col: Optional[bool] = READ_CSV_DEFAULTS["keep_date_col"],
+    date_parser: Optional[Callable] = READ_CSV_DEFAULTS["date_parser"],
+    date_format: Optional[Union[str, dict]] = READ_CSV_DEFAULTS["date_format"],
+    dayfirst: Optional[bool] = READ_CSV_DEFAULTS["dayfirst"],
+    cache_dates: Optional[bool] = READ_CSV_DEFAULTS["cache_dates"],
+    iterator: bool = READ_CSV_DEFAULTS["iterator"],
+    chunksize: Optional[int] = READ_CSV_DEFAULTS["chunksize"],
     compression: Literal[
         "infer", "gzip", "bz2", "brotli", "zstd", "deflate", "raw_deflate", "none"
-    ] = "infer",
-    thousands: Optional[str] = None,
-    decimal: Optional[str] = None,
-    lineterminator: Optional[str] = None,
-    quotechar: str = '"',
-    quoting: Optional[int] = None,
-    doublequote: bool = None,
-    escapechar: Optional[str] = None,
-    comment: Optional[str] = None,
-    encoding: Optional[str] = None,
-    encoding_errors: Optional[str] = None,
-    dialect: Optional[Union[str, "csv.Dialect"]] = None,
-    on_bad_lines: str = None,
-    delim_whitespace: Optional[bool] = None,
-    low_memory: Optional[bool] = None,
-    memory_map: Optional[bool] = None,
-    float_precision: Optional[Literal["high", "legacy"]] = None,
-    storage_options: StorageOptions = None,
-    dtype_backend: DtypeBackend = no_default,
+    ] = READ_CSV_DEFAULTS["compression"],
+    thousands: Optional[str] = READ_CSV_DEFAULTS["thousands"],
+    decimal: Optional[str] = READ_CSV_DEFAULTS["decimal"],
+    lineterminator: Optional[str] = READ_CSV_DEFAULTS["lineterminator"],
+    quotechar: str = READ_CSV_DEFAULTS["quotechar"],
+    quoting: Optional[int] = READ_CSV_DEFAULTS["quoting"],
+    doublequote: bool = READ_CSV_DEFAULTS["doublequote"],
+    escapechar: Optional[str] = READ_CSV_DEFAULTS["escapechar"],
+    comment: Optional[str] = READ_CSV_DEFAULTS["comment"],
+    encoding: Optional[str] = READ_CSV_DEFAULTS["encoding"],
+    encoding_errors: Optional[str] = READ_CSV_DEFAULTS["encoding_errors"],
+    dialect: Optional[Union[str, "csv.Dialect"]] = READ_CSV_DEFAULTS["dialect"],
+    on_bad_lines: str = READ_CSV_DEFAULTS["on_bad_lines"],
+    delim_whitespace: Optional[bool] = READ_CSV_DEFAULTS["delim_whitespace"],
+    low_memory: Optional[bool] = READ_CSV_DEFAULTS[
+        "low_memory"
+    ],  # Different from default because we want better dtype detection
+    memory_map: Optional[bool] = READ_CSV_DEFAULTS["memory_map"],
+    float_precision: Optional[Literal["high", "legacy"]] = READ_CSV_DEFAULTS[
+        "float_precision"
+    ],
+    storage_options: StorageOptions = READ_CSV_DEFAULTS["storage_options"],
+    dtype_backend: DtypeBackend = READ_CSV_DEFAULTS["dtype_backend"],
 ) -> DataFrame:
     """
     Read csv file(s) into a Snowpark pandas DataFrame. This API can read
@@ -161,43 +172,45 @@ def read_csv(
         to preserve and not interpret dtype.
         If converters are specified, they will be applied INSTEAD
         of dtype conversion.
-    engine : {{'c', 'python', 'pyarrow'}}, optional
-        This parameter is not supported and will be ignored.
+    engine : {{'c', 'python', 'pyarrow', 'snowflake'}}, optional
+        Changes the parser for reading CSVs. 'snowflake' will use the parser
+        from Snowflake itself, which matches the behavior of the COPY INTO
+        command.
     converters : dict, optional
-       This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     true_values : list, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     false_values : list, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     skiprows: list-like, int or callable, optional
         Line numbers to skip (0-indexed) or number of lines to skip (int)
         at the start of the file.
     skipfooter : int, default 0
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     nrows : int, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     na_values : scalar, str, list-like, or dict, optional
         Additional strings to recognize as NA/NaN.
     keep_default_na : bool, default True
-       This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     na_filter : bool, default True
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     verbose : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     skip_blank_lines : bool, default True
         If True, skip over blank lines rather than interpreting as NaN values.
     parse_dates : bool or list of int or names or list of lists or dict, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     infer_datetime_format : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     keep_date_col : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     date_parser : function, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     date_format : str or dict of column -> format, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     dayfirst : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     cache_dates : bool, default True
         This parameter is not supported and will be ignored.
     iterator : bool, default False
@@ -212,33 +225,34 @@ def read_csv(
         `List of Snowflake standard compressions
         <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#format-type-options-formattypeoptions>`_ .
     thousands : str, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     decimal : str, default '.'
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     lineterminator : str (length 1), optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     quotechar : str (length 1), optional
         The character used to denote the start and end of a quoted item. Quoted
         items can include the delimiter and it will be ignored.
     quoting : int or csv.QUOTE_* instance, default 0
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     doublequote : bool, default ``True``
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     escapechar : str (length 1), optional
-        One-character string used to escape other characters.
+       This parameter is only supported on local files.
     comment : str, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     encoding : str, default 'utf-8'
         Encoding to use for UTF when reading/writing (ex. 'utf-8'). `List of Snowflake
         standard encodings <https://docs.snowflake.com/en/sql-reference/sql/copy-into-tables>`_ .
     encoding_errors : str, optional, default "strict"
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     dialect : str or csv.Dialect, optional
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     on_bad_lines : {{'error', 'warn', 'skip'}} or callable, default 'error'
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files.
     delim_whitespace : bool, default False
-        This parameter is not supported and will raise an error.
+       This parameter is only supported on local files, not files which have been
+       uploaded to a snowflake stage.
     low_memory : bool, default True
         This parameter is not supported and will be ignored.
     memory_map : bool, default False
@@ -260,9 +274,16 @@ def read_csv(
     -----
     Both local files and files staged on Snowflake can be passed into
     ``filepath_or_buffer``. A single file or a folder that matches
-    a set of files can be passed into ``filepath_or_buffer``. The order of rows in the
-    dataframe may be different than the order of records in an input file. When reading
-    multiple files, there is no deterministic order in which the files are read.
+    a set of files can be passed into ``filepath_or_buffer``. Local files
+    will be processed locally by default using the stand pandas parser
+    before they are uploaded to a staging location as parquet files. This
+    behavior can be overriden by explicitly using the snowflake engine
+    with ``engine=snowflake``
+
+    If parsing the file using Snowflake, certain parameters may not be supported
+    and the order of rows in the dataframe may be different than the order of
+    records in an input file. When reading multiple files, there is no
+    deterministic order in which the files are read.
 
     Examples
     --------
@@ -299,15 +320,12 @@ def read_csv(
     >>> with open(f'{temp_dir_name}/data2.csv', 'w') as f:
     ...     writer = csv.writer(f)
     ...     writer.writerows([['c1','c2','c3'], [1,2,3], [4,5,6], [7,8,9]])
-    >>> df3 = pd.read_csv(f'{temp_dir_name}')
+    >>> df3 = pd.read_csv(f'{temp_dir_name}/data2.csv')
     >>> df3
        c1  c2  c3
     0   1   2   3
     1   4   5   6
     2   7   8   9
-    3   1   2   3
-    4   4   5   6
-    5   7   8   9
 
     Read csv files from a staged location.
 

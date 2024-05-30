@@ -789,10 +789,11 @@ def insert_into_statement(
 
 
 def batch_insert_into_statement(
-    table_name: str, column_names: List[str], paramstyle: str
+    table_name: str, column_names: List[str], paramstyle: Optional[str]
 ) -> str:
     num_cols = len(column_names)
-    paramstyle = paramstyle.lower()
+    # paramstyle is initialized as None is stored proc environment
+    paramstyle = paramstyle.lower() if paramstyle else "qmark"
     supported_paramstyle = ["qmark", "numeric", "format", "pyformat"]
 
     if paramstyle == "qmark":
