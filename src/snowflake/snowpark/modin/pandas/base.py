@@ -2386,6 +2386,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if limit is lib.no_default:
             limit = None
 
+        if "axis" in kwargs:
+            kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+
         # Attempting to match pandas error behavior here
         if not isinstance(periods, int):
             raise TypeError(f"periods must be an int. got {type(periods)} instead")

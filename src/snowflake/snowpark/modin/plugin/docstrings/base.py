@@ -2080,6 +2080,24 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         1980-01-01       NaN       NaN       NaN
         1980-02-01  0.013810  0.013684  0.006549
         1980-03-01  0.053365  0.059318  0.061876
+
+        Percentage of change in GOOG and APPL stock volume. Shows computing
+        the percentage change between columns.
+
+        >>> df = pd.DataFrame({
+        ...     '2016': [1769950, 30586265],
+        ...     '2015': [1500923, 40912316],
+        ...     '2014': [1371819, 41403351]},
+        ...     index=['GOOG', 'APPL'])
+        >>> df
+                  2016      2015      2014
+        GOOG   1769950   1500923   1371819
+        APPL  30586265  40912316  41403351
+
+        >>> df.pct_change(axis='columns', periods=-1)
+                  2016      2015  2014
+        GOOG  0.179241  0.094112   NaN
+        APPL -0.252395 -0.011860   NaN
         """
 
     def pipe():

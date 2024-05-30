@@ -47,8 +47,9 @@ PCT_CHANGE_NATIVE_FRAME_WITH_NULLS = native_pd.DataFrame(
 @pytest.mark.parametrize(
     "fill_method", [None, no_default, "ffill", "pad", "backfill", "bfill"]
 )
+@pytest.mark.parametrize("axis", ["rows", "columns"])
 @sql_count_checker(query_count=1)
-def test_pct_change_simple(native_data, periods, fill_method):
+def test_pct_change_simple(native_data, periods, fill_method, axis):
     # Check deprecation warnings for non-None fill_method
     if fill_method is no_default:
         cm = pytest.warns(
@@ -64,11 +65,13 @@ def test_pct_change_simple(native_data, periods, fill_method):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_data),
             native_data,
-            lambda df: df.pct_change(periods=periods, fill_method=fill_method),
+            lambda df: df.pct_change(
+                periods=periods, fill_method=fill_method, axis=axis
+            ),
         )
 
 
-@pytest.mark.parametrize("params", [{"limit": 2}, {"freq": "ME"}, {"axis": 1}])
+@pytest.mark.parametrize("params", [{"limit": 2}, {"freq": "ME"}])
 @sql_count_checker(query_count=0)
 def test_pct_change_unsupported_args(params):
     with pytest.raises(NotImplementedError):

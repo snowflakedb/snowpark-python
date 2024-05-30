@@ -13480,34 +13480,60 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas DataFrame/Series.pct_change does not yet support the 'freq' parameter"
             )
-        if axis != 0:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas DataFrame/Series.pct_change does not yet support axis=1"
-            )
         frame = self._modin_frame
         if fill_method is not None:
             frame = self.fillna(
-                self_is_series=False, method=fill_method, axis=0
+                self_is_series=False, method=fill_method, axis=axis
             )._modin_frame
-        return SnowflakeQueryCompiler(
-            frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    quoted_identifier:
-                    # If periods=0, we don't need to do any window computation
-                    iff(
-                        is_null(col(quoted_identifier)), pandas_lit(None), pandas_lit(0)
-                    )
-                    if periods == 0
-                    else (
-                        col(quoted_identifier)
-                        / lag(quoted_identifier, offset=periods).over(
-                            Window.orderBy(
-                                col(frame.row_position_snowflake_quoted_identifier)
-                            )
+        if axis == 0:
+            return SnowflakeQueryCompiler(
+                frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        quoted_identifier:
+                        # If periods=0, we don't need to do any window computation
+                        iff(
+                            is_null(col(quoted_identifier)),
+                            pandas_lit(None, FloatType()),
+                            pandas_lit(0),
                         )
-                        - 1
-                    )
-                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-                }
-            ).frame
-        )
+                        if periods == 0
+                        else (
+                            col(quoted_identifier)
+                            / lag(quoted_identifier, offset=periods).over(
+                                Window.orderBy(
+                                    col(frame.row_position_snowflake_quoted_identifier)
+                                )
+                            )
+                            - 1
+                        )
+                        for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                    }
+                ).frame
+            )
+        else:
+            quoted_identifiers = frame.data_column_snowflake_quoted_identifiers
+            return SnowflakeQueryCompiler(
+                frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        quoted_identifier:
+                        # If periods=0, we don't need to do any computation
+                        iff(
+                            is_null(col(quoted_identifier)),
+                            pandas_lit(None, FloatType()),
+                            pandas_lit(0),
+                        )
+                        if periods == 0
+                        else (
+                            # If periods>0, the first few columns will be NULL
+                            # If periods<0, the last few columns will be NULL
+                            pandas_lit(None, FloatType())
+                            if i - periods < 0 or i - periods >= len(quoted_identifiers)
+                            # For the remaining columns, if periods=n, we compare column i to column i+n
+                            else col(quoted_identifier)
+                            / col(quoted_identifiers[i - periods])
+                            - 1
+                        )
+                        for i, quoted_identifier in enumerate(quoted_identifiers)
+                    }
+                ).frame
+            )
