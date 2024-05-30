@@ -2,10 +2,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
@@ -67,6 +70,8 @@ def test_groupby_series_count_with_nan():
         [np.var],
         ["sum", np.std],
         ["sum", np.median, sum],
+        {"x": sum},
+        {"y": "sum", "x": min},
     ],
 )
 @pytest.mark.parametrize("sort", [True, False])
@@ -76,10 +81,59 @@ def test_groupby_agg_series(agg_func, sort):
     index.names = ["grp_col"]
     series = pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
 
+    def perform_groupby(se):
+        se = se.groupby(by="grp_col", sort=sort)
+        if isinstance(agg_func, dict):
+            return se.agg(**agg_func)
+        else:
+            return se.agg(agg_func)
+
     eval_snowpark_pandas_result(
         series,
         series.to_pandas(),
-        lambda se: se.groupby(by="grp_col", sort=sort).agg(agg_func),
+        perform_groupby,
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_groupby_agg_series_dict_func_negative():
+    index = native_pd.Index(["a", "b", "b", "a", "c"])
+    index.names = ["grp_col"]
+    series = pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
+    native_series = native_pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
+
+    eval_snowpark_pandas_result(
+        series,
+        native_series,
+        lambda se: se.groupby(by="grp_col").agg({"x": "min"}),
+        expect_exception=True,
+        expect_exception_match="nested renamer is not supported",
+        expect_exception_type=SpecificationError,
+        assert_exception_equal=True,
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "agg_func, type_str",
+    [({"x": ("y", "sum")}, "tuple"), ({"x": pd.NamedAgg("y", "sum")}, "NamedAgg")],
+    ids=["2-tuple", "NamedAgg"],
+)
+def test_groupby_agg_series_raises_for_2_tuple_agg(agg_func, type_str):
+    index = native_pd.Index(["a", "b", "b", "a", "c"])
+    index.names = ["grp_col"]
+    series = pd.Series([3.5, 1.2, 4.3, 2.0, 1.8], index=index)
+
+    eval_snowpark_pandas_result(
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby(by="grp_col").agg(**agg_func),
+        expect_exception=True,
+        expect_exception_match=re.escape(
+            f"func is expected but received {type_str} in **kwargs."
+        ),
+        expect_exception_type=TypeError,
+        assert_exception_equal=True,
     )
 
 
