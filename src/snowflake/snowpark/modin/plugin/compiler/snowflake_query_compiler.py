@@ -13457,12 +13457,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit : int, optional
             The number of consecutive NAs to fill before stopping.
 
-            Snowpark pandas does not support this parameter.
+            Snowpark pandas does not yet support this parameter.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. ‘ME’ or BDay()).
 
-            Snowpark pandas does not currently support this parameter.
+            Snowpark pandas does not yet support this parameter.
 
         axis : Axis, default 0
             This is not part of the documented `pct_change` API, but pandas forwards kwargs like this
@@ -13472,7 +13472,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # `periods` is validated by the frontend
         if limit is not None:
             ErrorMessage.not_implemented(
-                "Snowpark pandas DataFrame/Series.pct_change does not support the 'limit' parameter since it is deprecated in pandas"
+                "Snowpark pandas DataFrame/Series.pct_change does not yet support the 'limit' parameter"
             )
         if freq is not None:
             ErrorMessage.not_implemented(

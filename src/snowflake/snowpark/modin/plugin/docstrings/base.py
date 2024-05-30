@@ -1990,7 +1990,7 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         limit : int, default None
             The number of consecutive NAs to fill before stopping.
 
-            Snowpark pandas does not support this parameter.
+            Snowpark pandas does not yet support this parameter.
 
             .. deprecated:: 2.1
 
