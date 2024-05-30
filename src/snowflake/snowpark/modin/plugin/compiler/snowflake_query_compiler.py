@@ -13476,9 +13476,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Snowpark pandas currently only supports axis=0.
         """
         # `periods` is validated by the frontend
-        deprecated_error_template = "Snowpark pandas DataFrame/Series.pct_change does not support the {} parameter since it is deprecated in pandas"
         if limit is not None:
-            ErrorMessage.not_implemented(deprecated_error_template.format("limit"))
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.pct_change does not support the 'limit' parameter since it is deprecated in pandas"
+            )
         if freq is not None:
             ErrorMessage.not_implemented(
                 "Snowpark pandas DataFrame/Series.pct_change does not yet support the 'freq' parameter"
@@ -13489,27 +13490,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         frame = self._modin_frame
         if fill_method is not None:
-            frame = (
-                SnowflakeQueryCompiler(frame)
-                .fillna(self_is_series=False, method=fill_method, axis=0)
-                ._modin_frame
-            )
-        frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                quoted_identifier:
-                # If periods=0, we don't need to do any window computation
-                iff(is_null(col(quoted_identifier)), pandas_lit(None), pandas_lit(0))
-                if periods == 0
-                else (
-                    col(quoted_identifier)
-                    / lag(quoted_identifier, offset=periods).over(
-                        Window.orderBy(
-                            col(frame.row_position_snowflake_quoted_identifier)
-                        )
+            frame = self.fillna(
+                self_is_series=False, method=fill_method, axis=0
+            )._modin_frame
+        return SnowflakeQueryCompiler(
+            frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    quoted_identifier:
+                    # If periods=0, we don't need to do any window computation
+                    iff(
+                        is_null(col(quoted_identifier)), pandas_lit(None), pandas_lit(0)
                     )
-                    - 1
-                )
-                for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-            }
-        ).frame
-        return SnowflakeQueryCompiler(frame)
+                    if periods == 0
+                    else (
+                        col(quoted_identifier)
+                        / lag(quoted_identifier, offset=periods).over(
+                            Window.orderBy(
+                                col(frame.row_position_snowflake_quoted_identifier)
+                            )
+                        )
+                        - 1
+                    )
+                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                }
+            ).frame
+        )
