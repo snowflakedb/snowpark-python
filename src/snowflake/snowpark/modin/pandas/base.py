@@ -2396,7 +2396,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # Attempting to match pandas error behavior here
         for dtype in self._get_dtypes():
             if not is_numeric_dtype(dtype):
-                raise TypeError(f"unsupported operand type for /: got {dtype}")
+                raise TypeError(
+                    f"cannot perform pct_change on non-numeric column with dtype {dtype}"
+                )
 
         return self.__constructor__(
             query_compiler=self._query_compiler.pct_change(

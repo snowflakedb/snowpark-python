@@ -13468,8 +13468,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             This is not part of the documented `pct_change` API, but pandas forwards kwargs like this
             to `shift`. To avoid unnecessary JOIN operations, we cannot compositionally use `QueryCompiler.shift`,
             and instead have to validate the axis argument here.
-
-            Snowpark pandas currently only supports axis=0.
         """
         # `periods` is validated by the frontend
         if limit is not None:

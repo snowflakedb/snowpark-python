@@ -11,7 +11,7 @@ from pandas._libs.lib import no_default
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 # From pandas doc example
 PCT_CHANGE_NATIVE_FRAME = native_pd.DataFrame(
@@ -89,3 +89,22 @@ def test_pct_change_bad_periods():
         TypeError, match="periods must be an int. got <class 'str'> instead"
     ):
         pd.DataFrame(PCT_CHANGE_NATIVE_FRAME).pct_change(periods="2", fill_method=None)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"col": ["abc", "def"]},
+        {"col": [pd.Timestamp("00:00:00").time(), pd.Timestamp("01:00:00").time()]},
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_pct_change_bad_dtypes(data):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(data),
+        lambda df: df.pct_change(fill_method=None),
+        expect_exception=True,
+        expect_exception_type=TypeError,
+        expect_exception_match="cannot perform pct_change on non-numeric column with dtype",
+        assert_exception_equal=False,
+    )
