@@ -353,6 +353,12 @@ class SnowflakePlan(LogicalPlan):
         return len(find_duplicate_subtrees(self))
 
     @property
+    def individual_query_complexity(self) -> int:
+        if self.source_plan:
+            return self.source_plan.individual_query_complexity
+        return 0
+
+    @property
     def subtree_query_complexity(self) -> int:
         if self._subtree_query_complexity is None:
             self._subtree_query_complexity = compute_subtree_query_complexity(self)
@@ -593,8 +599,8 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
         )
 
-    def table(self, table_name: str) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), None)
+    def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
+        return self.query(project_statement([], table_name), source_plan)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]

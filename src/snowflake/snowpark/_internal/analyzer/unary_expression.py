@@ -33,6 +33,10 @@ class UnaryExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
 
+    @property
+    def expression_complexity(self) -> int:
+        return sum(expr.expression_complexity for expr in self.children)
+
 
 class Cast(UnaryExpression):
     sql_operator = "CAST"
@@ -80,6 +84,10 @@ class Alias(UnaryExpression, NamedExpression):
     def __str__(self):
         return f"{self.child} {self.sql_operator} {self.name}"
 
+    @property
+    def expression_complexity(self) -> int:
+        return sum(expr.expression_complexity for expr in self.children)
+
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
@@ -88,3 +96,7 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child: Expression) -> None:
         super().__init__(child)
         self.name = child.sql
+
+    @property
+    def expression_complexity(self) -> int:
+        return sum(expr.expression_complexity for expr in self.children)

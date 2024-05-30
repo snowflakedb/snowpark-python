@@ -39,7 +39,7 @@ def sample_table(session):
 
 
 def get_subtree_query_complexity(df: DataFrame) -> int:
-    return df._select_statement.subtree_query_complexity
+    return df._plan.subtree_query_complexity
 
 
 def assert_df_subtree_query_complexity(df: DataFrame, estimate: int):
@@ -129,7 +129,7 @@ def test_agg(session: Session, sample_table: str):
     # SELECT (avg("A") + 1 :: INT) AS "ADD(AVG(A), LITERAL())" FROM ( SELECT  *  FROM sample_table) LIMIT 1
     assert_df_subtree_query_complexity(df2, 5)
     # SELECT avg("A") AS "AVG(A)", avg(('b' + 1 :: INT)) AS "AVG_B" FROM ( SELECT  *  FROM sample_table) LIMIT 1
-    assert_df_subtree_query_complexity(df3, 7)
+    assert_df_subtree_query_complexity(df3, 6)
 
 
 def test_window_function(session: Session):
@@ -145,31 +145,35 @@ def test_window_function(session: Session):
 
     df1 = df.select(avg("value").over(window1).as_("window1"))
     # SELECT avg("VALUE") OVER (PARTITION BY "VALUE"  ORDER BY "KEY" ASC NULLS FIRST  ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING  ) AS "WINDOW1" FROM ( base_df)
-    assert_df_subtree_query_complexity(df1, get_subtree_query_complexity(df) + 10)
+    assert_df_subtree_query_complexity(df1, get_subtree_query_complexity(df) + 9)
 
     # SELECT avg("VALUE") OVER (  ORDER BY "KEY" DESC NULLS LAST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS "WINDOW2" FROM ( base df)
     df2 = df1.select(avg("value").over(window2).as_("window2"))
-    assert_df_subtree_query_complexity(df2, get_subtree_query_complexity(df1) + 10)
+    assert_df_subtree_query_complexity(df2, get_subtree_query_complexity(df1) + 9)
 
 
 def test_join_statement(session: Session, sample_table: str):
+    # SELECT * FROM table
     df1 = session.table(sample_table)
+    assert_df_subtree_query_complexity(df1, 1)
+    # SELECT A, B, E FROM (SELECT $1 AS "A", $2 AS "B", $3 AS "E" FROM  VALUES (1 :: INT, 2 :: INT, 5 :: INT), (3 :: INT, 4 :: INT, 9 :: INT))
     df2 = session.create_dataframe([[1, 2, 5], [3, 4, 9]], schema=["a", "b", "e"])
-    base_complexity_sum = (
-        df1._plan.subtree_query_complexity + df2._plan.subtree_query_complexity
-    )
+    assert_df_subtree_query_complexity(df2, 12)
 
     df3 = df1.join(df2)
-    #  SELECT  *  FROM (df1 AS SNOWPARK_LEFT INNER JOIN df2 AS SNOWPARK_RIGHT)
-    assert_df_subtree_query_complexity(df3, base_complexity_sum + 5)
+    # +3 SELECT  *  FROM ((ch1) AS SNOWPARK_LEFT INNER JOIN (ch2) AS SNOWPARK_RIGHT)
+    # +4 ch1 = SELECT "A" AS "l_p8bm_A", "B" AS "l_p8bm_B", "C" AS "C", "D" AS "D" FROM (df1)
+    # +0 ch2 = SELECT "A" AS "r_2og4_A", "B" AS "r_2og4_B", "E" AS "E" FROM (SELECT $1 AS "A", $2 AS "B", $3 AS "E" FROM  VALUES ())
+    # ch2 is a re-write flattened version of df2 with aliases
+    assert_df_subtree_query_complexity(df3, 13 + 7)
 
     df4 = df1.join(df2, on=((df1["a"] == df2["a"]) & (df1["b"] == df2["b"])))
-    # SELECT  *  FROM (df1 AS SNOWPARK_LEFT INNER JOIN df2 AS SNOWPARK_RIGHT ON (("l_xxhj_A" = "r_d4df_A") AND ("l_xxhj_B" = "r_d4df_B")))
-    assert_df_subtree_query_complexity(df4, base_complexity_sum + 11)
+    # SELECT  *  FROM ((ch1) AS SNOWPARK_LEFT INNER JOIN ( ch2) AS SNOWPARK_RIGHT ON (("l_k7b8_A" = "r_e09m_A") AND ("l_k7b8_B" = "r_e09m_B")))
+    assert_df_subtree_query_complexity(df4, get_subtree_query_complexity(df3) + 7)
 
     df5 = df1.join(df2, using_columns=["a", "b"])
-    # SELECT  *  FROM (df1 AS SNOWPARK_LEFT INNER JOIN df2 AS SNOWPARK_RIGHT USING (a, b))
-    assert_df_subtree_query_complexity(df5, base_complexity_sum + 7)
+    # SELECT  *  FROM ( (ch1) AS SNOWPARK_LEFT INNER JOIN (ch2) AS SNOWPARK_RIGHT USING (a, b))
+    assert_df_subtree_query_complexity(df5, get_subtree_query_complexity(df3) + 3)
 
 
 def test_pivot_and_unpivot(session: Session):
