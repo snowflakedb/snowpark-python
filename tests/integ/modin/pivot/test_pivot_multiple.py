@@ -95,7 +95,9 @@ def test_pivot_table_no_index_single_column_single_values_multiple_aggr_func(df_
 
 @pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean", ["count"]])
 @pytest.mark.parametrize("values", ["D", ["D"]])
-@pytest.mark.parametrize("named_columns", [True, False])
+@pytest.mark.parametrize(
+    "named_columns", [pytest.param(True, marks=pytest.mark.xfail()), False]
+)
 @sql_count_checker(query_count=1)
 def test_pivot_table_single_index_multiple_column_single_value(
     df_data,

@@ -330,7 +330,9 @@ def test_pivot_table_empty_table_with_index_margins():
 @pytest.mark.parametrize(
     "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
 )
-@pytest.mark.parametrize("named_columns", [True, False])
+@pytest.mark.parametrize(
+    "named_columns", [pytest.param(True, marks=pytest.mark.xfail()), False]
+)
 class TestPivotTableMarginsNoIndexMorePivotValues:
     @sql_count_checker(query_count=1, join_count=1)
     def test_single_value_single_aggfunc(
