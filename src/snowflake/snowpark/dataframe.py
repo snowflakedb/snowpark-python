@@ -1071,7 +1071,9 @@ class DataFrame:
             return Column(Star(self._output))
         else:
             resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
             col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
             return Column(resolved_name, ast=col_expr_ast)
 
@@ -1134,8 +1136,12 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         # TODO: remove the None guard below once we generate the correct AST.
-        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id if self._ast_id is not None else 666
-        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = (
+            self._ast_id if self._ast_id is not None else 666
+        )
+        ast.sp_dataframe_select__columns.variadic = len(cols) > 1 or not isinstance(
+            cols[0], (list, tuple, set)
+        )
 
         names = []
         table_func = None
