@@ -16,6 +16,8 @@
 
 #### New Features
 
+- Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
@@ -24,7 +26,6 @@
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
->>>>>>> 6b6663466d1af86cae17f1cf940c148d81d54e10
 
 ## 1.18.0 (2024-05-28)
 
