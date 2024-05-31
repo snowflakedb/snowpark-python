@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Optional, Union, Callable, Dict, Any
+from typing import Optional, Union, Dict, Any
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -249,13 +249,13 @@ class Column:
                 # TODO: Add optional field "df_alias" in SpColumnSqlExpr and SpColumn and uncomment
                 # if expr2 == "*":
                 #     self._ast = Column._create_ast(
-                #         property = lambda ast: ast.sp_column_sql_expr,
+                #         property = "sp_column_sql_expr",
                 #         assign_fields = {"sql": "*",
                 #                          "df_alias": expr1}
                 #     )
                 # else:
                 #     self._ast = Column._create_ast(
-                #         property = lambda ast: ast.sp_column,
+                #         property = "sp_column",
                 #         assign_fields = {"name": quote_name(expr2),
                 #                          "df_alias": expr1}
                 #     )
@@ -273,12 +273,12 @@ class Column:
             if self._ast is None:
                 if expr1 == "*":
                     self._ast = Column._create_ast(
-                        property = lambda ast: ast.sp_column_sql_expr,
+                        property = "sp_column_sql_expr",
                         assign_fields = {"sql": "*"}
                     )
                 else:
                     self._ast = Column._create_ast(
-                        property = lambda ast: ast.sp_column,
+                        property = "sp_column",
                         assign_fields = {"name": quote_name(expr1)}
                     )
 
@@ -291,14 +291,14 @@ class Column:
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
         if isinstance(field, str):
             ast = Column._create_ast(
-                property = lambda ast: ast.sp_column_apply__string,
+                property = "sp_column_apply__string",
                 copy_messages = {"col": self._ast},
                 assign_fields = {"field": field},
             )
             return Column(SubfieldString(self._expression, field), ast = ast)
         elif isinstance(field, int):
             ast = Column._create_ast(
-                property = lambda ast: ast.sp_column_apply__int,
+                property = "sp_column_apply__int",
                 copy_messages = {"col": self._ast},
                 assign_fields = {"idx": field},
             )
@@ -307,7 +307,7 @@ class Column:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
     # overload operators
-    def _bin_op_impl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+    def _bin_op_impl(self, property: str, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
         ast = Column._create_ast(
             property = property,
             copy_messages = {"lhs": self._ast},
@@ -315,7 +315,7 @@ class Column:
         )
         return Column(operator(self._expression, Column._to_expr(other)), ast = ast)
     
-    def _bin_op_rimpl(self, property: Callable, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+    def _bin_op_rimpl(self, property: str, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
         ast = Column._create_ast(
             property = property,
             copy_messages = {"rhs": self._ast},
@@ -325,71 +325,71 @@ class Column:
     
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_equal_to, EqualTo, other)
+        return self._bin_op_impl("sp_column_equal_to", EqualTo, other)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_not_equal, NotEqualTo, other)
+        return self._bin_op_impl("sp_column_not_equal", NotEqualTo, other)
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_gt, GreaterThan, other)
+        return self._bin_op_impl("sp_column_gt", GreaterThan, other)
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_lt, LessThan, other)
+        return self._bin_op_impl("sp_column_lt", LessThan, other)
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_geq, GreaterThanOrEqual, other)
+        return self._bin_op_impl("sp_column_geq", GreaterThanOrEqual, other)
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_leq, LessThanOrEqual, other)
+        return self._bin_op_impl("sp_column_leq", LessThanOrEqual, other)
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_plus, Add, other)
+        return self._bin_op_impl("sp_column_plus", Add, other)
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_plus, Add, other)
+        return self._bin_op_rimpl("sp_column_plus", Add, other)
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_minus, Subtract, other)
+        return self._bin_op_impl("sp_column_minus", Subtract, other)
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_minus, Subtract, other)
+        return self._bin_op_rimpl("sp_column_minus", Subtract, other)
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_multiply, Multiply, other)
+        return self._bin_op_impl("sp_column_multiply", Multiply, other)
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_multiply, Multiply, other)
+        return self._bin_op_rimpl("sp_column_multiply", Multiply, other)
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_divide, Divide, other)
+        return self._bin_op_impl("sp_column_divide", Divide, other)
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_divide, Divide, other)
+        return self._bin_op_rimpl("sp_column_divide", Divide, other)
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Reminder."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_mod, Remainder, other)
+        return self._bin_op_impl("sp_column_mod", Remainder, other)
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_mod, Remainder, other)
+        return self._bin_op_rimpl("sp_column_mod", Remainder, other)
 
     # TODO: Create a new SpColumnPow IR entity and uncomment below
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        # return self._bin_op_impl(lambda ast: ast.sp_column_pow, Pow, other)
+        # return self._bin_op_impl("sp_column_pow", Pow, other)
         return Column(Pow(self._expression, Column._to_expr(other)))
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        # return self._bin_op_rimpl(lambda ast: ast.sp_column_pow, Pow, other)
+        # return self._bin_op_rimpl("sp_column_pow", Pow, other)
         return Column(Pow(Column._to_expr(other), self._expression))
 
     def __bool__(self) -> bool:
@@ -511,7 +511,7 @@ class Column:
     ) -> "Column":
         """Between lower bound and upper bound."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_between,
+            property = "sp_column_between",
             copy_messages = {"col": self._ast},
             fill_col_asts = {"lower_bound": lower_bound,
                              "upper_bound": upper_bound}
@@ -523,17 +523,17 @@ class Column:
 
     def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise and."""
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_and, BitwiseAnd, other)
+        return self._bin_op_rimpl("sp_column_bit_and", BitwiseAnd, other)
 
     def bitor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise or."""
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_or, BitwiseOr, other)
+        return self._bin_op_rimpl("sp_column_bit_or", BitwiseOr, other)
 
     def bitxor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise xor."""
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_bit_xor, BitwiseXor, other)
+        return self._bin_op_rimpl("sp_column_bit_xor", BitwiseXor, other)
 
-    def _unary_op_impl(self, property: Callable, operator: UnaryExpression) -> "Column":
+    def _unary_op_impl(self, property: str, operator: UnaryExpression) -> "Column":
         ast = Column._create_ast(
             property = property, 
             copy_messages = {"col": self._ast},
@@ -543,50 +543,50 @@ class Column:
     def __neg__(self) -> "Column":
         """Unary minus."""
         # TODO: Need SpColumnNeg IR entity
-        # return self._unary_op_impl(lambda ast: ast.sp_column_neg, UnaryMinus)
+        # return self._unary_op_impl("sp_column_neg", UnaryMinus)
         return Column(UnaryMinus(self._expression))
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_equal_null, EqualNullSafe, other)
+        return self._bin_op_impl("sp_column_equal_null", EqualNullSafe, other)
 
     def equal_nan(self) -> "Column":
         """Is NaN."""
-        return self._unary_op_impl(lambda ast: ast.sp_column_equal_nan, IsNaN)
+        return self._unary_op_impl("sp_column_equal_nan", IsNaN)
 
     def is_null(self) -> "Column":
         """Is null."""
-        return self._unary_op_impl(lambda ast: ast.sp_column_is_null, IsNull)
+        return self._unary_op_impl("sp_column_is_null", IsNull)
 
     def is_not_null(self) -> "Column":
         """Is not null."""
-        return self._unary_op_impl(lambda ast: ast.sp_column_is_not_null, IsNotNull)
+        return self._unary_op_impl("sp_column_is_not_null", IsNotNull)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: "Column") -> "Column":
         """And."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_and, And, other)
+        return self._bin_op_impl("sp_column_and", And, other)
 
     def __rand__(self, other: "Column") -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_and, And, other)    # pragma: no cover
+        return self._bin_op_rimpl("sp_column_and", And, other)    # pragma: no cover
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
-        return self._bin_op_impl(lambda ast: ast.sp_column_or, Or, other)
+        return self._bin_op_impl("sp_column_or", Or, other)
 
     def __ror__(self, other: "Column") -> "Column":
-        return self._bin_op_rimpl(lambda ast: ast.sp_column_or, Or, other)      # pragma: no cover
+        return self._bin_op_rimpl("sp_column_or", Or, other)      # pragma: no cover
 
     def __invert__(self) -> "Column":
         """Unary not."""
         # TODO: Need an SpColumnNot IR entity
-        # return self._unary_op_impl(lambda ast: ast.sp_column_not, Not)
+        # return self._unary_op_impl("sp_column_not", Not)
         return Column(Not(self._expression))
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         # TODO: Update SpColumnCast IR entity with new field "try_", then uncomment
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_cast,
+            property = "sp_column_cast",
             copy_messages = {"col": self._ast},
             # assign_fields = {"try_": try_}
         )
@@ -611,7 +611,7 @@ class Column:
     def desc(self) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_desc,
+            property = "sp_column_desc",
             copy_messages = {"col": self._ast}
         )
         return Column(SortOrder(self._expression, Descending()), ast = ast)
@@ -620,7 +620,7 @@ class Column:
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_desc,
+            property = "sp_column_desc",
             copy_messages = {"col": self._ast},
             assign_fields = {"nulls_first": True},
         )
@@ -630,7 +630,7 @@ class Column:
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_desc,
+            property = "sp_column_desc",
             copy_messages = {"col": self._ast},
             assign_fields = {"nulls_first": False},
         )
@@ -639,7 +639,7 @@ class Column:
     def asc(self) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_asc,
+            property = "sp_column_asc",
             copy_messages = {"col": self._ast},
         )
         return Column(SortOrder(self._expression, Ascending()), ast = ast)
@@ -648,7 +648,7 @@ class Column:
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_asc,
+            property = "sp_column_asc",
             copy_messages = {"col": self._ast},
             assign_fields = {"nulls_first": True},
         )
@@ -658,7 +658,7 @@ class Column:
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_asc,
+            property = "sp_column_asc",
             copy_messages = {"col": self._ast},
             assign_fields = {"nulls_first": False},
         )
@@ -675,7 +675,7 @@ class Column:
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_like,
+            property = "sp_column_like",
             copy_messages = {"col": self._ast},
             fill_col_asts = {"pattern": pattern},
         )
@@ -701,7 +701,7 @@ class Column:
         """
         # TODO: Should SpColumnRegexp.pattern be an Expr in the IR, could sbe SpColumnExpr as in SpColumnLike?
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_regexp,
+            property = "sp_column_regexp",
             copy_messages = {"col", self._ast},
             # fill_col_asts = {"pattern", pattern},
         )
@@ -722,7 +722,7 @@ class Column:
         """
         # TODO: Create SpColumnStartsWith IR entity, and uncomment
         # ast = Column._create_ast(
-        #     property = lambda ast: ast.sp_column_starts_with,
+        #     property = "sp_column_starts_with",
         #     copy_messages = {"col": self._ast},
         #     fill_col_asts = {"pattern": other},
         # )
@@ -740,7 +740,7 @@ class Column:
         """
         # TODO: Create SpColumnEndsWith IR entity, and uncomment
         # ast = Column._create_ast(
-        #     property = lambda ast: ast.sp_column_ends_with,
+        #     property = "sp_column_ends_with",
         #     copy_messages = {"col": self._ast},
         #     fill_col_asts = {"pattern": other},
         # )
@@ -764,7 +764,7 @@ class Column:
         """
         # TODO: Create SpColumnSubstr IR entity, and uncomment
         # ast = Column._create_ast(
-        #     property = lambda ast: ast.sp_column_substr,
+        #     property = "sp_column_substr",
         #     copy_messages = {"col": self._ast},
         #     fill_col_asts = {"start_pos": start_pos,
         #                      "length": length},
@@ -780,7 +780,7 @@ class Column:
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_collate,
+            property = "sp_column_collate",
             copy_messages = {"col": self._ast},
             assign_fields = {"collate": collation_spec},
         )
@@ -794,7 +794,7 @@ class Column:
         """
         # TODO: Create SpColumnContains IR entity, and uncomment
         # ast = Column._create_ast(
-        #     property = lambda ast: ast.sp_column_contains,
+        #     property = "sp_column_contains",
         #     copy_messages = {"col": self._ast},
         #     fill_col_asts = {"pattern": string},
         # )
@@ -826,7 +826,7 @@ class Column:
     def name(self, alias: str, variant_is_as: bool = True) -> "Column":
         """Returns a new renamed Column."""
         ast = Column._create_ast(
-            property = lambda ast: ast.sp_column_alias,
+            property = "sp_column_alias",
             copy_messages = {"col": self._ast},
             assign_fields = {"name": quote_name(alias),
                              "variant_is_as": variant_is_as},
@@ -892,9 +892,9 @@ class Column:
             ----------------
             <BLANKLINE>
         """
-        prop = lambda ast: ast.sp_column_within_group
+        prop_name = "sp_column_within_group"
         ast = Column._create_ast(
-            property = prop,
+            property = prop_name,
             copy_messages = {"col": self._ast},
             assign_fields = {"variadic": (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))}
         )
@@ -903,9 +903,9 @@ class Column:
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
                 order_by_cols.append(col)
-                prop(ast).cols.append(col._ast)
+                getattr(ast, prop_name).cols.append(col._ast)
             elif isinstance(col, str):
-                col_ast = prop(ast).cols.add()
+                col_ast = getattr(ast, prop_name).cols.add()
                 new_col = Column(col, ast = col_ast)
                 col_ast.sp_column.name = new_col.get_name()
                 order_by_cols.append(new_col)
@@ -923,19 +923,20 @@ class Column:
             return UnresolvedAlias(self._expression)
     
     @staticmethod
-    def _create_ast(property: Optional[Callable] = None,
+    def _create_ast(property: str = None,
                     assign_fields: Dict[str, Any] = {},
                     copy_messages: Dict[str, Any] = {},
                     fill_col_asts: Dict[str, ColumnOrLiteral] = {}
         ) -> proto.SpColumnExpr:
         ast = proto.SpColumnExpr()
         if property is not None:
+            prop_ast = getattr(ast, property)
             for attr, value in assign_fields.items():
-                setattr(property(ast), attr, value)
+                setattr(prop_ast, attr, value)
             for attr, messg in copy_messages.items():
-                getattr(property(ast), attr).CopyFrom(messg)
+                getattr(prop_ast, attr).CopyFrom(messg)
             for attr, other in fill_col_asts.items():
-                Column._fill_ast(getattr(property(ast), attr), other)
+                Column._fill_ast(getattr(prop_ast, attr), other)
         return ast
     
     @classmethod
