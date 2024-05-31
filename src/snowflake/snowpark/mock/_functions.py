@@ -397,7 +397,6 @@ def mock_to_date(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    # if there is no data in the column, then apply will not be not executed
     res = column.combine(fmt, convert_date)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
