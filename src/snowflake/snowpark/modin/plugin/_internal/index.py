@@ -104,7 +104,6 @@ class Index:
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
-        self._name = name
 
     def to_pandas(self) -> native_pd.Index:
         """
@@ -138,7 +137,6 @@ class Index:
         >>> idx.values
         array([1, 2, 3])
         """
-        self.to_pandas_warning()
         return self.to_pandas().values
 
     @property
@@ -261,6 +259,7 @@ class Index:
         >>> idx.astype('float')
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
+        self.to_pandas_warning()
         return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
 
     @property
@@ -284,7 +283,8 @@ class Index:
         """
         Set Index name.
         """
-        self._name = value
+        self.to_pandas_warning()
+        self.to_pandas().name = value
 
     def _get_names(self) -> FrozenList:
         """
@@ -752,8 +752,7 @@ class Index:
         self.to_pandas_warning()
         return Index(
             self.to_pandas().intersection(
-                other=other.to_pandas() if isinstance(other, Index) else other,
-                sort=sort,
+                other=try_convert_index_to_native(other), sort=sort
             )
         )
 
@@ -802,10 +801,7 @@ class Index:
         """
         self.to_pandas_warning()
         return Index(
-            self.to_pandas().union(
-                other=other.to_pandas() if isinstance(other, Index) else other,
-                sort=sort,
-            )
+            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
     def difference(self, other: Any, sort: Any = None) -> Index:
@@ -842,10 +838,7 @@ class Index:
         """
         self.to_pandas_warning()
         return Index(
-            self.to_pandas().difference(
-                other=other.to_pandas() if isinstance(other, Index) else other,
-                sort=sort,
-            )
+            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
     def get_indexer_for(self, target: Any) -> Any:
