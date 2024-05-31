@@ -6,12 +6,25 @@
 
 #### Improvements
 
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
+#### Bug Fixes
+
+- Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
 - Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
-
 
 #### Improvements
 
