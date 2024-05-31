@@ -18,7 +18,7 @@ from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -281,7 +281,7 @@ def test_df_iloc_get_row_input_snowpark_pandas_return_dataframe(
             default_index_snowpark_pandas_df,
             default_index_native_df,
             lambda df: df.iloc[
-                try_convert_to_native_index(iloc_snowpark_pandas_input_map[key])
+                try_convert_index_to_native(iloc_snowpark_pandas_input_map[key])
             ],
         )
 
@@ -345,7 +345,7 @@ def test_df_iloc_get_callable(
         default_index_snowpark_pandas_df,
         default_index_native_df,
         # TODO: SNOW-1372242: Add df field to only do this conversion in the native df case when lazy index is implemented
-        lambda df: df.iloc[lambda x: try_convert_to_native_index(x.index) % 2 == 0],
+        lambda df: df.iloc[lambda x: try_convert_index_to_native(x.index) % 2 == 0],
     )
 
     def test_func(df: DataFrame) -> Series:
@@ -362,7 +362,7 @@ def test_df_iloc_get_callable(
         default_index_native_df,
         # TODO: SNOW-1372242: Add df field to only do this conversion in the native df case when lazy index is implemented
         lambda df: df.iloc[
-            lambda x: try_convert_to_native_index(x.index) % 2 == 0, [2, 3]
+            lambda x: try_convert_index_to_native(x.index) % 2 == 0, [2, 3]
         ],
     )
 
@@ -702,7 +702,7 @@ def test_df_iloc_get_key_bool(
             _key = pd.Series(_key, dtype=bool)
 
         if isinstance(_df, native_pd.DataFrame):
-            _key = try_convert_to_native_index(_key)
+            _key = try_convert_index_to_native(_key)
         return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
@@ -931,7 +931,7 @@ def test_df_iloc_get_key_numeric(
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
 
         if isinstance(df, native_pd.DataFrame):
-            _key = try_convert_to_native_index(_key)
+            _key = try_convert_index_to_native(_key)
         return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1

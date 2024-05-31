@@ -146,14 +146,14 @@ class Series(BasePandasDataset):
                     name = data.name
 
             from snowflake.snowpark.modin.pandas.utils import (
-                try_convert_to_native_index,
+                try_convert_index_to_native,
             )
 
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
-                        data=try_convert_to_native_index(data),
-                        index=try_convert_to_native_index(index),
+                        data=try_convert_index_to_native(data),
+                        index=try_convert_index_to_native(index),
                         dtype=dtype,
                         name=name,
                         copy=copy,

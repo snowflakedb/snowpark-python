@@ -240,13 +240,13 @@ class DataFrame(BasePandasDataset):
                 }
 
             from snowflake.snowpark.modin.pandas.utils import (
-                try_convert_to_native_index,
+                try_convert_index_to_native,
             )
 
             pandas_df = pandas.DataFrame(
-                data=try_convert_to_native_index(data),
-                index=try_convert_to_native_index(index),
-                columns=try_convert_to_native_index(columns),
+                data=try_convert_index_to_native(data),
+                index=try_convert_index_to_native(index),
+                columns=try_convert_index_to_native(columns),
                 dtype=dtype,
                 copy=copy,
             )
@@ -322,8 +322,8 @@ class DataFrame(BasePandasDataset):
 
         Returns
         -------
-        pd.Index or pandas.MultiIndex
-            the columns
+        pd.Index
+            The all columns.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._query_compiler.columns

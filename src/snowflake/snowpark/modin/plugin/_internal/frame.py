@@ -370,7 +370,7 @@ class InternalFrame:
         )
 
     @property
-    def data_columns_index(self) -> pd.Index:
+    def data_columns_index(self) -> "pd.Index":
         """
         Returns pandas Index object for column index (df.columns).
         We can't do the same thing for df.index here because it requires pulling
