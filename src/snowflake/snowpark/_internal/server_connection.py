@@ -544,7 +544,7 @@ class ServerConnection:
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
-        ignore_results: bool = True,
+        ignore_results: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[
