@@ -340,10 +340,8 @@ def mock_to_date(
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
 
-    def convert_date(row):
+    def convert_date(data, _fmt):
         try:
-            _fmt = fmt[row.name]
-            data = row[0]
             auto_detect = _fmt is None or _fmt.lower() == "auto"
             date_format, _ = convert_snowflake_datetime_format(
                 _fmt, default_format="%Y-%m-%d"
@@ -400,11 +398,7 @@ def mock_to_date(
                 SnowparkLocalTestingException.raise_from_error(exc)
 
     # if there is no data in the column, then apply will not be not executed
-    res = (
-        column.to_frame().apply(convert_date, axis=1)
-        if len(column)
-        else ColumnEmulator()
-    )
+    res = column.combine(fmt, convert_date)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
 

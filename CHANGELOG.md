@@ -25,7 +25,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug that creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
 
 ## 1.18.0 (2024-05-28)
 
