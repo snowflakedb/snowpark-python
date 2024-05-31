@@ -390,7 +390,7 @@ class ServerConnection:
         case_sensitive: bool = True,
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
-        ignore_results: bool = True,
+        ignore_results: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
