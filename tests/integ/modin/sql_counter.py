@@ -119,6 +119,9 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
+        if IS_IN_STORED_PROC:
+            return
+
         self._queries: list[QueryRecord] = []
         self._no_check = no_check
 
