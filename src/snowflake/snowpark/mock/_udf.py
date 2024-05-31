@@ -16,6 +16,12 @@ from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
 
+class MockUserDefinedFunction(UserDefinedFunction):
+    def __init__(self, *args, strict=False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.strict = strict
+
+
 class MockUDFRegistration(UDFRegistration):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -24,13 +30,8 @@ class MockUDFRegistration(UDFRegistration):
         ] = (
             dict()
         )  # maps udf name to either the callable or a pair of str (module_name, callable_name)
-        self._strictness_settings = dict()  # Keeps track of which udfs should be strict
         self._udf_level_imports = dict()  # maps udf name to a set of file paths
         self._session_level_imports = set()
-
-    def get_strictness(self, func_name):
-        """Returns True if the named function is in the registry and has been registered as strict."""
-        return self._strictness_settings.get(func_name, False)
 
     def _clear_session_imports(self):
         self._session_level_imports.clear()
@@ -150,18 +151,23 @@ class MockUDFRegistration(UDFRegistration):
 
         if type(func) is tuple:  # register from file
             module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name] = UserDefinedFunction(
+            self._registry[udf_name] = MockUserDefinedFunction(
                 (module_name, func[1]),
                 return_type,
                 input_types,
                 udf_name,
+                strict=strict,
                 packages=packages,
             )
         else:
             # register from callable
-            self._registry[udf_name] = UserDefinedFunction(
-                func, return_type, input_types, udf_name, packages=packages
+            self._registry[udf_name] = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                udf_name,
+                strict=strict,
+                packages=packages,
             )
 
-        self._strictness_settings[udf_name] = strict
         return self._registry[udf_name]

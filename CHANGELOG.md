@@ -8,7 +8,7 @@
 
 ### Snowpark Local Testing Updates
 
-#### Improvements
+#### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
 
