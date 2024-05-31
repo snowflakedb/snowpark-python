@@ -43,7 +43,15 @@ class DataType:
         return True
     
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        raise NotImplementedError(f"{self.__class__.__name__} does not have an equivalent SpDataType yet")
+        """Populates the provided SpDataType instance's fields with the values corresponding to this DataType's instance
+
+        Args:
+            ast (proto.SpDataType): A provided (previously created) instance of an SpDataType IR entity
+
+        Raises:
+            ValueError: If corresponding SpDataType IR entity is not available, raise an error
+        """
+        raise ValueError(f"{self.__class__.__name__} has not implemented this method to fill the SpDataType IR entity correctly")
     
 
 # Data types
@@ -511,13 +519,12 @@ class GeographyType(DataType):
 
 class GeometryType(DataType):
     """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
-    # TODO: Create SpGeometryType IR enttiy, then uncomment
+    # TODO: Create SpGeometryType IR entity, then uncomment
     # def fill_ast(self, ast: proto.SpDataType) -> None:
     #     ast.sp_geometry_type = True
     pass
 
 
-# Ignoring pandas types in AST for now
 class _PandasType(DataType):
     pass
 
