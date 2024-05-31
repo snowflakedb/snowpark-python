@@ -338,7 +338,8 @@ def mock_to_date(
     """
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
     def convert_date(data, _fmt):
         try:
