@@ -888,6 +888,8 @@ def try_convert_index_to_native(index_like: Any) -> Any:
     ----------
         A pandas Index if index_like is a Snowpark pandas Index, otherwise return index_like
     """
-    if isinstance(index_like, pd.Index):
+    from snowflake.snowpark.modin.plugin._internal.index import Index
+
+    if isinstance(index_like, Index):
         index_like = index_like.to_pandas()
     return index_like
