@@ -1565,15 +1565,17 @@ def test_negate_and_not_negative(session):
     assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: random function not supported",
-)
-def test_random_negative(session):
+def test_random_negative(session, local_testing_mode):
     df = session.create_dataframe([1], schema=["a"])
+
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(random("abc")).collect()
-    assert "Numeric value 'abc' is not recognized" in str(ex_info)
+    err_str = (
+        "Error executing mocked function 'random'"
+        if local_testing_mode
+        else "Numeric value 'abc' is not recognized"
+    )
+    assert err_str in str(ex_info)
 
 
 def test_check_functions_negative(session):

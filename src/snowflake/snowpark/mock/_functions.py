@@ -13,13 +13,14 @@ import string
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
+from random import randint
 from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark.mock._options import pandas
+from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -1980,3 +1981,15 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
         raise SnowparkLocalTestingException(
             f"[Local Testing] expr1 and expr2 have conflicting datatypes that cannot be coerced: {expr1.sf_type} <-> {expr2.sf_type}"
         )
+
+
+@patch("random", pass_column_index=True)
+def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator:
+    rand_min = -(2**63)
+    rand_max = 2**63 - 1
+    seed = seed if seed is not None else randint(rand_min, rand_max)
+    gen = numpy.random.Generator(numpy.random.MT19937(abs(seed)))
+    return ColumnEmulator(
+        data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
+        sf_type=ColumnType(LongType(), False),
+    )

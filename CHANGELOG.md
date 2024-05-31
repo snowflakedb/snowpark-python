@@ -21,6 +21,9 @@
 #### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - random
 
 #### Bug Fixes
 
