@@ -32,12 +32,10 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
-from snowflake.snowpark.modin.pandas.api.extensions import register_pd_accessor
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
-@register_pd_accessor("Index")
 class Index:
     """
     Immutable sequence used for indexing and alignment.
