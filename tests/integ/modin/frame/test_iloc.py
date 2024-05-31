@@ -344,7 +344,6 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        # TODO: SNOW-1372242: Add df field to only do this conversion in the native df case when lazy index is implemented
         lambda df: df.iloc[lambda x: try_convert_index_to_native(x.index) % 2 == 0],
     )
 
@@ -360,7 +359,6 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        # TODO: SNOW-1372242: Add df field to only do this conversion in the native df case when lazy index is implemented
         lambda df: df.iloc[
             lambda x: try_convert_index_to_native(x.index) % 2 == 0, [2, 3]
         ],
