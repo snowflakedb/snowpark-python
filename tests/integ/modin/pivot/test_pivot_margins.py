@@ -330,9 +330,12 @@ def test_pivot_table_empty_table_with_index_margins():
 @pytest.mark.parametrize(
     "columns", [["B"], ["B", "C"]], ids=["single_column", "multiple_columns"]
 )
+@pytest.mark.parametrize("named_columns", [True, False])
 class TestPivotTableMarginsNoIndexMorePivotValues:
     @sql_count_checker(query_count=1, join_count=1)
-    def test_single_value_single_aggfunc(self, columns, df_data_more_pivot_values):
+    def test_single_value_single_aggfunc(
+        self, columns, named_columns, df_data_more_pivot_values
+    ):
         pivot_table_test_helper(
             df_data_more_pivot_values,
             {
@@ -342,10 +345,13 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
                 "dropna": True,
                 "margins": True,
             },
+            named_columns=named_columns,
         )
 
     @sql_count_checker(query_count=1, join_count=1, union_count=2)
-    def test_multiple_value_single_aggfunc(self, columns, df_data_more_pivot_values):
+    def test_multiple_value_single_aggfunc(
+        self, columns, named_columns, df_data_more_pivot_values
+    ):
         pivot_table_test_helper(
             df_data_more_pivot_values,
             {
@@ -355,10 +361,13 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
                 "dropna": True,
                 "margins": True,
             },
+            named_columns=named_columns,
         )
 
     @sql_count_checker(query_count=1, join_count=3)
-    def test_single_value_multiple_aggfunc(self, columns, df_data_more_pivot_values):
+    def test_single_value_multiple_aggfunc(
+        self, columns, named_columns, df_data_more_pivot_values
+    ):
         pivot_table_test_helper(
             df_data_more_pivot_values,
             {
@@ -368,10 +377,13 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
                 "dropna": True,
                 "margins": True,
             },
+            named_columns=named_columns,
         )
 
     @sql_count_checker(query_count=1, join_count=5, union_count=2)
-    def test_multiple_value_multiple_aggfunc(self, columns, df_data_more_pivot_values):
+    def test_multiple_value_multiple_aggfunc(
+        self, columns, named_columns, df_data_more_pivot_values
+    ):
         pivot_table_test_helper(
             df_data_more_pivot_values,
             {
@@ -381,4 +393,5 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
                 "dropna": True,
                 "margins": True,
             },
+            named_columns=named_columns,
         )

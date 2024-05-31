@@ -261,8 +261,12 @@ def test_pivot_on_inline_data_using_temp_table():
     ],
 )
 @pytest.mark.parametrize("margins", [True, False])
-def test_pivot_empty_frame_snow_1013918(index, columns, margins):
-    snow_df, native_df = create_test_dfs(columns=["a", "b", "c", "d"])
+@pytest.mark.parametrize("named_columns", [True, False])
+def test_pivot_empty_frame_snow_1013918(index, columns, margins, named_columns):
+    cols = list("abcd")
+    if named_columns:
+        cols = pd.Index(cols, name="columns")
+    snow_df, native_df = create_test_dfs(columns=cols)
     query_count = 2 if index is None else 1
     join_count = 1 if index is not None and len(columns) == 1 else 0
     with SqlCounter(query_count=query_count, join_count=join_count):
@@ -276,7 +280,7 @@ def test_pivot_empty_frame_snow_1013918(index, columns, margins):
                 native_df.pivot_table(index=index, columns=columns, margins=margins)
             if isinstance(columns, list):
                 levels = codes = [[]] * (len(columns) + 1)
-                columns = [None] + columns
+                columns = [None if not named_columns else "columns"] + columns
             else:
                 levels = codes = [[]]
             native_df = native_pd.DataFrame(
@@ -294,8 +298,12 @@ def test_pivot_empty_frame_snow_1013918(index, columns, margins):
 
 @pytest.mark.parametrize("margins", [True, False])
 @sql_count_checker(query_count=1)
-def test_pivot_empty_frame_no_values(margins):
-    snow_df, native_df = create_test_dfs(columns=["a", "b", "c", "d"])
+@pytest.mark.parametrize("named_columns", [True, False])
+def test_pivot_empty_frame_no_values(margins, named_columns):
+    columns = list("abcd")
+    if named_columns:
+        columns = pd.Index(columns, name="columns")
+    snow_df, native_df = create_test_dfs(columns=columns)
     snow_df = snow_df.pivot_table(index=["c", "d"], columns=["a", "b"], margins=margins)
     if margins:
         # When margins is True, and there are no values (i.e. all of the
@@ -307,7 +315,11 @@ def test_pivot_empty_frame_no_values(margins):
         levels = codes = [[], []]
         ind = pd.MultiIndex(levels=levels, codes=codes, names=["c", "d"])
         levels = codes = [[], [], []]
-        cols = pd.MultiIndex(levels=levels, codes=codes, names=[None, "a", "b"])
+        cols = pd.MultiIndex(
+            levels=levels,
+            codes=codes,
+            names=[None if not named_columns else "columns", "a", "b"],
+        )
         native_df = native_pd.DataFrame(index=ind, columns=cols)
     else:
         native_df = native_df.pivot_table(
@@ -316,3 +328,6 @@ def test_pivot_empty_frame_no_values(margins):
     assert_snowpark_pandas_equal_to_pandas(
         snow_df, native_df, check_index_type=False, check_column_type=False
     )
+
+
+# @pytest.mark.parametrize("margins", [True, False])
