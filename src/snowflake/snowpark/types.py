@@ -60,10 +60,8 @@ class DataType:
 class NullType(DataType):
     """Represents a null type."""
 
-    # TODO: Add SpNullType IR entity, and uncomment
-    # def fill_ast(self, ast: proto.SpDataType) -> None:
-    #     ast.sp_null_type = True
-    pass
+    def fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_null_type = True
 
 
 class _AtomicType(DataType):
@@ -137,9 +135,7 @@ class StringType(_AtomicType):
         return super().__hash__()
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        # TODO: Create SpStringType IR entity with field "length: Int", and update
-        # ast.sp_string_type.length = self.length
-        ast.sp_string_type = True
+        ast.sp_string_type.length = self.length
 
 
 class _NumericType(_AtomicType):
@@ -174,9 +170,7 @@ class TimestampType(_AtomicType):
         return f"TimestampType({tzinfo})"
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        # TODO: Create SpTimestampType IR entity with field "timezone: String", and update
-        # ast.sp_timestamp_type.timezone = self.tz
-        ast.sp_timestamp_type = True
+        ast.sp_timestamp_type.timezone = self.tz
 
 
 class TimeType(_AtomicType):
@@ -271,8 +265,7 @@ class ArrayType(DataType):
         return False
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        # TODO: Update SpArrayType entity with new field "structured", and update
-        # ast.sp_array_type.structured = self.structured
+        ast.sp_array_type.structured = self.structured
         self.element_type.fill_ast(ast.sp_array_type.ty)
 
 
@@ -296,8 +289,7 @@ class MapType(DataType):
         return False
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        # TODO: Update SpMapType IR entity with new field "structured", and update
-        # ast.sp_map_type.structured = self.structured
+        ast.sp_map_type.structured = self.structured
         self.key_type.fill_ast(ast.sp_map_type.key_ty)
         self.value_type.fill_ast(ast.sp_map_type.value_ty)
 
@@ -328,14 +320,13 @@ class VectorType(DataType):
     def is_primitive(self):
         return False
 
-    # TODO: Create SpVectorType IR entity with fields "ty: SpDataType", and "dimension: Int", then uncomment
-    # def fill_ast(self, ast: proto.SpDataType) -> None:
-    #     if self.element_type == "int":
-    #         ast.sp_vector_type.ty.sp_integer_type = True
-    #     elif self.element_type == "float":
-    #         ast.sp_vector_type.ty.sp_float_type = True
+    def fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.element_type == "int":
+            ast.sp_vector_type.ty.sp_integer_type = True
+        elif self.element_type == "float":
+            ast.sp_vector_type.ty.sp_float_type = True
 
-    #     ast.sp_vector_type.dimension = self.dimension
+        ast.sp_vector_type.dimension = self.dimension
 
 
 class ColumnIdentifier:
@@ -512,8 +503,7 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        # TODO: Update SpStructType IR entity with new field "structured"
-        # ast.sp_struct_type.structured = True
+        ast.sp_struct_type.structured = True
         for field in self.fields:
             field.fill_ast(ast.sp_struct_type.fields.add())
 
@@ -538,10 +528,8 @@ class GeographyType(DataType):
 class GeometryType(DataType):
     """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
 
-    # TODO: Create SpGeometryType IR entity, then uncomment
-    # def fill_ast(self, ast: proto.SpDataType) -> None:
-    #     ast.sp_geometry_type = True
-    pass
+    def fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_geometry_type = True
 
 
 class _PandasType(DataType):
