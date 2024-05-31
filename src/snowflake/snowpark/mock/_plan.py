@@ -1352,11 +1352,13 @@ def execute_mock_plan(
         # (2) A target row is selected to be both updated and deleted
 
         inserted_rows = []
+        inserted = updated = deleted = False
         inserted_row_idx = set()  # source_row_id
         deleted_row_idx = set()
         updated_row_idx = set()
         for clause in source_plan.clauses:
             if isinstance(clause, UpdateMergeExpression):
+                updated = True
                 # Select rows to update
                 if clause.condition:
                     condition = calculate_expression(
@@ -1387,6 +1389,7 @@ def execute_mock_plan(
                     updated_row_idx.add(row[ROW_ID])
 
             elif isinstance(clause, DeleteMergeExpression):
+                deleted = True
                 # Select rows to delete
                 if clause.condition:
                     condition = calculate_expression(
@@ -1409,6 +1412,7 @@ def execute_mock_plan(
                 target = target[~matched]
 
             elif isinstance(clause, InsertMergeExpression):
+                inserted = True
                 # calculate unmatched rows in the source
                 matched = source.apply(tuple, 1).isin(
                     join_result[source.columns].apply(tuple, 1)
@@ -1493,11 +1497,11 @@ def execute_mock_plan(
 
         # Generate metadata result
         res = []
-        if inserted_rows:
+        if inserted:
             res.append(len(inserted_row_idx))
-        if updated_row_idx:
+        if updated:
             res.append(len(updated_row_idx))
-        if deleted_row_idx:
+        if deleted:
             res.append(len(deleted_row_idx))
 
         return [Row(*res)]
