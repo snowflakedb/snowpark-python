@@ -47,6 +47,11 @@ from snowflake.snowpark.functions import (
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
+@pytest.mark.localtest
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: pivot not supported",
+)
 def test_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -68,6 +73,96 @@ def test_pivot(session):
     )
 
 
+@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "func,expected",
+    [
+        (
+            avg,
+            [
+                Row(
+                    1,
+                    "A",
+                    Decimal("10000.000000"),
+                    None,
+                    Decimal("5200.000000"),
+                    Decimal("5000.000000"),
+                ),
+                Row(
+                    1,
+                    "B",
+                    Decimal("8000.000000"),
+                    Decimal("4000.000000"),
+                    None,
+                    Decimal("6000.000000"),
+                ),
+                Row(
+                    2,
+                    "A",
+                    Decimal("2650.000000"),
+                    Decimal("45350.000000"),
+                    Decimal("4500.000000"),
+                    None,
+                ),
+                Row(
+                    2, "B", None, None, Decimal("35000.000000"), Decimal("6000.000000")
+                ),
+            ],
+        ),
+        (
+            count,
+            [
+                Row(1, "A", 1, 0, 2, 1),
+                Row(1, "B", 1, 2, 0, 1),
+                Row(2, "A", 2, 2, 1, 0),
+                Row(2, "B", 0, 0, 1, 2),
+            ],
+        ),
+        (
+            max,
+            [
+                Row(1, "A", 10000, None, 10000, 5000),
+                Row(1, "B", 8000, 5000, None, 6000),
+                Row(2, "A", 4500, 90500, 4500, None),
+                Row(2, "B", None, None, 35000, 9500),
+            ],
+        ),
+        (
+            min,
+            [
+                Row(1, "A", 10000, None, 400, 5000),
+                Row(1, "B", 8000, 3000, None, 6000),
+                Row(2, "A", 800, 200, 4500, None),
+                Row(2, "B", None, None, 35000, 2500),
+            ],
+        ),
+        (
+            sum,
+            [
+                Row(1, "A", 10000, None, 10400, 5000),
+                Row(1, "B", 8000, 8000, None, 6000),
+                Row(2, "A", 5300, 90700, 4500, None),
+                Row(2, "B", None, None, 35000, 12000),
+            ],
+        ),
+    ],
+)
+def test_pivot_agg_functions(session, func, expected):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by(["empid", "team"])
+        .pivot("month")
+        .agg(func(col("amount")))
+        .sort(col("empid"), col("team")),
+        expected,
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: pivot not supported",
+)
 def test_group_by_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -102,6 +197,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+@pytest.mark.localtest
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -116,7 +212,8 @@ def test_group_by_pivot_dynamic_any(session, caplog):
         sort=False,
     )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # SNOW-1437979: caplog.text is empty in sp pre-commit env
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
@@ -137,6 +234,10 @@ def test_group_by_pivot_dynamic_any(session, caplog):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+)
 def test_group_by_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
     subquery_df = src.select(col("month")).filter(col("month") == "JAN")
@@ -162,6 +263,12 @@ def test_group_by_pivot_dynamic_subquery(session):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="TODO: Join fails with error 'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): The DataFrame does not contain the column named JAN.'",
+    run=False,
+)
+@pytest.mark.localtest
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
@@ -182,6 +289,7 @@ def test_join_on_pivot(session):
     )
 
 
+@pytest.mark.localtest
 def test_pivot_on_join(session):
     df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
 
@@ -202,6 +310,10 @@ def test_pivot_on_join(session):
 # TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
 # pivot will materialize the data before executing pivot, otherwise would fail with not finding the
 # data when doing a later schema call.
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
 def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     original_df = session.create_dataframe(
@@ -222,6 +334,7 @@ def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
     assert pivot_op_df.count() == 1
 
 
+@pytest.mark.localtest
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -236,6 +349,10 @@ def test_pivot_dynamic_any(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+)
 def test_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
     subquery_df = src.select(col("month")).filter(col("month") == "JAN")
@@ -302,6 +419,7 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
+@pytest.mark.localtest
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
@@ -336,7 +454,8 @@ def test_pivot_default_on_none(session, caplog):
             sort=False,
         )
 
-    if "snowflake.snowpark.modin.plugin" not in sys.modules:
+    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
+        # SNOW-1437979: caplog.text is empty in sp pre-commit env
         # Snowpark pandas users don't get warnings about dynamic pivot
         # features. See SNOW-1344848.
         assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
@@ -399,6 +518,10 @@ def test_group_by(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: SNOW-977749 grouping by grouping sets not supported",
+)
 def test_group_by_grouping_sets(session):
     result = (
         TestData.nurse(session)
@@ -809,6 +932,10 @@ def test_count(session):
     ).collect() == [Row(6, 6.0)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supported",
+)
 def test_stddev(session):
     test_data_dev = sqrt(4 / 5)
 
@@ -828,6 +955,10 @@ def test_stddev(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: variance not supported",
+)
 def test_sn_moments(session):
     test_data2 = TestData.test_data2(session)
     var = test_data2.agg(variance(col("a")))
@@ -860,6 +991,10 @@ def test_sn_moments(session):
     Utils.check_answer(kurtosis_, agg_kurtosis_result[0])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supportedg",
+)
 def test_sn_zero_moments(session):
     input = session.create_dataframe([[1, 2]]).to_df("a", "b")
     Utils.check_answer(
@@ -895,6 +1030,10 @@ def test_sn_zero_moments(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: variance not supported",
+)
 def test_sn_null_moments(session):
     empty_table_data = session.create_dataframe([[]]).to_df("a")
 
@@ -926,12 +1065,9 @@ def test_sn_null_moments(session):
 
 
 def test_decimal_sum_over_window_should_work(session):
-    assert session.sql(
-        "select sum(a) over () from values (1.0), (2.0), (3.0) T(a)"
-    ).collect() == [Row(6.0), Row(6.0), Row(6.0)]
-    assert session.sql(
-        "select avg(a) over () from values (1.0), (2.0), (3.0) T(a)"
-    ).collect() == [Row(2.0), Row(2.0), Row(2.0)]
+    df = session.create_dataframe([1.0, 2.0, 3.0], schema=["a"])
+    assert df.select(sum("a").over()).collect() == [Row(6.0), Row(6.0), Row(6.0)]
+    assert df.select(avg("a").over()).collect() == [Row(2.0), Row(2.0), Row(2.0)]
 
 
 @pytest.mark.localtest
@@ -952,6 +1088,11 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     ).collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
 
     testdata2str = "(SELECT * FROM VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2) T(a, b) )"
@@ -1020,6 +1161,10 @@ def test_distinct_and_unionall(session):
     assert res == [Row("one"), Row("one")]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: count_if not suppored in snowpark python",
+)
 def test_count_if(session):
     temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     session.create_dataframe(
@@ -1171,6 +1316,10 @@ def test_zero_count(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: stddev not supported",
+)
 def test_zero_stddev(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(
@@ -1221,6 +1370,10 @@ def test_listagg(session):
     assert len(result) == 4
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: aggregate expression within group not supported",
+)
 def test_listagg_within_group(session):
     df = session.create_dataframe(
         [

@@ -27,6 +27,15 @@ from snowflake.snowpark.functions import (
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.utils import TestFiles, Utils
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="CTE is a SQL feature",
+        run=False,
+    )
+]
+
+
 WITH = "WITH"
 
 
@@ -412,6 +421,13 @@ def test_pivot_unpivot(session):
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+
+    # Because of SNOW-1375062, dynamic pivot doesn't work with nested CTE
+    # TODO: SNOW-1413967 Remove it when the bug is fixed
+    df_nested = session.table("monthly_sales").select("*")
+    df_nested = df_nested.union_all(df_nested).select("*")
+    df_dynamic_pivot = df_nested.pivot("month").sum("amount")
+    check_result(session, df_dynamic_pivot, expect_cte_optimized=False)
 
 
 def test_window_function(session):

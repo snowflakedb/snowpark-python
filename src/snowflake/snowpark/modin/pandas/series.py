@@ -1111,6 +1111,23 @@ class Series(BasePandasDataset):
             use_na_sentinel=use_na_sentinel,
         )
 
+    @series_not_implemented()
+    def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
+        """
+        Replace values where the conditions are True.
+        """
+        modin_type = type(self)
+        caselist = [
+            tuple(
+                data._query_compiler if isinstance(data, modin_type) else data
+                for data in case_tuple
+            )
+            for case_tuple in caselist
+        ]
+        return self.__constructor__(
+            query_compiler=self._query_compiler.case_when(caselist=caselist)
+        )
+
     def fillna(
         self,
         value: Hashable | Mapping | Series = None,
@@ -1662,6 +1679,22 @@ class Series(BasePandasDataset):
             limit=limit,
             tolerance=tolerance,
             fill_value=fill_value,
+        )
+
+    def rename_axis(
+        self,
+        mapper=no_default,
+        *,
+        index=no_default,
+        axis=0,
+        copy=True,
+        inplace=False,
+    ) -> Series | None:  # noqa: PR01, RT01, D200
+        """
+        Set the name of the axis for the index or columns.
+        """
+        return super().rename_axis(
+            mapper=mapper, index=index, axis=axis, copy=copy, inplace=inplace
         )
 
     def rename(

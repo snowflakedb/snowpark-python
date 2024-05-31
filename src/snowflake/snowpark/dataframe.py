@@ -23,6 +23,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -86,7 +87,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -978,8 +978,8 @@ class DataFrame:
             incorrectly, an error will be raised when `to_snowpark_pandas` is called.
 
             For Python version support information, please refer to:
-            - the prerequisites section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#prerequisites
-            - the installation section https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas#installing-the-snowpark-pandas-api
+            - the prerequisites section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#prerequisites
+            - the installation section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#installing-the-snowpark-pandas-api
 
         See also:
             - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
@@ -1065,10 +1065,15 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
+        col_expr_ast = proto.SpColumnExpr()
         if col_name == "*":
+            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
             return Column(Star(self._output))
         else:
-            return Column(self._resolve(col_name))
+            resolved_name = self._resolve(col_name)
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
+            return Column(resolved_name, ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1126,6 +1131,12 @@ class DataFrame:
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr
+        # TODO: remove the None guard below once we generate the correct AST.
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id if self._ast_id is not None else 666
+        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+
         names = []
         table_func = None
         join_plan = None
@@ -1133,8 +1144,15 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
+                ast.sp_dataframe_select__columns.cols.append(e._ast)
+
             elif isinstance(e, str):
-                names.append(Column(e)._named())
+                col_expr_ast = ast.sp_dataframe_select__columns.cols.add()
+                col = Column(e, ast=col_expr_ast)
+
+                col_expr_ast.sp_column.name = col.get_name()
+                names.append(col._named())
+
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1198,9 +1216,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1339,14 +1357,14 @@ class DataFrame:
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
                 ),
-                ast_stmt=stmt
+                ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             ),
-            ast_stmt=stmt
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -3311,10 +3329,10 @@ class DataFrame:
             repr = self._session._ast_batch.assign()
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
-            
-            print(f'Original: {self._plan.queries}')
-            print(f'AST: {self._session._ast_batch._request}')
-            
+
+            print(f"Original: {self._plan.queries}")
+            print(f"AST: {self._session._ast_batch._request}")
+
             ast = self._session._ast_batch.flush()
             # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
             # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
@@ -3401,6 +3419,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -3414,6 +3433,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3428,6 +3449,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3443,6 +3465,7 @@ class DataFrame:
         *,
         warehouse: str,
         lag: str,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3458,6 +3481,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             warehouse: The name of the warehouse used to refresh the dynamic table.
             lag: specifies the target data freshness
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3483,6 +3508,7 @@ class DataFrame:
             formatted_name,
             warehouse,
             lag,
+            comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3493,6 +3519,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -3510,6 +3537,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3524,6 +3553,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3531,11 +3561,14 @@ class DataFrame:
             ),
         )
 
-    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
+    def _do_create_or_replace_view(
+        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+    ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            comment,
             self._plan,
         )
 
@@ -3544,13 +3577,14 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, **kwargs
+        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
     ):
         validate_object_name(name)
         cmd = CreateDynamicTableCommand(
             name,
             warehouse,
             lag,
+            comment,
             self._plan,
         )
 
