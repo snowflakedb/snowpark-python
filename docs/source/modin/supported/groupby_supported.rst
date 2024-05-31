@@ -40,8 +40,8 @@ Function application
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``apply``                   | P                               | ``axis`` other than 0 is not     | ``Y`` if the following are true, otherwise ``N``:  |
 |                             |                                 | implemented.                     |   - ``func`` is a callable that always returns     |
-|                             |                                 |                                  |     either a pandas DataFrame, a pandas Series, or |
-|                             |                                 |                                  |     objects that are neither DataFrame nor Series. |
+|                             |                                 | ``include_groups = False`` is    |     either a pandas DataFrame, a pandas Series, or |
+|                             |                                 | not implemented.                 |     objects that are neither DataFrame nor Series. |
 |                             |                                 |                                  |   - grouping on axis=0                             |
 |                             |                                 |                                  |   - Not applying transform to a dataframe with a   |
 |                             |                                 |                                  |     non-unique index                               |
@@ -151,7 +151,8 @@ Computations/descriptive stats
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``sem``                     | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``shift``                   | N                               |                                                    |
+| ``shift``                   | P                               | ``Y`` if ``axis = 0``, ``freq`` is None,           |
+|                             |                                 | ``level`` is None, and ``by`` is in the columns    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``size``                    | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+

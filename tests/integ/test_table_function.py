@@ -14,6 +14,13 @@ from snowflake.snowpark.functions import (
 )
 from tests.utils import Utils
 
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Table function is not supported in Local Testing",
+    ),
+]
+
 
 def test_query_args(session):
     split_to_table = table_function("split_to_table")
