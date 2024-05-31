@@ -131,20 +131,20 @@ class StringMethods:
         ...            {1: "Hello", "2": "World"}])
         >>> s.str.get(1)
         0        t
-        1        2
-        2        b
-        3      NaN
-        4      NaN
-        5    Hello
+        1     None
+        2     None
+        3     None
+        4     None
+        5     None
         dtype: object
 
         >>> s.str.get(-1)
         0      g
-        1      3
-        2      c
-        3    NaN
-        4    NaN
-        5    None
+        1   None
+        2   None
+        3   None
+        4   None
+        5   None
         dtype: object
         """
 
