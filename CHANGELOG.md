@@ -8,6 +8,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
 #### Bug Fixes
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
