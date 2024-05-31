@@ -88,7 +88,7 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
-from modin.pandas import plotting
+from modin.pandas import plotting  # type: ignore[import]
 
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
