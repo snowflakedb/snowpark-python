@@ -507,13 +507,7 @@ import scipy  # noqa: E402
 
 @pytest.mark.parametrize(
     "package,expected_query_count",
-    [
-        ("scipy", 7),
-        ("scipy>=1.0", 7),
-        ("scipy<1.12.0", 7),
-        # TODO: SNOW-1428607 Re-enable quarantined tests for 8.20
-        # (scipy, 9)
-    ],
+    [("scipy", 7), ("scipy>=1.0", 7), ("scipy<1.12.0", 7), (scipy, 7)],
 )
 def test_3rd_party_package_with_udf_annotation(package, expected_query_count):
 
@@ -607,11 +601,8 @@ def test_3rd_party_package_with_session(packages, expected_query_count):
         )
 
 
-@pytest.mark.xfail(
-    reason="TODO: SNOW-1428607 Re-enable quarantined tests for 8.20",
-)
 @pytest.mark.parametrize("udf_packages,session_packages", [(["pandas", np], [scipy])])
-@sql_count_checker(query_count=5, join_count=2, udf_count=1)
+@sql_count_checker(query_count=4, join_count=2, udf_count=1)
 def test_3rd_party_package_mix_and_match(udf_packages, session_packages):
 
     snow_series = pd.Series([1])
