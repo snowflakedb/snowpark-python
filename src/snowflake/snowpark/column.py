@@ -229,6 +229,7 @@ class Column:
     """
 
     # NOTE: For now assume Expression instances can be safely ignored when building AST
+    #       Expression logic can be eliminated entirely once phase 0 is integrated
     def __init__(
         self,
         expr1: Union[str, Expression],
@@ -246,19 +247,18 @@ class Column:
                         quote_name(expr2), df_alias=expr1
                     )
 
-                # TODO: Add optional field "df_alias" in SpColumnSqlExpr and SpColumn and uncomment
-                # if expr2 == "*":
-                #     self._ast = Column._create_ast(
-                #         property = "sp_column_sql_expr",
-                #         assign_fields = {"sql": "*",
-                #                          "df_alias": expr1}
-                #     )
-                # else:
-                #     self._ast = Column._create_ast(
-                #         property = "sp_column",
-                #         assign_fields = {"name": quote_name(expr2),
-                #                          "df_alias": expr1}
-                #     )
+                if expr2 == "*":
+                    self._ast = Column._create_ast(
+                        property = "sp_column_sql_expr",
+                        assign_fields = {"sql": "*",
+                                         "df_alias": expr1}
+                    )
+                else:
+                    self._ast = Column._create_ast(
+                        property = "sp_column",
+                        assign_fields = {"name": quote_name(expr2),
+                                         "df_alias": expr1}
+                    )
             else:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
@@ -269,7 +269,6 @@ class Column:
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
-            # some repetition here, but _expression logic will be eliminated eventually
             if self._ast is None:
                 if expr1 == "*":
                     self._ast = Column._create_ast(
@@ -308,6 +307,16 @@ class Column:
 
     # overload operators
     def _bin_op_impl(self, property: str, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+        """Binary __<op>__ operator implementation for columns with automatic AST logging, i.e. op(self, other)
+
+        Args:
+            property (str): IR entity representing the binary operation in the Column AST
+            operator (BinaryExpression): Snowpark binary operator to build the Expression instance
+            other (ColumnOrLiteral): Other input column to be operated over (rhs)
+
+        Returns:
+            Column: new column instance with AST representing new operation over inputs in Column._ast
+        """
         ast = Column._create_ast(
             property = property,
             copy_messages = {"lhs": self._ast},
@@ -316,6 +325,16 @@ class Column:
         return Column(operator(self._expression, Column._to_expr(other)), ast = ast)
     
     def _bin_op_rimpl(self, property: str, operator: BinaryExpression, other: ColumnOrLiteral) -> "Column":
+        """Binary __r<op>__ operator implementation for columns with AST logging, i.e. op(other, self)
+
+        Args:
+            property (str): IR entity representing the binary operation in the Column AST
+            operator (BinaryExpression): Snowpark binary operator to build the Expression instance
+            other (ColumnOrLiteral): Other input column to be operated over (lhs)
+
+        Returns:
+            Column: new column instance with AST representing new operation over inputs in Column._ast
+        """
         ast = Column._create_ast(
             property = property,
             copy_messages = {"rhs": self._ast},
@@ -376,21 +395,18 @@ class Column:
         return self._bin_op_rimpl("sp_column_divide", Divide, other)
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        """Reminder."""
+        """Remainder."""
         return self._bin_op_impl("sp_column_mod", Remainder, other)
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         return self._bin_op_rimpl("sp_column_mod", Remainder, other)
 
-    # TODO: Create a new SpColumnPow IR entity and uncomment below
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        # return self._bin_op_impl("sp_column_pow", Pow, other)
-        return Column(Pow(self._expression, Column._to_expr(other)))
+        return self._bin_op_impl("sp_column_pow", Pow, other)
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        # return self._bin_op_rimpl("sp_column_pow", Pow, other)
-        return Column(Pow(Column._to_expr(other), self._expression))
+        return self._bin_op_rimpl("sp_column_pow", Pow, other)
 
     def __bool__(self) -> bool:
         raise TypeError(
@@ -542,9 +558,7 @@ class Column:
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        # TODO: Need SpColumnNeg IR entity
-        # return self._unary_op_impl("sp_column_neg", UnaryMinus)
-        return Column(UnaryMinus(self._expression))
+        return self._unary_op_impl("sp_column_neg", UnaryMinus)
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
@@ -579,16 +593,13 @@ class Column:
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        # TODO: Need an SpColumnNot IR entity
-        # return self._unary_op_impl("sp_column_not", Not)
-        return Column(Not(self._expression))
+        return self._unary_op_impl("sp_column_not", Not)
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
-        # TODO: Update SpColumnCast IR entity with new field "try_", then uncomment
         ast = Column._create_ast(
             property = "sp_column_cast",
             copy_messages = {"col": self._ast},
-            # assign_fields = {"try_": try_}
+            assign_fields = {"try": try_}
         )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
@@ -699,13 +710,11 @@ class Column:
         :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
-        # TODO: Should SpColumnRegexp.pattern be an Expr in the IR, could sbe SpColumnExpr as in SpColumnLike?
         ast = Column._create_ast(
             property = "sp_column_regexp",
             copy_messages = {"col", self._ast},
-            # fill_col_asts = {"pattern", pattern},
+            fill_expr_asts = {"pattern", pattern},
         )
-        Column._fill_ast(ast.sp_column_regexp.pattern.trait_sp_column_expr, pattern)
         return Column(
             RegExp(
                 self._expression,
@@ -720,16 +729,13 @@ class Column:
             other: A :class:`Column` or a ``str`` that is used to check if this column starts with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
-        # TODO: Create SpColumnStartsWith IR entity, and uncomment
-        # ast = Column._create_ast(
-        #     property = "sp_column_starts_with",
-        #     copy_messages = {"col": self._ast},
-        #     fill_col_asts = {"pattern": other},
-        # )
-        # other = snowflake.snowpark.functions.lit(other)
-        # return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
+        ast = Column._create_ast(
+            property = "sp_column_starts_with",
+            copy_messages = {"col": self._ast},
+            fill_expr_asts = {"pattern": other},
+        )
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.startswith(self, other)
+        return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
 
     def endswith(self, other: ColumnOrLiteralStr) -> "Column":
         """Returns true if this Column ends with another string.
@@ -738,16 +744,13 @@ class Column:
             other: A :class:`Column` or a ``str`` that is used to check if this column ends with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
-        # TODO: Create SpColumnEndsWith IR entity, and uncomment
-        # ast = Column._create_ast(
-        #     property = "sp_column_ends_with",
-        #     copy_messages = {"col": self._ast},
-        #     fill_col_asts = {"pattern": other},
-        # )
-        # other = snowflake.snowpark.functions.lit(other)
-        # return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
+        ast = Column._create_ast(
+            property = "sp_column_ends_with",
+            copy_messages = {"col": self._ast},
+            fill_expr_asts = {"pattern": other},
+        )
         other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.endswith(self, other)
+        return Column(snowflake.snowpark.functions.startswith(self, other)._expression, ast = ast)
 
     def substr(
         self,
@@ -762,15 +765,13 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        # TODO: Create SpColumnSubstr IR entity, and uncomment
-        # ast = Column._create_ast(
-        #     property = "sp_column_substr",
-        #     copy_messages = {"col": self._ast},
-        #     fill_col_asts = {"start_pos": start_pos,
-        #                      "length": length},
-        # )
-        # return Column(snowflake.snowpark.functions.substring(self, start_pos, length)._expression, ast = ast)
-        return snowflake.snowpark.functions.substring(self, start_pos, length)
+        ast = Column._create_ast(
+            property = "sp_column_substr",
+            copy_messages = {"col": self._ast},
+            fill_expr_asts = {"start_pos": start_pos,
+                             "length": length},
+        )
+        return Column(snowflake.snowpark.functions.substring(self, start_pos, length)._expression, ast = ast)
 
     def collate(self, collation_spec: str) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
@@ -792,14 +793,12 @@ class Column:
         Args:
             string: the string to search for in this column.
         """
-        # TODO: Create SpColumnContains IR entity, and uncomment
-        # ast = Column._create_ast(
-        #     property = "sp_column_contains",
-        #     copy_messages = {"col": self._ast},
-        #     fill_col_asts = {"pattern": string},
-        # )
-        # return Column(snowflake.snowpark.functions.contains(self, string)._expression, ast = ast)
-        return snowflake.snowpark.functions.contains(self, string)
+        ast = Column._create_ast(
+            property = "sp_column_contains",
+            copy_messages = {"col": self._ast},
+            fill_expr_asts = {"pattern": string},
+        )
+        return Column(snowflake.snowpark.functions.contains(self, string)._expression, ast = ast)
 
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
@@ -892,6 +891,7 @@ class Column:
             ----------------
             <BLANKLINE>
         """
+        # set up result Column AST representation
         prop_name = "sp_column_within_group"
         ast = Column._create_ast(
             property = prop_name,
@@ -899,12 +899,15 @@ class Column:
             assign_fields = {"variadic": (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))}
         )
 
+        # populate columns to order aggregate expression results by
         order_by_cols = []
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
-                order_by_cols.append(col)
+                # Column instance, col, must have col._ast member
                 getattr(ast, prop_name).cols.append(col._ast)
+                order_by_cols.append(col)
             elif isinstance(col, str):
+                # create new Column instance, with new AST
                 col_ast = getattr(ast, prop_name).cols.add()
                 new_col = Column(col, ast = col_ast)
                 col_ast.sp_column.name = new_col.get_name()
@@ -926,30 +929,75 @@ class Column:
     def _create_ast(property: str = None,
                     assign_fields: Dict[str, Any] = {},
                     copy_messages: Dict[str, Any] = {},
-                    fill_col_asts: Dict[str, ColumnOrLiteral] = {}
-        ) -> proto.SpColumnExpr:
+                    fill_col_asts: Dict[str, ColumnOrLiteral] = {},
+                    fill_expr_asts: Dict[str, ColumnOrLiteral] = {},
+                    fail_on_missing_ir_entity: bool = False,
+                    fail_on_missing_entity_field: bool = False,
+        ) -> Optional[proto.SpColumnExpr]:
+        """General purpose static method to generate the AST representation for a new Snowpark Column instance
+
+        Args:
+            property (str, optional): The protobuf property name of a subtype of the SpColumnExpr IR entity. Defaults to None.
+            assign_fields (Dict[str, Any], optional): Subtype fields with well known protobuf types that support direct assignment. Defaults to {}.
+            copy_messages (Dict[str, Any], optional): Subtype message fields which must be copied into (do not support assignment). Defaults to {}.
+            fill_col_asts (Dict[str, ColumnOrLiteral], optional): Subtype SpColumnExpr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
+            fill_expr_asts (Dict[str, ColumnOrLiteral], optional): Subtype Expr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
+            fail_on_missing_ir_entity (bool, optional): A flag to control failing on the SpColumnExpr subtype not existing. Defaults to False to allow the Column API to function in phase 0 without full AST logging.
+            fail_on_missing_entity_field (bool, optional): A flag to control failing on subtype fields not existing. Defaults to False to allow the Column API to function in phase 0 without full AST logging.
+
+        Raises:
+            NotImplementedError: If fail_on_missing_ir_entity flag is set to True, an error will be raised on the provided "property" subtype of SpColumnExpr not existing in the IR
+            NotImplementedError: If fail_on_missing_entity_field flag is set to True, an error will be raised if the subtype does not contain the field attempting to be filled
+
+        Returns:
+            Optional[proto.SpColumnExpr]: Returns None if failing silently when requested IR entity (from proprety string) does not exist, and returns fully generated AST otherwise.
+        """
+
+
         ast = proto.SpColumnExpr()
         if property is not None:
-            prop_ast = getattr(ast, property)
-            for attr, value in assign_fields.items():
-                setattr(prop_ast, attr, value)
-            for attr, messg in copy_messages.items():
-                getattr(prop_ast, attr).CopyFrom(messg)
-            for attr, other in fill_col_asts.items():
-                Column._fill_ast(getattr(prop_ast, attr), other)
+            ir_entity_name = "".join(x.capitalize() for x in property.split("_"))
+            try:
+                prop_ast = getattr(ast, property)
+            except AttributeError as e:
+                if fail_on_missing_ir_entity:
+                    raise NotImplementedError(f"entity {ir_entity_name} extends SpColumnExpr does not exist")
+                else:
+                    return None
+
+            for dict, fill_field_fn in (
+                (assign_fields, lambda ast, attr, value: setattr(ast, attr, value)),
+                (copy_messages, lambda ast, attr, messg: getattr(ast, attr).CopyFrom(messg)),
+                (fill_col_asts, lambda ast, attr, other: Column._fill_col_ast(getattr(ast, attr), other)),
+                (fill_expr_asts, lambda ast, attr, other: Column._fill_col_ast(getattr(ast, attr).trait_sp_column_expr, other)),
+            ):
+                for attr, value in dict.items():
+                    try:
+                        fill_field_fn(prop_ast, attr, value)
+                    except AttributeError:
+                        if fail_on_missing_entity_field:
+                            raise NotImplementedError(f"proto.{ir_entity_name}() is missing the '{attr}' field")
+                        else:
+                            print(f"{property}.{attr} field is missing and was not populated with the provided value '{str(value)}'")
+                            continue
         return ast
     
     @classmethod
-    def _fill_ast(cls, ast: proto.SpColumnExpr, value: ColumnOrLiteral) -> None:
-        """
-        Copy from a Column object's AST, or copy a literal value into an AST expression.
+    def _fill_col_ast(cls, ast: proto.SpColumnExpr, value: ColumnOrLiteral) -> None:
+        """Copy from a Column object's AST, or copy a literal value into an AST expression.
+
+        Args:
+            ast (proto.SpColumnExpr): A previously created SpColumnExpr() IR entity intance to be filled
+            value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
+
+        Raises:
+            TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
         """
         if isinstance(value, cls):
             return ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             # TODO: Using SpColumnSqlExpr as a catchall here, consider adding SpColumnLiteral IR entity with Const type fields
             ast.sp_column_sql_expr.sql = str(value)
-            return ast
         else:
             raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
 
