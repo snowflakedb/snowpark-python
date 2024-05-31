@@ -1491,7 +1491,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
-    def index(self) -> "pd.Index":
+    def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
