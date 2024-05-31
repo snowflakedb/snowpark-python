@@ -97,6 +97,7 @@ BASIC_DATA_FUNC_RETURN_TYPE_MAP = (
 )
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
@@ -106,6 +107,7 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=1))
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
@@ -603,6 +605,7 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
+@pytest.mark.short_regress
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
 @sql_count_checker(query_count=0)
 def test_basic_dataframe_transform(data, apply_func):
@@ -845,6 +848,7 @@ def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [

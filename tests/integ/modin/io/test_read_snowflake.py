@@ -52,6 +52,7 @@ def call_read_snowflake(table_name: str, as_query: bool, **kwargs) -> pd.DataFra
 
 
 @sql_count_checker(query_count=5)
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
@@ -317,6 +318,7 @@ def test_read_snowflake_column_not_list_raises(session) -> None:
         pd.read_snowflake(table_name, columns=col_name)
 
 
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "table_type",
     [
@@ -372,6 +374,7 @@ def test_read_snowflake_with_views(
                 Utils.drop_view(session, view_name)
 
 
+@pytest.mark.precommit
 def test_read_snowflake_row_access_policy_table(
     session,
     test_table_name,
@@ -453,6 +456,7 @@ def test_decimal(
 
 
 @sql_count_checker(query_count=9)
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
