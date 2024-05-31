@@ -129,15 +129,6 @@ class StringMethods:
         ...            123,
         ...            -456,
         ...            {1: "Hello", "2": "World"}])
-        >>> s
-        0                        String
-        1                     (1, 2, 3)
-        2                     [a, b, c]
-        3                           123
-        4                          -456
-        5    {1: 'Hello', '2': 'World'}
-        dtype: object
-
         >>> s.str.get(1)
         0        t
         1        2
