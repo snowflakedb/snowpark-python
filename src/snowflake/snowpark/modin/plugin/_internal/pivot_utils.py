@@ -197,8 +197,8 @@ def pivot_helper(
     if pivot_aggr_groupings is None:
         # When pivot_aggr_groupings is None, there are no `values` to compute on. In that case, we simply return
         # a DataFrame with no columns, whose index is the result of grouping by the index columns.
-        ordered_dataframe = ordered_dataframe.group_by(
-            groupby_snowflake_quoted_identifiers
+        ordered_dataframe = get_groups_for_ordered_dataframe(
+            ordered_dataframe, groupby_snowflake_quoted_identifiers
         )
         return InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
