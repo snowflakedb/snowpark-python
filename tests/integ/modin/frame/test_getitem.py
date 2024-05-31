@@ -12,7 +12,7 @@ import pytest
 from pandas import isna
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -48,7 +48,7 @@ def test_df_getitem_with_boolean_list_like(
         if isinstance(df, pd.DataFrame):
             return df[key]
         # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
-        _key = try_convert_to_native_index(key)
+        _key = try_convert_index_to_native(key)
         _df = df.iloc[: len(key)]
         _key = _key[: _df.shape[1]]
         return _df[_key]
@@ -80,7 +80,7 @@ def test_df_getitem_with_string_list_like(
         if isinstance(df, pd.DataFrame):
             return df[key]
         else:
-            _key = try_convert_to_native_index(key)
+            _key = try_convert_index_to_native(key)
             return df[_key]
 
     eval_snowpark_pandas_result(
@@ -108,7 +108,7 @@ def test_df_getitem_with_int_list_like(key):
         if isinstance(df, pd.DataFrame):
             return df[key]
         else:
-            _key = try_convert_to_native_index(key)
+            _key = try_convert_index_to_native(key)
             return df[_key]
 
     # Generate a dict that maps from int -> list of random ints
@@ -189,7 +189,7 @@ def test_df_getitem_with_none_nan_columns():
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df[try_convert_to_native_index(key)],
+        lambda df: df[try_convert_index_to_native(key)],
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="Cannot mask with non-boolean array containing NA / NaN values",

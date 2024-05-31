@@ -9,7 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -80,7 +80,7 @@ def test_isin_integer_data(values, expected_query_count):
             snow_series,
             native_series,
             lambda s: _test_isin_with_snowflake_logic(
-                s, try_convert_to_native_index(values)
+                s, try_convert_index_to_native(values)
             ),
         )
 

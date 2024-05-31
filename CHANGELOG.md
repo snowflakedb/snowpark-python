@@ -16,12 +16,6 @@
 
 #### Bug Fixes
 
-### Snowpark Local Testing Updates
-
-#### New Features
-
-#### Bug Fixes
-
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 
 #### Improvements

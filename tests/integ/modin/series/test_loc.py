@@ -15,7 +15,7 @@ from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_loc import (
     diff2native_negative_row_inputs,
     negative_snowpark_pandas_input_keys,
@@ -765,8 +765,8 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
             )
             _item = pd.Series(_item) if isinstance(_item, native_pd.Series) else _item
         else:
-            _row_key = try_convert_to_native_index(_row_key)
-            _item = try_convert_to_native_index(_item)
+            _row_key = try_convert_index_to_native(_row_key)
+            _item = try_convert_index_to_native(_item)
         s.loc[_row_key] = _item
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -815,7 +815,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
     def loc_set_helper(s):
         row_key = key_converter(s)
         if isinstance(s, native_pd.Series):
-            s.loc[try_convert_to_native_index(row_key)] = item
+            s.loc[try_convert_index_to_native(row_key)] = item
         else:
             s.loc[pd.Series(row_key)] = pd.DataFrame(item)
 
@@ -1031,7 +1031,7 @@ def test_series_loc_set_with_empty_key_and_empty_item_negative(
 
     err_msg = "The length of the value/item to set is empty"
     with pytest.raises(ValueError, match=err_msg):
-        native_ser.loc[try_convert_to_native_index(key)] = try_convert_to_native_index(
+        native_ser.loc[try_convert_index_to_native(key)] = try_convert_index_to_native(
             item
         )
         snowpark_ser.loc[
@@ -1064,7 +1064,7 @@ def test_series_loc_set_with_empty_key_and_empty_series_item(
     snowpark_ser = pd.Series(native_ser)
     item = native_pd.Series([])
 
-    native_ser.loc[try_convert_to_native_index(key)] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = pd.Series(item)
@@ -1105,7 +1105,7 @@ def test_series_loc_set_with_empty_key_and_scalar_item(
     snowpark_ser = pd.Series(native_ser)
     item = 32
 
-    native_ser.loc[try_convert_to_native_index(key)] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = item
@@ -1188,7 +1188,7 @@ def test_series_loc_set_with_empty_key_and_series_item(
     native_ser = default_index_native_series.copy()
     snowpark_ser = pd.Series(native_ser)
 
-    native_ser.loc[try_convert_to_native_index(key)] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[pd.Series(key) if isinstance(key, native_pd.Series) else key] = (
         pd.Series(item) if isinstance(item, native_pd.Series) else item
     )

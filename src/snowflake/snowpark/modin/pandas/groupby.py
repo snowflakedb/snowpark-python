@@ -221,7 +221,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # TODO: since python 3.9:
     # @cached_property
     @property
-    def groups(self) -> PrettyDict[Hashable, pd.Index]:
+    def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._query_compiler.groupby_groups(
             self._by,
@@ -408,7 +408,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 series_groupby=False,
             )
         )
-        if dataframe_result.columns.equals(pd.Index([MODIN_UNNAMED_SERIES_LABEL])):
+        if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
             return dataframe_result.squeeze(axis=1)
         return dataframe_result
 
@@ -1236,7 +1236,7 @@ class SeriesGroupBy(DataFrameGroupBy):
                 series_groupby=True,
             )
         )
-        if dataframe_result.columns.equals(pd.Index([MODIN_UNNAMED_SERIES_LABEL])):
+        if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
             # rename to the last column of self._df
             # note that upstream modin does not do this yet due to
             # https://github.com/modin-project/modin/issues/7097

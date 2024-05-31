@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -87,7 +87,7 @@ def test_set_index_negative(snow_df, native_df):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df.set_index(try_convert_to_native_index(index))
+        lambda df: df.set_index(try_convert_index_to_native(index))
         if isinstance(df, native_pd.DataFrame)
         else df.set_index(index),
         expect_exception=True,

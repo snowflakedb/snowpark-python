@@ -857,21 +857,24 @@ def ensure_index(
     >>> ensure_index([('a', 'a'),  ('b', 'c')])
     Index([('a', 'a'), ('b', 'c')], dtype='object')
     """
+    # if we have an index object already, simply copy it if required and return
     if isinstance(index_like, (pandas.MultiIndex, pd.Index)):
         if copy:
             index_like = index_like.copy()
         return index_like
 
     if isinstance(index_like, list):
+        # if we have a non-empty list that is multi dimensional, convert this to a multi-index and return
         if len(index_like) and lib.is_all_arraylike(index_like):
             return pandas.MultiIndex.from_arrays(index_like)
         else:
+            # otherwise, we have a one dimensional index, so set tupleize_cols=False and return a pd.Index
             return pd.Index(index_like, copy=copy, tupleize_cols=False)
     else:
         return pd.Index(index_like, copy=copy)
 
 
-def try_convert_to_native_index(index_like: Any) -> Any:
+def try_convert_index_to_native(index_like: Any) -> Any:
     """
     Try to convert the given item to a native pandas Index.
     This conversion is only performed if `index_like` is a Snowpark pandas Index. Otherwise, the original input will be returned.

@@ -16,7 +16,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
@@ -1124,7 +1124,7 @@ class TestSeriesGroupBy:
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2], index=["a", "a", "b"]),
             lambda s: s.groupby(
-                try_convert_to_native_index(s.index),
+                try_convert_index_to_native(s.index),
                 dropna=dropna,
                 group_keys=group_keys,
                 sort=sort,

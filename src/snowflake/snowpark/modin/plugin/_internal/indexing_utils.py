@@ -708,7 +708,7 @@ def _extract_loc_set_col_info(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> LocSetColInfo:
@@ -821,7 +821,7 @@ def get_valid_col_positions_from_col_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> list[int]:
@@ -955,7 +955,7 @@ def get_frame_by_col_label(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> InternalFrame:
@@ -2162,7 +2162,7 @@ def set_frame_2d_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
     item: Union[Scalar, AnyArrayLike, InternalFrame],

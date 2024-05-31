@@ -372,11 +372,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for c in self._modin_frame.data_column_snowflake_quoted_identifiers
         ]
 
-        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
         return native_pd.Series(
             data=types,
-            index=try_convert_to_native_index(self._modin_frame.data_columns_index),
+            index=try_convert_index_to_native(self._modin_frame.data_columns_index),
             dtype=object,
         )
 
@@ -650,10 +650,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.index_column_pandas_labels
         )
 
-        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
         # set column names and potential casting
-        native_df.columns = try_convert_to_native_index(
+        native_df.columns = try_convert_index_to_native(
             self._modin_frame.data_columns_index
         )
         return native_df
@@ -1238,7 +1238,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @property
-    def columns(self) -> pd.Index:
+    def columns(self) -> "pd.Index":
         """
         Get pandas column labels.
 
@@ -1491,7 +1491,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
-    def index(self) -> pd.Index:
+    def index(self) -> "pd.Index":
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
@@ -2345,9 +2345,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             QueryCompiler with aligned axis.
         """
-        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
-        labels = try_convert_to_native_index(labels)
+        labels = try_convert_index_to_native(labels)
         return super().reindex(axis, labels, *args, **kwargs)
 
     # TODO: Eliminate from Modin QC layer and call `first_last_valid_index` directly from frontend
@@ -3667,7 +3667,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-    ) -> PrettyDict[Hashable, pd.Index]:
+    ) -> PrettyDict[Hashable, "pd.Index"]:
         """
         Get a PrettyDict mapping group keys to row labels.
 
@@ -6351,10 +6351,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             in self._modin_frame.data_column_snowflake_quoted_identifiers
         ]
 
-        from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
         # current columns
-        column_index = try_convert_to_native_index(self._modin_frame.data_columns_index)
+        column_index = try_convert_index_to_native(self._modin_frame.data_columns_index)
 
         # Extract return type from annotations (or lookup for known pandas functions) for func object,
         # if not return type could be extracted the variable will hold None.
@@ -7074,10 +7074,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def take_2d_labels(
         self,
         index: Union[
-            "SnowflakeQueryCompiler", Scalar, tuple, slice, list, pd.Index, np.ndarray
+            "SnowflakeQueryCompiler", Scalar, tuple, slice, list, "pd.Index", np.ndarray
         ],
         columns: Union[
-            "SnowflakeQueryCompiler", Scalar, slice, list, pd.Index, np.ndarray
+            "SnowflakeQueryCompiler", Scalar, slice, list, "pd.Index", np.ndarray
         ],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -7485,7 +7485,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             tuple,
             slice,
             list,
-            pd.Index,
+            "pd.Index",
             np.ndarray,
         ],
         item: Union[Scalar, AnyArrayLike, "SnowflakeQueryCompiler"],

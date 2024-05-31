@@ -22,7 +22,7 @@ from pandas.core.dtypes.inference import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType
@@ -184,9 +184,9 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
     """
     native_kw_args = kwargs.copy()
     if "index" in native_kw_args:
-        native_kw_args["index"] = try_convert_to_native_index(native_kw_args["index"])
+        native_kw_args["index"] = try_convert_index_to_native(native_kw_args["index"])
     if "columns" in native_kw_args:
-        native_kw_args["columns"] = try_convert_to_native_index(
+        native_kw_args["columns"] = try_convert_index_to_native(
             native_kw_args["columns"]
         )
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
@@ -476,8 +476,8 @@ def assert_values_equal(
     Returns:
         bool telling whether the values are equal.
     """
-    expected = try_convert_to_native_index(expected)
-    actual = try_convert_to_native_index(actual)
+    expected = try_convert_index_to_native(expected)
+    actual = try_convert_index_to_native(actual)
 
     if isinstance(expected, native_pd.DataFrame):
         assert isinstance(
@@ -806,8 +806,8 @@ def assert_index_equal(
         Specify object name being compared, internally used to show appropriate
         assertion message.
     """
-    left = try_convert_to_native_index(left)
-    right = try_convert_to_native_index(right)
+    left = try_convert_index_to_native(left)
+    right = try_convert_index_to_native(right)
     return native_pd._testing.assert_index_equal(
         left,
         right,

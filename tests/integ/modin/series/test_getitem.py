@@ -9,7 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_to_native_index
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -40,7 +40,7 @@ def test_series_getitem_with_boolean_list_like(
         if isinstance(ser, native_pd.Series):
             # If native pandas Series, truncate the series and key.
             _ser = ser[: len(key)]
-            _key = try_convert_to_native_index(key)[: len(_ser)]
+            _key = try_convert_index_to_native(key)[: len(_ser)]
         else:
             _key, _ser = key, ser
         return _ser[_key]
@@ -145,7 +145,7 @@ def test_series_getitem_with_empty_keys(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_series,
         default_index_native_series,
-        lambda ser: ser[try_convert_to_native_index(key)],
+        lambda ser: ser[try_convert_index_to_native(key)],
     )
 
 
