@@ -39,6 +39,7 @@ def setup(session, resources_path):
     session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
 
 
+@pytest.mark.short_regress
 @sql_count_checker(query_count=9)
 def test_read_csv():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})

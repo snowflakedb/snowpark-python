@@ -22,6 +22,7 @@ from tests.utils import Utils
 
 
 # TODO 849288 verify df.dtypes too
+@pytest.mark.short_regress
 @pytest.mark.parametrize(
     "col_name_type, samples, expected_dtype, expected_to_pandas_dtype, expected_to_pandas",
     [
