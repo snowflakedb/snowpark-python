@@ -359,7 +359,7 @@ def test_index_raises_not_implemented_error(method):
     msg = f"{method} is not yet implemented for Series.str"
 
     with pytest.raises(NotImplementedError, match=msg):
-        getattr(obj.str, method)(0)
+        getattr(obj.str, method)("sub")
 
 
 @pytest.mark.xfail(
