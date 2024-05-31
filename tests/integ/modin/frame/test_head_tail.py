@@ -29,7 +29,7 @@ def eval_result_and_query_with_no_join(
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow, native, **kwargs)
 
 
-@pytest.mark.bptp
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "n",
     [1, None, 0, -1, -10, 5, 10],
@@ -51,7 +51,7 @@ def test_head_tail(n, default_index_snowpark_pandas_df, default_index_native_df)
     )
 
 
-@pytest.mark.bptp
+@pytest.mark.precommit
 @pytest.mark.parametrize(
     "n",
     [1, None, 0, -1, -10, 5, 10],
