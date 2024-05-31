@@ -12,9 +12,11 @@
 
 #### Bug Fixes
 
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
+
 #### Improvements
 
-- Expand support for empty DataFrames in `DataFrame.pivot_table`.
+- Expand support for DataFrames with no rows in `DataFrame.pivot_table` to achieve parity with vanilla pandas.
 
 ## 1.18.0 (2024-05-28)
 
@@ -40,7 +42,6 @@
 #### Bug Fixes
 
 - Fixed how we support mixed columns for string methods (`Series.str.*`).
-- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 ### Snowpark Local Testing Updates
 
