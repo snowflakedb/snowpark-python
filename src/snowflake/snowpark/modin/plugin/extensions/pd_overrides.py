@@ -37,6 +37,10 @@ from snowflake.snowpark.modin.utils import _inherit_docstrings
 if TYPE_CHECKING:  # pragma: no cover
     import csv
 
+from snowflake.snowpark.modin.plugin._internal.index import Index  # noqa: F401
+
+register_pd_accessor("Index")(Index)
+
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")
 @register_pd_accessor("read_csv")

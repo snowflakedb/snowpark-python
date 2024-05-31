@@ -222,7 +222,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # TODO: since python 3.9:
     # @cached_property
     @property
-    def groups(self) -> PrettyDict[Hashable, pd.Index]:
+    def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._query_compiler.groupby_groups(
             self._by,

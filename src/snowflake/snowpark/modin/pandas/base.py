@@ -66,7 +66,6 @@ from pandas.core.dtypes.common import (
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_integer
-from pandas.core.indexes.api import ensure_index
 from pandas.util._validators import (
     validate_ascending,
     validate_bool_kwarg,
@@ -76,6 +75,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
     _doc_binary_op,
+    ensure_index,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
     raise_if_native_pandas_objects,
