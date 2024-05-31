@@ -330,4 +330,99 @@ def test_pivot_empty_frame_no_values(margins, named_columns):
     )
 
 
-# @pytest.mark.parametrize("margins", [True, False])
+@pytest.mark.skip(reason="No support for multi-indexes in pivot yet.")
+@pytest.mark.parametrize(
+    "index, columns",
+    [
+        (None, ("a", 1)),
+        (None, [("a", 1)]),
+        (None, [("a", 1), ("b", 2)]),
+        (None, [("a", 1), ("b", 2), ("c", 3)]),
+        (("d", 4), ("a", 1)),
+        (("d", 4), [("a", 1)]),
+        (("d", 4), [("a", 1), ("b", 2)]),
+        (("d", 4), [("a", 1), ("b", 2), ("c", 3)]),
+        ([("d", 4)], ("a", 1)),
+        ([("d", 4)], [("a", 1)]),
+        ([("d", 4)], [("a", 1), ("b", 2)]),
+        ([("d", 4)], [("a", 1), ("b", 2), ("c", 3)]),
+    ],
+)
+@pytest.mark.parametrize("margins", [True, False])
+@pytest.mark.parametrize("named_columns", [True, False])
+def test_pivot_empty_frame_snow_1013918_multiindex(
+    index, columns, margins, named_columns
+):
+    cols = native_pd.MultiIndex.from_tuples(list(zip(list("abcd"), list("1234"))))
+    if named_columns:
+        cols.names = ["c1", "c2"]
+    snow_df, native_df = create_test_dfs(columns=cols)
+    query_count = 2 if index is None else 1
+    join_count = 1 if index is not None and len(columns) == 1 else 0
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        snow_df = snow_df.pivot_table(index=index, columns=columns, margins=margins)
+        if margins and index is not None and len(list(index) + list(columns)) == 4:
+            # When margins is True, and there are no values (i.e. all of the
+            # columns in the DataFrame are passed in to either the `index`
+            # or `columns` parameter), pandas errors out. We return an empty
+            # DataFrame instead.
+            with pytest.raises(TypeError, match="'str' object is not callable"):
+                native_df.pivot_table(index=index, columns=columns, margins=margins)
+            if isinstance(columns, list):
+                levels = codes = [[]] * (len(columns) + 2)
+                columns = ([None] if not named_columns else ["c1", "c2"]) + columns
+            else:
+                levels = codes = [[]]
+            native_df = native_pd.DataFrame(
+                index=pd.Index([], name=index if isinstance(index, str) else index[0]),
+                columns=pd.MultiIndex(levels=levels, codes=codes, names=columns),
+            )
+        else:
+            native_df = native_df.pivot_table(
+                index=index, columns=columns, margins=margins
+            )
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df, native_df, check_index_type=False, check_column_type=False
+        )
+
+
+@pytest.mark.skip(reason="No support for multi-indexes in pivot yet.")
+@pytest.mark.parametrize("margins", [True, False])
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("named_columns", [True, False])
+def test_pivot_empty_frame_no_values_multiindex(margins, named_columns):
+    columns = native_pd.MultiIndex(list(zip(list("abcd"), [1, 2, 3, 4])))
+    if named_columns:
+        columns.names = ["c1", "c2"]
+    snow_df, native_df = create_test_dfs(columns=columns)
+    snow_df = snow_df.pivot_table(
+        index=[("c", 3), ("d", 4)], columns=[("a", 1), ("b", 2)], margins=margins
+    )
+    if margins:
+        # When margins is True, and there are no values (i.e. all of the
+        # columns in the DataFrame are passed in to either the `index`
+        # or `columns` parameter), pandas errors out. We return an empty
+        # DataFrame instead.
+        with pytest.raises(TypeError, match="'str' object is not callable"):
+            native_df.pivot_table(
+                index=[("c", 3), ("d", 4)],
+                columns=[("a", 1), ("b", 2)],
+                margins=margins,
+            )
+        levels = codes = [[], []]
+        ind = pd.MultiIndex(levels=levels, codes=codes, names=[("c", 3), ("d", 4)])
+        levels = codes = [[], [], [], []]
+        cols = pd.MultiIndex(
+            levels=levels,
+            codes=codes,
+            names=([None] if not named_columns else ["c1", "c2"])
+            + [("a", 1), ("b", 2)],
+        )
+        native_df = native_pd.DataFrame(index=ind, columns=cols)
+    else:
+        native_df = native_df.pivot_table(
+            index=[("c", 3), ("d", 4)], columns=[("a", 1), ("b", 2)], margins=margins
+        )
+    assert_snowpark_pandas_equal_to_pandas(
+        snow_df, native_df, check_index_type=False, check_column_type=False
+    )
