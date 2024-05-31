@@ -10,13 +10,18 @@
 
 #### New Features
 
+- Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+
 #### Bug Fixes
 
+- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
 
-- Expand support for DataFrames with no rows in `DataFrame.pivot_table` to achieve parity with vanilla pandas.
+- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
+- `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
+- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table` to achieve parity with vanilla pandas.
 
 ## 1.18.0 (2024-05-28)
 
@@ -32,6 +37,8 @@
 #### New Features
 
 - Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+
+#### Bug Fixes
 
 #### Improvements
 

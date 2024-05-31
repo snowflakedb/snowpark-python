@@ -17,7 +17,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     "io_method, kwargs",
     [
         ["read_xml", {"path_or_buffer": ""}],
-        ["read_table", {"filepath_or_buffer": ""}],
         ["read_gbq", {"query": ""}],
         ["read_html", {"io": ""}],
         ["read_clipboard", {}],
@@ -99,7 +98,6 @@ def test_unsupported_general(general_method, kwargs):
         ["mode", {}],
         ["nlargest", {"n": "", "columns": ""}],
         ["nsmallest", {"n": "", "columns": ""}],
-        ["pct_change", {}],
         ["pipe", {"func": ""}],
         ["pivot", {}],
         ["plot", {}],
@@ -212,7 +210,6 @@ def test_unsupported_df_generator(df_method, kwargs):
         ["nlargest", {"n": ""}],
         ["nsmallest", {"n": ""}],
         ["nsmallest", {}],
-        ["pct_change", {}],
         ["pipe", {"func": ""}],
         ["plot", {}],
         ["pop", {"item": ""}],
