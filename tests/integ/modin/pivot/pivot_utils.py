@@ -29,6 +29,7 @@ def pivot_table_test_helper(
     expect_exception_type: Optional[type[Exception]] = None,
     expect_exception_match: Optional[str] = None,
     assert_exception_equal: bool = True,
+    named_columns: bool = False,
 ):
     """
     Helper for validating pivot_table tests, specifically this ensures the output is normalized to float64
@@ -42,6 +43,7 @@ def pivot_table_test_helper(
     expect_exception_type: if not None, assert the exception type is expected
     expect_exception_match: if not None, assert the exception match the expected regex
     assert_exception_equal: bool. Whether to assert the exception from Snowpark pandas eqauls to pandas
+    named_columns: bool. Whether to name the columns when making the test DataFrames.
     """
     if isinstance(df_data, tuple):
         native_df = native_pd.DataFrame(df_data[0], columns=df_data[1])
@@ -49,6 +51,10 @@ def pivot_table_test_helper(
     else:
         native_df = native_pd.DataFrame(df_data)
         snow_df = pd.DataFrame(df_data)
+
+    if named_columns:
+        native_df.columns.names = [f"c{i}" for i in range(len(native_df.columns.names))]
+        snow_df.columns.names = native_df.columns.names
 
     if preprocess_df:
         native_df = preprocess_df(native_df)

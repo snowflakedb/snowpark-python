@@ -200,9 +200,51 @@ def pivot_helper(
         ordered_dataframe = get_groups_for_ordered_dataframe(
             ordered_dataframe, groupby_snowflake_quoted_identifiers
         )
+        # For the column index labels, pandas preserves the original names, and adds the `columns` arguments to the names.
+        # Take for example, the following DataFrame:
+        # df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        #                    'three'],
+        #            'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        #            'baz': [1, 2, 3, 4, 5, 6],
+        #            'zoo': [1, 2, 3, 1, 3, 5]})
+        # df.columns.names = ['column']
+        # df.columns = pd.MultiIndex.from_tuples([('a', 1), ('a', 2), ('b', 1), ('b', 2)])
+        # df
+        #        a     b
+        #        1  2  1  2
+        # 0    one  A  1  1
+        # 1    one  B  2  2
+        # 2    one  C  3  3
+        # 3    two  A  4  1
+        # 4    two  B  5  3
+        # 5  three  C  6  5
+        #
+        # df.columns.names = ['c1', 'c2']
+        # df
+        # c1      a     b
+        # c2      1  2  1  2
+        # 0     one  A  1  1
+        # 1     one  B  2  2
+        # 2     one  C  3  3
+        # 3     two  A  4  1
+        # 4     two  B  5  3
+        # 5   three  C  6  5
+        #
+        # df.columns
+        # MultiIndex([('a', 1),
+        #             ('a', 2),
+        #             ('b', 1),
+        #             ('b', 2)],
+        #            names=['c1', 'c2'])
+        #
+        # df.pivot_table(index=[('a', 1), ('a', 2)], columns=[('b', 1), ('b', 2)]).columns
+        # MultiIndex([], names=['c1', 'c2', ('b', 1), ('b', 2)])
+        # The columns of the result from `pivot_table` retain the original column labels from the input
+        # DataFrame, as well as the new column labels from the `columns` parameter.
         return InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
-            data_column_pandas_index_names=[None] + columns,
+            data_column_pandas_index_names=pivot_frame.data_column_pandas_index_names
+            + columns,
             data_column_pandas_labels=[],
             data_column_snowflake_quoted_identifiers=[],
             index_column_pandas_labels=index,
@@ -356,7 +398,16 @@ def pivot_helper(
     # Generate the data column pandas index names
     if not isinstance(columns, list):
         columns = [columns]
-    columns = [None] * len(pivot_aggr_groupings[0].prefix_label) + columns
+    if len(pivot_aggr_groupings[0].prefix_label) != 0:
+        columns = (
+            [None]
+            * (
+                len(pivot_aggr_groupings[0].prefix_label)
+                - len(pivot_frame.data_column_pandas_index_names)
+            )
+            + pivot_frame.data_column_pandas_index_names
+            + columns
+        )
 
     if expand_with_cartesian_product:
         # Ensure the cartesian product of index / group by rows.  For example, if there are index values

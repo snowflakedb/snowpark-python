@@ -6778,20 +6778,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         elif (
             margins
             and len(pivot_qc.columns) == 0
-            and len(pivot_qc.columns.names) != (len(columns) + 1)
+            and len(pivot_qc.columns.names) != (len(columns) + len(self.columns.names))
         ):
-            # If `margins` is True, and our result is empty, we must add an additional level to
-            # the columns Index. One caveat is when there are no values columns - in that case
-            # pandas adds an extra level to the columns Index regardless of if margins is True or not
-            # (which we handle in pivot_utils.py), so in that case, we shouldn't add a second
-            # extra level to the columns Index.
-            levels: list[list] = [[]] * (len(pivot_qc.columns.names) + 1)
+            # If `margins` is True, and our result is empty, the results columns must retain the names
+            # from the input DataFrame's columns. One caveat is when there are no values columns - in that case
+            # pandas retains the names from the input DataFrame's columns Index regardless of if margins is True or not
+            # (which we handle in pivot_utils.py), so in that case, we shouldn't add the original names to the columns
+            # Index for a second time.
+            levels: list[list] = [[]] * (
+                len(pivot_qc.columns.names) + len(self.columns.names)
+            )
             codes: list[list] = levels
             pivot_qc = pivot_qc.set_columns(
                 pd.MultiIndex(
-                    levels=levels, codes=codes, names=[None] + pivot_qc.columns.names
+                    levels=levels,
+                    codes=codes,
+                    names=self.columns.names + pivot_qc.columns.names,
                 )
             )
+
+        if len(pivot_qc.columns) == 0 and len(pivot_qc.columns.names) == len(
+            columns
+        ) + len(self.columns.names):
+            pivot_qc.columns.names = self.columns.names + columns
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
