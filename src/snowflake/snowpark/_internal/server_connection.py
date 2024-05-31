@@ -390,6 +390,7 @@ class ServerConnection:
         case_sensitive: bool = True,
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
+        ignore_results: bool = True,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -422,11 +423,10 @@ class ServerConnection:
         # have non-select statements, and it shouldn't fail if the user
         # calls to_pandas() to execute the query.
         if block:
+            if ignore_results:
+                return {"data": None, "sfqid": results_cursor.sfqid}
             return self._to_data_or_iter(
-                results_cursor=results_cursor,
-                to_pandas=to_pandas,
-                to_iter=to_iter,
-                ignore_results=kwargs.get("ignore_results", False),
+                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
             )
         else:
             return AsyncJob(
@@ -446,11 +446,8 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
-        ignore_results: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
-        if ignore_results:
-            return {"data": None, "sfqid": qid}
         if (
             to_iter and not to_pandas
         ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
@@ -547,6 +544,7 @@ class ServerConnection:
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        ignore_results: bool = True,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -598,6 +596,7 @@ class ServerConnection:
                     case_sensitive=case_sensitive,
                     num_statements=len(plan.queries),
                     params=params,
+                    ignore_results=ignore_results,
                     **kwargs,
                 )
 
@@ -626,6 +625,7 @@ class ServerConnection:
                             log_on_exception=log_on_exception,
                             case_sensitive=case_sensitive,
                             params=query.params,
+                            ignore_results=ignore_results,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -662,7 +662,7 @@ class ServerConnection:
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
         # get the iterator such that the data is not fetched
-        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
+        result_set, _ = self.get_result_set(plan, ignore_results=True, **kwargs)
         return result_set["sfqid"]
 
     @_Decorator.wrap_exception
