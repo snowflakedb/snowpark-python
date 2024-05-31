@@ -45,7 +45,7 @@ the method in the left column.
 | ``fullmatch``               | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``get``                     | P                               | ``N`` if the `i` parameter is set to a non-int     |
-|                             |                                 |  value. Also non-string data values such as lists  |
+|                             |                                 |  value. Also non-string data values such as list   |
 |                             |                                 |  and dict are not yet supported.                   |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``get_dummies``             | N                               |                                                    |
