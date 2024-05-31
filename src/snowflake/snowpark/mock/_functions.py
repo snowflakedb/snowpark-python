@@ -399,7 +399,12 @@ def mock_to_date(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    res = column.to_frame().apply(convert_date, axis=1)
+    # if there is no data in the column, then apply will not be not executed
+    res = (
+        column.to_frame().apply(convert_date, axis=1)
+        if len(column)
+        else ColumnEmulator()
+    )
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
 
