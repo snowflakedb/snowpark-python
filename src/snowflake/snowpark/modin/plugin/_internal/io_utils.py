@@ -7,6 +7,9 @@ import os
 from collections.abc import Hashable
 from typing import Any, Callable, Union
 
+import numpy as np
+import pandas as native_pd
+
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.session import Session
 
@@ -126,36 +129,37 @@ def get_columns_to_keep_for_usecols(
     ValueError
         If column(s) expected in `usecols` are not found in frame's columns `columns`.
     """
-
-    if not isinstance(usecols, list):
-        keep = [column for column in columns if usecols(column)]
+    _usecols = usecols
+    if callable(_usecols):
+        keep = [column for column in columns if _usecols(column)]
+    elif len(_usecols) == 0:
+        keep = []
     else:
-        if not usecols:
-            keep = []
+        if isinstance(_usecols, native_pd.core.series.Series):
+            _usecols = _usecols.values
+
+        if isinstance(_usecols[0], str):  # type: ignore
+            invalid_columns = [column for column in _usecols if column not in columns]  # type: ignore
+            if invalid_columns:
+                raise ValueError(
+                    f"'usecols' do not match columns, columns expected but not found: {invalid_columns}"
+                )
         else:
-            if isinstance(usecols[0], str):
-                invalid_columns = [
-                    column for column in usecols if column not in columns
-                ]
-                if invalid_columns:
-                    raise ValueError(
-                        f"'usecols' do not match columns, columns expected but not found: {invalid_columns}"
-                    )
-            else:
-                invalid_columns = [
-                    column for column in usecols if column < 0 or column >= len(columns)  # type: ignore[operator]
-                ]
-                if invalid_columns:
-                    raise ValueError(
-                        f"'usecols' do not match columns, columns expected but not found: {invalid_columns}"
-                    )
+            if not all(isinstance(c, int) or isinstance(c, np.int64) for c in _usecols):  # type: ignore
+                raise ValueError(
+                    "'usecols' must either be list-like of all strings, all unicode, all integers or a callable."
+                )
+            invalid_columns = [
+                column for column in _usecols if column < 0 or column >= len(columns)  # type: ignore
+            ]
+            if invalid_columns:
+                raise ValueError(
+                    f"'usecols' do not match columns, columns expected but not found: {invalid_columns}"
+                )
 
-                # Turn index references to pandas labels.
-                usecols = [columns[column] for column in usecols]
+            # Turn index references to pandas labels.
+            _usecols = [columns[column] for column in _usecols]  # type: ignore
 
-            l1, l2 = (
-                (usecols, columns) if maintain_usecols_order else (columns, usecols)
-            )
-            keep = [column for column in l1 if column in l2]
-
+        l1, l2 = (_usecols, columns) if maintain_usecols_order else (columns, _usecols)
+        keep = [column for column in l1 if column in l2]
     return keep

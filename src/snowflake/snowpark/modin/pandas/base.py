@@ -66,6 +66,7 @@ from pandas.core.dtypes.common import (
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_integer
+from pandas.errors import SpecificationError
 from pandas.util._validators import (
     validate_ascending,
     validate_bool_kwarg,
@@ -76,6 +77,7 @@ from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
     _doc_binary_op,
     ensure_index,
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
     raise_if_native_pandas_objects,
@@ -703,16 +705,45 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func,
-            obj=self,
-            allow_duplication=False,
-            axis=axis,
-        )
+        # If we are using named kwargs, then we do not clear the kwargs (need them in the QC for processing
+        # order, as well as formatting error messages.)
+        uses_named_kwargs = False
+        # If aggregate is called on a Series, named aggregations can be passed in via a dictionary
+        # to func.
+        if func is None or (is_dict_like(func) and not self._is_dataframe):
+            if axis == 1:
+                raise ValueError(
+                    "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
+                )
+            if func is not None:
+                # If named aggregations are passed in via a dictionary to func, then we
+                # ignore the kwargs.
+                if any(is_dict_like(value) for value in func.values()):
+                    # We can only get to this codepath if self is a Series, and func is a dictionary.
+                    # In this case, if any of the values of func are themselves dictionaries, we must raise
+                    # a Specification Error, as that is what pandas does.
+                    raise SpecificationError("nested renamer is not supported")
+                kwargs = func
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                self, allow_duplication=False, axis=axis, **kwargs
+            )
+            uses_named_kwargs = True
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=False,
+                axis=axis,
+            )
 
         # This is to stay consistent with pandas result format, when the func is single
         # aggregation function in format of callable or str, reduce the result dimension to
         # convert dataframe to series, or convert series to scalar.
+        # Note: When named aggregations are used, the result is not reduced, even if there
+        # is only a single function.
+        # needs_reduce_dimension cannot be True if we are using named aggregations, since
+        # the values for func in that case are either NamedTuples (AggFuncWithLabels) or
+        # lists of NamedTuples, both of which are list like.
         need_reduce_dimension = (
             (callable(func) or isinstance(func, str))
             # A Series should be returned when a single scalar string/function aggregation function, or a
@@ -767,7 +798,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # dtype: int8
         # >>> pd.DataFrame([[np.nan], [0]]).count(skipna=True, axis=0)
         # TypeError: got an unexpected keyword argument 'skipna'
-        if is_dict_like(func):
+        if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
 
         result = self.__constructor__(
@@ -2325,21 +2356,58 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             result.name = None
         return result
 
-    @base_not_implemented()
     def pct_change(
-        self, periods=1, fill_method="pad", limit=None, freq=None, **kwargs
+        self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
     ):  # noqa: PR01, RT01, D200
         """
         Percentage change between the current and a prior element.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "pct_change",
-            periods=periods,
-            fill_method=fill_method,
-            limit=limit,
-            freq=freq,
-            **kwargs,
+        if fill_method not in (lib.no_default, None) or limit is not lib.no_default:
+            warnings.warn(
+                "The 'fill_method' keyword being not None and the 'limit' keyword in "
+                + f"{type(self).__name__}.pct_change are deprecated and will be removed "
+                + "in a future version. Either fill in any non-leading NA values prior "
+                + "to calling pct_change or specify 'fill_method=None' to not fill NA "
+                + "values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+        if fill_method is lib.no_default:
+            warnings.warn(
+                f"The default fill_method='pad' in {type(self).__name__}.pct_change is "
+                + "deprecated and will be removed in a future version. Either fill in any "
+                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
+                + "to not fill NA values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+            fill_method = "pad"
+
+        if limit is lib.no_default:
+            limit = None
+
+        if "axis" in kwargs:
+            kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+
+        # Attempting to match pandas error behavior here
+        if not isinstance(periods, int):
+            raise TypeError(f"periods must be an int. got {type(periods)} instead")
+
+        # Attempting to match pandas error behavior here
+        for dtype in self._get_dtypes():
+            if not is_numeric_dtype(dtype):
+                raise TypeError(
+                    f"cannot perform pct_change on non-numeric column with dtype {dtype}"
+                )
+
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pct_change(
+                periods=periods,
+                fill_method=fill_method,
+                limit=limit,
+                freq=freq,
+                **kwargs,
+            )
         )
 
     @base_not_implemented()

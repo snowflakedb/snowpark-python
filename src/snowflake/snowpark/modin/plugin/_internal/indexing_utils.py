@@ -1302,7 +1302,7 @@ def _get_frame_by_row_label_slice(
       tuple with 2 items, then the left bound will be the row with first level matches with the start and the right
       bound will be the row with both first and second level match.
       For example,
-          >>> df
+          df:
                         c1	c2
           first	second
           bar	one	    0	2
@@ -1314,7 +1314,7 @@ def _get_frame_by_row_label_slice(
           qux	one	    6	2
                 two	    7	2
 
-          >>> df_mi[slice(('foo',), ('qux', 'one'))]
+          df_mi[slice(('foo',), ('qux', 'one'))]:
                         c1	c2
           first	second
           foo	one	    4	2
