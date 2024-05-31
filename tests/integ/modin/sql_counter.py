@@ -119,8 +119,10 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
+        from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
+
         self._queries: list[QueryRecord] = []
-        self._no_check = no_check
+        self._no_check = no_check or SKIP_SQL_COUNT_CHECK
 
         # Save any expected sql counts initialized at start up.
         self._expected_sql_counts = {}
