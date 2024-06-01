@@ -5,11 +5,11 @@
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
-from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_index_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
 
@@ -43,4 +43,4 @@ def test_create_dataframe_from_object_with_name(sample):
 def test_create_dataframe_from_snowpark_pandas_series():
     df = pd.DataFrame([[2, 3, 4], [5, 6, 7]], columns=["X", "Y", "Z"])
     df = pd.DataFrame([df.X, df.iloc[:, 2]])
-    assert_index_equal(df.index, pd.Index(["X", "Z"]))
+    assert_index_equal(df.index, native_pd.Index(["X", "Z"]))

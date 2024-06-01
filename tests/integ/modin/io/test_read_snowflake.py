@@ -8,7 +8,6 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from pandas.testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.analyzer.analyzer_utils import quote_name
@@ -28,6 +27,7 @@ from tests.integ.modin.utils import (
     SEMI_STRUCTURED_TYPE_DATA,
     VALID_SNOWFLAKE_COLUMN_NAMES,
     assert_frame_equal,
+    assert_index_equal,
     assert_series_equal,
     create_table_with_type,
 )
