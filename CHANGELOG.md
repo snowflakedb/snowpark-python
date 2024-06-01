@@ -15,6 +15,7 @@
 #### Bug Fixes
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+- Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
 
 ### Snowpark pandas API Updates
 
