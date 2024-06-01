@@ -135,7 +135,7 @@ class StringType(_AtomicType):
         return super().__hash__()
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        ast.sp_string_type.length = self.length
+        ast.sp_string_type.length = self._MAX_LENGTH if self.length is None else self.length
 
 
 class _NumericType(_AtomicType):
@@ -170,7 +170,14 @@ class TimestampType(_AtomicType):
         return f"TimestampType({tzinfo})"
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        ast.sp_timestamp_type.timezone = self.tz
+        if self.tz.value == "default":
+            ast.sp_timestamp_type.timezone.sp_timestamp_default = True
+        elif self.tz.value == "ntz":
+            ast.sp_timestamp_type.timezone.sp_timestamp_ntz = True
+        elif self.tz.value == "ltz":
+            ast.sp_timestamp_type.timezone.sp_timestamp_ltz = True
+        elif self.tz.value == "tz":
+            ast.sp_timestamp_type.timezone.sp_timestamp_tz = True
 
 
 class TimeType(_AtomicType):
