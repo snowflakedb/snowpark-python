@@ -596,11 +596,16 @@ class Column:
         return self._unary_op_impl("sp_column_not", Not)
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
-        ast = Column._create_ast(
-            property="sp_column_cast",
-            copy_messages={"col": self._ast},
-            assign_fields={"try": try_},
-        )
+        if try_:
+            ast = Column._create_ast(
+                property="sp_column_try_cast",
+                copy_messages={"col": self._ast},
+            )
+        else:
+            ast = Column._create_ast(
+                property="sp_column_cast",
+                copy_messages={"col": self._ast},
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
         to.fill_ast(ast.sp_column_cast.to)
