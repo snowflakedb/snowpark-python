@@ -1,5 +1,13 @@
 # Release History
 
+## 1.19.1 (TBD)
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug that casting data to boolean type did not work.
+
 ## 1.19.0 (TBD)
 
 ### Snowpark Python API Updates
