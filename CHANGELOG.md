@@ -22,6 +22,7 @@
 #### New Features
 
 - Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+- Added support for `Series.str.get`.
 
 #### Bug Fixes
 
