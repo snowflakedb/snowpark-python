@@ -452,6 +452,26 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
+@pytest.mark.parametrize("col_a", ["a", col("a")])
+def test_cast_boolean_type(session, col_a):
+    df = session.create_dataframe(["yes", "n", "1", "0"], schema=["a"])
+    cast_res = df.select(cast(col_a, "boolean")).collect()
+    try_cast_res = df.select(try_cast(col_a, "boolean")).collect()
+    assert cast_res == try_cast_res == [Row(True), Row(False), Row(True), Row(False)]
+
+    df = session.create_dataframe([1, 0, None], schema=["a"])
+    cast_res = df.select(cast(col_a, "boolean")).collect()
+    with pytest.raises(SnowparkSQLException):
+        df.select(try_cast(col_a, "boolean")).collect()
+    assert cast_res == [Row(True), Row(False), Row(None)]
+
+    df = session.create_dataframe([datetime.date(2024, 5, 31)], schema=["a"])
+    with pytest.raises(SnowparkSQLException):
+        df.select(cast(col_a, "boolean")).collect()
+    with pytest.raises(SnowparkSQLException):
+        df.select(try_cast(col_a, "boolean")).collect()
+
+
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
