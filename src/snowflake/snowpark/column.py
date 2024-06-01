@@ -944,8 +944,7 @@ class Column:
         copy_messages: Dict[str, Any] = {},
         fill_col_asts: Dict[str, ColumnOrLiteral] = {},
         fill_expr_asts: Dict[str, ColumnOrLiteral] = {},
-        fail_on_missing_ir_entity: bool = False,            # set to True when testing against the AST definition
-    ) -> Optional[proto.SpColumnExpr]:
+    ) -> proto.SpColumnExpr:
         """General purpose static method to generate the AST representation for a new Snowpark Column instance
 
         Args:
@@ -954,59 +953,24 @@ class Column:
             copy_messages (Dict[str, Any], optional): Subtype message fields which must be copied into (do not support assignment). Defaults to {}.
             fill_col_asts (Dict[str, ColumnOrLiteral], optional): Subtype SpColumnExpr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
             fill_expr_asts (Dict[str, ColumnOrLiteral], optional): Subtype Expr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
-            fail_on_missing_ir_entity (bool, optional): A flag to control failing on the SpColumnExpr subtype or field not existing. Defaults to False to allow the Column API to function in phase 0 without full AST logging.
-
-        Raises:
-            NotImplementedError: If fail_on_missing_ir_entity flag is set to True, an error will be raised on the provided "property" subtype of SpColumnExpr not existing in the IR or if a field does not exist in the IR.
 
         Returns:
-            Optional[proto.SpColumnExpr]: Returns None if failing silently when requested IR entity (from proprety string) does not exist, and returns fully generated AST otherwise.
+            proto.SpColumnExpr: Returns fully populated SpColumnExpr AST from given arguments
         """
 
         ast = proto.SpColumnExpr()
         if property is not None:
-            ir_entity_name = "".join(x.capitalize() for x in property.split("_"))
-            try:
-                prop_ast = getattr(ast, property)
-            except AttributeError:
-                err_msg = f"entity {ir_entity_name} extends SpColumnExpr does not exist"
-                if fail_on_missing_ir_entity:
-                    raise NotImplementedError(err_msg)
-                else:
-                    print("WARNING:", err_msg)
-                    return None
-
-            for dict, fill_field_fn in (
-                (
-                    assign_fields, 
-                    lambda ast, attr, value: setattr(ast, attr, value)),
-                (
-                    copy_messages,
-                    lambda ast, attr, messg: getattr(ast, attr).CopyFrom(messg),
-                ),
-                (
-                    fill_col_asts,
-                    lambda ast, attr, other: Column._fill_col_ast(
-                        getattr(ast, attr), other
-                    ),
-                ),
-                (
-                    fill_expr_asts,
-                    lambda ast, attr, other: Column._fill_col_ast(
-                        getattr(ast, attr).trait_sp_column_expr, other
-                    ),
-                ),
-            ):
-                for attr, value in dict.items():
-                    try:
-                        fill_field_fn(prop_ast, attr, value)
-                    except AttributeError:
-                        err_msg = f"proto.{ir_entity_name}() is missing the '{attr}' field and cannot be populated with value '{str(value)}'"
-                        if fail_on_missing_ir_entity:
-                            raise NotImplementedError(err_msg)
-                        else:
-                            print(err_msg)
-                            continue
+            prop_ast = getattr(ast, property)
+            for attr, value in assign_fields.items():
+                setattr(prop_ast, attr, value)
+            for attr, messg in copy_messages.items():
+                getattr(prop_ast, attr).CopyFrom(messg)
+            for attr, other in fill_col_asts.items():
+                Column._fill_col_ast(getattr(prop_ast, attr), other)
+            for attr, other in fill_expr_asts.items():
+                Column._fill_col_ast(
+                    getattr(prop_ast, attr).trait_sp_column_expr, other
+                )
         return ast
 
     @classmethod
