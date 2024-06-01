@@ -1221,10 +1221,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 
     """
-    if isinstance(column.sf_type.datatype, BooleanType):
+    datatype = column.sf_type.datatype
+    if isinstance(datatype, BooleanType):
         return column.copy()
-    if isinstance(column.sf_type.datatype, StringType):
-
+    if isinstance(datatype, StringType):
         def convert_str_to_bool(x: Optional[str]):
             if x is None:
                 return None
@@ -1237,7 +1237,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col = column.apply(lambda x: try_convert(convert_str_to_bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
-    elif isinstance(column.sf_type.datatype, _NumericType) and not try_cast:
+    elif isinstance(datatype, _NumericType) and not try_cast:
         # https://docs.snowflake.com/en/sql-reference/functions/try_to_boolean only supports string expr, no numeric
         def convert_num_to_bool(x: Optional[Real]):
             if x is None:
@@ -1258,7 +1258,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         return new_col
     else:
         raise SnowparkLocalTestingException(
-            f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
+            f"Invalid type {datatype} for parameter 'TO_BOOLEAN'"
         )
 
 
