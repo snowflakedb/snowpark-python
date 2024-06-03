@@ -12199,6 +12199,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         import typing
 
+        if not is_scalar(key) and not isinstance(key, slice):
+            # Follow pandas behavior; all values will be None.
+            key = None
         if is_scalar(key):
             if key is not None and not isinstance(key, int):
                 ErrorMessage.not_implemented(

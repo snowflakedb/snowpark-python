@@ -186,6 +186,9 @@ def test_str_get_neg():
     "key",
     [
         None,
+        [1, 2],
+        (1, 2),
+        {1: "a", 2: "b"},
         -100,
         -2,
         -1,
@@ -224,6 +227,7 @@ def test_str___getitem___zero_step():
         snow_ser.str[slice(None, None, 0)]
 
 
+@sql_count_checker(query_count=0)
 def test_str___getitem___string_key():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
