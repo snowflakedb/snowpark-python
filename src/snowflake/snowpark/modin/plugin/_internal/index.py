@@ -84,7 +84,6 @@ class Index:
         tupleize_cols: bool = True,
         is_lazy: bool = True,
     ) -> None:
-        # TODO: SNOW-1359041: Switch to lazy index implementation
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
