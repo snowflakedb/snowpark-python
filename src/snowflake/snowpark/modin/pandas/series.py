@@ -165,6 +165,11 @@ class Series(BasePandasDataset):
         if name is not None:
             self.name = name
 
+    def _get_session(self):
+        return (
+            self._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._session
+        )
+
     def _get_name(self):
         """
         Get the value of the `name` property.
