@@ -12209,7 +12209,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self.str_get(typing.cast(int, key))
         else:
-            assert isinstance(key, slice)
+            assert isinstance(key, slice), "key is expected to be slice here"
             if key.step == 0:
                 raise ValueError("slice step cannot be zero")
             return self.str_slice(key.start, key.stop, key.step)
