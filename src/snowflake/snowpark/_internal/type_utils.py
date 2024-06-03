@@ -445,8 +445,8 @@ PYTHON_TO_AST_CONST_MAPPINGS = {
     bytes: "binary_val",
     decimal.Decimal: "big_decimal_val",
     datetime.date: "date_val",
-    datetime.time: "time_val",
-    datetime.datetime: "timestamp_val",
+    datetime.time: "python_time_val",
+    datetime.datetime: "python_timestamp_val",
 }
 def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance"""
@@ -460,8 +460,21 @@ def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
         getattr(ast, const_variant).unscaled_value = -dec_tuple.sign * reduce(lambda val, digit: val*10 + digit, dec_tuple.digits)
         getattr(ast, const_variant).scale = dec_tuple.exponent
     
-    elif isinstance(obj, (datetime.date, datetime.time, datetime.datetime)):
-        getattr(ast, const_variant).v = obj.isoformat()
+    elif isinstance(obj, datetime.date):
+        datetime_val = datetime.datetime(obj.year, obj.month, obj.day)
+        getattr(ast, const_variant).v = int(datetime_val.timestamp())
+
+    elif isinstance(obj, datetime.time):
+        if obj.tzinfo is not None:
+            getattr(ast, const_variant).tz = obj.tzname()
+        datetime_val = datetime.datetime.combine(datetime.date.min, obj)
+        datetime_val = datetime_val.astimezone(datetime.timezone.utc).replace(1970, 1, 1)
+        getattr(ast, const_variant).v = datetime_val.timestamp()
+
+    elif isinstance(obj, datetime.datetime):
+        if obj.tzinfo is not None:
+            getattr(ast, const_variant).tz = obj.tzname()
+        getattr(ast, const_variant).v = obj.astimezone(datetime.timezone.utc).timestamp()
 
     elif const_variant is not None:
         getattr(ast, const_variant).v = obj

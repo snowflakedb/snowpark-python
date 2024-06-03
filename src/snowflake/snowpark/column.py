@@ -797,7 +797,7 @@ class Column:
         ast = Column._create_ast(
             property="string_collate",
             copy_messages={"str": self._ast},
-            assign_fields={"collate_spec": collation_spec},
+            assign_fields={"collation_spec": collation_spec},
         )
         return Column(Collate(self._expression, collation_spec), ast=ast)
 
