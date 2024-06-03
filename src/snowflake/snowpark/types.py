@@ -171,13 +171,13 @@ class TimestampType(_AtomicType):
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
         if self.tz.value == "default":
-            ast.sp_timestamp_type.timezone.sp_timestamp_default = True
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_default = True
         elif self.tz.value == "ntz":
-            ast.sp_timestamp_type.timezone.sp_timestamp_ntz = True
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ntz = True
         elif self.tz.value == "ltz":
-            ast.sp_timestamp_type.timezone.sp_timestamp_ltz = True
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ltz = True
         elif self.tz.value == "tz":
-            ast.sp_timestamp_type.timezone.sp_timestamp_tz = True
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_tz = True
 
 
 class TimeType(_AtomicType):
