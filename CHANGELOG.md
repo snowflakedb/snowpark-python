@@ -23,7 +23,6 @@
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
 - Fixed a bug that table merge fails when update clause exists but no update takes place.
 
-
 ### Snowpark pandas API Updates
 
 #### New Features
