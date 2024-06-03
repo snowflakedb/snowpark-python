@@ -10,12 +10,44 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
     ["date", "hour", "minute", "second", "year", "month", "day", "quarter"],
 )
+
+
+@pytest.fixture
+def day_of_week_or_year_data() -> native_pd.Series:
+    return native_pd.Series(
+        [
+            pd.Timestamp(
+                year=2017,
+                month=1,
+                day=1,
+                hour=10,
+                minute=59,
+                second=59,
+                microsecond=5959,
+            ),
+            pd.Timestamp(year=2000, month=2, day=1),
+            pd.NaT,
+            pd.Timestamp(year=2024, month=7, day=29),
+        ],
+    )
+
+
+@pytest.fixture
+def set_week_start(request):
+    original_start = pd.session.sql("SHOW PARAMETERS LIKE 'WEEK_START'").collect()[0][1]
+    pd.session.connection.cursor().execute(
+        f"ALTER SESSION SET WEEK_START = {request.param};"
+    )
+    yield
+    pd.session.connection.cursor().execute(
+        f"ALTER SESSION SET WEEK_START = {original_start};"
+    )
 
 
 @pytest.mark.parametrize(
@@ -36,6 +68,31 @@ def test_date(datetime_index_value):
     native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("property", ["dayofyear", "day_of_year"])
+def test_day_of_year(property, day_of_week_or_year_data):
+    eval_snowpark_pandas_result(
+        *create_test_series(day_of_week_or_year_data),
+        lambda df: getattr(df.dt, property),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("property", ["dayofweek", "day_of_week"])
+@pytest.mark.parametrize(
+    "set_week_start",
+    # Test different WEEK_START values because WEEK_START changes the DAYOFWEEK
+    # in Snowflake.
+    list(range(8)),
+    indirect=True,
+)
+def test_day_of_week(property, day_of_week_or_year_data, set_week_start):
+    eval_snowpark_pandas_result(
+        *create_test_series(day_of_week_or_year_data),
+        lambda df: getattr(df.dt, property),
+    )
 
 
 @dt_properties
