@@ -16,6 +16,7 @@
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug that table merge fails when update clause exists but no update takes place.
 
 ### Snowpark pandas API Updates
 
