@@ -1493,8 +1493,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @property
     def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
-        Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
-        filled
+        Get index. If multi-index, the method eagerly pulls the values from Snowflake because index requires the values to be
+        filled and returns a pandas multi index. If not multi-index, create a modin index and pass it self
 
         Returns:
             The index (row labels) of the DataFrame.
@@ -1503,6 +1503,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._modin_frame.index_columns_index
         else:
             return pd.Index(self)
+
+    def pandas_index(self) -> native_pd.Index:
+        """
+        Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
+        filled
+
+        Returns:
+            The index (row labels) of the DataFrame.
+        """
+        return self._modin_frame.index_columns_index
 
     def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
         """

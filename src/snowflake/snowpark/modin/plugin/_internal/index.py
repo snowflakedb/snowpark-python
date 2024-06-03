@@ -82,26 +82,45 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
+        is_lazy: bool = True,
     ) -> None:
+        # TODO: SNOW-1359041: Switch to lazy index implementation
+        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
-        # TODO: SNOW-1359041: Switch to lazy index implementation
-        if isinstance(data, native_pd.Index):
-            self._index = data
-        elif isinstance(data, Index):
-            self._index = data.to_pandas()
+        self.is_lazy = is_lazy
+        qc = None
+        if isinstance(data, (DataFrame, Series, Index)):
+            qc = data._query_compiler
         elif isinstance(data, SnowflakeQueryCompiler):
-            self._index = data._modin_frame.index_columns_index
+            qc = data
+        elif isinstance(data, native_pd.Index):
+            qc = DataFrame(data.to_frame())._query_compiler
         else:
-            self._index = native_pd.Index(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
+            if self.is_lazy:
+                qc = DataFrame(
+                    native_pd.Index(
+                        data=data,
+                        dtype=dtype,
+                        copy=copy,
+                        name=name,
+                        tupleize_cols=tupleize_cols,
+                    ).to_frame()
+                )._query_compiler
+            else:
+                self._index = native_pd.Index(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                )
+                return
+        self._query_compiler = qc
+        self._index = None  # type: ignore
 
     def to_pandas(self) -> native_pd.Index:
         """
@@ -112,7 +131,9 @@ class Index:
         pandas Index
             A native pandas Index representation of self
         """
-        return self._index
+        if self.is_lazy:
+            return self._query_compiler.pandas_index()
+        return self._index  # type: ignore
 
     @property
     def values(self) -> ArrayLike:
