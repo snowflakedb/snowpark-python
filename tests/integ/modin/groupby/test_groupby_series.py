@@ -38,7 +38,7 @@ def test_groupby_sort_false_multiindex_series(series_multi_numeric):
     # TODO (SNOW-890686): merge test_groupby_sort_false_multiindex_series and test_groupby_sort_multiindex_series
     #       once Snowpark pandas is updated to align with pandas 2.0.x
     result = series_multi_numeric.groupby("b", sort=False).max()
-    expected = native_pd.Series([1, 5], index=pd.Index([2, 1], name="b"))
+    expected = native_pd.Series([1, 5], index=native_pd.Index([2, 1], name="b"))
     assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
     eval_snowpark_pandas_result(

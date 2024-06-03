@@ -332,8 +332,8 @@ def test_df_setitem_self_df_set_aligned_row_key(native_df):
         native_pd.Series([]),
         ["a", "c", "b"],  # replace with different type
         native_pd.Series(["x", "y", "z"], index=[2, 0, 1]),
-        pd.RangeIndex(3),
-        pd.Index(
+        native_pd.RangeIndex(3),
+        native_pd.Index(
             [datetime.datetime.now(), datetime.datetime.now(), datetime.datetime.now()]
         ),
     ],
@@ -446,8 +446,8 @@ def test_df_setitem_with_unique_and_duplicate_index_values(
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index)
-    native_df2 = native_pd.DataFrame(data2, index=other_index)
+    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
+    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
 
     def setitem_op(df):
         df["foo2"] = (

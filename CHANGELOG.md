@@ -6,13 +6,30 @@
 
 #### Improvements
 
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
+#### Bug Fixes
+
+- Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+- Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug that table merge fails when update clause exists but no update takes place.
+
+
 ### Snowpark pandas API Updates
 
 #### New Features
+
+- Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+- Added support for `Series.str.get`.
 
 #### Bug Fixes
 
@@ -22,7 +39,7 @@
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
->>>>>>> 6b6663466d1af86cae17f1cf940c148d81d54e10
+- Initial work to support an Index directly in Snowpark pandas. Currently, this class is a simple wrapper for a pandas index. Support for Index as a first-class component of Snowpark pandas is coming soon.
 
 ## 1.18.0 (2024-05-28)
 

@@ -66,7 +66,6 @@ from pandas.core.dtypes.common import (
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_integer
-from pandas.core.indexes.api import ensure_index
 from pandas.errors import SpecificationError
 from pandas.util._validators import (
     validate_ascending,
@@ -77,6 +76,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
     _doc_binary_op,
+    ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
@@ -2356,21 +2356,58 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             result.name = None
         return result
 
-    @base_not_implemented()
     def pct_change(
-        self, periods=1, fill_method="pad", limit=None, freq=None, **kwargs
+        self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
     ):  # noqa: PR01, RT01, D200
         """
         Percentage change between the current and a prior element.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "pct_change",
-            periods=periods,
-            fill_method=fill_method,
-            limit=limit,
-            freq=freq,
-            **kwargs,
+        if fill_method not in (lib.no_default, None) or limit is not lib.no_default:
+            warnings.warn(
+                "The 'fill_method' keyword being not None and the 'limit' keyword in "
+                + f"{type(self).__name__}.pct_change are deprecated and will be removed "
+                + "in a future version. Either fill in any non-leading NA values prior "
+                + "to calling pct_change or specify 'fill_method=None' to not fill NA "
+                + "values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+        if fill_method is lib.no_default:
+            warnings.warn(
+                f"The default fill_method='pad' in {type(self).__name__}.pct_change is "
+                + "deprecated and will be removed in a future version. Either fill in any "
+                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
+                + "to not fill NA values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+            fill_method = "pad"
+
+        if limit is lib.no_default:
+            limit = None
+
+        if "axis" in kwargs:
+            kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+
+        # Attempting to match pandas error behavior here
+        if not isinstance(periods, int):
+            raise TypeError(f"periods must be an int. got {type(periods)} instead")
+
+        # Attempting to match pandas error behavior here
+        for dtype in self._get_dtypes():
+            if not is_numeric_dtype(dtype):
+                raise TypeError(
+                    f"cannot perform pct_change on non-numeric column with dtype {dtype}"
+                )
+
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pct_change(
+                periods=periods,
+                fill_method=fill_method,
+                limit=limit,
+                freq=freq,
+                **kwargs,
+            )
         )
 
     @base_not_implemented()

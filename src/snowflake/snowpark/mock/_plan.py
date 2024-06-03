@@ -605,11 +605,17 @@ def handle_udf_expression(
             # And these code would look like:
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
+
+            data = []
+            for _, row in function_input.iterrows():
+                if udf.strict and any([v is None for v in row]):
+                    result = None
+                else:
+                    result = remove_null_wrapper(udf_handler(*row))
+                data.append(result)
+
             res = ColumnEmulator(
-                data=[
-                    remove_null_wrapper(udf_handler(*row))
-                    for _, row in function_input.iterrows()
-                ],
+                data=data,
                 sf_type=ColumnType(exp.datatype, exp.nullable),
                 name=quote_name(
                     f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
@@ -1352,11 +1358,15 @@ def execute_mock_plan(
         # (2) A target row is selected to be both updated and deleted
 
         inserted_rows = []
+        insert_clause_specified = (
+            update_clause_specified
+        ) = delete_clause_specified = False
         inserted_row_idx = set()  # source_row_id
         deleted_row_idx = set()
         updated_row_idx = set()
         for clause in source_plan.clauses:
             if isinstance(clause, UpdateMergeExpression):
+                update_clause_specified = True
                 # Select rows to update
                 if clause.condition:
                     condition = calculate_expression(
@@ -1387,6 +1397,7 @@ def execute_mock_plan(
                     updated_row_idx.add(row[ROW_ID])
 
             elif isinstance(clause, DeleteMergeExpression):
+                delete_clause_specified = True
                 # Select rows to delete
                 if clause.condition:
                     condition = calculate_expression(
@@ -1409,6 +1420,7 @@ def execute_mock_plan(
                 target = target[~matched]
 
             elif isinstance(clause, InsertMergeExpression):
+                insert_clause_specified = True
                 # calculate unmatched rows in the source
                 matched = source.apply(tuple, 1).isin(
                     join_result[source.columns].apply(tuple, 1)
@@ -1493,11 +1505,11 @@ def execute_mock_plan(
 
         # Generate metadata result
         res = []
-        if inserted_rows:
+        if insert_clause_specified:
             res.append(len(inserted_row_idx))
-        if updated_row_idx:
+        if update_clause_specified:
             res.append(len(updated_row_idx))
-        if deleted_row_idx:
+        if delete_clause_specified:
             res.append(len(deleted_row_idx))
 
         return [Row(*res)]
