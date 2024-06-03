@@ -604,6 +604,10 @@ def test_geometry_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="vectors are not yet supported in local testing mode.",
+)
 def test_vector_type(session):
     int_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, int_table_name, "v vector(int,3)", is_temporary=True)
