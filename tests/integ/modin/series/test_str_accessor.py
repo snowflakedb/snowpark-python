@@ -159,6 +159,29 @@ def test_str_count(pat, flags):
     )
 
 
+@pytest.mark.parametrize("i", [None, -100, -2, -1, 0, 1, 2, 100])
+@sql_count_checker(query_count=1)
+def test_str_get(i):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.get(i=i),
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str_get_neg():
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
+    ):
+        snow_ser.str.get(i="a")
+
+
 @pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
 @pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
 @pytest.mark.parametrize("step", [None, -100, -2, -1, 1, 2, 100])
