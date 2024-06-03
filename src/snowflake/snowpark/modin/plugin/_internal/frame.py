@@ -388,7 +388,9 @@ class InternalFrame:
                 # setting tupleize_cols=False to avoid creating a MultiIndex
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
+                # setting is_lazy as false because we want to store the columns locally
                 tupleize_cols=False,
+                is_lazy=False,
             )
 
     @property
