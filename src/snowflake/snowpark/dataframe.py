@@ -1065,15 +1065,15 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        col_expr_ast = proto.SpColumnExpr()
+        col_expr_ast = proto.Expr()
+        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+            self._ast_id
+        )
         if col_name == "*":
-            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
-            return Column(Star(self._output))
+            col_expr_ast.sp_dataframe_col.col_name = "*"
+            return Column(Star(self._output), ast=col_expr_ast)
         else:
             resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
             col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
             return Column(resolved_name, ast=col_expr_ast)
 
