@@ -14,6 +14,7 @@ import re
 import sys
 import typing  # noqa: F401
 from array import array
+from functools import reduce
 from typing import (  # noqa: F401
     TYPE_CHECKING,
     Any,
@@ -68,6 +69,7 @@ from snowflake.snowpark.types import (
     VectorType,
     _NumericType,
 )
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -433,6 +435,53 @@ def infer_type(obj: Any) -> DataType:
     else:
         raise TypeError("not supported type: %s" % type(obj))
 
+PYTHON_TO_AST_CONST_MAPPINGS = {
+    NoneType: "null_val",
+    bool: "bool_val",
+    int: "int64_val",
+    float: "float64_val",
+    str: "string_val",
+    bytearray: "binary_val",
+    bytes: "binary_val",
+    decimal.Decimal: "big_decimal_val",
+    datetime.date: "date_val",
+    datetime.time: "time_val",
+    datetime.datetime: "timestamp_val",
+}
+def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
+    """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance"""
+    if obj is None:
+        ast.null_val.v = True
+        return
+        
+    const_variant = PYTHON_TO_AST_CONST_MAPPINGS.get(type(obj))
+    if isinstance(obj, decimal.Decimal):
+        dec_tuple = obj.as_tuple()
+        getattr(ast, const_variant).unscaled_value = -dec_tuple.sign * reduce(lambda val, digit: val*10 + digit, dec_tuple.digits)
+        getattr(ast, const_variant).scale = dec_tuple.exponent
+    
+    elif isinstance(obj, (datetime.date, datetime.time, datetime.datetime)):
+        getattr(ast, const_variant).v = obj.isoformat()
+
+    elif const_variant is not None:
+        getattr(ast, const_variant).v = obj
+    
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            kv_tuple_ast = ast.seq_map_val.kvs.add()
+            infer_const_ast(key, kv_tuple_ast.vs.add())
+            infer_const_ast(value, kv_tuple_ast.vs.add())
+    
+    elif isinstance(obj, list):
+        for v in obj:
+            infer_const_ast(v, ast.list_val.vs.add())
+    
+    elif isinstance(obj, tuple):
+        for v in obj:
+            infer_const_ast(v, ast.tuple_val.vs.add())
+    
+    else:
+        raise TypeError("not supported type: %s" % type(obj))
 
 def infer_schema(
     row: Union[Dict, List, Tuple], names: Optional[List] = None
