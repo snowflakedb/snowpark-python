@@ -1399,6 +1399,10 @@ def test_array_sort(session):
     Utils.check_answer(res, [Row(SORTED_A="[\n  null,\n  20,\n  10,\n  0\n]")])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="vectors are not yet supported in local testing mode.",
+)
 def test_vector_distances(session):
     df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
 

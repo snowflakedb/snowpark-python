@@ -1744,9 +1744,11 @@ def test_createDataFrame_with_given_schema(session, local_testing_mode):
             StructField("binary", BinaryType()),
             StructField(
                 "timestamp",
-                TimestampType(TimestampTimeZone.NTZ)
-                if not local_testing_mode
-                else TimestampType(),
+                (
+                    TimestampType(TimestampTimeZone.NTZ)
+                    if not local_testing_mode
+                    else TimestampType()
+                ),
             ),  # depends on TIMESTAMP_TYPE_MAPPING
             StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
             StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
@@ -1839,6 +1841,10 @@ def test_createDataFrame_with_given_schema_vector(session):
     Utils.check_answer(df, data_float)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="vectors are not yet supported in local testing mode.",
+)
 def test_vector(session):
     schema_int = StructType([StructField("vec", VectorType(int, 3))])
     data_int = [Row([1, 2, 3]), Row([4, 5, 6]), Row(None)]
