@@ -40,7 +40,9 @@ def day_of_week_or_year_data() -> native_pd.Series:
 
 @pytest.fixture
 def set_week_start(request):
-    original_start = pd.session.sql("SHOW PARAMETERS LIKE 'WEEK_START'").collect()[0][1]
+    original_start = (
+        pd.session.sql("SHOW PARAMETERS LIKE 'WEEK_START'").collect()[0].value
+    )
     pd.session.connection.cursor().execute(
         f"ALTER SESSION SET WEEK_START = {request.param};"
     )

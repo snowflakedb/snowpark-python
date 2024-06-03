@@ -1121,6 +1121,31 @@ class CombinedDatetimelikeProperties:
 
     @property
     def dayofweek():
+        """
+        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D')
+        >>> s
+        0   2016-12-31
+        1   2017-01-01
+        2   2017-01-02
+        3   2017-01-03
+        4   2017-01-04
+        5   2017-01-05
+        6   2017-01-06
+        7   2017-01-07
+        8   2017-01-08
+        dtype: datetime64[ns]
+        >>> s.dt.dayofweek
+        0    5
+        1    6
+        2    0
+        3    1
+        4    2
+        5    3
+        6    4
+        7    5
+        8    6
+        dtype: int64
+        """
         pass
 
     @property
@@ -1129,6 +1154,17 @@ class CombinedDatetimelikeProperties:
 
     @property
     def dayofyear():
+        """
+        >>> s = pd.to_datetime(["1/1/2020", "2/1/2020"])
+        >>> s
+        0   2020-01-01
+        1   2020-02-01
+        dtype: datetime64[ns]
+        >>> s.dt.dayofyear
+        0     1
+        1    32
+        dtype: int16
+        """
         pass
 
     @property
