@@ -7,7 +7,7 @@ from snowflake.snowpark import Session
 CONNECTION_PARAMETERS = {
     "host": "snowflake.dev.local",
     "protocol": "http",
-    "port": 53100,
+    "port": 53200,
     "account": "snowflake",
     "user": "admin",
     "password": "test",
