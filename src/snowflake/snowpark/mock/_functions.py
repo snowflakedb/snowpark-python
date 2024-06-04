@@ -23,6 +23,7 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
+    get_coerce_result_type,
 )
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -336,6 +337,10 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
+
+    if isinstance(column.sf_type.datatype, DateType):
+        return column.copy()
+
     import dateutil.parser
 
     if not isinstance(fmt, ColumnEmulator):
@@ -575,6 +580,9 @@ def mock_to_time(
             _time_format,
         )
         return target_datetime.time()
+
+    if isinstance(column.sf_type.datatype, TimeType):
+        return column.copy()
 
     res = []
 
@@ -904,6 +912,9 @@ def mock_to_char(
     [x] binary_expr: An expression of type BINARY or VARBINARY.
 
     """
+    if isinstance(column.sf_type.datatype, StringType):
+        return column.copy()
+
     source_datatype = column.sf_type.datatype
 
     if not isinstance(fmt, ColumnEmulator):
@@ -1056,6 +1067,8 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
+    if isinstance(column.sf_type.datatype, (FloatType, DoubleType)):
+        return column.copy()
     if fmt is not None:
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Using format strings in TO_DOUBLE",
@@ -1063,7 +1076,9 @@ def mock_to_double(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
+    if isinstance(
+        column.sf_type.datatype, (_NumericType, StringType, VariantType, NullType)
+    ):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
@@ -1098,7 +1113,9 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 
     """
-    if isinstance(column.sf_type, StringType):
+    if isinstance(column.sf_type.datatype, BooleanType):
+        return column.copy()
+    if isinstance(column.sf_type.datatype, StringType):
 
         def convert_str_to_bool(x: Optional[str]):
             if x is None:
@@ -1112,7 +1129,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col = column.apply(lambda x: try_convert(convert_str_to_bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
-    elif isinstance(column.sf_type, _NumericType):
+    elif isinstance(column.sf_type.datatype, _NumericType):
 
         def convert_num_to_bool(x: Optional[Real]):
             if x is None:
@@ -1125,6 +1142,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
                 return x != 0
 
         new_col = column.apply(lambda x: try_convert(convert_num_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
     else:
@@ -1141,6 +1162,9 @@ def mock_to_binary(
     [x] TO_BINARY( <string_expr> [, '<format>'] )
     [x] TO_BINARY( <variant_expr> )
     """
+    if isinstance(column.sf_type.datatype, BinaryType):
+        return column.copy()
+
     fmt = fmt.upper() if fmt else "HEX"
     fmt_decoder = {
         "HEX": binascii.unhexlify,
@@ -1158,44 +1182,6 @@ def mock_to_binary(
     else:
         raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BINARY'"
-        )
-
-
-@patch("iff")
-def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
-    assert isinstance(condition.sf_type.datatype, BooleanType)
-    if (
-        all(condition)
-        or all(~condition)
-        or (
-            isinstance(expr1.sf_type.datatype, StringType)
-            and isinstance(expr2.sf_type.datatype, StringType)
-        )
-        or expr1.sf_type.datatype == expr2.sf_type.datatype
-        or isinstance(expr1.sf_type.datatype, NullType)
-        or isinstance(expr2.sf_type.datatype, NullType)
-    ):
-        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-        if isinstance(expr1.sf_type.datatype, StringType) and isinstance(
-            expr2.sf_type.datatype, StringType
-        ):
-            l1 = expr1.sf_type.datatype.length or StringType._MAX_LENGTH
-            l2 = expr2.sf_type.datatype.length or StringType._MAX_LENGTH
-            sf_data_type = StringType(max(l1, l2))
-        else:
-            sf_data_type = (
-                expr1.sf_type.datatype
-                if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
-                else expr2.sf_type.datatype
-            )
-        nullability = expr1.sf_type.nullable and expr2.sf_type.nullable
-        res.sf_type = ColumnType(sf_data_type, nullability)
-        res.where(condition, other=expr2, inplace=True)
-        res.where([not x for x in condition], other=expr1, inplace=True)
-        return res
-    else:
-        raise SnowparkLocalTestingException(
-            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
         )
 
 
@@ -1278,8 +1264,8 @@ def mock_to_array(expr: ColumnEmulator):
     [x] For any other value, the result is a single-element array containing this value.
     """
     if isinstance(expr.sf_type.datatype, ArrayType):
-        res = expr.copy()
-    elif isinstance(expr.sf_type.datatype, VariantType):
+        return expr.copy()
+    if isinstance(expr.sf_type.datatype, VariantType):
         from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
         def convert_variant_to_array(val):
@@ -1293,7 +1279,7 @@ def mock_to_array(expr: ColumnEmulator):
         res = expr.apply(lambda x: try_convert(convert_variant_to_array, False, x))
     else:
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
-    res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
+    res.sf_type = ColumnType(ArrayType(expr.sf_type.datatype), expr.sf_type.nullable)
     return res
 
 
@@ -1336,7 +1322,9 @@ def mock_to_object(expr: ColumnEmulator):
             f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
         )
 
-    res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
+    res.sf_type = ColumnType(
+        MapType(VariantType(), VariantType()), expr.sf_type.nullable
+    )
     return res
 
 
@@ -1826,3 +1814,63 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
+
+
+def cast_column_to(
+    col: ColumnEmulator, target_column_type: ColumnType, try_cast: bool = False
+) -> Optional[ColumnEmulator]:
+    # col.sf_type.nullable = target_column_type.nullable
+    target_data_type = target_column_type.datatype
+    if isinstance(target_data_type, DateType):
+        return mock_to_date(col, try_cast=try_cast)
+    if isinstance(target_data_type, TimeType):
+        return mock_to_time(col, try_cast=try_cast)
+    if isinstance(target_data_type, TimestampType):
+        return mock_to_timestamp(col, try_cast=try_cast)
+    if isinstance(target_data_type, DecimalType):
+        return mock_to_decimal(
+            col,
+            precision=target_data_type.precision,
+            scale=target_data_type.scale,
+            try_cast=try_cast,
+        )
+    if isinstance(
+        target_data_type, _IntegralType
+    ):  # includes ByteType, ShortType, IntegerType, LongType
+        res = mock_to_decimal(col, try_cast=try_cast)
+        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        return res
+    if isinstance(target_data_type, BinaryType):
+        return mock_to_binary(col, try_cast=try_cast)
+    if isinstance(target_data_type, BooleanType):
+        return mock_to_boolean(col, try_cast=try_cast)
+    if isinstance(target_data_type, StringType):
+        return mock_to_char(col, try_cast=try_cast)
+    if isinstance(target_data_type, _FractionalType):
+        return mock_to_double(col, try_cast=try_cast)
+    if isinstance(target_data_type, MapType):
+        return mock_to_object(col)
+    if isinstance(target_data_type, ArrayType):
+        return mock_to_array(col)
+    if isinstance(target_data_type, VariantType):
+        return mock_to_variant(col)
+    return None
+
+
+@patch("iff")
+def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
+    assert isinstance(condition.sf_type.datatype, BooleanType)
+
+    coerce_result = get_coerce_result_type(expr1.sf_type, expr2.sf_type)
+    if all(condition) or all(~condition) or coerce_result is not None:
+        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
+        expr1 = cast_column_to(expr1, coerce_result)
+        expr2 = cast_column_to(expr2, coerce_result)
+        res.where(condition, other=expr2, inplace=True)
+        res.where([not x for x in condition], other=expr1, inplace=True)
+        res.sf_type = coerce_result
+        return res
+    else:
+        raise SnowparkLocalTestingException(
+            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
+        )
