@@ -759,35 +759,36 @@ class UDFRegistration:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
+        with open_telemetry_udf_context_manager(self.register_from_file, locals()):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
+            )
 
-        # register udf
-        return self._do_register_udf(
-            (file_path, func_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register udf
+            return self._do_register_udf(
+                (file_path, func_name),
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+            )
 
     def _do_register_udf(
         self,
