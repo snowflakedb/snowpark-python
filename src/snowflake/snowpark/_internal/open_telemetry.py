@@ -72,8 +72,24 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        udf_func = parameters.get("func")
-        handler_name = udf_func.__name__ if udf_func else parameters.get("func_name")
+        # first try to get func if it is udf, then try to get handler if it is udtf/udaf, if still None, means it is
+        # loading from file
+        udf_func = (
+            parameters.get("func")
+            if parameters.get("func")
+            else parameters.get("handler")
+        )
+        # if udf_func is not None, meaning it is a function or handler, get handler_name from it, otherwise find
+        # function name or handler name from parameter
+        handler_name = (
+            udf_func.__name__
+            if udf_func
+            else (
+                parameters.get("func_name")
+                if parameters.get("func_name")
+                else parameters.get("handler_name")
+            )
+        )
         tracer = trace.get_tracer(f"snow.snowpark.stored_procedure:{class_name}")
 
         with tracer.start_as_current_span(name) as cur_span:
@@ -85,10 +101,12 @@ def open_telemetry_udf_context_manager(func, parameters):
                     )
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", lineno)
-                    cur_span.set_attribute("function.name", parameters.get("name"))
-                    cur_span.set_attribute("function.handler_name", handler_name)
                     cur_span.set_attribute(
-                        "function.filepath", parameters.get("file_path")
+                        "snow.executable.name", parameters.get("name")
+                    )
+                    cur_span.set_attribute("snow.executable.handler", handler_name)
+                    cur_span.set_attribute(
+                        "snow.executable.filepath", parameters.get("file_path")
                     )
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
