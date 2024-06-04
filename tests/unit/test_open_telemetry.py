@@ -92,8 +92,8 @@ def test_register_udf_from_file():
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["function.name"] == "mod5_function"
-    assert span.attributes["function.handler_name"] == "mod5"
+    assert span.attributes["snow.executable.name"] == "mod5_function"
+    assert span.attributes["snow.executable.handler"] == "mod5"
 
 
 def test_inline_register_udf():
@@ -123,8 +123,8 @@ def test_inline_register_udf():
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["function.name"] == "add"
-    assert span.attributes["function.handler_name"] == "add_udf"
+    assert span.attributes["snow.executable.name"] == "add"
+    assert span.attributes["snow.executable.handler"] == "add_udf"
 
     # test register with decorator @udf
     @udf(name="minus")
@@ -140,8 +140,8 @@ def test_inline_register_udf():
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["function.name"] == "minus"
-    assert span.attributes["function.handler_name"] == "minus_udf"
+    assert span.attributes["snow.executable.name"] == "minus"
+    assert span.attributes["snow.executable.handler"] == "minus_udf"
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
