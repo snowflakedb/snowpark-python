@@ -1047,7 +1047,6 @@ def create_ordered_dataframe_from_pandas(
     # marker for the missing values for the original dataframe, pandas treated
     # np.nan, pd.NA, pd.NaT and None all as missing value.
     isna_data = df.isna().to_numpy().tolist()
-
     struct_fields = []
     for i, (label, _) in enumerate(df.dtypes.items()):
         quoted_identifier = snowflake_quoted_identifiers[i]
