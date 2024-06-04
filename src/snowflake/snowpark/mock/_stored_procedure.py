@@ -48,8 +48,10 @@ class MockStoredProcedure(StoredProcedure):
         imports: Set[str],
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
+        strict=False,
     ) -> None:
         self.imports = imports
+        self.strict = strict
         super().__init__(
             func,
             return_type,
@@ -66,6 +68,8 @@ class MockStoredProcedure(StoredProcedure):
         statement_params: Optional[Dict[str, str]] = None,
     ) -> Any:
         args, session = self._validate_call(args, session)
+        if self.strict and any([arg is None for arg in args]):
+            return None
 
         # Unpack columns if passed
         parsed_args = []
@@ -344,6 +348,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name,
             sproc_imports,
             execute_as=execute_as,
+            strict=strict,
         )
 
         self._registry[sproc_name] = sproc
