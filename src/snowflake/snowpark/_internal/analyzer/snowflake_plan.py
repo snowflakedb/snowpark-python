@@ -6,7 +6,7 @@ import copy
 import re
 import sys
 import uuid
-from collections import Counter, defaultdict
+from collections import defaultdict
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -20,6 +20,19 @@ from typing import (
     Tuple,
     Union,
 )
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -232,7 +245,7 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
+        self._cumulative_complexity_stat: Optional[Counter[str]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -352,13 +365,13 @@ class SnowflakePlan(LogicalPlan):
         return len(find_duplicate_subtrees(self))
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         if self.source_plan:
             return self.source_plan.individual_complexity_stat
         return Counter()
 
     @property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         if self._cumulative_complexity_stat is None:
             estimate = self.individual_complexity_stat
             for node in self.children_plan_nodes:
@@ -367,7 +380,7 @@ class SnowflakePlan(LogicalPlan):
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Dict[str, int]):
+    def cumulative_complexity_stat(self, value: Counter[str]):
         self._cumulative_complexity_stat = value
 
     def __copy__(self) -> "SnowflakePlan":

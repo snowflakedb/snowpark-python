@@ -2,8 +2,21 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
-from typing import Dict, List, Optional
+import sys
+from typing import List, Optional
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -72,7 +85,7 @@ class BinaryNode(LogicalPlan):
 
 class SetOperation(BinaryNode):
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # (left) operator (right)
         return Counter({ComplexityStat.SET_OPERATION.value: 1})
 
@@ -194,7 +207,7 @@ class Join(BinaryNode):
         return self.join_type.sql
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
         estimate = Counter({ComplexityStat.JOIN.value: 1})
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:

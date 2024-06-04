@@ -4,7 +4,6 @@
 #
 
 import sys
-from collections import Counter
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -13,26 +12,36 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute, Expressi
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
+# Python 3.8: needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+#             needs to create new Counter class from collections.Counter so it can pass type check
+# Python 3.9: can use both and type check support is added in collections.Counter from 3.9+
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
 if sys.version_info <= (3, 9):
+    import collections
+    import typing
     from typing import Iterable
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
 else:
+    from collections import Counter
     from collections.abc import Iterable
 
 
 class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
-        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
+        self._cumulative_complexity_stat: Optional[Counter[str]] = None
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter()
 
     @property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         if self._cumulative_complexity_stat is None:
             estimate = self.individual_complexity_stat
             for node in self.children:
@@ -42,7 +51,7 @@ class LogicalPlan:
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Dict[str, int]):
+    def cumulative_complexity_stat(self, value: Counter[str]):
         self._cumulative_complexity_stat = value
 
 
@@ -61,7 +70,7 @@ class Range(LeafNode):
         self.num_slices = num_slices
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
         return Counter(
             {
@@ -80,7 +89,7 @@ class UnresolvedRelation(LeafNode):
         self.name = name
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM name
         return Counter({ComplexityStat.COLUMN.value: 1})
 
@@ -98,7 +107,7 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
         # TODO: use ARRAY_BIND_THRESHOLD
         return Counter(
@@ -139,13 +148,21 @@ class SnowflakeCreateTable(LogicalPlan):
         self.comment = comment
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (child)
         estimate = Counter(
             {ComplexityStat.LOW_IMPACT.value: 1, ComplexityStat.COLUMN.value: 1}
         )
         estimate += (
-            sum(expr.cumulative_complexity_stat for expr in self.clustering_exprs)
+            Counter({ComplexityStat.COLUMN.value: len(self.column_names)})
+            if self.column_names
+            else Counter()
+        )
+        estimate += (
+            sum(
+                (expr.cumulative_complexity_stat for expr in self.clustering_exprs),
+                Counter(),
+            )
             if self.clustering_exprs
             else Counter()
         )
@@ -163,7 +180,7 @@ class Limit(LogicalPlan):
         self.children.append(child)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # for limit and offset
         return (
             Counter({ComplexityStat.LOW_IMPACT.value: 2})

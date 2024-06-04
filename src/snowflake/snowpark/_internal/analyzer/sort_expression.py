@@ -2,14 +2,27 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
+import sys
 from functools import cached_property
-from typing import AbstractSet, Dict, Optional, Type
+from typing import AbstractSet, Optional, Type
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 
 class NullOrdering:
@@ -59,9 +72,9 @@ class SortOrder(Expression):
         return derive_dependent_columns(self.child)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter()
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.child.cumulative_complexity_stat + self.individual_complexity_stat
