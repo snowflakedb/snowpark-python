@@ -15,6 +15,7 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    StringType,
     _IntegralType,
     _NumericType,
 )
@@ -530,3 +531,12 @@ class ColumnEmulator(PandasSeriesType):
         result = super().isnull()
         result.sf_type = ColumnType(BooleanType(), True)
         return result
+
+
+def coerce_type_if_needed(type1: DataType, type2: DataType) -> DataType:
+    from snowflake.snowpark.mock._udf_utils import types_are_compatible
+
+    if types_are_compatible(type1, type2):
+        if isinstance(type1, StringType) and isinstance(type2, StringType):
+            return StringType(max(type1.length, type2.length))
+    return type1
