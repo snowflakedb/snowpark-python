@@ -58,6 +58,7 @@ from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.pandas.utils as frontend_utils
+from snowflake.snowpark._internal.ast import ast_expr_from_python_val
 from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.series import (
@@ -1055,28 +1056,19 @@ class _iLocIndexer(_LocationIndexerBase):
         ast.pd_dataframe_iloc_get.df.pd_dataframe_ref.id.bitfield1 = (
             self.df._get_ast_id()
         )
-
-        # The row and column locations can be a scalar, slice, list-like, or Series object - record all of these
-        # separately for AST.
+        # Map python built-ins (functions, scalars, lists, slices, etc.) to AST expr and emit Ref nodes for dataframes,
+        # series, and indexes.
+        ast_expr_from_python_val(ast.pd_dataframe_iloc_get.rows, row_loc)
+        ast_expr_from_python_val(ast.pd_dataframe_iloc_get.columns, col_loc)
 
         # Convert range to slice objects.
         if not isinstance(row_loc, pd.Series) and is_range_like(row_loc):
-            ast.pd_dataframe_iloc_get.rows.slice_expr = row_loc
             row_loc = self._convert_range_to_valid_slice(row_loc)
-        # Modified the code below to record different column location types for AST.
-        if isinstance(col_loc, pd.Series):
-            ast.pd_dataframe_iloc_get.columns.pd_series_expr = col_loc
-        elif is_range_like(col_loc):
-            ast.pd_dataframe_iloc_get.columns.slice_expr = row_loc
+        if not isinstance(col_loc, pd.Series) and is_range_like(col_loc):
             col_loc = self._convert_range_to_valid_slice(col_loc)
-        elif is_list_like(col_loc):
-            ast.pd_dataframe_iloc_get.columns.array_expr = col_loc
-        else:
-            ast.pd_dataframe_iloc_get.columns.scalar = col_loc
 
         # Convert all scalar, list-like, and indexer row_loc to a Series object to get a query compiler object.
         if is_scalar(row_loc):
-            ast.pd_dataframe_iloc_get.rows.scalar = row_loc
             row_loc = pd.Series([row_loc])
         elif is_list_like(row_loc):
             if hasattr(row_loc, "dtype"):
@@ -1086,10 +1078,7 @@ class _iLocIndexer(_LocationIndexerBase):
                 dtype = float
             else:
                 dtype = None
-            ast.pd_dataframe_iloc_get.rows.array_expr = row_loc
             row_loc = pd.Series(row_loc, dtype=dtype)
-        else:
-            ast.pd_dataframe_iloc_get.rows.pd_series_expr = row_loc
 
         # Check whether the row and column input is of numeric dtype.
         self._validate_numeric_get_key_values(row_loc, original_row_loc)
@@ -1112,8 +1101,6 @@ class _iLocIndexer(_LocationIndexerBase):
         if isinstance(result, Series):
             result._parent = self.df
             result._parent_axis = 0
-
-        # IR changes! iloc get result node.
         return result
 
     def _get_pandas_object_from_qc_view(
