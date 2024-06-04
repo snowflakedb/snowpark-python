@@ -696,6 +696,7 @@ class ServerConnection:
         )
 
     def create_coprocessor(self) -> None:
+        """Invoked during session initialization to create a server-side coprocessor."""
         id = str(uuid.uuid4())
         print(f"create cp start rid={id}")
         self._conn._rest.request(
@@ -706,6 +707,8 @@ class ServerConnection:
         time.sleep(5)  # TODO: need to send a response once the TCM is created.
         print("create cp complete")
 
+    # TODO: This function is currently invoked to prototype Phase 1 while maintaining most of the code
+    # targeting Phase 0. This function will likely disappear once Phase 1 is placed in a separate branch.
     def ast_query(self, request_id__ast) -> Any:
         (request_id, ast) = request_id__ast
         req = {
@@ -715,6 +718,9 @@ class ServerConnection:
         return self._conn._rest.request(
             f"/queries/v1/query-request?requestId={request_id}", req
         )
+    
+    def phase1_enabled(self) -> bool:
+        return os.getenv("SNOWPARK_PHASE_1", False)
 
 
 def _fix_pandas_df_fixed_type(
