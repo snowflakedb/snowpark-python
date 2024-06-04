@@ -535,17 +535,14 @@ class TelemetryMeta(type):
                 snowflake.snowpark.modin.pandas.window.Rolling]:
                 The modified class with decorated methods.
         """
-        wrapped_attrs: dict[Any, Any] = {}
         for attr_name, attr_value in attrs.items():
             if callable(attr_value) and (
                 not attr_name.startswith("_")
                 or (attr_name in TELEMETRY_PRIVATE_METHODS)
             ):
-                attrs[attr_name] = wrapped_attrs.get(
-                    attr_value, snowpark_pandas_telemetry_method_decorator(attr_value)
+                attrs[attr_name] = snowpark_pandas_telemetry_method_decorator(
+                    attr_value
                 )
-                if attr_value not in wrapped_attrs:
-                    wrapped_attrs[attr_value] = attrs[attr_name]
             elif isinstance(attr_value, property):
                 # wrap on getter and setter
                 attrs[attr_name] = property(
