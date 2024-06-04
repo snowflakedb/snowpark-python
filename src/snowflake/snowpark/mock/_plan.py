@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
+from snowflake.snowpark.mock._snowflake_data_type import coerce_type_if_needed
 from snowflake.snowpark.mock._udf_utils import (
     coerce_variant_input,
     remove_null_wrapper,
@@ -1992,12 +1993,20 @@ def calculate_expression(
             remaining = remaining[~remaining.index.isin(true_index)]
 
             if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type != value.sf_type
+                if not isinstance(output_data.sf_type.datatype, NullType) and not (
+                    types_are_compatible(
+                        output_data.sf_type.datatype, value.sf_type.datatype
+                    )
                 ):
                     raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
+                    )
+                else:
+                    output_data.sf_type = ColumnType(
+                        coerce_type_if_needed(
+                            output_data.sf_type.datatype, value.sf_type.datatype
+                        ),
+                        output_data.sf_type.nullable,
                     )
             else:
                 output_data.sf_type = value.sf_type
@@ -2008,12 +2017,20 @@ def calculate_expression(
             )
             output_data[remaining.index] = value[remaining.index]
             if output_data.sf_type:
-                if (
-                    not isinstance(output_data.sf_type.datatype, NullType)
-                    and output_data.sf_type.datatype != value.sf_type.datatype
+                if not isinstance(output_data.sf_type.datatype, NullType) and not (
+                    types_are_compatible(
+                        output_data.sf_type.datatype, value.sf_type.datatype
+                    )
                 ):
                     raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
+                    )
+                else:
+                    output_data.sf_type = ColumnType(
+                        coerce_type_if_needed(
+                            output_data.sf_type.datatype, value.sf_type.datatype
+                        ),
+                        output_data.sf_type.nullable,
                     )
             else:
                 output_data.sf_type = value.sf_type

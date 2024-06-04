@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark import DataFrame, Row
-from snowflake.snowpark.functions import lit
+from snowflake.snowpark.functions import col, lit, when
 from snowflake.snowpark.types import (
     BooleanType,
     DecimalType,
@@ -423,3 +423,12 @@ def test_join_basic(session):
             ]
         )
     )
+
+
+def test_case_when_type_coerce(session):
+    df_input = session.create_dataframe(
+        [1], StructType([StructField("col", LongType())])
+    )
+    assert df_input.withColumn(
+        "new_col", when((col("col").is_null()), lit("abc")).otherwise(lit("abcdef"))
+    ).collect() == [Row(1, "abcdef")]
