@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from collections import Counter
+from typing import AbstractSet, Dict, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
@@ -25,6 +27,10 @@ class BinaryExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.left, self.right)
+
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
 
 class BinaryArithmeticExpression(BinaryExpression):

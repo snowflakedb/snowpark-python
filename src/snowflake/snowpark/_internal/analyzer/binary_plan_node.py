@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional
+from collections import Counter
+from typing import Dict, List, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -69,7 +71,10 @@ class BinaryNode(LogicalPlan):
 
 
 class SetOperation(BinaryNode):
-    pass
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # (left) operator (right)
+        return Counter({ComplexityStat.SET_OPERATION.value: 1})
 
 
 class Except(SetOperation):
@@ -189,18 +194,21 @@ class Join(BinaryNode):
         return self.join_type.sql
 
     @property
-    def individual_query_complexity(self) -> int:
-        #  SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        estimate = 3
-        if (
-            isinstance(self.join_type, UsingJoin)
-            and len(self.join_type.using_columns) > 0
-        ):
-            estimate += 1 + len(self.join_type.using_columns)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
+        estimate = Counter({ComplexityStat.JOIN.value: 1})
+        if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
+            estimate += Counter(
+                {ComplexityStat.COLUMN.value: len(self.join_type.using_columns)}
+            )
         estimate += (
-            self.join_condition.expression_complexity if self.join_condition else 0
+            self.join_condition.cumulative_complexity_stat
+            if self.join_condition
+            else Counter()
         )
         estimate += (
-            self.match_condition.expression_complexity if self.match_condition else 0
+            self.match_condition.cumulative_complexity_stat
+            if self.match_condition
+            else Counter()
         )
         return estimate

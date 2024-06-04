@@ -68,7 +68,7 @@ class TelemetryField(Enum):
     # dataframe query stats
     QUERY_PLAN_HEIGHT = "query_plan_height"
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
-    QUERY_PLAN_COMPLEXITY_ESTIMATE = "query_plan_complexity_estimate"
+    QUERY_PLAN_COMPLEXITY_STAT = "query_plan_complexity_stat"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -161,9 +161,9 @@ def df_collect_api_telemetry(func):
             api_calls[0][
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
-            api_calls[0][
-                TelemetryField.QUERY_PLAN_COMPLEXITY_ESTIMATE.value
-            ] = plan.subtree_query_complexity
+            api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY_STAT.value] = dict(
+                plan.cumulative_complexity_stat
+            )
         except Exception:
             pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(

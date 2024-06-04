@@ -2,9 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections import Counter
 from functools import cached_property
 from typing import Dict, List, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     LogicalPlan,
@@ -17,11 +19,17 @@ class MergeExpression(Expression):
         super().__init__()
         self.condition = condition
 
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+
     @cached_property
-    def expression_complexity(self) -> int:
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
         # WHEN MATCHED [AND condition] THEN DEL
-        estimate = 4
-        estimate += self.condition.expression_complexity if self.condition else 0
+        estimate = self.individual_complexity_stat
+        estimate += (
+            self.condition.cumulative_complexity_stat if self.condition else Counter()
+        )
         return estimate
 
 
@@ -33,13 +41,19 @@ class UpdateMergeExpression(MergeExpression):
         self.assignments = assignments
 
     @cached_property
-    def expression_complexity(self) -> int:
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
-        estimate = 4
-        estimate += 1 if self.condition else 0
+        estimate = self.individual_complexity_stat
+        estimate += (
+            self.condition.cumulative_complexity_stat if self.condition else Counter()
+        )
         estimate += sum(
-            key_expr.expression_complexity + val_expr.expression_complexity
-            for key_expr, val_expr in self.assignments.items()
+            (
+                key_expr.cumulative_complexity_stat
+                + val_expr.cumulative_complexity_stat
+                for key_expr, val_expr in self.assignments.items()
+            ),
+            Counter(),
         )
         return estimate
 
@@ -60,12 +74,18 @@ class InsertMergeExpression(MergeExpression):
         self.values = values
 
     @cached_property
-    def expression_complexity(self) -> int:
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
-        estimate = 5
-        estimate += sum(expr.expression_complexity for expr in self.keys)
-        estimate += sum(expr.expression_complexity for expr in self.values)
-        estimate += self.condition.expression_complexity if self.condition else 0
+        estimate = self.individual_complexity_stat
+        estimate += (
+            self.condition.cumulative_complexity_stat if self.condition else Counter()
+        )
+        estimate += sum(
+            (key.cumulative_complexity_stat for key in self.keys), Counter()
+        )
+        estimate += sum(
+            (val.cumulative_complexity_stat for val in self.values), Counter()
+        )
         return estimate
 
 
@@ -84,16 +104,19 @@ class TableUpdate(LogicalPlan):
         self.source_data = source_data
         self.children = [source_data] if source_data else []
 
-    @cached_property
-    def individual_query_complexity(self) -> int:
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
-        estimate = 2
-        estimate += sum(
-            key_expr.expression_complexity + val_expr.expression_complexity
-            for key_expr, val_expr in self.assignments.items()
+        estimate = sum(
+            (
+                k.cumulative_complexity_stat + v.cumulative_complexity_stat
+                for k, v in self.assignments.items()
+            ),
+            Counter(),
         )
-        estimate += self.condition.expression_complexity if self.condition else 0
-        # note that source data will be handled by subtree aggregator since it is added as a child
+        estimate += (
+            self.condition.cumulative_complexity_stat if self.condition else Counter()
+        )
         return estimate
 
 
@@ -110,12 +133,12 @@ class TableDelete(LogicalPlan):
         self.source_data = source_data
         self.children = [source_data] if source_data else []
 
-    @cached_property
-    def individual_query_complexity(self) -> int:
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # DELETE FROM table_name [USING source_data] [WHERE condition]
-        estimate = 2
-        estimate += self.condition.expression_complexity if self.condition else 0
-        return estimate
+        return (
+            self.condition.cumulative_complexity_stat if self.condition else Counter()
+        )
 
 
 class TableMerge(LogicalPlan):
@@ -133,11 +156,9 @@ class TableMerge(LogicalPlan):
         self.clauses = clauses
         self.children = [source] if source else []
 
-    @cached_property
-    def individual_query_complexity(self) -> int:
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # MERGE INTO table_name USING (source) ON join_expr clauses
-        return (
-            4
-            + self.join_expr.expression_complexity
-            + sum(expr.expression_complexity for expr in self.clauses)
+        return self.join_expr.cumulative_complexity_stat + sum(
+            (clause.cumulative_complexity_stat for clause in self.clauses), Counter()
         )

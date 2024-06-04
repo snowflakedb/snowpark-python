@@ -4,9 +4,11 @@
 #
 
 import sys
+from collections import Counter
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -23,10 +25,25 @@ else:
 class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
+        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
 
     @property
-    def individual_query_complexity(self) -> int:
-        return 0
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter()
+
+    @property
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        if self._cumulative_complexity_stat is None:
+            estimate = self.individual_complexity_stat
+            for node in self.children:
+                estimate += node.cumulative_complexity_stat
+
+            self._cumulative_complexity_stat = estimate
+        return self._cumulative_complexity_stat
+
+    @cumulative_complexity_stat.setter
+    def cumulative_complexity_stat(self, value: Dict[str, int]):
+        self._cumulative_complexity_stat = value
 
 
 class LeafNode(LogicalPlan):
@@ -44,9 +61,17 @@ class Range(LeafNode):
         self.num_slices = num_slices
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
-        return 6
+        return Counter(
+            {
+                ComplexityStat.WINDOW.value: 1,
+                ComplexityStat.ORDER_BY.value: 1,
+                ComplexityStat.LITERAL.value: 3,  # step, start, count
+                ComplexityStat.COLUMN.value: 1,  # id column
+                ComplexityStat.LOW_IMPACT.value: 2,  # ROW_NUMBER, GENERATOR
+            }
+        )
 
 
 class UnresolvedRelation(LeafNode):
@@ -55,9 +80,9 @@ class UnresolvedRelation(LeafNode):
         self.name = name
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # SELECT * FROM name
-        return 1
+        return Counter({ComplexityStat.COLUMN.value: 1})
 
 
 class SnowflakeValues(LeafNode):
@@ -73,11 +98,15 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
-        # (n+1) * m
         # TODO: use ARRAY_BIND_THRESHOLD
-        return (len(self.data) + 1) * len(self.output)
+        return Counter(
+            {
+                ComplexityStat.COLUMN.value: len(self.output),
+                ComplexityStat.LITERAL.value: len(self.data) * len(self.output),
+            }
+        )
 
 
 class SaveMode(Enum):
@@ -92,7 +121,7 @@ class SnowflakeCreateTable(LogicalPlan):
     def __init__(
         self,
         table_name: Iterable[str],
-        column_names: Optional[Iterable[str]],
+        column_names: Optional[List[str]],
         mode: SaveMode,
         query: Optional[LogicalPlan],
         table_type: str = "",
@@ -110,14 +139,16 @@ class SnowflakeCreateTable(LogicalPlan):
         self.comment = comment
 
     @property
-    def individual_query_complexity(self) -> int:
-        estimate = 1  # mode is always present
-        # column estimate
-        estimate += sum(1 for _ in self.column_names) if self.column_names else 0
-        # clustering exprs
-        estimate += sum(expr.expression_complexity for expr in self.clustering_exprs)
-        # comment estimate
-        estimate += 0 if self.comment else 1
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (child)
+        estimate = Counter(
+            {ComplexityStat.LOW_IMPACT.value: 1, ComplexityStat.COLUMN.value: 1}
+        )
+        estimate += (
+            sum(expr.cumulative_complexity_stat for expr in self.clustering_exprs)
+            if self.clustering_exprs
+            else Counter()
+        )
         return estimate
 
 
@@ -132,11 +163,12 @@ class Limit(LogicalPlan):
         self.children.append(child)
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # for limit and offset
         return (
-            self.limit_expr.expression_complexity
-            + self.offset_expr.expression_complexity
+            Counter({ComplexityStat.LOW_IMPACT.value: 2})
+            + self.limit_expr.cumulative_complexity_stat
+            + self.offset_expr.cumulative_complexity_stat
         )
 
 
@@ -173,24 +205,6 @@ class CopyIntoTableNode(LeafNode):
         self.cur_options = cur_options
         self.create_table_from_infer_schema = create_table_from_infer_schema
 
-    @property
-    def individual_query_complexity(self) -> int:
-        # for columns
-        estimate = len(self.column_names) if self.column_names else 0
-        # for transformations
-        estimate += (
-            sum(expr.expression_complexity for expr in self.transformations)
-            if self.transformations
-            else 0
-        )
-        # for pattern
-        estimate += 1 if self.pattern else 0
-        # for files
-        estimate += len(self.files) if self.files else 0
-        # for copy options
-        estimate += len(self.copy_options) if self.copy_options else 0
-        return estimate
-
 
 class CopyIntoLocationNode(LogicalPlan):
     def __init__(
@@ -215,21 +229,3 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
-
-    @property
-    def individual_query_complexity(self) -> int:
-        # for stage location
-        estimate = 1
-        # for partition
-        estimate += self.partition_by.expression_complexity if self.partition_by else 0
-        # for file format name
-        estimate += 1 if self.file_format_name else 0
-        # for file format type
-        estimate += 1 if self.file_format_type else 0
-        # for file format options
-        estimate += len(self.format_type_options) if self.format_type_options else 0
-        # for copy options
-        estimate += len(self.copy_options)
-        # for header
-        estimate += 1 if self.header else 0
-        return estimate

@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from collections import Counter
+from typing import AbstractSet, Dict, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     NamedExpression,
@@ -34,8 +36,8 @@ class UnaryExpression(Expression):
         return derive_dependent_columns(self.child)
 
     @property
-    def expression_complexity(self) -> int:
-        return sum(expr.expression_complexity for expr in self.children)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
 
 class Cast(UnaryExpression):
@@ -85,8 +87,9 @@ class Alias(UnaryExpression, NamedExpression):
         return f"{self.child} {self.sql_operator} {self.name}"
 
     @property
-    def expression_complexity(self) -> int:
-        return sum(expr.expression_complexity for expr in self.children)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # child AS name
+        return Counter({ComplexityStat.COLUMN.value: 1})
 
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
@@ -98,5 +101,5 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def expression_complexity(self) -> int:
-        return sum(expr.expression_complexity for expr in self.children)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter()

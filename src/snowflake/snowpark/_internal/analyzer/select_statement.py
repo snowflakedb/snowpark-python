@@ -3,7 +3,7 @@
 #
 
 from abc import ABC, abstractmethod
-from collections import UserDict, defaultdict
+from collections import Counter, UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
 from typing import (
@@ -20,10 +20,8 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import (
-    compute_subtree_query_complexity,
-    encode_id,
-)
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
@@ -203,7 +201,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
-        self._subtree_query_complexity: Optional[int] = None
+        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -295,30 +293,33 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         """This is the query complexity estimate added by this Selectable node
         to the overall query plan. For default case, it is the number of active
         columns. Specific cases are handled in child classes with additional
         explanation.
         """
-        return (
-            self.snowflake_plan.source_plan.individual_query_complexity
-            if self.snowflake_plan.source_plan
-            else len(self.column_states.active_columns)
-        )
+        if isinstance(self.snowflake_plan.source_plan, Selectable):
+            return Counter(
+                {ComplexityStat.COLUMN.value: len(self.column_states.active_columns)}
+            )
+        return self.snowflake_plan.source_plan.individual_complexity_stat
 
     @property
-    def subtree_query_complexity(self) -> int:
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
         """This is sum of individual query complexity estimates for all nodes
         within a query plan subtree.
         """
-        if self._subtree_query_complexity is None:
-            self._subtree_query_complexity = compute_subtree_query_complexity(self)
-        return self._subtree_query_complexity
+        if self._cumulative_complexity_stat is None:
+            estimate = self.individual_complexity_stat
+            for node in self.children_plan_nodes:
+                estimate += node.cumulative_complexity_stat
+            self._cumulative_complexity_stat = estimate
+        return self._cumulative_complexity_stat
 
-    @subtree_query_complexity.setter
-    def subtree_query_complexity(self, value: int):
-        self._subtree_query_complexity = value
+    @cumulative_complexity_stat.setter
+    def cumulative_complexity_stat(self, value: Dict[str, int]):
+        self._cumulative_complexity_stat = value
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
@@ -379,9 +380,9 @@ class SelectableEntity(Selectable):
         return self.sql_query
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # SELECT * FROM entity
-        return 1
+        return Counter({ComplexityStat.COLUMN.value: 1})
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -439,14 +440,16 @@ class SelectSQL(Selectable):
         return self._schema_query
 
     @property
-    def individual_query_complexity(self):
+    def individual_complexity_stat(self) -> Dict[str, int]:
         if self.pre_actions:
             # having pre-actions implies we have a non-select query followed by a
             # SELECT * FROM table(result_scan(query_id)) statement
-            return 1
+            return Counter({ComplexityStat.COLUMN.value: 1})
 
         # no pre-action implies the best estimate we have is of # active columns
-        return len(self.column_states.active_columns)
+        return Counter(
+            {ComplexityStat.COLUMN.value: len(self.column_states.active_columns)}
+        )
 
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
@@ -704,27 +707,42 @@ class SelectStatement(Selectable):
         return [self.from_]
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        estimate = Counter()
         # projection component
-        estimate = (
-            sum(expr.expression_complexity for expr in self.projection)
-            if self.projection
-            else 0
-        )
-        # order by component - add complexity for each sort expression but remove len(order_by) - 1 since we only
-        # include "ORDER BY" once in sql test
         estimate += (
-            (
-                sum(expr.expression_complexity for expr in self.order_by)
-                - (len(self.order_by) - 1)
+            sum(
+                (expr.cumulative_complexity_stat for expr in self.projection), Counter()
+            )
+            if self.projection
+            else Counter()
+        )
+
+        # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
+        estimate += (
+            Counter({ComplexityStat.FILTER.value: 1})
+            + self.where.cumulative_complexity_stat
+            if self.where
+            else Counter()
+        )
+
+        # order by component - add complexity for each sort expression
+        estimate += (
+            sum(
+                (expr.cumulative_complexity_stat for expr in self.order_by),
+                Counter({ComplexityStat.ORDER_BY.value: 1}),
             )
             if self.order_by
-            else 0
+            else Counter()
         )
-        # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
-        estimate += (1 + self.where.expression_complexity) if self.where else 0
-        # limit component
-        estimate += 1 if self.limit_ else 0
+
+        # limit/offset component
+        estimate += (
+            Counter({ComplexityStat.LOW_IMPACT.value: 1}) if self.limit_ else Counter()
+        )
+        estimate += (
+            Counter({ComplexityStat.LOW_IMPACT.value: 1}) if self.offset else Counter()
+        )
         return estimate
 
     def to_subqueryable(self) -> "Selectable":
@@ -1109,9 +1127,9 @@ class SetStatement(Selectable):
         return self._nodes
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # we add #set_operands - 1 additional operators in sql query
-        return len(self.set_operands) - 1
+        return Counter({ComplexityStat.SET_OPERATION.value: len(self.set_operands) - 1})
 
 
 class DeriveColumnDependencyError(Exception):

@@ -6,7 +6,7 @@ import copy
 import re
 import sys
 import uuid
-from collections import defaultdict
+from collections import Counter, defaultdict
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -77,7 +77,6 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     SetOperation,
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
-    compute_subtree_query_complexity,
     create_cte_query,
     encode_id,
     find_duplicate_subtrees,
@@ -233,7 +232,7 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self._subtree_query_complexity: Optional[int] = None
+        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -353,20 +352,23 @@ class SnowflakePlan(LogicalPlan):
         return len(find_duplicate_subtrees(self))
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         if self.source_plan:
-            return self.source_plan.individual_query_complexity
-        return 0
+            return self.source_plan.individual_complexity_stat
+        return Counter()
 
     @property
-    def subtree_query_complexity(self) -> int:
-        if self._subtree_query_complexity is None:
-            self._subtree_query_complexity = compute_subtree_query_complexity(self)
-        return self._subtree_query_complexity
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        if self._cumulative_complexity_stat is None:
+            estimate = self.individual_complexity_stat
+            for node in self.children_plan_nodes:
+                estimate += node.cumulative_complexity_stat
+            self._cumulative_complexity_stat = estimate
+        return self._cumulative_complexity_stat
 
-    @subtree_query_complexity.setter
-    def subtree_query_complexity(self, value: int):
-        self._subtree_query_complexity = value
+    @cumulative_complexity_stat.setter
+    def cumulative_complexity_stat(self, value: Dict[str, int]):
+        self._cumulative_complexity_stat = value
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
