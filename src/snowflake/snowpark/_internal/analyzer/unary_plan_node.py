@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
+import sys
 from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
@@ -13,6 +13,19 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 
 class UnaryNode(LogicalPlan):
@@ -36,7 +49,7 @@ class Sample(UnaryNode):
         self.seed = seed
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child) SAMPLE (probability) -- if probability is provided
         # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
         return Counter(
@@ -54,7 +67,7 @@ class Sort(UnaryNode):
         self.order = order
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # child ORDER BY COMMA.join(order)
         return Counter({ComplexityStat.ORDER_BY.value: 1}) + sum(
             (col.cumulative_complexity_stat for col in self.order), Counter()
@@ -73,7 +86,7 @@ class Aggregate(UnaryNode):
         self.aggregate_expressions = aggregate_expressions
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         estimate = Counter()
         if self.grouping_expressions:
             # GROUP BY grouping_exprs
@@ -115,7 +128,7 @@ class Pivot(UnaryNode):
         self.default_on_null = default_on_null
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         estimate = Counter()
         # child estimate adjustment if grouping cols
         if self.grouping_columns and self.aggregates and self.aggregates[0].children:
@@ -164,7 +177,7 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
         estimate = Counter(
             {ComplexityStat.UNPIVOT.value: 1, ComplexityStat.COLUMN.value: 3}
@@ -185,7 +198,7 @@ class Rename(UnaryNode):
         self.column_map = column_map
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * RENAME (before AS after, ...) FROM child
         return Counter(
             {
@@ -201,7 +214,7 @@ class Filter(UnaryNode):
         self.condition = condition
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # child WHERE condition
         return (
             Counter({ComplexityStat.FILTER.value: 1})
@@ -215,7 +228,7 @@ class Project(UnaryNode):
         self.project_list = project_list
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         if not self.project_list:
             return Counter({ComplexityStat.COLUMN.value: 1})
 

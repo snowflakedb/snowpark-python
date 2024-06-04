@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
+import sys
 from functools import cached_property
 from typing import Dict, List, Optional
 
@@ -13,6 +13,19 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
+
 
 class MergeExpression(Expression):
     def __init__(self, condition: Optional[Expression]) -> None:
@@ -20,11 +33,11 @@ class MergeExpression(Expression):
         self.condition = condition
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN DEL
         estimate = self.individual_complexity_stat
         estimate += (
@@ -41,7 +54,7 @@ class UpdateMergeExpression(MergeExpression):
         self.assignments = assignments
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
         estimate = self.individual_complexity_stat
         estimate += (
@@ -74,7 +87,7 @@ class InsertMergeExpression(MergeExpression):
         self.values = values
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
         estimate = self.individual_complexity_stat
         estimate += (
@@ -105,7 +118,7 @@ class TableUpdate(LogicalPlan):
         self.children = [source_data] if source_data else []
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
         estimate = sum(
             (
@@ -134,7 +147,7 @@ class TableDelete(LogicalPlan):
         self.children = [source_data] if source_data else []
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # DELETE FROM table_name [USING source_data] [WHERE condition]
         return (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
@@ -157,7 +170,7 @@ class TableMerge(LogicalPlan):
         self.children = [source] if source else []
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # MERGE INTO table_name USING (source) ON join_expr clauses
         return self.join_expr.cumulative_complexity_stat + sum(
             (clause.cumulative_complexity_stat for clause in self.clauses), Counter()

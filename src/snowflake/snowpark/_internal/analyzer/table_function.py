@@ -3,7 +3,6 @@
 #
 
 import sys
-from collections import Counter
 from functools import cached_property
 from typing import Dict, List, Optional
 
@@ -12,12 +11,22 @@ from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
+# Python 3.8: needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+#             needs to create new Counter class from collections.Counter so it can pass type check
+# Python 3.9: can use both and type check support is added in collections.Counter from 3.9+
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
 if sys.version_info <= (3, 9):
+    import collections
+    import typing
     from typing import Iterable
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
 else:
+    from collections import Counter
     from collections.abc import Iterable
 
 
@@ -34,7 +43,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
         self.order_spec = order_spec
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         if not self.over:
             return Counter()
         estimate = Counter({ComplexityStat.WINDOW.value: 1})
@@ -72,11 +81,11 @@ class TableFunctionExpression(Expression):
         self.api_call_source = api_call_source
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.FUNCTION.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             self.partition_spec.cumulative_complexity_stat
             + self.individual_complexity_stat
@@ -97,7 +106,7 @@ class FlattenFunction(TableFunctionExpression):
         self.mode = mode
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.individual_complexity_stat + self.input.cumulative_complexity_stat
 
 
@@ -112,7 +121,7 @@ class PosArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         estimate = sum(
             (arg.cumulative_complexity_stat for arg in self.args),
             self.individual_complexity_stat,
@@ -136,7 +145,7 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         estimate = sum(
             (arg.cumulative_complexity_stat for arg in self.args.values()),
             self.individual_complexity_stat,
@@ -156,7 +165,7 @@ class GeneratorTableFunction(TableFunctionExpression):
         self.operators = operators
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         estimate = sum(
             (arg.cumulative_complexity_stat for arg in self.args.values()),
             self.individual_complexity_stat,
@@ -176,7 +185,7 @@ class TableFunctionRelation(LogicalPlan):
         self.table_function = table_function
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM table_function
         return self.table_function.cumulative_complexity_stat
 
@@ -196,7 +205,7 @@ class TableFunctionJoin(LogicalPlan):
         self.right_cols = right_cols if right_cols is not None else ["*"]
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT left_cols, right_cols FROM child as left_alias JOIN table(func(...)) as right_alias
         return (
             Counter(
@@ -219,7 +228,7 @@ class Lateral(LogicalPlan):
         self.table_function = table_function
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child), LATERAL table_func_expression
         return (
             Counter({ComplexityStat.COLUMN.value: 1})

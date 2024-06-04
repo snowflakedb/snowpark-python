@@ -2,9 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
+import sys
 from functools import cached_property
-from typing import AbstractSet, Dict, List, Optional
+from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -12,6 +12,18 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 
 class SpecialFrameBoundary(Expression):
@@ -21,7 +33,7 @@ class SpecialFrameBoundary(Expression):
         super().__init__()
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
 
@@ -71,11 +83,11 @@ class SpecifiedWindowFrame(WindowFrame):
         return derive_dependent_columns(self.lower, self.upper)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # frame_type BETWEEN lower AND upper
         return (
             self.individual_complexity_stat
@@ -102,7 +114,7 @@ class WindowSpecDefinition(Expression):
         )
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         estimate = Counter()
         estimate += (
             Counter({ComplexityStat.PARTITION_BY.value: 1})
@@ -117,7 +129,7 @@ class WindowSpecDefinition(Expression):
         return estimate
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # partition_spec order_by_spec frame_spec
         return (
             self.individual_complexity_stat
@@ -144,11 +156,11 @@ class WindowExpression(Expression):
         return derive_dependent_columns(self.window_function, self.window_spec)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.WINDOW.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # window_function OVER ( window_spec )
         return (
             self.window_function.cumulative_complexity_stat
@@ -177,7 +189,7 @@ class RankRelatedFunctionExpression(Expression):
         return derive_dependent_columns(self.expr, self.default)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # for func_name
         estimate = Counter({ComplexityStat.FUNCTION.value: 1})
         # for offset
@@ -193,7 +205,7 @@ class RankRelatedFunctionExpression(Expression):
         return estimate
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
         estimate = (
             self.individual_complexity_stat + self.expr.cumulative_complexity_stat

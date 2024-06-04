@@ -2,8 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from abc import ABC, abstractmethod
-from collections import Counter, UserDict, defaultdict
+from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
 from typing import (
@@ -18,6 +19,19 @@ from typing import (
     Set,
     Union,
 )
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
@@ -201,7 +215,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
-        self._cumulative_complexity_stat: Optional[Dict[str, int]] = None
+        self._cumulative_complexity_stat: Optional[Counter[str]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -293,7 +307,7 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         """This is the query complexity estimate added by this Selectable node
         to the overall query plan. For default case, it is the number of active
         columns. Specific cases are handled in child classes with additional
@@ -303,10 +317,10 @@ class Selectable(LogicalPlan, ABC):
             return Counter(
                 {ComplexityStat.COLUMN.value: len(self.column_states.active_columns)}
             )
-        return self.snowflake_plan.source_plan.individual_complexity_stat
+        return self.snowflake_plan.individual_complexity_stat
 
     @property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         """This is sum of individual query complexity estimates for all nodes
         within a query plan subtree.
         """
@@ -318,7 +332,7 @@ class Selectable(LogicalPlan, ABC):
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Dict[str, int]):
+    def cumulative_complexity_stat(self, value: Counter[str]):
         self._cumulative_complexity_stat = value
 
     @property
@@ -380,7 +394,7 @@ class SelectableEntity(Selectable):
         return self.sql_query
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM entity
         return Counter({ComplexityStat.COLUMN.value: 1})
 
@@ -440,7 +454,7 @@ class SelectSQL(Selectable):
         return self._schema_query
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         if self.pre_actions:
             # having pre-actions implies we have a non-select query followed by a
             # SELECT * FROM table(result_scan(query_id)) statement
@@ -707,7 +721,7 @@ class SelectStatement(Selectable):
         return [self.from_]
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         estimate = Counter()
         # projection component
         estimate += (
@@ -1127,7 +1141,7 @@ class SetStatement(Selectable):
         return self._nodes
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # we add #set_operands - 1 additional operators in sql query
         return Counter({ComplexityStat.SET_OPERATION.value: len(self.set_operands) - 1})
 

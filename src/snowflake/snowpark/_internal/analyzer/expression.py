@@ -3,10 +3,23 @@
 #
 
 import copy
+import sys
 import uuid
-from collections import Counter
 from functools import cached_property
-from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
@@ -84,11 +97,11 @@ class Expression:
         return f"{self.pretty_name}({children_sql})"
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         children = self.children or []
         return sum(
             (child.cumulative_complexity_stat for child in children),
@@ -124,7 +137,7 @@ class ScalarSubquery(Expression):
         return COLUMN_DEPENDENCY_DOLLAR
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.plan.cumulative_complexity_stat + self.individual_complexity_stat
 
 
@@ -137,7 +150,7 @@ class MultipleExpression(Expression):
         return derive_dependent_columns(*self.expressions)
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.expressions),
@@ -157,11 +170,11 @@ class InExpression(Expression):
         return derive_dependent_columns(self.columns, *self.values)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.IN.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             self.columns.cumulative_complexity_stat
             + self.individual_complexity_stat
@@ -200,7 +213,7 @@ class Attribute(Expression, NamedExpression):
         return {self.name}
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.COLUMN.value: 1})
 
 
@@ -216,14 +229,14 @@ class Star(Expression):
         return derive_dependent_columns(*self.expressions)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         if self.expressions:
             return Counter({})
         # if there are no expressions, we assign column value = 1 to Star
         return Counter({ComplexityStat.COLUMN.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.individual_complexity_stat + sum(
             (child.individual_complexity_stat for child in self.expressions),
             Counter({}),
@@ -264,7 +277,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
         return self._dependent_column_names
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.COLUMN.value: 1})
 
 
@@ -291,7 +304,7 @@ class Literal(Expression):
             self.datatype = infer_type(value)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.LITERAL.value: 1})
 
 
@@ -343,7 +356,7 @@ class Interval(Expression):
         return self.sql
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter(
             {
                 ComplexityStat.LITERAL.value: 2 * len(self.values_dict),
@@ -362,12 +375,12 @@ class Like(Expression):
         return derive_dependent_columns(self.expr, self.pattern)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # expr LIKE pattern
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             self.expr.cumulative_complexity_stat
             + self.pattern.cumulative_complexity_stat
@@ -385,12 +398,12 @@ class RegExp(Expression):
         return derive_dependent_columns(self.expr, self.pattern)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # expr REG_EXP pattern
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             self.expr.cumulative_complexity_stat
             + self.pattern.cumulative_complexity_stat
@@ -408,12 +421,12 @@ class Collate(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # expr COLLATE collate_spec
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
 
 
@@ -427,12 +440,12 @@ class SubfieldString(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # the literal corresponds to the contribution from self.field
         return Counter({ComplexityStat.LITERAL.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # self.expr ( self.field )
         return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
 
@@ -447,12 +460,12 @@ class SubfieldInt(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # the literal corresponds to the contribution from self.field
         return Counter({ComplexityStat.LITERAL.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         # self.expr ( self.field )
         return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
 
@@ -489,7 +502,7 @@ class FunctionExpression(Expression):
         return derive_dependent_columns(*self.children)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.FUNCTION.value: 1})
 
 
@@ -504,12 +517,12 @@ class WithinGroup(Expression):
         return derive_dependent_columns(self.expr, *self.order_by_cols)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # expr WITHIN GROUP (ORDER BY cols)
         return Counter({ComplexityStat.ORDER_BY.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return (
             sum(
                 (col.cumulative_complexity_stat for col in self.order_by_cols),
@@ -539,11 +552,11 @@ class CaseWhen(Expression):
         return derive_dependent_columns(*exps)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.CASE_WHEN.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         estimate = self.individual_complexity_stat + sum(
             (
                 condition.cumulative_complexity_stat + value.cumulative_complexity_stat
@@ -579,11 +592,11 @@ class SnowflakeUDF(Expression):
         return derive_dependent_columns(*self.children)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.FUNCTION.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return sum(
             (expr.cumulative_complexity_stat for expr in self.children),
             self.individual_complexity_stat,
@@ -601,9 +614,9 @@ class ListAgg(Expression):
         return derive_dependent_columns(self.col)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.FUNCTION.value: 1})
 
     @cached_property
-    def cumulative_complexity_stat(self) -> Dict[str, int]:
+    def cumulative_complexity_stat(self) -> Counter[str]:
         return self.col.cumulative_complexity_stat + self.individual_complexity_stat

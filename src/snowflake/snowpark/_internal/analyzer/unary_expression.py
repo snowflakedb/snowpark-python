@@ -2,8 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
-from typing import AbstractSet, Dict, Optional
+import sys
+from typing import AbstractSet, Optional
 
 from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -12,6 +12,19 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark.types import DataType
+
+# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
+if sys.version_info <= (3, 9):
+    import collections
+    import typing
+
+    KT = typing.TypeVar("KT")
+
+    class Counter(collections.Counter, typing.Counter[KT]):
+        pass
+
+else:
+    from collections import Counter
 
 
 class UnaryExpression(Expression):
@@ -36,7 +49,7 @@ class UnaryExpression(Expression):
         return derive_dependent_columns(self.child)
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
 
@@ -87,7 +100,7 @@ class Alias(UnaryExpression, NamedExpression):
         return f"{self.child} {self.sql_operator} {self.name}"
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         # child AS name
         return Counter({ComplexityStat.COLUMN.value: 1})
 
@@ -101,5 +114,5 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def individual_complexity_stat(self) -> Dict[str, int]:
+    def individual_complexity_stat(self) -> Counter[str]:
         return Counter()
