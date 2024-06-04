@@ -1122,6 +1122,13 @@ class CombinedDatetimelikeProperties:
     @property
     def dayofweek():
         """
+        The day of the week with Monday=0, Sunday=6.
+
+        Return the day of the week. It is assumed the week starts on Monday,
+        which is denoted by 0, and ends on Sunday, which is denoted by 6.
+
+        Examples
+        --------
         >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D')
         >>> s
         0   2016-12-31
@@ -1155,6 +1162,10 @@ class CombinedDatetimelikeProperties:
     @property
     def dayofyear():
         """
+        The ordinal day of the year.
+
+        Examples
+        --------
         >>> s = pd.to_datetime(["1/1/2020", "2/1/2020"])
         >>> s
         0   2020-01-01
