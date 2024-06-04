@@ -7,13 +7,13 @@
 
 class StringMethods:
     def casefold():
-        pass
+        pass  # pragma: no cover
 
     def cat():
-        pass
+        pass  # pragma: no cover
 
     def decode():
-        pass
+        pass  # pragma: no cover
 
     def split():
         """
@@ -104,7 +104,7 @@ class StringMethods:
         """
 
     def rsplit():
-        pass
+        pass  # pragma: no cover
 
     def get():
         """
@@ -149,10 +149,10 @@ class StringMethods:
         """
 
     def join():
-        pass
+        pass  # pragma: no cover
 
     def get_dummies():
-        pass
+        pass  # pragma: no cover
 
     def contains():
         """
@@ -334,22 +334,22 @@ class StringMethods:
         """
 
     def pad():
-        pass
+        pass  # pragma: no cover
 
     def center():
-        pass
+        pass  # pragma: no cover
 
     def ljust():
-        pass
+        pass  # pragma: no cover
 
     def rjust():
-        pass
+        pass  # pragma: no cover
 
     def zfill():
-        pass
+        pass  # pragma: no cover
 
     def wrap():
-        pass
+        pass  # pragma: no cover
 
     def slice():
         """
@@ -417,7 +417,7 @@ class StringMethods:
         """
 
     def slice_replace():
-        pass
+        pass  # pragma: no cover
 
     def count():
         """
@@ -541,7 +541,7 @@ class StringMethods:
         """
 
     def encode():
-        pass
+        pass  # pragma: no cover
 
     def endswith():
         """
@@ -603,19 +603,19 @@ class StringMethods:
         """
 
     def findall():
-        pass
+        pass  # pragma: no cover
 
     def fullmatch():
-        pass
+        pass  # pragma: no cover
 
     def match():
-        pass
+        pass  # pragma: no cover
 
     def extract():
-        pass
+        pass  # pragma: no cover
 
     def extractall():
-        pass
+        pass  # pragma: no cover
 
     def len():
         """
@@ -702,31 +702,31 @@ class StringMethods:
         # TODO: SNOW-1432420 fix bug in docstring.
 
     def rstrip():
-        pass
+        pass  # pragma: no cover
 
     def lstrip():
-        pass
+        pass  # pragma: no cover
 
     def partition():
-        pass
+        pass  # pragma: no cover
 
     def removeprefix():
-        pass
+        pass  # pragma: no cover
 
     def removesuffix():
-        pass
+        pass  # pragma: no cover
 
     def repeat():
-        pass
+        pass  # pragma: no cover
 
     def rpartition():
-        pass
+        pass  # pragma: no cover
 
     def lower():
-        pass
+        pass  # pragma: no cover
 
     def upper():
-        pass
+        pass  # pragma: no cover
 
     def title():
         """
@@ -775,16 +775,16 @@ class StringMethods:
         """
 
     def find():
-        pass
+        pass  # pragma: no cover
 
     def rfind():
-        pass
+        pass  # pragma: no cover
 
     def index():
-        pass
+        pass  # pragma: no cover
 
     def rindex():
-        pass
+        pass  # pragma: no cover
 
     def capitalize():
         """
@@ -833,19 +833,19 @@ class StringMethods:
         """
 
     def swapcase():
-        pass
+        pass  # pragma: no cover
 
     def normalize():
-        pass
+        pass  # pragma: no cover
 
     def translate():
-        pass
+        pass  # pragma: no cover
 
     def isalnum():
-        pass
+        pass  # pragma: no cover
 
     def isalpha():
-        pass
+        pass  # pragma: no cover
 
     def isdigit():
         """
@@ -873,7 +873,7 @@ class StringMethods:
         """
 
     def isspace():
-        pass
+        pass  # pragma: no cover
 
     def islower():
         """
@@ -940,10 +940,10 @@ class StringMethods:
         """
 
     def isnumeric():
-        pass
+        pass  # pragma: no cover
 
     def isdecimal():
-        pass
+        pass  # pragma: no cover
 
 
 # Docstrings for DatetimeProperties (need to match the name of the pandas class inherited from)
@@ -973,11 +973,11 @@ class CombinedDatetimelikeProperties:
 
     @property
     def time():
-        pass
+        pass  # pragma: no cover
 
     @property
     def timetz():
-        pass
+        pass  # pragma: no cover
 
     @property
     def year():
@@ -1113,11 +1113,11 @@ class CombinedDatetimelikeProperties:
 
     @property
     def microsecond():
-        pass
+        pass  # pragma: no cover
 
     @property
     def nanosecond():
-        pass
+        pass  # pragma: no cover
 
     @property
     def dayofweek():
@@ -1153,11 +1153,11 @@ class CombinedDatetimelikeProperties:
         8    6
         dtype: int64
         """
-        pass
+        pass  # pragma: no cover
 
     @property
     def weekday():
-        pass
+        pass  # pragma: no cover
 
     @property
     def dayofyear():
@@ -1176,7 +1176,7 @@ class CombinedDatetimelikeProperties:
         1    32
         dtype: int16
         """
-        pass
+        pass  # pragma: no cover
 
     @property
     def quarter():
@@ -1202,118 +1202,118 @@ class CombinedDatetimelikeProperties:
 
     @property
     def is_month_start():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_month_end():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_quarter_start():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_quarter_end():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_year_start():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_year_end():
-        pass
+        pass  # pragma: no cover
 
     @property
     def is_leap_year():
-        pass
+        pass  # pragma: no cover
 
     @property
     def daysinmonth():
-        pass
+        pass  # pragma: no cover
 
     @property
     def days_in_month():
-        pass
+        pass  # pragma: no cover
 
     @property
     def tz():
-        pass
+        pass  # pragma: no cover
 
     @property
     def freq():
-        pass
+        pass  # pragma: no cover
 
     def to_period():
-        pass
+        pass  # pragma: no cover
 
     def to_pydatetime():
-        pass
+        pass  # pragma: no cover
 
     def tz_localize():
-        pass
+        pass  # pragma: no cover
 
     def tz_convert():
-        pass
+        pass  # pragma: no cover
 
     def normalize():
-        pass
+        pass  # pragma: no cover
 
     def strftime():
-        pass
+        pass  # pragma: no cover
 
     def round():
-        pass
+        pass  # pragma: no cover
 
     def floor():
-        pass
+        pass  # pragma: no cover
 
     def ceil():
-        pass
+        pass  # pragma: no cover
 
     def month_name():
-        pass
+        pass  # pragma: no cover
 
     def day_name():
-        pass
+        pass  # pragma: no cover
 
     def total_seconds():
-        pass
+        pass  # pragma: no cover
 
     def to_pytimedelta():
-        pass
+        pass  # pragma: no cover
 
     @property
     def seconds():
-        pass
+        pass  # pragma: no cover
 
     @property
     def days():
-        pass
+        pass  # pragma: no cover
 
     @property
     def microseconds():
-        pass
+        pass  # pragma: no cover
 
     @property
     def nanoseconds():
-        pass
+        pass  # pragma: no cover
 
     @property
     def components():
-        pass
+        pass  # pragma: no cover
 
     @property
     def qyear():
-        pass
+        pass  # pragma: no cover
 
     @property
     def start_time():
-        pass
+        pass  # pragma: no cover
 
     @property
     def end_time():
-        pass
+        pass  # pragma: no cover
 
     def to_timestamp():
-        pass
+        pass  # pragma: no cover

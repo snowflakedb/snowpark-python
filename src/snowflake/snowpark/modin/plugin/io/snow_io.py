@@ -564,7 +564,7 @@ class PandasOnSnowflakeIO(BaseIO):
         progress_bar_type=None,
         max_results=None,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -588,17 +588,17 @@ class PandasOnSnowflakeIO(BaseIO):
         displayed_only=True,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
     def read_clipboard(cls, sep=r"\s+", **kwargs):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
     def read_excel(cls, **kwargs):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -616,7 +616,7 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -625,7 +625,7 @@ class PandasOnSnowflakeIO(BaseIO):
         path,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -634,7 +634,7 @@ class PandasOnSnowflakeIO(BaseIO):
         filepath_or_buffer,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -649,7 +649,7 @@ class PandasOnSnowflakeIO(BaseIO):
         iterator=False,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -658,7 +658,7 @@ class PandasOnSnowflakeIO(BaseIO):
         filepath_or_buffer,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -675,7 +675,7 @@ class PandasOnSnowflakeIO(BaseIO):
         dtype_backend=no_default,
         dtype=None,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -691,7 +691,7 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         **kwds,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -707,7 +707,7 @@ class PandasOnSnowflakeIO(BaseIO):
         chunksize=None,
         dtype_backend=no_default,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -717,12 +717,12 @@ class PandasOnSnowflakeIO(BaseIO):
         con,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
     def read_spss(cls, path, usecols, convert_categoricals, dtype_backend):
-        pass
+        pass   # pragma: no cover
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -732,4 +732,4 @@ class PandasOnSnowflakeIO(BaseIO):
         filepath_or_buffer,
         **kwargs,
     ):
-        pass
+        pass   # pragma: no cover
