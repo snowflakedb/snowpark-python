@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections import Counter
 from typing import Dict, List, Optional, Union
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     NamedExpression,
@@ -34,10 +36,16 @@ class Sample(UnaryNode):
         self.seed = seed
 
     @property
-    def individual_query_complexity(self) -> int:
-        # child SAMPLE (probability) -- if probability is provided
-        # child SAMPLE (row_count ROWS) -- if not probability but row count is provided
-        return 2 + (1 if self.row_count else 0)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT * FROM (child) SAMPLE (probability) -- if probability is provided
+        # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
+        return Counter(
+            {
+                ComplexityStat.SAMPLE.value: 1,
+                ComplexityStat.LITERAL.value: 1,
+                ComplexityStat.COLUMN.value: 1,
+            }
+        )
 
 
 class Sort(UnaryNode):
@@ -46,9 +54,11 @@ class Sort(UnaryNode):
         self.order = order
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # child ORDER BY COMMA.join(order)
-        return 1 + sum(expr.expression_complexity for expr in self.order)
+        return Counter({ComplexityStat.ORDER_BY.value: 1}) + sum(
+            (col.cumulative_complexity_stat for col in self.order), Counter()
+        )
 
 
 class Aggregate(UnaryNode):
@@ -63,14 +73,26 @@ class Aggregate(UnaryNode):
         self.aggregate_expressions = aggregate_expressions
 
     @property
-    def individual_query_complexity(self) -> int:
-        # grouping estimate
-        estimate = max(
-            1, sum(expr.expression_complexity for expr in self.grouping_expressions)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        estimate = Counter()
+        if self.grouping_expressions:
+            # GROUP BY grouping_exprs
+            estimate += Counter({ComplexityStat.GROUP_BY.value: 1}) + sum(
+                (expr.cumulative_complexity_stat for expr in self.grouping_expressions),
+                Counter(),
+            )
+        else:
+            # LIMIT 1
+            estimate += Counter({ComplexityStat.LOW_IMPACT.value: 1})
+
+        get_complexity_stat = (
+            lambda expr: expr.cumulative_complexity_stat
+            if hasattr(expr, "cumulative_complexity_stat")
+            else Counter({ComplexityStat.COLUMN.value: 1})
         )
-        # aggregate estimate
         estimate += sum(
-            expr.expression_complexity for expr in self.aggregate_expressions
+            (get_complexity_stat(expr) for expr in self.aggregate_expressions),
+            Counter(),
         )
         return estimate
 
@@ -93,26 +115,37 @@ class Pivot(UnaryNode):
         self.default_on_null = default_on_null
 
     @property
-    def individual_query_complexity(self) -> int:
-        # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
-        estimate = 3
-        estimate += sum(expr.expression_complexity for expr in self.grouping_columns)
-        estimate += self.pivot_column.expression_complexity
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        estimate = Counter()
+        # child estimate adjustment if grouping cols
+        if self.grouping_columns and self.aggregates and self.aggregates[0].children:
+            # for additional projecting cols when grouping cols is not empty
+            estimate += sum(
+                (col.cumulative_complexity_stat for col in self.grouping_columns),
+                Counter(),
+            )
+            estimate += self.pivot_column.cumulative_complexity_stat
+            estimate += self.aggregates[0].children[0].cumulative_complexity_stat
+
+        # pivot col
         if isinstance(self.pivot_values, ScalarSubquery):
-            estimate += self.pivot_values.expression_complexity
+            estimate += self.pivot_values.cumulative_complexity_stat
         elif isinstance(self.pivot_values, List):
-            estimate += sum(expr.expression_complexity for expr in self.pivot_values)
+            estimate += sum(
+                (val.cumulative_complexity_stat for val in self.pivot_values), Counter()
+            )
         else:
-            # when pivot values is None
-            estimate += 1
+            # if pivot values is None, then we add LOW_IMPACT for ANY
+            estimate += Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
-        if len(self.aggregates) > 0:
-            estimate += self.aggregates[0].expression_complexity
+        # aggregate estimate
+        estimate += sum(
+            (expr.cumulative_complexity_stat for expr in self.aggregates), Counter()
+        )
 
-        estimate += (
-            self.default_on_null.expression_complexity + 1
-            if self.default_on_null
-            else 0
+        # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
+        estimate += Counter(
+            {ComplexityStat.COLUMN.value: 2, ComplexityStat.PIVOT.value: 1}
         )
         return estimate
 
@@ -131,9 +164,15 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
-        return 4 + sum(expr.expression_complexity for expr in self.column_list)
+        estimate = Counter(
+            {ComplexityStat.UNPIVOT.value: 1, ComplexityStat.COLUMN.value: 3}
+        )
+        estimate += sum(
+            (expr.cumulative_complexity_stat for expr in self.column_list), Counter()
+        )
+        return estimate
 
 
 class Rename(UnaryNode):
@@ -146,8 +185,14 @@ class Rename(UnaryNode):
         self.column_map = column_map
 
     @property
-    def individual_query_complexity(self) -> int:
-        return 2 * len(self.column_map)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT * RENAME (before AS after, ...) FROM child
+        return Counter(
+            {
+                ComplexityStat.COLUMN.value: 1 + 2 * len(self.column_map),
+                ComplexityStat.LOW_IMPACT.value: 1 + len(self.column_map),
+            }
+        )
 
 
 class Filter(UnaryNode):
@@ -156,8 +201,12 @@ class Filter(UnaryNode):
         self.condition = condition
 
     @property
-    def individual_query_complexity(self) -> int:
-        return self.condition.expression_complexity
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # child WHERE condition
+        return (
+            Counter({ComplexityStat.FILTER.value: 1})
+            + self.condition.cumulative_complexity_stat
+        )
 
 
 class Project(UnaryNode):
@@ -166,8 +215,16 @@ class Project(UnaryNode):
         self.project_list = project_list
 
     @property
-    def individual_query_complexity(self) -> int:
-        return sum(expr.expression_complexity for expr in self.project_list)
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        if not self.project_list:
+            return Counter({ComplexityStat.COLUMN.value: 1})
+
+        get_complexity_stat = (
+            lambda col: col.cumulative_complexity_stat
+            if hasattr(col, "cumulative_complexity_stat")
+            else Counter({ComplexityStat.COLUMN.value: 1})
+        )
+        return sum((get_complexity_stat(col) for col in self.project_list), Counter())
 
 
 class ViewType:
@@ -196,13 +253,6 @@ class CreateViewCommand(UnaryNode):
         self.view_type = view_type
         self.comment = comment
 
-    @property
-    def individual_query_complexity(self) -> int:
-        estimate = 3
-        estimate += 1 if isinstance(self.view_type, LocalTempView) else 0
-        estimate += 1 if self.comment else 0
-        return estimate
-
 
 class CreateDynamicTableCommand(UnaryNode):
     def __init__(
@@ -218,10 +268,3 @@ class CreateDynamicTableCommand(UnaryNode):
         self.warehouse = warehouse
         self.lag = lag
         self.comment = comment
-
-    @property
-    def individual_query_complexity(self) -> int:
-        # CREATE OR REPLACE DYNAMIC TABLE name LAG = lag WAREHOUSE = wh [comment] AS child
-        estimate = 7
-        estimate += 1 if self.comment else 0
-        return estimate

@@ -3,9 +3,11 @@
 #
 
 import sys
+from collections import Counter
 from functools import cached_property
 from typing import Dict, List, Optional
 
+from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
@@ -32,19 +34,25 @@ class TableFunctionPartitionSpecDefinition(Expression):
         self.order_spec = order_spec
 
     @cached_property
-    def expression_complexity(self) -> int:
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
         if not self.over:
-            return 0
-
-        estimate = (
-            sum(expr.expression_complexity for expr in self.partition_spec)
+            return Counter()
+        estimate = Counter({ComplexityStat.WINDOW.value: 1})
+        estimate += (
+            sum(
+                (expr.cumulative_complexity_stat for expr in self.partition_spec),
+                Counter({ComplexityStat.PARTITION_BY.value: 1}),
+            )
             if self.partition_spec
-            else 0
+            else Counter()
         )
         estimate += (
-            sum(expr.expression_complexity for expr in self.order_spec)
+            sum(
+                (expr.cumulative_complexity_stat for expr in self.order_spec),
+                Counter({ComplexityStat.ORDER_BY.value: 1}),
+            )
             if self.order_spec
-            else 0
+            else Counter()
         )
         return estimate
 
@@ -63,10 +71,17 @@ class TableFunctionExpression(Expression):
         self.aliases = aliases
         self.api_call_source = api_call_source
 
+    @property
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        return Counter({ComplexityStat.FUNCTION.value: 1})
+
     @cached_property
-    def expression_complexity(self) -> int:
-        return 1 + (
-            self.partition_spec.expression_complexity if self.partition_spec else 0
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        return (
+            self.partition_spec.cumulative_complexity_stat
+            + self.individual_complexity_stat
+            if self.partition_spec
+            else self.individual_complexity_stat
         )
 
 
@@ -82,8 +97,8 @@ class FlattenFunction(TableFunctionExpression):
         self.mode = mode
 
     @cached_property
-    def expression_complexity(self) -> int:
-        return self.input.expression_complexity + 4
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        return self.individual_complexity_stat + self.input.cumulative_complexity_stat
 
 
 class PosArgumentsTableFunction(TableFunctionExpression):
@@ -97,10 +112,15 @@ class PosArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     @cached_property
-    def expression_complexity(self) -> int:
-        estimate = 1 + sum(expr.expression_complexity for expr in self.args)
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        estimate = sum(
+            (arg.cumulative_complexity_stat for arg in self.args),
+            self.individual_complexity_stat,
+        )
         estimate += (
-            self.partition_spec.expression_complexity if self.partition_spec else 0
+            self.partition_spec.cumulative_complexity_stat
+            if self.partition_spec
+            else Counter()
         )
         return estimate
 
@@ -116,12 +136,15 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     @cached_property
-    def expression_complexity(self) -> int:
-        estimate = 1 + sum(
-            (1 + arg.expression_complexity) for arg in self.args.values()
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        estimate = sum(
+            (arg.cumulative_complexity_stat for arg in self.args.values()),
+            self.individual_complexity_stat,
         )
         estimate += (
-            self.partition_spec.expression_complexity if self.partition_spec else 0
+            self.partition_spec.cumulative_complexity_stat
+            if self.partition_spec
+            else Counter()
         )
         return estimate
 
@@ -133,12 +156,18 @@ class GeneratorTableFunction(TableFunctionExpression):
         self.operators = operators
 
     @cached_property
-    def expression_complexity(self) -> int:
-        return (
-            1
-            + sum(1 + arg.expression_complexity for arg in self.args.values())
-            + len(self.operators)
+    def cumulative_complexity_stat(self) -> Dict[str, int]:
+        estimate = sum(
+            (arg.cumulative_complexity_stat for arg in self.args.values()),
+            self.individual_complexity_stat,
         )
+        estimate += (
+            self.partition_spec.cumulative_complexity_stat
+            if self.partition_spec
+            else Counter()
+        )
+        estimate += Counter({ComplexityStat.COLUMN.value: len(self.operators)})
+        return estimate
 
 
 class TableFunctionRelation(LogicalPlan):
@@ -147,8 +176,9 @@ class TableFunctionRelation(LogicalPlan):
         self.table_function = table_function
 
     @property
-    def individual_query_complexity(self) -> int:
-        return self.table_function.expression_complexity
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT * FROM table_function
+        return self.table_function.cumulative_complexity_stat
 
 
 class TableFunctionJoin(LogicalPlan):
@@ -166,11 +196,17 @@ class TableFunctionJoin(LogicalPlan):
         self.right_cols = right_cols if right_cols is not None else ["*"]
 
     @property
-    def individual_query_complexity(self) -> int:
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT left_cols, right_cols FROM child as left_alias JOIN table(func(...)) as right_alias
         return (
-            self.table_function.expression_complexity
-            + len(self.left_cols)
-            + len(self.right_cols)
+            Counter(
+                {
+                    ComplexityStat.COLUMN.value: len(self.left_cols)
+                    + len(self.right_cols),
+                    ComplexityStat.JOIN.value: 1,
+                }
+            )
+            + self.table_function.cumulative_complexity_stat
         )
 
 
@@ -183,5 +219,9 @@ class Lateral(LogicalPlan):
         self.table_function = table_function
 
     @property
-    def individual_query_complexity(self) -> int:
-        return 1 + self.table_function.expression_complexity
+    def individual_complexity_stat(self) -> Dict[str, int]:
+        # SELECT * FROM (child), LATERAL table_func_expression
+        return (
+            Counter({ComplexityStat.COLUMN.value: 1})
+            + self.table_function.cumulative_complexity_stat
+        )

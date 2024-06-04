@@ -182,15 +182,3 @@ def encode_id(
     except Exception as ex:
         logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return None
-
-
-def compute_subtree_query_complexity(node: "TreeNode") -> int:
-    current_level = [node]
-    estimate = 0
-    while current_level:
-        next_level = []
-        for node in current_level:
-            estimate += node.individual_query_complexity
-            next_level.extend(node.children_plan_nodes)
-        current_level = next_level
-    return estimate
