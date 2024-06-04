@@ -7,6 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -82,11 +83,13 @@ def test_set_index_multiindex_columns(snow_df):
 
 @sql_count_checker(query_count=2)
 def test_set_index_negative(snow_df, native_df):
-    index = native_pd.Index([1, 2])
+    index = pd.Index([1, 2])
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df.set_index(index),
+        lambda df: df.set_index(try_convert_index_to_native(index))
+        if isinstance(df, native_pd.DataFrame)
+        else df.set_index(index),
         expect_exception=True,
         expect_exception_match="Length mismatch: Expected 3 rows, received array of length 2",
         expect_exception_type=ValueError,
@@ -112,10 +115,11 @@ def test_set_index_dup_column_name():
 def test_set_index_names(snow_df):
     with SqlCounter(query_count=1):
         # Verify column names becomes index names.
+        # multi index, native pandas automatically used
         assert snow_df.set_index(["a", "b"]).index.names == ["a", "b"]
 
     # Verify name from input index is set.
-    index = native_pd.Index([1, 2, 0])
+    index = pd.Index([1, 2, 0])
     index.names = ["iname"]
     with SqlCounter(query_count=3, join_count=1):
         assert snow_df.set_index(index).index.names == ["iname"]
@@ -202,7 +206,7 @@ def test_set_index_duplicate_label_in_keys(native_df, drop, append):
     "obj_type",
     [
         pd.Series,
-        native_pd.Index,
+        pd.Index,
         np.array,
         list,
         lambda x: [list(x)],
@@ -233,7 +237,7 @@ def test_set_index_pass_single_array(obj_type, drop, append, native_df):
                 lambda df: df.set_index(
                     key.to_pandas()
                     if isinstance(df, native_pd.DataFrame)
-                    and isinstance(key, pd.Series)
+                    and isinstance(key, (pd.Series, pd.Index))
                     else key,
                     drop=drop,
                     append=append,
@@ -245,7 +249,7 @@ def test_set_index_pass_single_array(obj_type, drop, append, native_df):
     "obj_type",
     [
         pd.Series,
-        native_pd.Index,
+        pd.Index,
         np.array,
         list,
         lambda x: native_pd.MultiIndex.from_arrays([x]),
@@ -256,7 +260,10 @@ def test_set_index_pass_arrays(obj_type, drop, append, native_df):
     array = ["one", "two", "three"]
     key = obj_type(array)
     keys = ["a", obj_type(array)]
-    native_keys = ["a", key.to_pandas() if isinstance(key, pd.Series) else key]
+    native_keys = [
+        "a",
+        key.to_pandas() if isinstance(key, (pd.Series, pd.Index)) else key,
+    ]
     with SqlCounter(query_count=3, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
@@ -273,7 +280,7 @@ def test_set_index_pass_arrays(obj_type, drop, append, native_df):
     "obj_type2",
     [
         pd.Series,
-        native_pd.Index,
+        pd.Index,
         np.array,
         list,
         iter,
@@ -284,7 +291,7 @@ def test_set_index_pass_arrays(obj_type, drop, append, native_df):
     "obj_type1",
     [
         pd.Series,
-        native_pd.Index,
+        pd.Index,
         np.array,
         list,
         iter,
@@ -298,8 +305,12 @@ def test_set_index_pass_arrays_duplicate(obj_type1, obj_type2, drop, append, nat
     keys = [obj_type1(array), obj_type2(array)]
     if obj_type1 == pd.Series:
         obj_type1 = native_pd.Series
+    elif obj_type1 == pd.Index:
+        obj_type1 = native_pd.Index
     if obj_type2 == pd.Series:
         obj_type2 = native_pd.Series
+    elif obj_type2 == pd.Index:
+        obj_type2 = native_pd.Index
     native_keys = [obj_type1(array), obj_type2(array)]
     eval_snowpark_pandas_result(
         snow_df,
@@ -392,7 +403,7 @@ def test_set_index_raise_on_invalid_type_set_negative(keys, drop, append, native
     "obj_type",
     [
         pd.Series,
-        native_pd.Index,
+        pd.Index,
         np.array,
         iter,
         lambda x: native_pd.MultiIndex.from_arrays([x]),
@@ -406,6 +417,8 @@ def test_set_index_raise_on_len(length, obj_type, drop, append, native_df):
     key = obj_type(values)
     if obj_type == pd.Series:
         obj_type = native_pd.Series
+    elif obj_type == pd.Index:
+        obj_type = native_pd.Index
     native_key = obj_type(values)
 
     msg = "Length mismatch: Expected 3 rows, received array of length.*"

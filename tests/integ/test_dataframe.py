@@ -70,6 +70,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     LongType,
     MapType,
+    NullType,
     ShortType,
     StringType,
     StructField,
@@ -3983,3 +3984,28 @@ def test_dataframe_to_local_iterator_isolation(session):
     assert (
         row_counter == ROW_NUMBER
     ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
+
+
+def test_create_empty_dataframe(session):
+    schema = StructType(
+        [
+            StructField("COL1", IntegerType()),
+            StructField("COL2", ByteType()),
+            StructField("COL3", ShortType()),
+            StructField("COL4", LongType()),
+            StructField("COL5", FloatType()),
+            StructField("COL6", DoubleType()),
+            StructField("COL7", DecimalType()),
+            StructField("COL8", BooleanType()),
+            StructField("COL9", BinaryType()),
+            StructField("COL10", VariantType()),
+            StructField("COL11", StringType()),
+            StructField("COL12", DateType()),
+            StructField("COL13", TimestampType()),
+            StructField("COL14", TimeType()),
+            StructField("COL15", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("COL16", MapType()),
+            StructField("COL17", NullType()),
+        ]
+    )
+    assert not session.create_dataframe(data=[], schema=schema).collect()

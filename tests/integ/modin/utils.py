@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
+
 import datetime
 import json
 from collections import namedtuple
@@ -14,13 +16,13 @@ import pandas.testing as tm
 import pytest
 from modin.pandas import DataFrame, Series
 from pandas import isna
-from pandas._testing import assert_index_equal
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_list_like
 from pandas.core.dtypes.inference import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType
@@ -180,7 +182,14 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         the second element is a native pandas dataframe created by forwarding
         the arguments to the pandas dataframe constructor.
     """
-    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **kwargs))
+    native_kw_args = kwargs.copy()
+    if "index" in native_kw_args:
+        native_kw_args["index"] = try_convert_index_to_native(native_kw_args["index"])
+    if "columns" in native_kw_args:
+        native_kw_args["columns"] = try_convert_index_to_native(
+            native_kw_args["columns"]
+        )
+    return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
 def create_test_series(*args, **kwargs) -> tuple[pd.Series, native_pd.Series]:
@@ -212,10 +221,10 @@ def try_to_load_json_string(value: Any) -> Any:
 
 
 def assert_snowpark_pandas_equal_to_pandas(
-    snow: Union[DataFrame, Series],
-    expected_pandas: Union[native_pd.DataFrame, native_pd.Series],
+    snow: DataFrame | Series,
+    expected_pandas: native_pd.DataFrame | native_pd.Series,
     *,
-    statement_params: Optional[dict[str, str]] = None,
+    statement_params: dict[str, str] | None = None,
     expected_index_type: str = None,
     expected_dtypes: list[str] = None,
     **kwargs: Any,
@@ -265,8 +274,8 @@ def assert_snowpark_pandas_equal_to_pandas(
 
 
 def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-    snow: Union[DataFrame, Series],
-    native: Union[native_pd.DataFrame, native_pd.Series],
+    snow: DataFrame | Series,
+    native: native_pd.DataFrame | native_pd.Series,
     **kwargs,
 ) -> None:
     """
@@ -276,8 +285,8 @@ def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
 
 
 def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
-    snow: Union[DataFrame, Series],
-    native: Union[native_pd.DataFrame, native_pd.Series],
+    snow: DataFrame | Series,
+    native: native_pd.DataFrame | native_pd.Series,
     **kwargs,
 ) -> None:
     """
@@ -359,8 +368,8 @@ def eval_snowpark_pandas_result(
     comparator: Callable = assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     inplace: bool = False,
     expect_exception: bool = False,
-    expect_exception_type: Optional[type[Exception]] = None,
-    expect_exception_match: Optional[str] = None,
+    expect_exception_type: type[Exception] | None = None,
+    expect_exception_match: str | None = None,
     assert_exception_equal: bool = True,
     **kwargs: Any,
 ) -> None:
@@ -467,6 +476,9 @@ def assert_values_equal(
     Returns:
         bool telling whether the values are equal.
     """
+    expected = try_convert_index_to_native(expected)
+    actual = try_convert_index_to_native(actual)
+
     if isinstance(expected, native_pd.DataFrame):
         assert isinstance(
             actual, native_pd.DataFrame
@@ -659,7 +671,7 @@ def create_snow_df_with_table_and_data(
 
 
 def create_table_with_type(
-    session: "Session", name: str, schema: str, table_type: str = "temporary"
+    session: Session, name: str, schema: str, table_type: str = "temporary"
 ):
     session._run_query(f"create or replace {table_type} table {name} ({schema})")
 
@@ -751,3 +763,60 @@ def get_snowpark_dataframe_quoted_identifiers(
     snowpark_dataframe: SnowparkDataFrame,
 ) -> list[str]:
     return [f.column_identifier.quoted_name for f in snowpark_dataframe.schema.fields]
+
+
+def assert_index_equal(
+    left: pd.Index,
+    right: pd.Index,
+    exact: bool | str = "equiv",
+    check_names: bool = True,
+    check_exact: bool = True,
+    check_categorical: bool = True,
+    check_order: bool = True,
+    rtol: float = 1.0e-5,
+    atol: float = 1.0e-8,
+    obj: str = "Index",
+):
+    """
+    Check that left and right Index are equal.
+
+    Parameters
+    ----------
+    left : Index
+    right : Index
+    exact : bool or {'equiv'}, default 'equiv'
+        Whether to check the Index class, dtype and inferred_type
+        are identical. If 'equiv', then RangeIndex can be substituted for
+        Index with an int64 dtype as well.
+    check_names : bool, default True
+        Whether to check the names attribute.
+    check_exact : bool, default True
+        Whether to compare number exactly.
+    check_categorical : bool, default True
+        Whether to compare internal Categorical exactly.
+    check_order : bool, default True
+        Whether to compare the order of index entries as well as their values.
+        If True, both indexes must contain the same elements, in the same order.
+        If False, both indexes must contain the same elements, but in any order.
+    rtol : float, default 1e-5
+        Relative tolerance. Only used when check_exact is False.
+    atol : float, default 1e-8
+        Absolute tolerance. Only used when check_exact is False.
+    obj : str, default 'Index'
+        Specify object name being compared, internally used to show appropriate
+        assertion message.
+    """
+    left = try_convert_index_to_native(left)
+    right = try_convert_index_to_native(right)
+    return native_pd._testing.assert_index_equal(
+        left,
+        right,
+        exact=exact,
+        check_names=check_names,
+        check_exact=check_exact,
+        check_categorical=check_categorical,
+        check_order=check_order,
+        rtol=rtol,
+        atol=atol,
+        obj=obj,
+    )
