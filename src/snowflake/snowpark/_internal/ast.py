@@ -8,9 +8,12 @@ import base64
 import itertools
 import sys
 import uuid
-from typing import Tuple
+from decimal import Decimal
+from inspect import signature
+from typing import Callable, Tuple
 
-from numpy import isscalar
+from numpy import datetime64, float64, int32, int64
+from pandas import Timestamp
 from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -25,17 +28,48 @@ def expr_to_dataframe_expr(expr):
     return dfe
 
 
+# Map from python type to its corresponding IR field. IR fields below all have the 'v' attribute.
+TYPE_TO_IR_TYPE_NAME = {
+    bytes: "binary_val",
+    bool: "bool_val",
+    int32: "int_32_val",
+    int64: "int_64_val",
+    float64: "float_64_val",
+    Decimal: "big_decimal_val",
+    str: "string_val",
+    slice: "slice_val",
+    Timestamp: "timestamp_val",
+    datetime64: "date_val",
+}
+
+
 def ast_expr_from_python_val(expr, val):
-    if isscalar(val):
-        expr.scalar = val
-    elif isinstance(val, DataFrame):
-        expr.dataframe_expr = val
-    elif isinstance(val, Series):
-        expr.series_expr = val
-    elif isinstance(val, slice):
-        expr.slice_expr = val
-    elif is_list_like(val):
-        expr.array_expr = val
+    """
+    Converts a Python value to an IR expression.
+    This IR expression is set to an attribute of `expr`.
+
+    Parameters
+    ----------
+    expr : IR expression object
+    val : Python value that needs to be converted to IR expression.
+    """
+    if val is None:
+        expr.none_val = val
+    val_type = type(val)
+    if val_type not in TYPE_TO_IR_TYPE_NAME:
+        if isinstance(val, Callable):
+            expr.fn_val.params = signature(val).parameters
+            expr.fn_val.body = val
+        elif isinstance(val, Series):
+            # Checking Series before the list-like type since Series are considered to be list-like.
+            expr.series_val.ref = val
+        elif is_list_like(val):
+            expr.list_val.vs = val
+        if isinstance(val, DataFrame):
+            expr.dataframe_val.ref = val
+    else:
+        ir_type_name = TYPE_TO_IR_TYPE_NAME[val_type]
+        setattr(getattr(expr, ir_type_name), "v", val)
 
 
 class AstBatch:
