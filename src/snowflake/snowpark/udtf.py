@@ -798,35 +798,40 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
+        with open_telemetry_udf_context_manager(self.register_from_file, locals()):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.TABLE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
+            )
 
-        # register udtf
-        return self._do_register_udtf(
-            (file_path, handler_name),
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register udtf
+            return self._do_register_udtf(
+                (file_path, handler_name),
+                output_schema,
+                input_types,
+                input_names,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                api_call_source="UDTFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+            )
 
     def _do_register_udtf(
         self,
