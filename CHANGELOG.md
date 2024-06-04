@@ -30,6 +30,7 @@
 - Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
 - Added support for `Series.str.get`.
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
+- Added support for `Series.str.__getitem__` (`Series.str[...]`).
 
 #### Bug Fixes
 
