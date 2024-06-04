@@ -800,6 +800,9 @@ $$"""
         # It's not necessary to mock this call.
         pass
 
+    def phase1_enabled(self):
+        return False
+
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
     pd_df = pandas.DataFrame()
