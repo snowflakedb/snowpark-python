@@ -97,8 +97,6 @@ def open_telemetry_udf_context_manager(func, parameters):
                     )
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", lineno)
-                    cur_span.set_attribute("function.name", parameters.get("name"))
-                    cur_span.set_attribute("function.handler_name", handler_name)
                     cur_span.set_attribute(
                         "snow.executable.name", parameters.get("name")
                     )
