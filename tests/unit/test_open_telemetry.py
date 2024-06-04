@@ -432,7 +432,6 @@ def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
-    _remove_session(session)
     dict_exporter.clear()
 
 
