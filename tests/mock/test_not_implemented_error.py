@@ -18,3 +18,6 @@ def test_connection(session):
 
     with pytest.raises(NotImplementedError):
         MockServerConnection().upload_file("a", "b")
+
+    with pytest.raises(NotImplementedError):
+        MockServerConnection().get_result_set(None)
