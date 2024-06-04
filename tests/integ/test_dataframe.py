@@ -2238,19 +2238,18 @@ def test_dropna(session, local_testing_mode):
 
 @pytest.mark.localtest
 def test_fillna(session, local_testing_mode):
-    if not local_testing_mode:  # Enable for local testing after coercion support
-        Utils.check_answer(
-            TestData.double3(session, local_testing_mode).fillna(11),
-            [
-                Row(1.0, 1),
-                Row(11.0, 2),
-                Row(11.0, 3),
-                Row(4.0, 11),
-                Row(11.0, 11),
-                Row(11.0, 11),
-            ],
-            sort=False,
-        )
+    Utils.check_answer(
+        TestData.double3(session, local_testing_mode).fillna(11),
+        [
+            Row(1.0, 1),
+            Row(11.0, 2),
+            Row(11.0, 3),
+            Row(4.0, 11),
+            Row(11.0, 11),
+            Row(11.0, 11),
+        ],
+        sort=False,
+    )
 
     Utils.check_answer(
         TestData.double3(session, local_testing_mode).fillna(11.0, subset=["a"]),
@@ -2325,10 +2324,6 @@ def test_fillna(session, local_testing_mode):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-929218: support coercion in Local Testing",
-)
 def test_replace_with_coercion(session):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
@@ -2377,7 +2372,15 @@ def test_replace_with_coercion(session):
         [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
     )
 
-    df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
+    df = session.create_dataframe(
+        [[[1, 2], (1, 3)]],
+        schema=StructType(
+            [
+                StructField("col1", ArrayType(IntegerType())),
+                StructField("col2", ArrayType(IntegerType())),
+            ]
+        ),
+    )  # schema=["col1", "col2"])
     Utils.check_answer(
         df.replace([(1, 3)], [[2, 3]]),
         [Row("[\n  1,\n  2\n]", "[\n  2,\n  3\n]")],
