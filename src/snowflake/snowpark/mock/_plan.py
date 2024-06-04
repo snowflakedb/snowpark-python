@@ -1995,6 +1995,8 @@ def calculate_expression(
                 if (
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type != value.sf_type
+                    and not (isinstance(output_data.sf_type.datatype, _NumericType)
+                             and isinstance(value.sf_type.datatype, _NumericType))
                 ):
                     raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type} != {value.sf_type}"
@@ -2011,6 +2013,8 @@ def calculate_expression(
                 if (
                     not isinstance(output_data.sf_type.datatype, NullType)
                     and output_data.sf_type.datatype != value.sf_type.datatype
+                    and not (isinstance(output_data.sf_type.datatype, _NumericType)
+                             and isinstance(value.sf_type.datatype, _NumericType))
                 ):
                     raise SnowparkLocalTestingException(
                         f"CaseWhen expressions have conflicting data types: {output_data.sf_type.datatype} != {value.sf_type.datatype}"
