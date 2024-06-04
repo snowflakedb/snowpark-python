@@ -8,7 +8,7 @@ import base64
 import itertools
 import sys
 import uuid
-from typing import NoReturn, Tuple
+from typing import Tuple
 
 from numpy import isscalar
 from pandas.core.dtypes.inference import is_list_like
