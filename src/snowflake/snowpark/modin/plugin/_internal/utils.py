@@ -248,7 +248,10 @@ def _create_read_only_table(
         ctas_query = f"SELECT * FROM {table_name}"
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
-        _logger.debug(f"Materialize temporary table {temp_table_name} for {ctas_query}")
+        _logger.warning(
+            f"Data from source table/view '{table_name}' is being copied into a new "
+            f"temporary table '{temp_table_name}'. DataFrame creation might take some time."
+        )
 
         statement_params = get_default_snowpark_pandas_statement_params()
         # record 1) original table name (which may not be an actual table)

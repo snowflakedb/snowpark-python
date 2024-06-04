@@ -6,6 +6,11 @@
 
 #### Improvements
 
+
+#### Bug Fixes
+
+- Fixed a bug where python stored procedure with table return type fails when run in a task.
+
 ### Snowpark Local Testing Updates
 
 #### New Features
@@ -16,6 +21,7 @@
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug that table merge fails when update clause exists but no update takes place.
 
 ### Snowpark pandas API Updates
 
@@ -23,6 +29,7 @@
 
 - Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
 - Added support for `Series.str.get`.
+- Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 
 #### Bug Fixes

@@ -83,6 +83,7 @@ from snowflake.snowpark.functions import (
     date_part,
     date_trunc,
     dayofmonth,
+    dayofyear,
     dense_rank,
     first_value,
     greatest,
@@ -8842,6 +8843,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "month": month,
             "year": year,
             "quarter": quarter,
+            "dayofyear": dayofyear,
+            # Use DAYOFWEEKISO for `dayofweek` so that the result doesn't
+            # depend on the Snowflake session's WEEK_START parameter. Subtract
+            # 1 to match pandas semantics.
+            "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
