@@ -8,15 +8,15 @@ from datetime import datetime
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pandas._testing as tm
 import pytest
 from modin.pandas import Index, MultiIndex, Series
-from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import assert_series_equal
+from tests.integ.modin.utils import assert_index_equal, assert_series_equal
 
 
 class TestRename:
@@ -50,13 +50,15 @@ class TestRename:
         # partial dict
         ser = Series(np.arange(4), index=["a", "b", "c", "d"], dtype="int64")
         renamed = ser.rename({"b": "foo", "d": "bar"})
-        assert_index_equal(renamed.index, Index(["a", "foo", "c", "bar"]))
+        assert_index_equal(renamed.index, native_pd.Index(["a", "foo", "c", "bar"]))
 
     @sql_count_checker(query_count=2, join_count=1)
     def test_rename_retain_index_name(self):
         # index with name
         renamer = Series(
-            np.arange(4), index=Index(["a", "b", "c", "d"], name="name"), dtype="int64"
+            np.arange(4),
+            index=pd.Index(["a", "b", "c", "d"], name="name"),
+            dtype="int64",
         )
         renamed = renamer.rename({})
         assert renamed.index.name == renamer.index.name

@@ -1690,10 +1690,6 @@ def test_call_sproc_with_session_as_first_argument(session):
     assert "Two sessions specified in arguments" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370044: support strict option for stored procedures in Local Testing",
-)
 def test_strict_stored_procedure(session):
     @sproc(strict=True)
     def echo(_: Session, num: int) -> int:

@@ -98,7 +98,7 @@ def get_non_pandas_kwargs(kwargs: Any) -> Any:
 
 def get_columns_to_keep_for_usecols(
     usecols: Union[Callable, list[str], list[int]],
-    columns: pd.Index,
+    columns: "pd.Index",
     maintain_usecols_order: bool = False,
 ) -> list[Hashable]:
     """

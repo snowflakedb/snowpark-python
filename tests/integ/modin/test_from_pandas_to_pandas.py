@@ -10,7 +10,6 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from pandas import DatetimeTZDtype
-from pandas._testing import assert_index_equal
 from pandas.core.dtypes.common import is_datetime64_any_dtype
 
 import snowflake.snowpark
@@ -26,6 +25,7 @@ from tests.integ.modin.utils import (
     BASIC_TYPE_DATA2,
     VALID_PANDAS_LABELS,
     assert_frame_equal,
+    assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
@@ -110,7 +110,7 @@ def check_result_from_and_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    if columns is not None and not isinstance(columns, (list, pd.Index)):
+    if columns is not None and not isinstance(columns, (list, native_pd.Index)):
         columns = [columns]
     native_df = native_pd.DataFrame(data=data, index=index, columns=columns)
     snow_df = pd.DataFrame(native_df)
@@ -235,7 +235,7 @@ def test_index_name(index_name):
 @sql_count_checker(query_count=1)
 def test_column_index_names(pandas_label):
     snow_df = pd.DataFrame({pandas_label: [1, 2]})
-    expected_columns_index = pd.Index([pandas_label])
+    expected_columns_index = native_pd.Index([pandas_label])
     # verify columns is same as original dataframe.
     assert_index_equal(snow_df.columns, expected_columns_index)
     # convert back to native pandas and verify columns is same as the original dataframe
@@ -246,9 +246,7 @@ def test_column_index_names(pandas_label):
 @pytest.mark.parametrize("name", [None, *VALID_PANDAS_LABELS])
 @sql_count_checker(query_count=1)
 def test_to_pandas_column_index_names(name):
-    df = pd.DataFrame(
-        data=[[1] * 2, [2] * 2], columns=native_pd.Index([1, 2], name=name)
-    )
+    df = pd.DataFrame(data=[[1] * 2, [2] * 2], columns=pd.Index([1, 2], name=name))
     assert df.columns.names == [name]
     pdf = df.to_pandas()
     assert pdf.columns.names == [name]

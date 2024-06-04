@@ -415,7 +415,7 @@ def test_string_sum_with_all_nulls_in_group_produces_empty_string():
     assert_snowpark_pandas_equal_to_pandas(
         snow_result,
         native_pd.DataFrame(
-            {"string_col": ["", "a"]}, index=pd.Index([0, 1], name="key_col")
+            {"string_col": ["", "a"]}, index=native_pd.Index([0, 1], name="key_col")
         ),
     )
 

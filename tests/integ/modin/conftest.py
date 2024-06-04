@@ -50,6 +50,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -57,6 +58,17 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")
@@ -192,60 +204,70 @@ def create_multiindex_with_dt64tz_level() -> pd.MultiIndex:
 @pytest.fixture(scope="session")
 def indices_dict():
     return {
-        "string": pd.Index([f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object),
-        "int": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
-        "range": pd.RangeIndex(0, INDEX_SAMPLE_SIZE, 1),
-        "float": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float"),
-        "repeats": pd.Index([0, 0, 1, 1, 2, 2] * int(INDEX_SAMPLE_SIZE / 6)),
-        "bool-dtype": pd.Index(np.random.randn(INDEX_SAMPLE_SIZE) < 0),
-        "tuples": pd.MultiIndex.from_tuples(zip(["foo", "bar", "baz"], [1, 2, 3])),
+        "string": pandas.Index(
+            [f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object
+        ),
+        "int": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
+        "range": pandas.RangeIndex(0, INDEX_SAMPLE_SIZE, 1),
+        "float": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float"),
+        "repeats": pandas.Index([0, 0, 1, 1, 2, 2] * int(INDEX_SAMPLE_SIZE / 6)),
+        "bool-dtype": pandas.Index(np.random.randn(INDEX_SAMPLE_SIZE) < 0),
+        "tuples": pandas.MultiIndex.from_tuples(zip(["foo", "bar", "baz"], [1, 2, 3])),
         "multi": create_multiindex(),
         # NumericIndex is a pandas 2.x feature
-        "num_int64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int64"),
-        "num_float64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float64"),
-        "empty": pd.Index([]),
-        "bool-object": pd.Index([True, False] * HALF_INDEX_SAMPLE_SIZE, dtype=object),
-        "string-python": pd.Index(
+        "num_int64": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int64"),
+        "num_float64": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float64"),
+        "empty": pandas.Index([]),
+        "bool-object": pandas.Index(
+            [True, False] * HALF_INDEX_SAMPLE_SIZE, dtype=object
+        ),
+        "string-python": pandas.Index(
             pd.array(
-                pd.Index([f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object),
+                pandas.Index(
+                    [f"i-{i}" for i in range(INDEX_SAMPLE_SIZE)], dtype=object
+                ),
                 dtype="string[python]",
             )
         ),
-        "nullable_int": pd.Index(nullable_int_sample, dtype="Int64"),
-        "nullable_uint": pd.Index(nullable_int_sample, dtype="UInt16"),
-        "nullable_float": pd.Index(nullable_int_sample, dtype="Float32"),
-        "nullable_bool": pd.Index(
+        "nullable_int": pandas.Index(nullable_int_sample, dtype="Int64"),
+        "nullable_uint": pandas.Index(nullable_int_sample, dtype="UInt16"),
+        "nullable_float": pandas.Index(nullable_int_sample, dtype="Float32"),
+        "nullable_bool": pandas.Index(
             nullable_bool_sample.astype(bool),
             dtype="boolean",
         ),
-        "uint": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint"),
-        "uint-small": pd.Index([1, 2, 3], dtype="uint64"),
-        "timedelta": pd.timedelta_range(
+        "uint": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint"),
+        "uint-small": pandas.Index([1, 2, 3], dtype="uint64"),
+        "timedelta": pandas.timedelta_range(
             start="1 day", periods=INDEX_SAMPLE_SIZE, freq="D"
         ),
         "multi-with-dt64tz-level": create_multiindex_with_dt64tz_level(),
         # NumericIndex is a pandas 2.x feature
-        "num_int32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int32"),
-        "num_int16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
-        "num_int8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("int8"),
-        "num_uint64": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint64"),
-        "num_uint32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint32"),
-        "num_uint16": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint16"),
-        "num_uint8": pd.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("uint8"),
-        "num_float32": pd.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float32"),
-        "categorical": pd.Index(list("abcde") * 20, dtype="category"),
-        "interval": pd.IntervalIndex.from_breaks(np.linspace(0, 100, num=101)),
-        "complex64": pd.Index(np.arange(100)).astype("complex64"),
-        "complex128": pd.Index(np.arange(100)).astype("complex128"),
-        "period": pd.period_range(
+        "num_int32": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int32"),
+        "num_int16": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="int16"),
+        "num_int8": pandas.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("int8"),
+        "num_uint64": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint64"),
+        "num_uint32": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint32"),
+        "num_uint16": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="uint16"),
+        "num_uint8": pandas.Index(np.arange(INDEX_SAMPLE_SIZE)).astype("uint8"),
+        "num_float32": pandas.Index(np.arange(INDEX_SAMPLE_SIZE), dtype="float32"),
+        "categorical": pandas.Index(list("abcde") * 20, dtype="category"),
+        "interval": pandas.IntervalIndex.from_breaks(np.linspace(0, 100, num=101)),
+        "complex64": pandas.Index(np.arange(100)).astype("complex64"),
+        "complex128": pandas.Index(np.arange(100)).astype("complex128"),
+        "period": pandas.period_range(
             start=datetime(2000, 1, 1), periods=100, freq="D", name="period[B]"
         ),
         # failed due to no
         "datetime": pandas.DatetimeIndex(
-            pd.bdate_range(datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B")
+            pandas.bdate_range(
+                datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B"
+            )
         ),
         "datetime-tz": pandas.DatetimeIndex(
-            pd.bdate_range(datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B"),
+            pandas.bdate_range(
+                datetime(2000, 1, 1), periods=INDEX_SAMPLE_SIZE, freq="B"
+            ),
             tz="US/Pacific",
         ),
     }
