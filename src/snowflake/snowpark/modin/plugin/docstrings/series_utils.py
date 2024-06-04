@@ -702,10 +702,96 @@ class StringMethods:
         # TODO: SNOW-1432420 fix bug in docstring.
 
     def rstrip():
-        pass
+        """
+        Remove trailing characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from right side. Replaces any non-strings in Series with NaNs. Equivalent to str.rstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        Series or Index of object
+
+        See also
+        --------
+        Series.str.strip
+            Remove leading and trailing characters in Series/Index.
+        Series.str.lstrip
+            Remove leading characters in Series/Index.
+        Series.str.rstrip
+            Remove trailing characters in Series/Index.
+
+        Examples
+        --------
+        >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
+        >>> s
+        0    1. Ant.
+        1    2. Bee!\\n
+        2    3. Cat?\\t
+        3          NaN
+        4           10
+        5         True
+        dtype: object
+
+        >>> s.str.rstrip('.!? \\n\\t')
+        0    1. Ant
+        1    2. Bee
+        2    3. Cat
+        3       NaN
+        4       NaN
+        5       NaN
+        dtype: object
+        """
 
     def lstrip():
-        pass
+        """
+        Remove leading characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left side. Replaces any non-strings in Series with NaNs. Equivalent to str.lstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        Series or Index of object
+
+        See also
+        --------
+        Series.str.strip
+            Remove leading and trailing characters in Series/Index.
+        Series.str.lstrip
+            Remove leading characters in Series/Index.
+        Series.str.rstrip
+            Remove trailing characters in Series/Index.
+
+        Examples
+        --------
+        >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
+        >>> s
+        0    1. Ant.
+        1    2. Bee!\\n
+        2    3. Cat?\\t
+        3          NaN
+        4           10
+        5         True
+        dtype: object
+
+        >>> s.str.lstrip('123.')
+        0    Ant.
+        1    Bee!\\n
+        2    Cat?\\t
+        3       NaN
+        4       NaN
+        5       NaN
+        dtype: object
+        """
 
     def partition():
         pass
