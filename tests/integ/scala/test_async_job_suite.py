@@ -8,6 +8,8 @@ from time import sleep, time
 
 import pytest
 
+from snowflake.snowpark.session import Session
+
 try:
     import pandas as pd
     from pandas.testing import assert_frame_equal
@@ -23,7 +25,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, when_matched, when_not_matched
+from snowflake.snowpark.functions import col, sproc, when_matched, when_not_matched
 from snowflake.snowpark.table import DeleteResult, MergeResult, UpdateResult
 from snowflake.snowpark.types import (
     DoubleType,
@@ -349,13 +351,19 @@ def test_async_batch_insert(session):
     reason="TODO(SNOW-932722): Cancel query is not allowed in stored proc",
 )
 def test_async_is_running_and_cancel(session):
-    async_job = session.sql("select SYSTEM$WAIT(3)").collect_nowait()
+    def wait(_: Session, sec: int) -> str:
+        sleep(sec)
+        return "success"
+
+    sproc(wait, name="wait_sproc", packages=[])
+
+    async_job = session.sql("call wait_sproc(3)").collect_nowait()
     while not async_job.is_done():
         sleep(1.0)
     assert async_job.is_done()
 
     # set 20s to avoid flakiness
-    async_job2 = session.sql("select SYSTEM$WAIT(20)").collect_nowait()
+    async_job2 = session.sql("call wait_sproc(20)").collect_nowait()
     assert not async_job2.is_done()
     async_job2.cancel()
     start = time()
