@@ -119,8 +119,28 @@ class MockSetStatement(MockSelectable):
     ) -> None:
         super().__init__(analyzer=analyzer)
         self.set_operands = set_operands
-        self.pre_actions = []
-        self.post_actions = []
+        for operand in set_operands:
+            if operand.selectable.pre_actions:
+                if not self.pre_actions:
+                    self.pre_actions = []
+                self.pre_actions.extend(operand.selectable.pre_actions)
+            if operand.selectable.post_actions:
+                if not self.post_actions:
+                    self.post_actions = []
+                self.post_actions.extend(operand.selectable.post_actions)
+
+    @property
+    def sql_query(self) -> str:
+        sql = f"({self.set_operands[0].selectable.sql_query})"
+        for i in range(1, len(self.set_operands)):
+            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
+        return sql
+
+    @property
+    def schema_query(self) -> str:
+        """The first operand decide the column attributes of a query with set operations.
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        return self.set_operands[0].selectable.schema_query
 
     @property
     def column_states(self) -> Optional[ColumnStateDict]:
