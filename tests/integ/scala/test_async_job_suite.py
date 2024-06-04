@@ -355,7 +355,7 @@ def test_async_is_running_and_cancel(session):
         sleep(sec)
         return "success"
 
-    sproc(wait, name="wait_sproc", packages=[])
+    sproc(wait, name="wait_sproc", packages=["snowflake-snowpark-python"])
 
     async_job = session.sql("call wait_sproc(3)").collect_nowait()
     while not async_job.is_done():
