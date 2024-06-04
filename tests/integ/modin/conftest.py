@@ -45,6 +45,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -52,6 +53,17 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")
