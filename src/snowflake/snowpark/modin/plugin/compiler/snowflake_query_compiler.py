@@ -6,6 +6,7 @@ import itertools
 import json
 import logging
 import re
+import typing
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, Literal, Optional, Union, get_args
@@ -12203,8 +12204,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        import typing
-
         if not is_scalar(key) and not isinstance(key, slice):
             # Follow pandas behavior; all values will be None.
             key = None
