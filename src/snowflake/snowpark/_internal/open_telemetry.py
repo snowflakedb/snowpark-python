@@ -12,8 +12,18 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
+from opentelemetry.trace import Status, StatusCode
+
 logger = getLogger(__name__)
-target_class = ["dataframe.py", "dataframe_writer.py"]
+target_class = [
+    "dataframe.py",
+    "dataframe_writer.py",
+    "udf.py",
+    "udtf.py",
+    "udaf.py",
+    "functions.py",
+]
+udf_class = ["udf.py", "udtf.py", "udaf.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
@@ -62,6 +72,8 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
+        udf_func = parameters.get("func")
+        handler_name = udf_func.__name__ if udf_func else parameters.get("func_name")
         tracer = trace.get_tracer(f"snow.snowpark.stored_procedure:{class_name}")
 
         with tracer.start_as_current_span(name) as cur_span:
@@ -73,22 +85,18 @@ def open_telemetry_udf_context_manager(func, parameters):
                     )
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", lineno)
+                    cur_span.set_attribute("function.name", parameters.get("name"))
+                    cur_span.set_attribute("function.handler_name", handler_name)
                     cur_span.set_attribute(
-                        "function.name",
-                        parameters.get("name")
-                        if parameters.get("name")
-                        else "None because this is a temporary udf and name is not set by user",
-                    )
-                    cur_span.set_attribute(
-                        "function.filepath",
-                        parameters.get("file_path")
-                        if parameters.get("file_path")
-                        else "None because not registering from a file",
+                        "function.filepath", parameters.get("file_path")
                     )
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
-                yield
+                try:
+                    yield
+                except Exception as e:
+                    cur_span.set_status(Status(StatusCode.ERROR, str(e)))
     else:
         yield
 
@@ -103,11 +111,15 @@ def decorator_count(func):
 
 
 def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
+    # we know what function we are tracking, with this information, we can locate where target function is called
     decorator_number = decorator_count(func)
     target_index = -1
     for i, frame in enumerate(frame_info):
         file_name = os.path.basename(frame.filename)
         if file_name in target_class:
+            if file_name in udf_class:
+                target_index = i + decorator_number + 1
+                continue
             target_index = i + decorator_number + 1
             break
     frame = frame_info[target_index]

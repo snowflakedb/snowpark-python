@@ -19,6 +19,9 @@ from snowflake.snowpark._internal.open_telemetry import (
     decorator_count,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark.functions import udf
+from snowflake.snowpark.session import _add_session
+from snowflake.snowpark.types import IntegerType
 
 
 def spans_to_dict(spans):
@@ -56,6 +59,89 @@ dict_exporter = InMemorySpanExporter()
 processor = SimpleSpanProcessor(dict_exporter)
 trace_provider.add_span_processor(processor)
 trace.set_tracer_provider(trace_provider)
+
+
+def test_register_udf_from_file():
+    test_file = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "../resources",
+            "test_udf_dir",
+            "test_udf_file.py",
+        )
+    )
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+
+    session.udf.register_from_file(
+        test_file,
+        "mod5",
+        name="mod5_function",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        immutable=True,
+    )
+    lineno = inspect.currentframe().f_lineno - 8
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register_from_file" in spans
+    span = spans["register_from_file"]
+    print(span.attributes)
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["function.name"] == "mod5_function"
+    assert span.attributes["function.handler_name"] == "mod5"
+
+
+def test_inline_register_udf():
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    _add_session(session)
+    session._conn._telemetry_client = mock.MagicMock()
+    # test register with udf.register
+
+    def add_udf(x: int, y: int) -> int:
+        return x + y
+
+    session.udf.register(
+        add_udf,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        replace=True,
+        stage_location="@test_stage",
+        name="add",
+    )
+    lineno = inspect.currentframe().f_lineno - 3
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["function.name"] == "add"
+    assert span.attributes["function.handler_name"] == "add_udf"
+
+    # test register with decorator @udf
+    @udf(name="minus")
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    lineno = inspect.currentframe().f_lineno - 3
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    print(span.attributes)
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["function.name"] == "minus"
+    assert span.attributes["function.handler_name"] == "minus_udf"
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
