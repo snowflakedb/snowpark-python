@@ -144,8 +144,8 @@ def create_multiindex() -> pd.MultiIndex:
            names=['first', 'second'])
     """
 
-    major_axis = pd.Index(["foo", "bar", "baz", "qux"])
-    minor_axis = pd.Index(["one", "two"])
+    major_axis = pandas.Index(["foo", "bar", "baz", "qux"])
+    minor_axis = pandas.Index(["one", "two"])
 
     major_codes = np.array([0, 0, 1, 2, 3, 3])
     minor_codes = np.array([0, 1, 0, 1, 0, 1])

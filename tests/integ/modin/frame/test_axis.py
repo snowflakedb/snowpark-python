@@ -191,46 +191,53 @@ def test_set_columns_valid_names(col_name):
 
 
 @pytest.mark.parametrize(
-    "columns, error_type, error_msg",
+    "columns, error_type, error_msg, qc",
     [
         (
             "a",
             TypeError,
             "must be called with a collection of some kind, 'a' was passed",
+            0,
         ),
         (
             ["a"],
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
+            2,
         ),
         (
-            pd.Index(["a"]),
+            native_pd.Index(["a"]),
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
+            3,
         ),
         (
             ["a", "b", "c"],
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 3 elements",
+            2,
         ),
         (
             [["A", "a", 1], ["B", "b", 1]],
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 3 elements",
+            0,
         ),
     ],
 )
-@sql_count_checker(query_count=0)
-def test_set_columns_negative(columns, error_type, error_msg):
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_dfs[0]),
-        test_dfs[0],
-        lambda df: set_columns_func(df, labels=columns),
-        comparator=assert_index_equal,
-        expect_exception=True,
-        expect_exception_type=error_type,
-        expect_exception_match=error_msg,
-    )
+def test_set_columns_negative(columns, error_type, error_msg, qc):
+    if isinstance(columns, native_pd.Index):
+        columns = pd.Index(columns)
+    with SqlCounter(query_count=qc):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_dfs[0]),
+            test_dfs[0],
+            lambda df: set_columns_func(df, labels=columns),
+            comparator=assert_index_equal,
+            expect_exception=True,
+            expect_exception_type=error_type,
+            expect_exception_match=error_msg,
+        )
 
 
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)

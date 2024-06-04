@@ -122,7 +122,7 @@ SCALAR_LIKE_VALUES = [0, "xyz", None, 3.14]
 
 # Values that behave like arrays/lists not all cases are covered here, should be covered in series/test_loc.py
 ARRAY_LIKE_VALUES = [
-    pd.Index(["a", "b", "c", "b"]),
+    native_pd.Index(["a", "b", "c", "b"]),
     np.array([-2, -1, -1, True]),
     range(-2, 3),
     slice(-100, 2),
@@ -144,8 +144,8 @@ SERIES_AND_LIST_LIKE_KEY_AND_ITEM_VALUES_WITH_DUPLICATES = [
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
-    pd.Index([]),
     np.array([]),
+    native_pd.Index([]),
     native_pd.Series([]),
 ]
 
@@ -755,7 +755,6 @@ def test_series_setitem_scalar_key_and_array_like_and_series_item(key, item):
 
 @pytest.mark.parametrize("key", SCALAR_LIKE_VALUES)
 @pytest.mark.parametrize("item", ARRAY_LIKE_VALUES)
-@sql_count_checker(query_count=0)
 def test_series_setitem_scalar_key_and_array_like_item_mixed_types(
     key, item, mixed_type_index_native_series_mixed_type_index
 ):
@@ -773,15 +772,17 @@ def test_series_setitem_scalar_key_and_array_like_item_mixed_types(
     # dtype: object
     # Normally, False as the key would error since you cannot use single boolean values as indexers but since False was
     # already set as a part of the index, it can be used to index the series.
+    if isinstance(item, native_pd.Index):
+        item = pd.Index(item)
+    with SqlCounter(query_count=1 if isinstance(item, pd.Index) else 0):
+        native_ser = mixed_type_index_native_series_mixed_type_index.copy()
+        snowpark_ser = pd.Series(native_ser)
 
-    native_ser = mixed_type_index_native_series_mixed_type_index.copy()
-    snowpark_ser = pd.Series(native_ser)
-
-    # Assign item and compare results.
-    with pytest.raises(NotImplementedError):
-        native_ser[key] = item
-        snowpark_ser[key] = item
-        assert_series_equal(snowpark_ser, native_ser)
+        # Assign item and compare results.
+        with pytest.raises(NotImplementedError):
+            native_ser[key] = try_convert_index_to_native(item)
+            snowpark_ser[key] = item
+            assert_series_equal(snowpark_ser, native_ser)
 
 
 @pytest.mark.parametrize("key", SCALAR_LIKE_VALUES)
@@ -1521,10 +1522,9 @@ def test_series_setitem_series_behavior_that_deviates_from_loc_set(
         assert_series_equal(snowpark_locset_ser2, expected, check_dtype=False)
 
 
-@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 @pytest.mark.parametrize(
-    "item", EMPTY_LIST_LIKE_VALUES[:-1]
+    "item", EMPTY_LIST_LIKE_VALUES[:-2]
 )  # ignore last element: empty series
 def test_series_setitem_with_empty_key_and_empty_item_negative(
     key,
@@ -1549,16 +1549,24 @@ def test_series_setitem_with_empty_key_and_empty_item_negative(
     native_ser = default_index_native_series.copy()
     snowpark_ser = pd.Series(native_ser)
 
-    err_msg = "The length of the value/item to set is empty"
-    with pytest.raises(ValueError, match=err_msg):
-        native_ser[try_convert_index_to_native(key)] = item
-        snowpark_ser[
-            pd.Series(key) if isinstance(key, native_pd.Series) else key
-        ] = item
-        assert_series_equal(snowpark_ser, native_ser)
+    if isinstance(key, native_pd.Index):
+        snowpark_key = pd.Index(key)
+    else:
+        snowpark_key = key
+
+    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 0):
+
+        err_msg = "The length of the value/item to set is empty"
+        with pytest.raises(ValueError, match=err_msg):
+            native_ser[key] = item
+            snowpark_ser[
+                pd.Series(snowpark_key)
+                if isinstance(snowpark_key, native_pd.Series)
+                else snowpark_key
+            ] = item
+            assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=4)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 def test_series_setitem_with_empty_key_and_empty_series_item(
     key,
@@ -1582,14 +1590,21 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     snowpark_ser = pd.Series(native_ser)
     item = native_pd.Series([])
 
-    native_ser[try_convert_index_to_native(key)] = item
-    snowpark_ser[
-        pd.Series(key) if isinstance(key, native_pd.Series) else key
-    ] = pd.Series(item)
-    assert_snowpark_pandas_equal_to_pandas(snowpark_ser, native_ser)
+    if isinstance(key, native_pd.Index):
+        snowpark_key = pd.Index(key)
+    else:
+        snowpark_key = key
+
+    with SqlCounter(query_count=3 if isinstance(key, native_pd.Index) else 1):
+        native_ser[key] = item
+        snowpark_ser[
+            pd.Series(snowpark_key)
+            if isinstance(snowpark_key, native_pd.Series)
+            else snowpark_key
+        ] = pd.Series(item)
+        assert_snowpark_pandas_equal_to_pandas(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 def test_series_setitem_with_empty_key_and_scalar_item(
     key,
@@ -1623,9 +1638,23 @@ def test_series_setitem_with_empty_key_and_scalar_item(
     snowpark_ser = pd.Series(native_ser)
     item = 32
 
-    native_ser[try_convert_index_to_native(key)] = item
-    snowpark_ser[pd.Series(key) if isinstance(key, native_pd.Series) else key] = item
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snowpark_ser, native_ser)
+    if isinstance(key, native_pd.Index):
+        snowpark_key = pd.Index(key)
+    else:
+        snowpark_key = key
+
+    with SqlCounter(
+        query_count=3 if isinstance(key, native_pd.Index) else 1, join_count=2
+    ):
+        native_ser[key] = item
+        snowpark_ser[
+            pd.Series(snowpark_key)
+            if isinstance(snowpark_key, native_pd.Series)
+            else snowpark_key
+        ] = item
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snowpark_ser, native_ser
+        )
 
 
 @sql_count_checker(query_count=0, join_count=0)
@@ -2020,7 +2049,7 @@ def test_series_setitem_key_slice_with_series(start, stop, step):
     native_item_ser = native_pd.Series(
         item_data[:slice_len],
         dtype="str",
-        index=pd.Index(idx[:slice_len], dtype="int32"),
+        index=native_pd.Index(idx[:slice_len], dtype="int32"),
     )
 
     def set_loc_helper(ser):

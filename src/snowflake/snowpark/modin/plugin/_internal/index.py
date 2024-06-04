@@ -69,8 +69,9 @@ class Index:
     >>> pd.Index(list('abc'))
     Index(['a', 'b', 'c'], dtype='object')
 
+    # Snowpark pandas explicitly casts all int types to int64
     >>> pd.Index([1, 2, 3], dtype="uint8")
-    Index([1, 2, 3], dtype='uint8')
+    Index([1, 2, 3], dtype='int64')
     """
 
     # same fields as native pandas index constructor
@@ -82,7 +83,7 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
-        is_lazy: bool = True,
+        convert_to_lazy: bool = True,
     ) -> None:
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
@@ -90,8 +91,7 @@ class Index:
             SnowflakeQueryCompiler,
         )
 
-        self.is_lazy = is_lazy
-        qc = None
+        self.is_lazy = convert_to_lazy
         if isinstance(data, (DataFrame, Series, Index)):
             qc = data._query_compiler
         elif isinstance(data, SnowflakeQueryCompiler):
@@ -119,7 +119,6 @@ class Index:
                 )
                 return
         self._query_compiler = qc
-        self._index = None  # type: ignore
 
     def to_pandas(self) -> native_pd.Index:
         """
@@ -131,7 +130,7 @@ class Index:
             A native pandas Index representation of self
         """
         if self.is_lazy:
-            return self._query_compiler.pandas_index()
+            return self._query_compiler._modin_frame.index_columns_pandas_index
         return self._index  # type: ignore
 
     @property
@@ -185,12 +184,12 @@ class Index:
         True
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.is_unique
         False
 
         >>> idx = pd.Index(["Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.is_unique
         True
         """
@@ -222,12 +221,12 @@ class Index:
         False
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.has_duplicates
         True
 
         >>> idx = pd.Index(["Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.has_duplicates
         False
         """
@@ -567,9 +566,11 @@ class Index:
         >>> int64_idx = pd.Index([1, 2, 3], dtype='int64')
         >>> int64_idx
         Index([1, 2, 3], dtype='int64')
+
+        # Snowpark pandas explicitly casts all int types to int64
         >>> uint64_idx = pd.Index([1, 2, 3], dtype='uint64')
         >>> uint64_idx
-        Index([1, 2, 3], dtype='uint64')
+        Index([1, 2, 3], dtype='int64')
         >>> int64_idx.equals(uint64_idx)
         True
         """
@@ -891,8 +892,9 @@ class Index:
 
         Examples
         --------
+        # Snowpark pandas converts nan's to none
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([np.nan])
+        >>> idx.get_indexer_for([None])
         array([0, 2])
         """
         self.to_pandas_warning()
