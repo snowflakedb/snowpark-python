@@ -14,6 +14,7 @@ from pandas._libs.lib import is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_iloc import snowpark_pandas_input_keys
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -59,7 +60,9 @@ def test_series_iloc_snowpark_pandas_input_return_dataframe(
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,
-            lambda ser: ser.iloc[iloc_snowpark_pandas_input_map[key]],
+            lambda ser: ser.iloc[
+                try_convert_index_to_native(iloc_snowpark_pandas_input_map[key])
+            ],
         )
 
 
@@ -174,11 +177,19 @@ def test_series_iloc_get_key_bool(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=bool)
+            _key = (
+                pd.Index(_key, dtype=bool)
+                if isinstance(_ser, pd.Series)
+                else native_pd.Index(_key, dtype=bool)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name", dtype=bool)
+            _key = (
+                pd.Index(_key, name="some name", dtype=bool)
+                if isinstance(_ser, pd.Series)
+                else native_pd.Index(_key, name="some name", dtype=bool)
+            )
         elif key_type == "series" and isinstance(_ser, pd.Series):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
@@ -251,11 +262,17 @@ def test_series_iloc_get_key_numeric(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key)
+            _key = (
+                pd.Index(_key) if isinstance(ser, pd.Series) else native_pd.Index(_key)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name")
+            _key = (
+                pd.Index(_key, name="some name")
+                if isinstance(ser, pd.Series)
+                else native_pd.Index(_key, name="some name")
+            )
         elif key_type == "series" and isinstance(ser, pd.Series):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
@@ -443,8 +460,8 @@ def test_series_iloc_get_invalid_slice_key_negative(
         np.nan,
         np.array(["this", "is", "an", "ndarray!"]),
         native_pd.Index(["index", "of", "strings"]),
-        pd.Index([]),
-        pd.Index([], dtype=str),
+        native_pd.Index([]),
+        native_pd.Index([], dtype=str),
         "string",
         "test",
         ["list", "of", "strings"],
@@ -456,6 +473,8 @@ def test_series_iloc_get_non_numeric_key_negative(key, default_index_native_int_
     # Check whether invalid non-numeric keys passed in raise TypeError.
     # list-like objects need to be numeric, scalar keys can only be integers.
     # Native pandas Series and DataFrames are invalid inputs.
+    if isinstance(key, native_pd.Index):
+        key = pd.Index(key)
     snowpark_index_int_series = pd.Series(default_index_native_int_series)
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
     with pytest.raises(IndexError, match=error_msg):

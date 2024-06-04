@@ -269,22 +269,40 @@ def test_groups_grouping_by_single_index_column_with_sort_false(
         PrettyDict(
             {
                 3.1: pd.MultiIndex.from_arrays(
-                    [pd.Index([3.1], name="col3"), pd.Index([17.0], name="col4")]
+                    [
+                        native_pd.Index([3.1], name="col3"),
+                        native_pd.Index([17.0], name="col4"),
+                    ]
                 ),
                 8.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([8.0], name="col3"), pd.Index([3.0], name="col4")]
+                    [
+                        native_pd.Index([8.0], name="col3"),
+                        native_pd.Index([3.0], name="col4"),
+                    ]
                 ),
                 12.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([12.0], name="col3"), pd.Index([16.0], name="col4")]
+                    [
+                        native_pd.Index([12.0], name="col3"),
+                        native_pd.Index([16.0], name="col4"),
+                    ]
                 ),
                 10.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([10.0], name="col3"), pd.Index([15.0], name="col4")]
+                    [
+                        native_pd.Index([10.0], name="col3"),
+                        native_pd.Index([15.0], name="col4"),
+                    ]
                 ),
                 4.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([4.0], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        native_pd.Index([4.0], name="col3"),
+                        native_pd.Index([np.nan], name="col4"),
+                    ]
                 ),
                 np.nan: pd.MultiIndex.from_arrays(
-                    [pd.Index([np.nan], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        native_pd.Index([np.nan], name="col3"),
+                        native_pd.Index([np.nan], name="col4"),
+                    ]
                 ),
             }
         ),
