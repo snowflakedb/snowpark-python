@@ -2,14 +2,19 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+# flake8: noqa
 
 import base64
 import itertools
 import sys
 import uuid
-from typing import Tuple
+from typing import NoReturn, Tuple
+
+from numpy import isscalar
+from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark.modin.pandas import DataFrame, Series
 
 
 # TODO: currently unused.
@@ -20,6 +25,19 @@ def expr_to_dataframe_expr(expr):
     return dfe
 
 
+def ast_expr_from_python_val(expr, val):
+    if isscalar(val):
+        expr.scalar = val
+    elif isinstance(val, DataFrame):
+        expr.dataframe_expr = val
+    elif isinstance(val, Series):
+        expr.series_expr = val
+    elif isinstance(val, slice):
+        expr.slice_expr = val
+    elif is_list_like(val):
+        expr.array_expr = val
+
+
 class AstBatch:
     def __init__(self, session):
         self._session = session
@@ -27,7 +45,7 @@ class AstBatch:
         self._init_batch()
         # TODO: extended version from the branch snowpark-ir.
 
-    def assign(self, symbol = None):
+    def assign(self, symbol=None):
         stmt = self._request.body.add()
         stmt.assign.uid = next(self._id_gen)
         stmt.assign.var_id.bitfield1 = stmt.assign.uid
