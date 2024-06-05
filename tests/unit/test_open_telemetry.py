@@ -283,7 +283,7 @@ def test_inline_register_udtf(dict_exporter):
     assert span.attributes["code.lineno"] == lineno
     assert span.attributes["snow.executable.name"] == "generate_udtf"
     assert span.attributes["snow.executable.handler"] == "GeneratorUDTF"
-    lineno = inspect.currentframe().f_lineno + 4
+    lineno = inspect.currentframe().f_lineno + 8
 
     # test register with @udtf
     @udtf(
