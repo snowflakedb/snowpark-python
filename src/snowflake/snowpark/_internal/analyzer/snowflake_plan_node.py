@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark.row import Row
@@ -73,11 +73,11 @@ class Range(LeafNode):
         # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
         return Counter(
             {
-                ComplexityStat.WINDOW.value: 1,
-                ComplexityStat.ORDER_BY.value: 1,
-                ComplexityStat.LITERAL.value: 3,  # step, start, count
-                ComplexityStat.COLUMN.value: 1,  # id column
-                ComplexityStat.LOW_IMPACT.value: 2,  # ROW_NUMBER, GENERATOR
+                PlanNodeCategory.WINDOW.value: 1,
+                PlanNodeCategory.ORDER_BY.value: 1,
+                PlanNodeCategory.LITERAL.value: 3,  # step, start, count
+                PlanNodeCategory.COLUMN.value: 1,  # id column
+                PlanNodeCategory.OTHERS.value: 2,  # ROW_NUMBER, GENERATOR
             }
         )
 
@@ -90,7 +90,7 @@ class UnresolvedRelation(LeafNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM name
-        return Counter({ComplexityStat.COLUMN.value: 1})
+        return Counter({PlanNodeCategory.COLUMN.value: 1})
 
 
 class SnowflakeValues(LeafNode):
@@ -111,8 +111,8 @@ class SnowflakeValues(LeafNode):
         # TODO: use ARRAY_BIND_THRESHOLD
         return Counter(
             {
-                ComplexityStat.COLUMN.value: len(self.output),
-                ComplexityStat.LITERAL.value: len(self.data) * len(self.output),
+                PlanNodeCategory.COLUMN.value: len(self.output),
+                PlanNodeCategory.LITERAL.value: len(self.data) * len(self.output),
             }
         )
 
@@ -150,10 +150,10 @@ class SnowflakeCreateTable(LogicalPlan):
     def individual_complexity_stat(self) -> Counter[str]:
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (child)
         estimate = Counter(
-            {ComplexityStat.LOW_IMPACT.value: 1, ComplexityStat.COLUMN.value: 1}
+            {PlanNodeCategory.OTHERS.value: 1, PlanNodeCategory.COLUMN.value: 1}
         )
         estimate += (
-            Counter({ComplexityStat.COLUMN.value: len(self.column_names)})
+            Counter({PlanNodeCategory.COLUMN.value: len(self.column_names)})
             if self.column_names
             else Counter()
         )
@@ -182,7 +182,7 @@ class Limit(LogicalPlan):
     def individual_complexity_stat(self) -> Counter[str]:
         # for limit and offset
         return (
-            Counter({ComplexityStat.LOW_IMPACT.value: 2})
+            Counter({PlanNodeCategory.OTHERS.value: 2})
             + self.limit_expr.cumulative_complexity_stat
             + self.offset_expr.cumulative_complexity_stat
         )

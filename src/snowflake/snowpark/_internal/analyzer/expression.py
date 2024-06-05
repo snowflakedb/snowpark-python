@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 
@@ -166,7 +166,7 @@ class InExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.IN.value: 1})
+        return Counter({PlanNodeCategory.IN.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -209,7 +209,7 @@ class Attribute(Expression, NamedExpression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.COLUMN.value: 1})
+        return Counter({PlanNodeCategory.COLUMN.value: 1})
 
 
 class Star(Expression):
@@ -228,7 +228,7 @@ class Star(Expression):
         if self.expressions:
             return Counter()
         # if there are no expressions, we assign column value = 1 to Star
-        return Counter({ComplexityStat.COLUMN.value: 1})
+        return Counter({PlanNodeCategory.COLUMN.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -273,7 +273,7 @@ class UnresolvedAttribute(Expression, NamedExpression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.COLUMN.value: 1})
+        return Counter({PlanNodeCategory.COLUMN.value: 1})
 
 
 class Literal(Expression):
@@ -300,7 +300,7 @@ class Literal(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.LITERAL.value: 1})
+        return Counter({PlanNodeCategory.LITERAL.value: 1})
 
 
 class Interval(Expression):
@@ -352,12 +352,7 @@ class Interval(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter(
-            {
-                ComplexityStat.LITERAL.value: 2 * len(self.values_dict),
-                ComplexityStat.LOW_IMPACT.value: 1,
-            }
-        )
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
 
 class Like(Expression):
@@ -372,7 +367,7 @@ class Like(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # expr LIKE pattern
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -395,7 +390,7 @@ class RegExp(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # expr REG_EXP pattern
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -418,7 +413,7 @@ class Collate(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # expr COLLATE collate_spec
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -437,7 +432,7 @@ class SubfieldString(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # the literal corresponds to the contribution from self.field
-        return Counter({ComplexityStat.LITERAL.value: 1})
+        return Counter({PlanNodeCategory.LITERAL.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -457,7 +452,7 @@ class SubfieldInt(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # the literal corresponds to the contribution from self.field
-        return Counter({ComplexityStat.LITERAL.value: 1})
+        return Counter({PlanNodeCategory.LITERAL.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -498,7 +493,7 @@ class FunctionExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.FUNCTION.value: 1})
+        return Counter({PlanNodeCategory.FUNCTION.value: 1})
 
 
 class WithinGroup(Expression):
@@ -514,7 +509,7 @@ class WithinGroup(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # expr WITHIN GROUP (ORDER BY cols)
-        return Counter({ComplexityStat.ORDER_BY.value: 1})
+        return Counter({PlanNodeCategory.ORDER_BY.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -548,7 +543,7 @@ class CaseWhen(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.CASE_WHEN.value: 1})
+        return Counter({PlanNodeCategory.CASE_WHEN.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -586,7 +581,7 @@ class SnowflakeUDF(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.FUNCTION.value: 1})
+        return Counter({PlanNodeCategory.FUNCTION.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -608,7 +603,7 @@ class ListAgg(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.FUNCTION.value: 1})
+        return Counter({PlanNodeCategory.FUNCTION.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:

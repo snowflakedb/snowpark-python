@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 
@@ -32,7 +32,7 @@ class BinaryExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
 
 class BinaryArithmeticExpression(BinaryExpression):

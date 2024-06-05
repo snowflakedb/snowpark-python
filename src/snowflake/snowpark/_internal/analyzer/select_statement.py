@@ -23,7 +23,7 @@ from typing import (
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -303,7 +303,7 @@ class Selectable(LogicalPlan, ABC):
         """
         if isinstance(self.snowflake_plan.source_plan, Selectable):
             return Counter(
-                {ComplexityStat.COLUMN.value: len(self.column_states.active_columns)}
+                {PlanNodeCategory.COLUMN.value: len(self.column_states.active_columns)}
             )
         return self.snowflake_plan.individual_complexity_stat
 
@@ -384,7 +384,7 @@ class SelectableEntity(Selectable):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM entity
-        return Counter({ComplexityStat.COLUMN.value: 1})
+        return Counter({PlanNodeCategory.COLUMN.value: 1})
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -446,11 +446,11 @@ class SelectSQL(Selectable):
         if self.pre_actions:
             # Currently having pre-actions implies we have a non-select query followed
             # by a SELECT * FROM table(result_scan(query_id)) statement
-            return Counter({ComplexityStat.COLUMN.value: 1})
+            return Counter({PlanNodeCategory.COLUMN.value: 1})
 
         # no pre-action implies the best estimate we have is of # active columns
         return Counter(
-            {ComplexityStat.COLUMN.value: len(self.column_states.active_columns)}
+            {PlanNodeCategory.COLUMN.value: len(self.column_states.active_columns)}
         )
 
     def to_subqueryable(self) -> "SelectSQL":
@@ -726,7 +726,7 @@ class SelectStatement(Selectable):
 
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
         estimate += (
-            Counter({ComplexityStat.FILTER.value: 1})
+            Counter({PlanNodeCategory.FILTER.value: 1})
             + self.where.cumulative_complexity_stat
             if self.where
             else Counter()
@@ -736,7 +736,7 @@ class SelectStatement(Selectable):
         estimate += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.order_by),
-                Counter({ComplexityStat.ORDER_BY.value: 1}),
+                Counter({PlanNodeCategory.ORDER_BY.value: 1}),
             )
             if self.order_by
             else Counter()
@@ -744,10 +744,10 @@ class SelectStatement(Selectable):
 
         # limit/offset component
         estimate += (
-            Counter({ComplexityStat.LOW_IMPACT.value: 1}) if self.limit_ else Counter()
+            Counter({PlanNodeCategory.OTHERS.value: 1}) if self.limit_ else Counter()
         )
         estimate += (
-            Counter({ComplexityStat.LOW_IMPACT.value: 1}) if self.offset else Counter()
+            Counter({PlanNodeCategory.OTHERS.value: 1}) if self.offset else Counter()
         )
         return estimate
 
@@ -1135,7 +1135,7 @@ class SetStatement(Selectable):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # we add #set_operands - 1 additional operators in sql query
-        return Counter({ComplexityStat.SET_OPERATION.value: len(self.set_operands) - 1})
+        return Counter({PlanNodeCategory.SET_OPERATION.value: len(self.set_operands) - 1})
 
 
 class DeriveColumnDependencyError(Exception):

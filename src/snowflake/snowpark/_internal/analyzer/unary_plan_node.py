@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ScalarSubquery,
 )
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
@@ -43,9 +43,9 @@ class Sample(UnaryNode):
         # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
         return Counter(
             {
-                ComplexityStat.SAMPLE.value: 1,
-                ComplexityStat.LITERAL.value: 1,
-                ComplexityStat.COLUMN.value: 1,
+                PlanNodeCategory.SAMPLE.value: 1,
+                PlanNodeCategory.LITERAL.value: 1,
+                PlanNodeCategory.COLUMN.value: 1,
             }
         )
 
@@ -58,7 +58,7 @@ class Sort(UnaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # child ORDER BY COMMA.join(order)
-        return Counter({ComplexityStat.ORDER_BY.value: 1}) + sum(
+        return Counter({PlanNodeCategory.ORDER_BY.value: 1}) + sum(
             (col.cumulative_complexity_stat for col in self.order), Counter()
         )
 
@@ -79,20 +79,20 @@ class Aggregate(UnaryNode):
         estimate = Counter()
         if self.grouping_expressions:
             # GROUP BY grouping_exprs
-            estimate += Counter({ComplexityStat.GROUP_BY.value: 1}) + sum(
+            estimate += Counter({PlanNodeCategory.GROUP_BY.value: 1}) + sum(
                 (expr.cumulative_complexity_stat for expr in self.grouping_expressions),
                 Counter(),
             )
         else:
             # LIMIT 1
-            estimate += Counter({ComplexityStat.LOW_IMPACT.value: 1})
+            estimate += Counter({PlanNodeCategory.OTHERS.value: 1})
 
         estimate += sum(
             (
                 getattr(
                     expr,
                     "cumulative_complexity_stat",
-                    Counter({ComplexityStat.COLUMN.value: 1}),
+                    Counter({PlanNodeCategory.COLUMN.value: 1}),
                 )  # type: ignore
                 for expr in self.aggregate_expressions
             ),
@@ -139,8 +139,8 @@ class Pivot(UnaryNode):
                 (val.cumulative_complexity_stat for val in self.pivot_values), Counter()
             )
         else:
-            # if pivot values is None, then we add LOW_IMPACT for ANY
-            estimate += Counter({ComplexityStat.LOW_IMPACT.value: 1})
+            # if pivot values is None, then we add OTHERS for ANY
+            estimate += Counter({PlanNodeCategory.OTHERS.value: 1})
 
         # aggregate estimate
         estimate += sum(
@@ -149,7 +149,7 @@ class Pivot(UnaryNode):
 
         # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
         estimate += Counter(
-            {ComplexityStat.COLUMN.value: 2, ComplexityStat.PIVOT.value: 1}
+            {PlanNodeCategory.COLUMN.value: 2, PlanNodeCategory.PIVOT.value: 1}
         )
         return estimate
 
@@ -171,7 +171,7 @@ class Unpivot(UnaryNode):
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
         estimate = Counter(
-            {ComplexityStat.UNPIVOT.value: 1, ComplexityStat.COLUMN.value: 3}
+            {PlanNodeCategory.UNPIVOT.value: 1, PlanNodeCategory.COLUMN.value: 3}
         )
         estimate += sum(
             (expr.cumulative_complexity_stat for expr in self.column_list), Counter()
@@ -193,8 +193,8 @@ class Rename(UnaryNode):
         # SELECT * RENAME (before AS after, ...) FROM child
         return Counter(
             {
-                ComplexityStat.COLUMN.value: 1 + 2 * len(self.column_map),
-                ComplexityStat.LOW_IMPACT.value: 1 + len(self.column_map),
+                PlanNodeCategory.COLUMN.value: 1 + 2 * len(self.column_map),
+                PlanNodeCategory.OTHERS.value: 1 + len(self.column_map),
             }
         )
 
@@ -208,7 +208,7 @@ class Filter(UnaryNode):
     def individual_complexity_stat(self) -> Counter[str]:
         # child WHERE condition
         return (
-            Counter({ComplexityStat.FILTER.value: 1})
+            Counter({PlanNodeCategory.FILTER.value: 1})
             + self.condition.cumulative_complexity_stat
         )
 
@@ -221,14 +221,14 @@ class Project(UnaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         if not self.project_list:
-            return Counter({ComplexityStat.COLUMN.value: 1})
+            return Counter({PlanNodeCategory.COLUMN.value: 1})
 
         return sum(
             (
                 getattr(
                     col,
                     "cumulative_complexity_stat",
-                    Counter({ComplexityStat.COLUMN.value: 1}),
+                    Counter({PlanNodeCategory.COLUMN.value: 1}),
                 )  # type: ignore
                 for col in self.project_list
             ),
