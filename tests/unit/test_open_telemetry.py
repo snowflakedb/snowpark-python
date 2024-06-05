@@ -156,6 +156,8 @@ def test_inline_register_udaf(dict_exporter):
     assert span.attributes["snow.executable.handler"] == "PythonSumUDAF"
 
     # test register with @udaf
+    lineno = inspect.currentframe().f_lineno + 8
+
     @udaf(
         name="sum_udaf",
         session=session,
@@ -283,9 +285,10 @@ def test_inline_register_udtf(dict_exporter):
     assert span.attributes["code.lineno"] == lineno
     assert span.attributes["snow.executable.name"] == "generate_udtf"
     assert span.attributes["snow.executable.handler"] == "GeneratorUDTF"
-    lineno = inspect.currentframe().f_lineno + 8
 
     # test register with @udtf
+    lineno = inspect.currentframe().f_lineno + 7
+
     @udtf(
         output_schema=StructType([StructField("number", IntegerType())]),
         name="generate_udtf_with_decorator",
@@ -373,9 +376,10 @@ def test_inline_register_udf(dict_exporter):
     assert span.attributes["code.lineno"] == lineno
     assert span.attributes["snow.executable.name"] == "add"
     assert span.attributes["snow.executable.handler"] == "add_udf"
-    lineno = inspect.currentframe().f_lineno + 4
 
     # test register with decorator @udf
+    lineno = inspect.currentframe().f_lineno + 3
+
     @udf(name="minus", session=session)
     def minus_udf(x: int, y: int) -> int:
         return x - y
