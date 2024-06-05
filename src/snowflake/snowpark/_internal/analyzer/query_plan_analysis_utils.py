@@ -41,7 +41,9 @@ class PlanNodeCategory(Enum):
     CASE_WHEN = "case_when"
     LITERAL = "literal"  # cover all literals like numbers, constant strings, etc
     COLUMN = "column"  # covers all cases where a table column is referred
-    FUNCTION = "function"  # cover all snowflake built-in function, table functions and UDXFs
+    FUNCTION = (
+        "function"  # cover all snowflake built-in function, table functions and UDXFs
+    )
     IN = "in"
     LOW_IMPACT = "low_impact"
     OTHERS = "others"
