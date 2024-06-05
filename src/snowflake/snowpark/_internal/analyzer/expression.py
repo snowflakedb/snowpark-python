@@ -87,10 +87,16 @@ class Expression:
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({})
+        """Returns the individual contribution of the expression node towards the overall
+        compilation complexity of the generated sql.
+        """
+        return Counter()
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
+        """Returns the aggregate sum complexity statistic from the subtree rooted at this
+        expression node. Statistic of current node is included in the final aggregate.
+        """
         children = self.children or []
         return sum(
             (child.cumulative_complexity_stat for child in children),
@@ -143,7 +149,7 @@ class MultipleExpression(Expression):
         return (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.expressions),
-                Counter({}),
+                Counter(),
             )
             + self.individual_complexity_stat
         )
@@ -169,7 +175,7 @@ class InExpression(Expression):
             + self.individual_complexity_stat
             + sum(
                 (expr.cumulative_complexity_stat for expr in self.values),
-                Counter({}),
+                Counter(),
             )
         )
 
@@ -220,7 +226,7 @@ class Star(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         if self.expressions:
-            return Counter({})
+            return Counter()
         # if there are no expressions, we assign column value = 1 to Star
         return Counter({ComplexityStat.COLUMN.value: 1})
 
@@ -228,7 +234,7 @@ class Star(Expression):
     def cumulative_complexity_stat(self) -> Counter[str]:
         return self.individual_complexity_stat + sum(
             (child.individual_complexity_stat for child in self.expressions),
-            Counter({}),
+            Counter(),
         )
 
 
@@ -515,7 +521,7 @@ class WithinGroup(Expression):
         return (
             sum(
                 (col.cumulative_complexity_stat for col in self.order_by_cols),
-                Counter({}),
+                Counter(),
             )
             + self.individual_complexity_stat
             + self.expr.cumulative_complexity_stat
@@ -551,12 +557,10 @@ class CaseWhen(Expression):
                 condition.cumulative_complexity_stat + value.cumulative_complexity_stat
                 for condition, value in self.branches
             ),
-            Counter({}),
+            Counter(),
         )
         estimate += (
-            self.else_value.cumulative_complexity_stat
-            if self.else_value
-            else Counter({})
+            self.else_value.cumulative_complexity_stat if self.else_value else Counter()
         )
         return estimate
 
