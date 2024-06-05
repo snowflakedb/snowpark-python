@@ -9,8 +9,10 @@ from textwrap import dedent
 import pandas
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
 _shared_doc_kwargs = {
