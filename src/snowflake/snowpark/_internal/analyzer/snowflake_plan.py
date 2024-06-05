@@ -361,10 +361,10 @@ class SnowflakePlan(LogicalPlan):
     @property
     def cumulative_complexity_stat(self) -> Counter[str]:
         if self._cumulative_complexity_stat is None:
-            estimate = self.individual_complexity_stat
+            stat = self.individual_complexity_stat
             for node in self.children_plan_nodes:
-                estimate += node.cumulative_complexity_stat
-            self._cumulative_complexity_stat = estimate
+                stat += node.cumulative_complexity_stat
+            self._cumulative_complexity_stat = stat
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter

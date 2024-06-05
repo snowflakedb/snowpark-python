@@ -86,11 +86,15 @@ class Expression:
         return f"{self.pretty_name}({children_sql})"
 
     @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.OTHERS
+
+    @property
     def individual_complexity_stat(self) -> Counter[str]:
         """Returns the individual contribution of the expression node towards the overall
         compilation complexity of the generated sql.
         """
-        return Counter()
+        return Counter({self.plan_node_category.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -133,7 +137,7 @@ class ScalarSubquery(Expression):
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.plan.cumulative_complexity_stat + self.individual_complexity_stat
+        return self.plan.cumulative_complexity_stat
 
 
 class MultipleExpression(Expression):
@@ -151,7 +155,6 @@ class MultipleExpression(Expression):
                 (expr.cumulative_complexity_stat for expr in self.expressions),
                 Counter(),
             )
-            + self.individual_complexity_stat
         )
 
 
@@ -165,8 +168,8 @@ class InExpression(Expression):
         return derive_dependent_columns(self.columns, *self.values)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.IN.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.IN
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -208,8 +211,8 @@ class Attribute(Expression, NamedExpression):
         return {self.name}
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.COLUMN.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.COLUMN
 
 
 class Star(Expression):
@@ -272,8 +275,8 @@ class UnresolvedAttribute(Expression, NamedExpression):
         return self._dependent_column_names
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.COLUMN.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.COLUMN
 
 
 class Literal(Expression):
@@ -299,8 +302,8 @@ class Literal(Expression):
             self.datatype = infer_type(value)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.LITERAL.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LITERAL
 
 
 class Interval(Expression):
@@ -351,8 +354,8 @@ class Interval(Expression):
         return self.sql
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LITERAL
 
 
 class Like(Expression):
@@ -365,9 +368,9 @@ class Like(Expression):
         return derive_dependent_columns(self.expr, self.pattern)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # expr LIKE pattern
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+        return PlanNodeCategory.LOW_IMPACT
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -388,9 +391,9 @@ class RegExp(Expression):
         return derive_dependent_columns(self.expr, self.pattern)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # expr REG_EXP pattern
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+        return PlanNodeCategory.LOW_IMPACT
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -411,9 +414,9 @@ class Collate(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # expr COLLATE collate_spec
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+        return PlanNodeCategory.LOW_IMPACT
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -430,9 +433,9 @@ class SubfieldString(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # the literal corresponds to the contribution from self.field
-        return Counter({PlanNodeCategory.LITERAL.value: 1})
+        return PlanNodeCategory.LITERAL
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -450,9 +453,9 @@ class SubfieldInt(Expression):
         return derive_dependent_columns(self.expr)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # the literal corresponds to the contribution from self.field
-        return Counter({PlanNodeCategory.LITERAL.value: 1})
+        return PlanNodeCategory.LITERAL
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -492,8 +495,8 @@ class FunctionExpression(Expression):
         return derive_dependent_columns(*self.children)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.FUNCTION.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
 
 
 class WithinGroup(Expression):
@@ -507,9 +510,9 @@ class WithinGroup(Expression):
         return derive_dependent_columns(self.expr, *self.order_by_cols)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # expr WITHIN GROUP (ORDER BY cols)
-        return Counter({PlanNodeCategory.ORDER_BY.value: 1})
+        return PlanNodeCategory.ORDER_BY
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -542,22 +545,22 @@ class CaseWhen(Expression):
         return derive_dependent_columns(*exps)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.CASE_WHEN.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.CASE_WHEN
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        estimate = self.individual_complexity_stat + sum(
+        stat = self.individual_complexity_stat + sum(
             (
                 condition.cumulative_complexity_stat + value.cumulative_complexity_stat
                 for condition, value in self.branches
             ),
             Counter(),
         )
-        estimate += (
+        stat += (
             self.else_value.cumulative_complexity_stat if self.else_value else Counter()
         )
-        return estimate
+        return stat
 
 
 class SnowflakeUDF(Expression):
@@ -580,8 +583,8 @@ class SnowflakeUDF(Expression):
         return derive_dependent_columns(*self.children)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.FUNCTION.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -602,8 +605,8 @@ class ListAgg(Expression):
         return derive_dependent_columns(self.col)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.FUNCTION.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:

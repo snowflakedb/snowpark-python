@@ -22,17 +22,17 @@ class MergeExpression(Expression):
         self.condition = condition
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN DEL
-        estimate = self.individual_complexity_stat
-        estimate += (
+        stat = self.individual_complexity_stat
+        stat += (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
         )
-        return estimate
+        return stat
 
 
 class UpdateMergeExpression(MergeExpression):
@@ -45,11 +45,11 @@ class UpdateMergeExpression(MergeExpression):
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
-        estimate = self.individual_complexity_stat
-        estimate += (
+        stat = self.individual_complexity_stat
+        stat += (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
         )
-        estimate += sum(
+        stat += sum(
             (
                 key_expr.cumulative_complexity_stat
                 + val_expr.cumulative_complexity_stat
@@ -57,7 +57,7 @@ class UpdateMergeExpression(MergeExpression):
             ),
             Counter(),
         )
-        return estimate
+        return stat
 
 
 class DeleteMergeExpression(MergeExpression):
@@ -78,17 +78,17 @@ class InsertMergeExpression(MergeExpression):
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
-        estimate = self.individual_complexity_stat
-        estimate += (
+        stat = self.individual_complexity_stat
+        stat += (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
         )
-        estimate += sum(
+        stat += sum(
             (key.cumulative_complexity_stat for key in self.keys), Counter()
         )
-        estimate += sum(
+        stat += sum(
             (val.cumulative_complexity_stat for val in self.values), Counter()
         )
-        return estimate
+        return stat
 
 
 class TableUpdate(LogicalPlan):
@@ -109,17 +109,17 @@ class TableUpdate(LogicalPlan):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
-        estimate = sum(
+        stat = sum(
             (
                 k.cumulative_complexity_stat + v.cumulative_complexity_stat
                 for k, v in self.assignments.items()
             ),
             Counter(),
         )
-        estimate += (
+        stat += (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
         )
-        return estimate
+        return stat
 
 
 class TableDelete(LogicalPlan):

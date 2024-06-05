@@ -24,7 +24,7 @@ class SpecialFrameBoundary(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+        return Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
 
 
 class UnboundedPreceding(SpecialFrameBoundary):
@@ -74,7 +74,7 @@ class SpecifiedWindowFrame(WindowFrame):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+        return Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -105,18 +105,18 @@ class WindowSpecDefinition(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        estimate = Counter()
-        estimate += (
+        stat = Counter()
+        stat += (
             Counter({PlanNodeCategory.PARTITION_BY.value: 1})
             if self.partition_spec
             else Counter()
         )
-        estimate += (
+        stat += (
             Counter({PlanNodeCategory.ORDER_BY.value: 1})
             if self.order_spec
             else Counter()
         )
-        return estimate
+        return stat
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -181,29 +181,29 @@ class RankRelatedFunctionExpression(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # for func_name
-        estimate = Counter({PlanNodeCategory.FUNCTION.value: 1})
+        stat = Counter({PlanNodeCategory.FUNCTION.value: 1})
         # for offset
-        estimate += (
+        stat += (
             Counter({PlanNodeCategory.LITERAL.value: 1}) if self.offset else Counter()
         )
         # for ignore nulls
-        estimate += (
-            Counter({PlanNodeCategory.OTHERS.value: 1})
+        stat += (
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
             if self.ignore_nulls
             else Counter()
         )
-        return estimate
+        return stat
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
-        estimate = (
+        stat = (
             self.individual_complexity_stat + self.expr.cumulative_complexity_stat
         )
-        estimate += (
+        stat += (
             self.default.cumulative_complexity_stat if self.default else Counter()
         )
-        return estimate
+        return stat
 
 
 class Lag(RankRelatedFunctionExpression):
