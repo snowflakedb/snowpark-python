@@ -850,8 +850,7 @@ import scipy.stats  # noqa: E402
     [
         (["scipy", "numpy"], 7),
         (["scipy>1.1", "numpy<2.0"], 7),
-        # TODO: SNOW-1428607 Re-enable quarantined tests for 8.20
-        # [scipy, np], 9),
+        ([scipy, np], 9),
     ],
 )
 def test_apply_axis1_with_3rd_party_libraries_and_decorator(

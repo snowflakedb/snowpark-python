@@ -1,5 +1,116 @@
 # Release History
 
+## 1.19.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+
+#### Bug Fixes
+
+- Fixed a bug where python stored procedure with table return type fails when run in a task.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
+#### Bug Fixes
+
+- Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+- Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug that table merge fails when update clause exists but no update takes place.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+- Added support for `Series.str.get`.
+- Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
+- Added support for `Series.str.__getitem__` (`Series.str[...]`).
+
+#### Bug Fixes
+
+- Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+
+#### Improvements
+
+- Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
+- `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
+- Initial work to support an Index directly in Snowpark pandas. Currently, this class is a simple wrapper for a pandas index. Support for Index as a first-class component of Snowpark pandas is coming soon.
+
+## 1.18.0 (2024-05-28)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improved error message to remind users set `{"infer_schema": True}` when reading csv file without specifying its schema.
+- Improved error handling for `Session.create_dataframe` when called with more than 512 rows and using `format` or `pyformat` `paramstyle`.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added `DataFrame.cache_result` and `Series.cache_result` methods for users to persist DataFrames and Series to a temporary table lasting the duration of the session to improve latency of subsequent operations.
+
+#### Bug Fixes
+
+#### Improvements
+
+- Added partial support for `DataFrame.pivot_table` with no `index` parameter, as well as for `margins` parameter.
+- Updated the signature of `DataFrame.shift`/`Series.shift`/`DataFrameGroupBy.shift`/`SeriesGroupBy.shift` to match pandas 2.2.1. Snowpark pandas does not yet support the newly-added `suffix` argument, or sequence values of `periods`.
+- Re-added support for `Series.str.split`.
+
+#### Bug Fixes
+
+- Fixed how we support mixed columns for string methods (`Series.str.*`).
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the following DataFrameReader read options to file formats `csv` and `json`:
+  - PURGE
+  - PATTERN
+  - INFER_SCHEMA with value being `False`
+  - ENCODING with value being `UTF8`
+- Added support for `DataFrame.analytics.moving_agg` and `DataFrame.analytics.cumulative_agg_agg`.
+- Added support for `if_not_exists` parameter during UDF and stored procedure registration.
+
+#### Bug Fixes
+
+- Fixed a bug that when processing time format, fractional second part is not handled properly.
+- Fixed a bug that caused function calls on `*` to fail.
+- Fixed a bug that prevented creation of map and struct type objects.
+- Fixed a bug that function `date_add` was unable to handle some numeric types.
+- Fixed a bug that `TimestampType` casting resulted in incorrect data.
+- Fixed a bug that caused `DecimalType` data to have incorrect precision in some cases.
+- Fixed a bug where referencing missing table or view raises confusing `IndexError`.
+- Fixed a bug that mocked function `to_timestamp_ntz` can not handle None data.
+- Fixed a bug that mocked UDFs handles output data of None improperly.
+- Fixed a bug where `DataFrame.with_column_renamed` ignores attributes from parent DataFrames after join operations.
+- Fixed a bug that integer precision of large value gets lost when converted to pandas DataFrame.
+- Fixed a bug that the schema of datetime object is wrong when create DataFrame from a pandas DataFrame.
+- Fixed a bug in the implementation of `Column.equal_nan` where null data is handled incorrectly.
+- Fixed a bug where `DataFrame.drop` ignore attributes from parent DataFrames after join operations.
+- Fixed a bug in mocked function `date_part` where Column type is set wrong.
+- Fixed a bug where `DataFrameWriter.save_as_table` does not raise exceptions when inserting null data into non-nullable columns.
+- Fixed a bug in the implementation of `DataFrameWriter.save_as_table` where
+  - Append or Truncate fails when incoming data has different schema than existing table.
+  - Truncate fails when incoming data does not specify columns that are nullable.
+
+#### Improvements
+
+- Removed dependency check for `pyarrow` as it is not used.
+- Improved target type coverage of `Column.cast`, adding support for casting to boolean and all integral types.
+- Aligned error experience when calling UDFs and stored procedures.
+- Added appropriate error messages for `is_permanent` and `anonymous` options in UDFs and stored procedures registration to make it more clear that those features are not yet supported.
+- File read operation with unsupported options and values now raises `NotImplementedError` instead of warnings and unclear error information.
+
 ## 1.17.0 (2024-05-21)
 
 ### Snowpark Python API Updates

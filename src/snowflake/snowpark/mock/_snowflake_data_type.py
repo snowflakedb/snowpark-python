@@ -3,7 +3,7 @@
 #
 from typing import Dict, NamedTuple, Optional, Union
 
-from snowflake.connector.options import installed_pandas, pandas as pd
+from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -252,6 +252,11 @@ class TableEmulator(PandasDataframeType):
         sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
         **kwargs,
     ) -> None:
+        if TableEmulator.__base__ == object:
+            raise RuntimeError(
+                "Local Testing requires pandas as dependency, "
+                "please make sure pandas is installed in the environment.\n"
+            )
         super().__init__(*args, **kwargs)
         self.sf_types = {} if not sf_types else sf_types
         # TODO: SNOW-976145, move to index based approach to store col type mapping
@@ -324,6 +329,11 @@ class ColumnEmulator(PandasSeriesType):
         return TableEmulator
 
     def __init__(self, *args, **kwargs) -> None:
+        if ColumnEmulator.__base__ == object:
+            raise RuntimeError(
+                "Local Testing requires pandas as dependency, "
+                "please make sure pandas is installed in the environment.\n"
+            )
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
         self.sf_type: ColumnType = sf_type

@@ -1040,13 +1040,9 @@ def test_negative_test_join_of_join(session):
         session.table(table_name1).drop_table()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-978584: DataFrame.drop bug",
-)
 def test_drop_on_join(
     session,
-):  # TODO: [Local Testing] Fix drop
+):
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
@@ -1064,11 +1060,7 @@ def test_drop_on_join(
     Utils.check_answer(df4, [Row(3), Row(4)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-978584: DataFrame.drop bug",
-)
-def test_drop_on_self_join(session):  # TODO: Fix drop
+def test_drop_on_self_join(session):
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(
         "a", "b", "c"
@@ -1081,11 +1073,7 @@ def test_drop_on_self_join(session):  # TODO: Fix drop
     Utils.check_answer(df4, [Row(1), Row(2)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-978584: DataFrame.drop bug",
-)
-def test_with_column_on_join(session):  # TODO: Fix drop
+def test_with_column_on_join(session):
     table_name_1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table_name_2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe([[1, "a", True], [2, "b", False]]).to_df(

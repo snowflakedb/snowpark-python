@@ -77,23 +77,6 @@ def test_pivot_table_invalid_values_columns_not_supported(df_data, pivot_table_k
     )
 
 
-@sql_count_checker(query_count=0)
-def test_pivot_table_no_index_no_column_single_value_raises_error(df_data):
-    pivot_table_test_helper_expects_exception(
-        df_data,
-        {
-            "index": None,
-            "columns": None,
-            "values": "D",
-        },
-        # we currently throws NotImplementedError if no "index" configuration is provided.
-        # TODO (SNOW-959913): Enable support for no "index" configuration
-        expect_exception_type=NotImplementedError,
-        expect_exception_match="pivot_table with no index configuration is currently not supported",
-        assert_exception_equal=False,
-    )
-
-
 @pytest.mark.parametrize(
     "aggfunc",
     [
@@ -178,15 +161,3 @@ def test_pivot_table_not_implemented_or_supported(df_data):
         match="median",
     ):
         snow_df.pivot_table(index="A", columns="C", values="D", aggfunc="median")
-
-    with pytest.raises(
-        NotImplementedError,
-        match="pivot_table with no index configuration is currently not supported",
-    ):
-        snow_df.pivot_table(index=None, columns="C", values="D")
-
-    with pytest.raises(
-        NotImplementedError,
-        match="pivot_table with no index configuration is currently not supported",
-    ):
-        snow_df.pivot_table(index=None, columns=None, values="D")

@@ -1,11 +1,11 @@
-name: Check for Local Testing changes
+name: Request Local Testing approval if necessary
 
 on:
   pull_request:
     branches: '**'
 
 jobs:
-  request_local_testing_review_if_necessary:
+  request_review:
     if: ${{!contains(toJSON(github.event.pull_request.requested_teams), 'local-testing')}}
     runs-on: ubuntu-latest
     permissions:
@@ -22,4 +22,4 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
       run: |
-        gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from @snowflakedb/local-testing"
+        (gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from @snowflakedb/local-testing") || echo "PR does not seem to contain Local Testing changes"

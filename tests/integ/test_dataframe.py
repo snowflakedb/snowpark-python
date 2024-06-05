@@ -15,6 +15,8 @@ from itertools import product
 from typing import Tuple
 from unittest import mock
 
+from snowflake.snowpark.session import Session
+
 try:
     import pandas as pd  # noqa: F401
     from pandas import DataFrame as PandasDF
@@ -68,6 +70,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     LongType,
     MapType,
+    NullType,
     ShortType,
     StringType,
     StructField,
@@ -152,7 +155,6 @@ def test_dataframe_get_attr(session):
     assert "object has no attribute" in str(exc_info)
 
 
-# @pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_read_stage_file_show(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
@@ -160,8 +162,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
 
     try:
-        if not local_testing_mode:
-            Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
         Utils.upload_to_stage(
             session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
         )
@@ -1578,7 +1579,7 @@ def test_create_dataframe_with_semi_structured_data_types(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1368516 create dataframe from pandas dataframe with datetime columns has wrong schema",
+    reason="SNOW-1439717 create dataframe from pandas dataframe containing timestamp with tzinfo is not supported.",
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_create_dataframe_with_pandas_df(session):
@@ -1950,6 +1951,47 @@ def test_create_dataframe_large_without_batch_insert(session):
         assert "maximum number of expressions in a list exceeded" in str(ex_info)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+@pytest.mark.parametrize("paramstyle", ["pyformat", "format", "qmark", "numeric"])
+def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    db_parameters["paramstyle"] = paramstyle
+    session_builder = Session.builder.configs(db_parameters)
+    new_session = session_builder.create()
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = new_session.create_dataframe([[1], [2], [3]])
+        Utils.check_answer(df, [Row(1), Row(2), Row(3)])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        new_session.close()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Connections with paramstyle are not supported in local testing",
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_create_dataframe_large_respects_paramstyle_negative(db_parameters):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+    session_builder = Session.builder.configs(db_parameters)
+    new_session = session_builder.create()
+    new_session._conn._conn._paramstyle = "unsupported"
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        with pytest.raises(
+            ValueError, match="'unsupported' is not a recognized paramstyle"
+        ):
+            new_session.create_dataframe([[1], [2], [3]])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        new_session.close()
 
 
 @pytest.mark.localtest
@@ -2518,19 +2560,20 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
-def test_truncate_preserves_schema(session):
+def test_truncate_preserves_schema(session, local_testing_mode):
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
     df2 = session.create_dataframe([(1, 2, 3), (4, 5, 6)], schema=["a", "b", "c"])
 
     df1.write.save_as_table(tmp_table_name, table_type="temp")
+    exception_msg = (
+        "invalid identifier 'C'"
+        if not local_testing_mode
+        else "incoming data has different schema"
+    )
 
     # truncate preserves old schema
-    with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+    with pytest.raises(SnowparkSQLException, match=exception_msg):
         df2.write.save_as_table(tmp_table_name, mode="truncate", table_type="temp")
 
     # overwrite drops old schema
@@ -2538,10 +2581,6 @@ def test_truncate_preserves_schema(session):
     Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
 def test_truncate_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
@@ -2567,14 +2606,10 @@ def test_table_types_in_save_as_table(
         Utils.assert_table_type(session, table_name, table_type)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
-)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
-def test_save_as_table_respects_schema(session, save_mode):
+def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 
     schema1 = StructType(
@@ -2613,7 +2648,12 @@ def test_save_as_table_respects_schema(session, save_mode):
             df2.write.save_as_table(table_name, mode=save_mode)
             saved_df = session.table(table_name)
             Utils.is_schema_same(saved_df.schema, schema1)
-            with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+            exception_msg = (
+                "invalid identifier 'C'"
+                if not local_testing_mode
+                else "Cannot truncate because incoming data has different schema"
+            )
+            with pytest.raises(SnowparkSQLException, match=exception_msg):
                 df3.write.save_as_table(table_name, mode=save_mode)
         else:  # save_mode in ('append', 'errorifexists')
             with pytest.raises(SnowparkSQLException):
@@ -2622,10 +2662,6 @@ def test_save_as_table_respects_schema(session, save_mode):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
@@ -2647,7 +2683,13 @@ def test_save_as_table_respects_schema(session, save_mode):
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
-def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
+def test_save_as_table_nullable_test(
+    session, save_mode, data_type, large_data, local_testing_mode
+):
+    if isinstance(data_type, DecimalType) and local_testing_mode:
+        pytest.skip(
+            "SNOW-1447052 local testing nullable information loss in decimal type column because of to_decimal call"
+        )
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     schema = StructType(
         [
@@ -2669,10 +2711,6 @@ def test_save_as_table_nullable_test(session, save_mode, data_type, large_data):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1373882: nullability is not enforced in Local Testing",
-)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
@@ -3946,3 +3984,28 @@ def test_dataframe_to_local_iterator_isolation(session):
     assert (
         row_counter == ROW_NUMBER
     ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
+
+
+def test_create_empty_dataframe(session):
+    schema = StructType(
+        [
+            StructField("COL1", IntegerType()),
+            StructField("COL2", ByteType()),
+            StructField("COL3", ShortType()),
+            StructField("COL4", LongType()),
+            StructField("COL5", FloatType()),
+            StructField("COL6", DoubleType()),
+            StructField("COL7", DecimalType()),
+            StructField("COL8", BooleanType()),
+            StructField("COL9", BinaryType()),
+            StructField("COL10", VariantType()),
+            StructField("COL11", StringType()),
+            StructField("COL12", DateType()),
+            StructField("COL13", TimestampType()),
+            StructField("COL14", TimeType()),
+            StructField("COL15", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("COL16", MapType()),
+            StructField("COL17", NullType()),
+        ]
+    )
+    assert not session.create_dataframe(data=[], schema=schema).collect()

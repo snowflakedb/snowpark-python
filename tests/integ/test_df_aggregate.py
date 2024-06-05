@@ -427,8 +427,7 @@ def test_df_agg_with_nonascii_column_names(session, col1, col2, alias1, alias2):
 
 @pytest.mark.localtest
 def test_agg_single_column(session, local_testing_mode):
-    # TODO: SNOW-1348452 precision
-    val = "86.333333" if not local_testing_mode else "86.33333333333333"
+    val = "86.333333"
     origin_df = session.create_dataframe(
         [[1], [8], [6], [3], [100], [400], [None]], schema=["v"]
     )

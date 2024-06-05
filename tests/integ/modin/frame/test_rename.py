@@ -11,11 +11,14 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from modin.pandas import DataFrame, Index, MultiIndex, Series
-from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_frame_equal,
+    assert_index_equal,
+    eval_snowpark_pandas_result,
+)
 
 
 class TestRename:
@@ -81,7 +84,7 @@ class TestRename:
 
         with SqlCounter(query_count=1, join_count=1):
             renamed = df.rename(index={"foo": "foo2", "bar": "bar2"})
-            assert_index_equal(renamed.index, Index(["foo2", "bar2"]))
+            assert_index_equal(renamed.index, native_pd.Index(["foo2", "bar2"]))
 
         # have to pass something
         with SqlCounter(query_count=0):
@@ -91,19 +94,23 @@ class TestRename:
         # partial columns
         with SqlCounter(query_count=0):
             renamed = snow_float_frame.rename(columns={"C": "foo", "D": "bar"})
-            assert_index_equal(renamed.columns, Index(["A", "B", "foo", "bar"]))
+            assert_index_equal(
+                renamed.columns, native_pd.Index(["A", "B", "foo", "bar"])
+            )
 
         # other axis
         with SqlCounter(query_count=1, join_count=1):
             renamed = snow_float_frame.T.rename(index={"C": "foo", "D": "bar"})
-            assert_index_equal(renamed.index, Index(["A", "B", "foo", "bar"]))
+            assert_index_equal(renamed.index, native_pd.Index(["A", "B", "foo", "bar"]))
 
         # index with name
         with SqlCounter(query_count=3, join_count=2):
             index = Index(["foo", "bar"], name="name")
             renamer = DataFrame(data, index=index)
             renamed = renamer.rename(index={"foo": "bar", "bar": "foo"})
-            assert_index_equal(renamed.index, Index(["bar", "foo"], name="name"))
+            assert_index_equal(
+                renamed.index, native_pd.Index(["bar", "foo"], name="name")
+            )
             assert renamed.index.name == renamer.index.name
 
     @sql_count_checker(query_count=0)

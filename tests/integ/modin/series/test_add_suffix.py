@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 TEST_ADD_SUFFIX_DATA = [
     "_suffix",
@@ -48,14 +48,15 @@ def test_add_suffix_multiindex(suffix, multiindex_native_int_series):
 
 @sql_count_checker(query_count=1)
 @pytest.mark.parametrize("suffix", TEST_ADD_SUFFIX_DATA)
-def test_add_suffix_time_column_df(
-    suffix, time_index_snowpark_pandas_series, time_index_native_series
-):
+def test_add_suffix_time_column_df(suffix, time_index_series_data):
+    series_data, kwargs = time_index_series_data
+    snow_series, native_series = create_test_series(series_data, **kwargs)
+
     # Native pandas time values are of the format `2023-01-01 00:00:00` while Snowflake is `2023-01-01 00:00:00.000`.
     # For easier comparison, add_suffix is called with suffix ".000" for the native pandas df.
     eval_snowpark_pandas_result(
-        time_index_snowpark_pandas_series,
-        time_index_native_series.add_suffix(".000"),
+        snow_series,
+        native_series.add_suffix(".000"),
         lambda df: df.add_suffix(suffix),
     )
 

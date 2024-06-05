@@ -29,6 +29,16 @@ DataFrame
     DataFrame.shape
     DataFrame.empty
 
+.. rubric:: Snowflake Specific
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.to_pandas
+    DataFrame.to_snowflake
+    DataFrame.to_snowpark
+    DataFrame.cache_result
+
 .. rubric:: Conversion
 
 .. autosummary::
@@ -197,12 +207,3 @@ DataFrame
     DataFrame.first_valid_index
     DataFrame.last_valid_index
     DataFrame.resample
-
-.. rubric:: Serialization / IO / conversion
-
-.. autosummary::
-    :toctree: pandas_api/
-
-    DataFrame.to_pandas
-    DataFrame.to_snowflake
-    DataFrame.to_snowpark

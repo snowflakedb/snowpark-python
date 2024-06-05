@@ -17,9 +17,6 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
-@pytest.mark.skip(
-    "SNOW-959913: Support no index configuration with columns and margins configuration"
-)
 @sql_count_checker(query_count=1)
 def test_pivot_table_no_index_single_column_single_value(df_data):
     pivot_table_test_helper(
@@ -73,6 +70,48 @@ def test_pivot_table_multi_index_single_column_single_value(df_data, aggfunc):
     )
 
 
+@pytest.mark.parametrize(
+    "aggfunc",
+    [
+        "count",
+        "sum",
+        "min",
+        "max",
+        "mean",
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_pivot_table_no_index(df_data, aggfunc):
+    pivot_table_test_helper(
+        df_data,
+        {"columns": "C", "values": "D", "aggfunc": aggfunc},
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_pivot_table_empty_table_with_index():
+    # Cannot use pivot_table_test_helper since that checks the inferred types
+    # on the resulting DataFrames' columns (which are empty), and the inferred type
+    # on our DataFrame's columns is empty, while pandas has type floating.
+    import pandas as native_pd
+
+    native_df = native_pd.DataFrame({"A": [], "B": [], "C": [], "D": []})
+    snow_df = pd.DataFrame(native_df)
+    pivot_kwargs = {
+        "index": ["A", "B"],
+        "columns": "C",
+        "values": "D",
+        "aggfunc": "count",
+    }
+
+    snow_result = snow_df.pivot_table(**pivot_kwargs).to_pandas()
+    native_result = native_df.pivot_table(**pivot_kwargs)
+
+    assert native_result.empty == snow_result.empty and (native_result.empty is True)
+    assert list(native_result.columns) == list(snow_result.columns)
+    assert list(native_result.index) == list(snow_result.index)
+
+
 @sql_count_checker(query_count=1)
 def test_pivot_table_single_index_no_column_single_value(df_data):
     pivot_table_test_helper(
@@ -106,9 +145,9 @@ def test_pivot_table_no_index_no_column_single_value(df_data):
             "columns": None,
             "values": "D",
         },
-        expect_exception_match="pivot_table with no index configuration is currently not supported",
-        expect_exception_type=NotImplementedError,
-        assert_exception_equal=False,
+        expect_exception_match=r"No group keys passed\!",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
     )
 
 
@@ -201,8 +240,8 @@ def test_pivot_on_inline_data_using_temp_table():
     assert row_count == 25
 
 
-@pytest.mark.xfail(strict=True, raises=SnowparkSQLException, reason="SNOW-1233895")
-def test_pivot_empty_frame_snow_1233895():
+@pytest.mark.xfail(strict=True, raises=SnowparkSQLException, reason="SNOW-1013918")
+def test_pivot_empty_frame_snow_1013918():
     eval_snowpark_pandas_result(
         *create_test_dfs(columns=["a", "b", "c"]),
         lambda df: df.pivot_table(index="a", columns="b")

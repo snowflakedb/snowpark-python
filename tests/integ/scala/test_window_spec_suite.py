@@ -42,11 +42,9 @@ from snowflake.snowpark.functions import (
 from tests.utils import TestData, Utils
 
 
-# [Local Testing PuPr] enable for local testing when we align precision.
-# In avg, the output column has 3 more decimal digits than NUMBER(38, 0)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="precision for local testing is not yet aligned.",
+    reason="SNOW-1435114: windowed aggregations do not have a consistent precision in live.",
 )
 def test_partition_by_order_by_rows_between(session, local_testing_mode):
     df = session.create_dataframe(

@@ -34,7 +34,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.decode("utf-8"), "decode"),
         (lambda s: s.str.encode("utf-8"), "encode"),
         (lambda s: s.str.rsplit("_", n=1), "rsplit"),
-        (lambda s: s.str.get(3), "get"),
         (lambda s: s.str.join("_"), "join"),
         (lambda s: s.str.pad(10), "pad"),
         (lambda s: s.str.center(10), "center"),

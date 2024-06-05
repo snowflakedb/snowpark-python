@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from pandas.testing import assert_index_equal
 
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -29,7 +28,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.integ.modin.utils import VALID_PANDAS_LABELS
+from tests.integ.modin.utils import VALID_PANDAS_LABELS, assert_index_equal
 
 
 class TestDataFrames:

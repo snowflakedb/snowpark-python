@@ -12,3 +12,4 @@ tox.ini @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-review
 README.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
 CONTRIBUTING.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
 tests/README.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
+CHANGELOG.md

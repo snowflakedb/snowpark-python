@@ -46,7 +46,6 @@ with warnings.catch_warnings():
         Float32Dtype,
         Float64Dtype,
         Grouper,
-        Index,
         IndexSlice,
         Int8Dtype,
         Int16Dtype,
@@ -154,6 +153,9 @@ from snowflake.snowpark.modin.pandas import base  # isort: skip  # noqa: E402,F4
 
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
+from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
+    Index,
+)
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401

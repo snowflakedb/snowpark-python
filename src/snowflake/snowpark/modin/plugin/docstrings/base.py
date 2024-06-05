@@ -385,7 +385,7 @@ Series([], dtype: bool)
 """
 
 
-class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class BasePandasDataset:
     """
     Implement most of the common code that exists in DataFrame/Series.
 
@@ -1317,7 +1317,8 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def infer_objects():
         """
-        Attempt to infer better dtypes for object columns.
+        Attempt to infer better dtypes for object columns. This is not currently supported
+        in Snowpark pandas.
         """
 
     def convert_dtypes():
@@ -1462,8 +1463,9 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         With a callable, useful in method chains. The `x` passed
         to the ``lambda`` is the DataFrame being sliced. This selects
         the rows whose index labels are even.
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df.iloc[lambda x: x.index % 2 == 0]
+        >>> df.iloc[lambda x: x.index.to_pandas() % 2 == 0]
               a     b     c     d
         0     1     2     3     4
         2  1000  2000  3000  4000
@@ -1921,12 +1923,182 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
 
     def nunique():
         """
-        Return number of unique elements in the `BasePandasDataset`.
+        Count number of distinct elements in specified axis.
+
+        Return Series with number of distinct elements. Can ignore NaN values.
+        Snowpark pandas API does not distinguish between different NaN types like None,
+        pd.NA, and np.nan, and treats them as the same.
+
+        Parameters
+        ----------
+        axis : {0 or 'index', 1 or 'columns'}, default 0
+            The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for
+            column-wise. Snowpark pandas currently only supports axis=0.
+        dropna : bool, default True
+            Don't include NaN in the counts.
+
+        Returns
+        -------
+        Series
+
+        Examples
+        --------
+        >>> import snowflake.snowpark.modin.pandas as pd
+        >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
+        >>> df.nunique()
+        A    3
+        B    2
+        dtype: int64
+
+        >>> df = pd.DataFrame({'A': [None, pd.NA, None], 'B': [1, 2, 1]})
+        >>> df.nunique()
+        A    0
+        B    2
+        dtype: int64
+
+        >>> df.nunique(dropna=False)
+        A    1
+        B    2
+        dtype: int64
         """
 
     def pct_change():
         """
-        Percentage change between the current and a prior element.
+        Fractional change between the current and a prior element.
+
+        Computes the fractional change from the immediately previous row by
+        default. This is useful in comparing the fraction of change in a time
+        series of elements.
+
+        .. note::
+
+            Despite the name of this method, it calculates fractional change
+            (also known as per unit change or relative change) and not
+            percentage change. If you need the percentage change, multiply
+            these values by 100.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Periods to shift for forming percent change.
+
+        fill_method : {'backfill', 'bfill', 'pad', 'ffill', None}, default 'pad'
+            How to handle NAs **before** computing percent changes.
+
+            .. deprecated:: 2.1
+                All options of `fill_method` are deprecated except `fill_method=None`.
+
+        limit : int, default None
+            The number of consecutive NAs to fill before stopping.
+
+            Snowpark pandas does not yet support this parameter.
+
+            .. deprecated:: 2.1
+
+        freq : DateOffset, timedelta, or str, optional
+            Increment to use from time series API (e.g. 'ME' or BDay()).
+
+            Snowpark pandas does not yet support this parameter.
+
+        **kwargs
+            Additional keyword arguments are passed into
+            `DataFrame.shift` or `Series.shift`.
+
+            Unlike pandas, Snowpark pandas does not use `shift` under the hood, and
+            thus may not yet support the passed keyword arguments.
+
+        Returns
+        -------
+        Series or DataFrame
+            The same type as the calling object.
+
+        See Also
+        --------
+        Series.diff : Compute the difference of two elements in a Series.
+        DataFrame.diff : Compute the difference of two elements in a DataFrame.
+        Series.shift : Shift the index by some number of periods.
+        DataFrame.shift : Shift the index by some number of periods.
+
+        Examples
+        --------
+        **Series**
+
+        >>> s = pd.Series([90, 91, 85])
+        >>> s
+        0    90
+        1    91
+        2    85
+        dtype: int64
+
+        >>> s.pct_change()
+        0         NaN
+        1    0.011111
+        2   -0.065934
+        dtype: float64
+
+        >>> s.pct_change(periods=2)
+        0         NaN
+        1         NaN
+        2   -0.055556
+        dtype: float64
+
+        See the percentage change in a Series where filling NAs with last
+        valid observation forward to next valid.
+
+        >>> s = pd.Series([90, 91, None, 85])
+        >>> s
+        0    90.0
+        1    91.0
+        2     NaN
+        3    85.0
+        dtype: float64
+
+        >>> s.ffill().pct_change()
+        0         NaN
+        1    0.011111
+        2    0.000000
+        3   -0.065934
+        dtype: float64
+
+        **DataFrame**
+
+        Percentage change in French franc, Deutsche Mark, and Italian lira from
+        1980-01-01 to 1980-03-01.
+
+        >>> df = pd.DataFrame({
+        ...     'FR': [4.0405, 4.0963, 4.3149],
+        ...     'GR': [1.7246, 1.7482, 1.8519],
+        ...     'IT': [804.74, 810.01, 860.13]},
+        ...     index=['1980-01-01', '1980-02-01', '1980-03-01'])
+        >>> df
+                        FR      GR      IT
+        1980-01-01  4.0405  1.7246  804.74
+        1980-02-01  4.0963  1.7482  810.01
+        1980-03-01  4.3149  1.8519  860.13
+
+        >>> df.pct_change()
+                          FR        GR        IT
+        1980-01-01       NaN       NaN       NaN
+        1980-02-01  0.013810  0.013684  0.006549
+        1980-03-01  0.053365  0.059318  0.061876
+
+        Percentage of change in GOOG and APPL stock volume. Shows computing
+        the percentage change between columns.
+
+        >>> df = pd.DataFrame({
+        ...     '2016': [1769950, 30586265],
+        ...     '2015': [1500923, 40912316],
+        ...     '2014': [1371819, 41403351]},
+        ...     index=['GOOG', 'APPL'])
+        >>> df
+                  2016      2015      2014
+        GOOG   1769950   1500923   1371819
+        APPL  30586265  40912316  41403351
+
+        >>> df.pct_change(axis='columns', periods=-1)
+                  2016      2015  2014
+        GOOG  0.179241  0.094112   NaN
+        APPL -0.252395 -0.011860   NaN
         """
 
     def pipe():
@@ -2557,17 +2729,34 @@ class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, bu
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
         Args:
-            periods : int
-                Number of periods to shift. Can be positive or negative.
-            freq : not supported, default None
+            periods : int | Sequence[int]
+                Number of periods to shift. Can be positive or negative. If an iterable of ints,
+                the data will be shifted once by each int. This is equivalent to shifting by one
+                value at a time and concatenating all resulting frames. The resulting columns
+                will have the shift suffixed to their column names. For multiple periods, axis must not be 1.
+
+                Snowpark pandas does not currently support sequences of int for `periods`.
+
+            freq : DateOffset, tseries.offsets, timedelta, or str, optional
+                Offset to use from the tseries module or time rule (e.g. ‘EOM’).
+
+                Snowpark pandas does not yet support this parameter.
+
             axis : {0 or 'index', 1 or 'columns', None}, default None
                 Shift direction.
+
             fill_value : object, optional
                 The scalar value to use for newly introduced missing values.
                 the default depends on the dtype of `self`.
                 For numeric data, ``np.nan`` is used.
                 For datetime, timedelta, or period data, etc. :attr:`NaT` is used.
                 For extension dtypes, ``self.dtype.na_value`` is used.
+
+            suffix : str, optional
+                If str is specified and periods is an iterable, this is added after the column name
+                and before the shift value for each shifted column name.
+
+                Snowpark pandas does not yet support this parameter.
 
         Returns:
             BasePandasDataset

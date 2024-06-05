@@ -1,0 +1,11 @@
+snowpark-pandas:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/snowflake/snowpark/modin/**
+      - tests/integ/modin/**
+
+local-testing:
+  - changed-files:
+    - any-glob-to-any-file:
+      - src/snowflake/snowpark/mock/**
+      - tests/mock/**

@@ -2,11 +2,15 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import pivot_table_test_helper
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=1, join_count=1)
@@ -21,16 +25,116 @@ def test_pivot_table_single_index_single_column_multiple_values(df_data):
     )
 
 
-@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
+@sql_count_checker(query_count=1, union_count=1)
+def test_pivot_table_no_index_single_column_multiple_values(df_data):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": "B",
+            "values": ["D", "E"],
+        },
+    )
+
+
+@sql_count_checker(query_count=1, union_count=1, join_count=2)
+def test_pivot_table_no_index_single_column_multiple_values_multiple_aggr_func(df_data):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": "B",
+            "values": ["D", "E"],
+            "aggfunc": ["mean", "max"],
+        },
+    )
+
+
+@sql_count_checker(query_count=1, union_count=1)
+@pytest.mark.parametrize("columns", ["B", ["B", "C"]])
+def test_pivot_table_no_index_multiple_values_single_aggr_func_dict(df_data, columns):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": columns,
+            "values": ["D", "E"],
+            "aggfunc": {"D": "mean", "E": "max"},
+        },
+    )
+
+
+# pandas moves the name of the aggfunc into the data columns as an index column.
+@pytest.mark.xfail(
+    strict=True,
+    reason="SNOW-1435365 - look into no index + aggfunc as dictionary with list.",
+)
+@sql_count_checker(query_count=1, union_count=1)
+@pytest.mark.parametrize("columns", ["B", ["B", "C"]])
+def test_pivot_table_no_index_column_multiple_values_multiple_aggr_func_dict(
+    df_data, columns
+):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": columns,
+            "values": ["D", "E"],
+            "aggfunc": {"D": ["mean", "sum"], "E": "max"},
+        },
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_pivot_table_no_index_single_column_single_values_multiple_aggr_func(df_data):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": "B",
+            "values": "D",
+            "aggfunc": ["mean", "max"],
+        },
+    )
+
+
+@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean", ["count"]])
+@pytest.mark.parametrize("values", ["D", ["D"]])
 @sql_count_checker(query_count=1)
-def test_pivot_table_single_index_multiple_column_single_value(df_data, aggfunc):
+def test_pivot_table_single_index_multiple_column_single_value(
+    df_data, aggfunc, values
+):
     pivot_table_test_helper(
         df_data,
         {
             "index": "A",
             "columns": ["B", "C"],
-            "values": "D",
+            "values": values,
             "aggfunc": aggfunc,
+        },
+    )
+
+
+@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
+@pytest.mark.parametrize("values", ["D", ["D"]])
+@sql_count_checker(query_count=1)
+def test_pivot_table_no_index_multiple_column_single_value(df_data, aggfunc, values):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": ["B", "C"],
+            "values": values,
+            "aggfunc": aggfunc,
+        },
+    )
+
+
+@pytest.mark.parametrize("values", ["D", ["D"]])
+@sql_count_checker(query_count=1, join_count=1)
+def test_pivot_table_no_index_multiple_column_single_value_multiple_aggr_func(
+    df_data, values
+):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": ["B", "C"],
+            "values": values,
+            "aggfunc": ["mean", "max"],
         },
     )
 
@@ -82,14 +186,43 @@ def test_pivot_table_single_index_single_column_multiple_encoded_values_with_sor
     )
 
 
+@pytest.mark.parametrize("aggfunc", ["count", ["count"]])
 @sql_count_checker(query_count=1, join_count=1)
-def test_pivot_table_single_index_multiple_columns_multiple_values(df_data):
+def test_pivot_table_single_index_multiple_columns_multiple_values(df_data, aggfunc):
     pivot_table_test_helper(
         df_data,
         {
             "index": "A",
             "columns": ["B", "C"],
             "values": ["D", "E"],
+            "aggfunc": aggfunc,
+        },
+    )
+
+
+@pytest.mark.parametrize("aggfunc", ["count", ["count"]])
+@sql_count_checker(query_count=1, union_count=1)
+def test_pivot_table_no_index_multiple_columns_multiple_values(df_data, aggfunc):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": ["B", "C"],
+            "values": ["D", "E"],
+            "aggfunc": aggfunc,
+        },
+    )
+
+
+@sql_count_checker(query_count=1, union_count=1, join_count=2)
+def test_pivot_table_no_index_multiple_columns_multiple_values_multiple_aggr_funcs(
+    df_data,
+):
+    pivot_table_test_helper(
+        df_data,
+        {
+            "columns": ["B", "C"],
+            "values": ["D", "E"],
+            "aggfunc": ["mean", "max"],
         },
     )
 
@@ -116,6 +249,58 @@ def test_pivot_table_single_index_no_column_single_value_multiple_aggr_funcs(df_
             "values": None,
             "aggfunc": ["min", "max"],
         },
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_pivot_table_no_index_no_column_single_value(df_data):
+    pivot_kwargs = {
+        "values": "D",
+        "aggfunc": "mean",
+    }
+    eval_snowpark_pandas_result(
+        pd.DataFrame(df_data),
+        native_pd.DataFrame(df_data),
+        lambda df: df.pivot_table(**pivot_kwargs),
+        assert_exception_equal=True,
+        expect_exception=True,
+        expect_exception_match="No group keys passed!",
+        expect_exception_type=ValueError,
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_pivot_table_no_index_no_column_single_value_multiple_aggr_funcs(df_data):
+    pivot_kwargs = {
+        "values": "D",
+        "aggfunc": ["mean", "max"],
+    }
+    eval_snowpark_pandas_result(
+        pd.DataFrame(df_data),
+        native_pd.DataFrame(df_data),
+        lambda df: df.pivot_table(**pivot_kwargs),
+        assert_exception_equal=True,
+        expect_exception=True,
+        expect_exception_match="No group keys passed!",
+        expect_exception_type=ValueError,
+    )
+
+
+@sql_count_checker(query_count=0, join_count=0)
+def test_pivot_table_no_index_no_column_no_value_multiple_aggr_funcs(df_data):
+    pivot_kwargs = {
+        "columns": None,
+        "values": None,
+        "aggfunc": ["min", "max"],
+    }
+    eval_snowpark_pandas_result(
+        pd.DataFrame(df_data),
+        native_pd.DataFrame(df_data),
+        lambda df: df.pivot_table(**pivot_kwargs),
+        assert_exception_equal=True,
+        expect_exception=True,
+        expect_exception_match="No group keys passed!",
+        expect_exception_type=ValueError,
     )
 
 
@@ -147,7 +332,7 @@ def test_pivot_table_multiple_index_multiple_columns_null_values(df_data, values
 
 # TODO (SNOW-854301): Needs support for MultiIndex.levels, fails because result.columns.levels[N] don't equal
 # We use xfail to run so we can help code coverage
-@pytest.mark.xfail
+@pytest.mark.xfail(strict=True)
 @pytest.mark.parametrize("values", [None, []])
 @sql_count_checker(query_count=0)
 def test_pivot_table_no_values_by_default(df_data, values):

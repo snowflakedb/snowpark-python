@@ -604,3 +604,32 @@ def test_update_with_join_involving_null_values(session):
         t1,
         [Row(1, "one", "un"), Row(2, "two", "deux")],
     )
+
+
+def test_merge_multi_operation(session):
+    target = session.create_dataframe([[1, "a"]], schema=["id", "name"])
+    target.write.save_as_table("target", mode="overwrite")
+    target = session.table("target")
+
+    source = session.create_dataframe([[2, "b"]], schema=["id", "name"])
+    # update + insert
+    target.merge(
+        source,
+        target["id"] == source["id"],
+        [
+            when_matched().update({"name": source["name"]}),
+            when_not_matched().insert({"id": source["id"], "name": source["name"]}),
+        ],
+    )
+    assert target.sort(col("id")).collect() == [Row(1, "a"), Row(2, "b")]
+
+    # delete + insert
+    target.merge(
+        source,
+        target["id"] == source["id"],
+        [
+            when_matched().delete(),
+            when_not_matched().insert({"id": source["id"], "name": source["name"]}),
+        ],
+    )
+    assert target.sort(col("id")).collect() == [Row(1, "a")]

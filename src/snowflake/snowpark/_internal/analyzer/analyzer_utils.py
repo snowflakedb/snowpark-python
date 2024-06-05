@@ -145,6 +145,8 @@ PUT = " PUT "
 GET = " GET "
 GROUPING_SETS = " GROUPING SETS "
 QUESTION_MARK = "?"
+PERCENT_S = r"%s"
+SINGLE_COLON = ":"
 PATTERN = " PATTERN "
 WITHIN_GROUP = " WITHIN GROUP "
 VALIDATION_MODE = " VALIDATION_MODE "
@@ -786,12 +788,31 @@ def insert_into_statement(
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
-def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:
+def batch_insert_into_statement(
+    table_name: str, column_names: List[str], paramstyle: Optional[str]
+) -> str:
+    num_cols = len(column_names)
+    # paramstyle is initialized as None is stored proc environment
+    paramstyle = paramstyle.lower() if paramstyle else "qmark"
+    supported_paramstyle = ["qmark", "numeric", "format", "pyformat"]
+
+    if paramstyle == "qmark":
+        placeholder_marks = [QUESTION_MARK] * num_cols
+    elif paramstyle == "numeric":
+        placeholder_marks = [f"{SINGLE_COLON}{i+1}" for i in range(num_cols)]
+    elif paramstyle in ("format", "pyformat"):
+        placeholder_marks = [PERCENT_S] * num_cols
+    else:
+        raise ValueError(
+            f"'{paramstyle}' is not a recognized paramstyle. "
+            f"Supported values are: {', '.join(supported_paramstyle)}"
+        )
+
     return (
         f"{INSERT}{INTO}{table_name}"
         f"{LEFT_PARENTHESIS}{COMMA.join(column_names)}{RIGHT_PARENTHESIS}"
         f"{VALUES}{LEFT_PARENTHESIS}"
-        f"{COMMA.join([QUESTION_MARK] * len(column_names))}{RIGHT_PARENTHESIS}"
+        f"{COMMA.join(placeholder_marks)}{RIGHT_PARENTHESIS}"
     )
 
 

@@ -16,6 +16,7 @@ from pandas._typing import Scalar
 
 from snowflake.snowpark import QueryRecord
 from snowflake.snowpark.session import Session
+from tests.utils import IS_IN_STORED_PROC
 
 UPDATED_SUFFIX = "updated"
 ORIGINAL_SUFFIX = "original"
@@ -118,8 +119,14 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
+        from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
+
         self._queries: list[QueryRecord] = []
-        self._no_check = no_check
+
+        # Bypassing sql counter since
+        #   1. it is an unnecessary metric for tests running in stored procedures
+        #   2. pytest-assume package is not available in conda
+        self._no_check = no_check or IS_IN_STORED_PROC or SKIP_SQL_COUNT_CHECK
 
         # Save any expected sql counts initialized at start up.
         self._expected_sql_counts = {}

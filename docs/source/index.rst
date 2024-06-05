@@ -7,7 +7,7 @@ Snowflake directly without moving data to the system where your application code
 information, see the `Snowpark Developer Guide for Python <https://docs.snowflake.com/en/developer-guide/snowpark/python/index.html>`_.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    snowpark/session
    snowpark/index

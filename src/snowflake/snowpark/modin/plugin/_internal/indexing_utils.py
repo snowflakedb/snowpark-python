@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
-import pandas
+import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -708,7 +708,7 @@ def _extract_loc_set_col_info(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> LocSetColInfo:
@@ -821,7 +821,7 @@ def get_valid_col_positions_from_col_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> list[int]:
@@ -932,7 +932,7 @@ def get_valid_col_positions_from_col_labels(
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
         # Throw a KeyError in case there are any missing column labels
         if len(col_loc) > 0 and all(label not in columns for label in col_loc):
-            raise KeyError(f"None of {pandas.Index(col_loc)} are in the [columns]")
+            raise KeyError(f"None of {native_pd.Index(col_loc)} are in the [columns]")
         elif any(label not in columns for label in col_loc):
             raise KeyError(f"{[k for k in col_loc if k not in columns]} not in index")
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
@@ -955,7 +955,7 @@ def get_frame_by_col_label(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> InternalFrame:
@@ -1302,7 +1302,7 @@ def _get_frame_by_row_label_slice(
       tuple with 2 items, then the left bound will be the row with first level matches with the start and the right
       bound will be the row with both first and second level match.
       For example,
-          >>> df
+          df:
                         c1	c2
           first	second
           bar	one	    0	2
@@ -1314,7 +1314,7 @@ def _get_frame_by_row_label_slice(
           qux	one	    6	2
                 two	    7	2
 
-          >>> df_mi[slice(('foo',), ('qux', 'one'))]
+          df_mi[slice(('foo',), ('qux', 'one'))]:
                         c1	c2
           first	second
           foo	one	    4	2
@@ -2162,7 +2162,7 @@ def set_frame_2d_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
     item: Union[Scalar, AnyArrayLike, InternalFrame],

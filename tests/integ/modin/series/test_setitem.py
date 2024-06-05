@@ -13,6 +13,7 @@ from pandas._libs.lib import is_bool, is_list_like
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
@@ -997,7 +998,7 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     snowpark_ser = pd.Series(native_ser)
 
     # Assign item.
-    native_ser[key] = item
+    native_ser[try_convert_index_to_native(key)] = item
     snowpark_ser[key] = item
 
     err_msg = "Series are different"
@@ -1550,7 +1551,7 @@ def test_series_setitem_with_empty_key_and_empty_item_negative(
 
     err_msg = "The length of the value/item to set is empty"
     with pytest.raises(ValueError, match=err_msg):
-        native_ser[key] = item
+        native_ser[try_convert_index_to_native(key)] = item
         snowpark_ser[
             pd.Series(key) if isinstance(key, native_pd.Series) else key
         ] = item
@@ -1581,7 +1582,7 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     snowpark_ser = pd.Series(native_ser)
     item = native_pd.Series([])
 
-    native_ser[key] = item
+    native_ser[try_convert_index_to_native(key)] = item
     snowpark_ser[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = pd.Series(item)
@@ -1622,7 +1623,7 @@ def test_series_setitem_with_empty_key_and_scalar_item(
     snowpark_ser = pd.Series(native_ser)
     item = 32
 
-    native_ser[key] = item
+    native_ser[try_convert_index_to_native(key)] = item
     snowpark_ser[pd.Series(key) if isinstance(key, native_pd.Series) else key] = item
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snowpark_ser, native_ser)
 
@@ -1657,7 +1658,7 @@ def test_series_setitem_with_empty_key_and_series_and_list_like_item_negative(
         "cannot set using a list-like indexer with a different length than the value"
     )
     with pytest.raises(ValueError, match=err_msg):
-        native_ser[key] = item
+        native_ser[try_convert_index_to_native(key)] = item
         snowpark_ser[pd.Series(key) if isinstance(key, native_pd.Series) else key] = (
             pd.Series(item) if isinstance(item, native_pd.Series) else item
         )

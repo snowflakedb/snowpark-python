@@ -33,6 +33,14 @@ Series
     Series.values
 
 
+.. rubric:: Snowflake Specific
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_snowflake
+    Series.to_snowpark
+    Series.cache_result
 
 .. rubric:: Conversion
 
@@ -46,8 +54,6 @@ Series
     Series.to_list
     Series.to_numpy
     Series.to_pandas
-    Series.to_snowflake
-    Series.to_snowpark
     Series.__array__
 
 

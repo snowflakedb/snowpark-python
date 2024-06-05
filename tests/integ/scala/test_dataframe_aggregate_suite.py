@@ -48,10 +48,6 @@ from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
 @pytest.mark.localtest
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: pivot not supported",
-)
 def test_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -159,10 +155,6 @@ def test_pivot_agg_functions(session, func, expected):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: pivot not supported",
-)
 def test_group_by_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -236,7 +228,7 @@ def test_group_by_pivot_dynamic_any(session, caplog):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
+    reason="Pivot does not support values from subqueries yet.",
 )
 def test_group_by_pivot_dynamic_subquery(session):
     src = TestData.monthly_sales(session)
@@ -263,11 +255,6 @@ def test_group_by_pivot_dynamic_subquery(session):
     )
 
 
-@pytest.mark.xfail(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="TODO: Join fails with error 'snowflake.snowpark.exceptions.SnowparkColumnException: (1105): The DataFrame does not contain the column named JAN.'",
-    run=False,
-)
 @pytest.mark.localtest
 def test_join_on_pivot(session):
     df1 = (
@@ -307,21 +294,15 @@ def test_pivot_on_join(session):
     )
 
 
-# TODO (SNOW-916206)  If the source is a temp table with inlined data, then we need to validate that
-# pivot will materialize the data before executing pivot, otherwise would fail with not finding the
-# data when doing a later schema call.
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="BUG: SNOW-1370114 pivot should raise not implemented error but get AttributeError: DataFrame object has no attribute queries",
-)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="pivot does not work in stored proc")
-def test_pivot_dynamic_any_with_temp_table_inlined_data(session):
+def test_pivot_dynamic_any_with_temp_table_inlined_data(session, local_testing_mode):
     original_df = session.create_dataframe(
         [tuple(range(26)) for r in range(20)], schema=list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     )
 
-    # Validate the data is backed by a temporary table
-    assert len(original_df.queries.get("post_actions", [])) > 0
+    if not local_testing_mode:
+        # Validate the data is backed by a temporary table
+        assert len(original_df.queries.get("post_actions", [])) > 0
 
     pivot_op_df = original_df.pivot("a").agg(sum(col("b"))).sort(col("c"))
 

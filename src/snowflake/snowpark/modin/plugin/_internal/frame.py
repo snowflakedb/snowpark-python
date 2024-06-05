@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Callable, NamedTuple, Optional, Union
 
-import pandas as pd
+import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_object_dtype
 
@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.functions import col, last_value
+from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
@@ -27,6 +28,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
     assert_duplicate_free,
+    cache_result,
     count_rows,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
@@ -368,14 +370,14 @@ class InternalFrame:
         )
 
     @property
-    def data_columns_index(self) -> pd.Index:
+    def data_columns_index(self) -> "pd.Index":
         """
         Returns pandas Index object for column index (df.columns).
         We can't do the same thing for df.index here because it requires pulling
         the data from snowflake and filing a query to snowflake.
         """
         if self.is_multiindex(axis=1):
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 self.data_column_pandas_labels,
                 names=self.data_column_pandas_index_names,
             )
@@ -390,7 +392,7 @@ class InternalFrame:
             )
 
     @property
-    def index_columns_index(self) -> pd.Index:
+    def index_columns_index(self) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
@@ -406,7 +408,7 @@ class InternalFrame:
         ).values
         if self.is_multiindex(axis=0):
             value_tuples = [tuple(row) for row in index_values]
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 value_tuples, names=self.index_column_pandas_labels
             )
         else:
@@ -415,7 +417,7 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
-            ret = pd.Index(
+            ret = native_pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
@@ -684,6 +686,22 @@ class InternalFrame:
         """
         return InternalFrame.create(
             ordered_dataframe=self.ordered_dataframe.ensure_row_count_column(),
+            data_column_pandas_labels=self.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=self.data_column_pandas_index_names,
+            index_column_pandas_labels=self.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+        )
+
+    def persist_to_temporary_table(self) -> "InternalFrame":
+        """
+        Persists the OrderedDataFrame backing this InternalFrame to a temporary table for the duration of the session.
+
+        Returns:
+            A new InternalFrame with the backing OrderedDataFrame persisted to a temporary table.
+        """
+        return InternalFrame.create(
+            ordered_dataframe=cache_result(self.ordered_dataframe),
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
