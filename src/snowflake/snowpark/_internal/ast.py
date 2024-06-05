@@ -17,7 +17,6 @@ from pandas import Timestamp
 from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 
 
 # TODO: currently unused.
@@ -57,6 +56,9 @@ def ast_expr_from_python_val(expr, val):
         expr.none_val = val
     val_type = type(val)
     if val_type not in TYPE_TO_IR_TYPE_NAME:
+        # Modin is imported here to prevent circular import issues.
+        from snowflake.snowpark.modin.pandas import DataFrame, Series
+
         if isinstance(val, Callable):
             expr.fn_val.params = signature(val).parameters
             expr.fn_val.body = val

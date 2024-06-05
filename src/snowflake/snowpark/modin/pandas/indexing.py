@@ -1051,15 +1051,13 @@ class _iLocIndexer(_LocationIndexerBase):
         original_row_loc = row_loc  # keep a copy for error message
 
         # IR changes! Add iloc get nodes to AST.
-        stmt = self.df._get_session()._ast_batch.assign()
+        stmt = pd.session._ast_batch.assign()
         ast = stmt.expr
-        ast.pd_dataframe_iloc_get.df.pd_dataframe_ref.id.bitfield1 = (
-            self.df._get_ast_id()
-        )
+        ast.pd_dataframe_i_loc.df.var_id.bitfield1 = self.df._get_ast_id()
         # Map python built-ins (functions, scalars, lists, slices, etc.) to AST expr and emit Ref nodes for dataframes,
         # series, and indexes.
-        ast_expr_from_python_val(ast.pd_dataframe_iloc_get.rows, row_loc)
-        ast_expr_from_python_val(ast.pd_dataframe_iloc_get.columns, col_loc)
+        ast_expr_from_python_val(ast.pd_dataframe_i_loc.rows, row_loc)
+        ast_expr_from_python_val(ast.pd_dataframe_i_loc.columns, col_loc)
 
         # Convert range to slice objects.
         if not isinstance(row_loc, pd.Series) and is_range_like(row_loc):

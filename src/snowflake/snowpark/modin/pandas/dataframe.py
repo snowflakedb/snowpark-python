@@ -255,11 +255,6 @@ class DataFrame(BasePandasDataset):
         else:
             self._query_compiler = query_compiler
 
-    def _get_session(self):
-        return (
-            self._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._session
-        )
-
     def _get_ast_id(self):
         return (
             self._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id
