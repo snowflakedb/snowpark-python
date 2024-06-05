@@ -21,19 +21,7 @@ from typing import (
     Union,
 )
 
-# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
-if sys.version_info <= (3, 9):
-    import collections
-    import typing
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
-else:
-    from collections import Counter
-
+from snowflake.snowpark._internal.analyzer.sort_expression import Counter
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,

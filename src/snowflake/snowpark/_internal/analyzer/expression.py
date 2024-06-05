@@ -3,26 +3,15 @@
 #
 
 import copy
-import sys
 import uuid
 from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
-# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
-if sys.version_info <= (3, 9):
-    import collections
-    import typing
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
-else:
-    from collections import Counter
-
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.complexity_stat import (
+    ComplexityStat,
+    Counter,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (

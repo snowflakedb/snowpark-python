@@ -6,27 +6,20 @@ import sys
 from functools import cached_property
 from typing import Dict, List, Optional
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.complexity_stat import (
+    ComplexityStat,
+    Counter,
+)
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
-# Python 3.8: needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-#             needs to create new Counter class from collections.Counter so it can pass type check
-# Python 3.9: can use both and type check support is added in collections.Counter from 3.9+
+# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
+# Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
 if sys.version_info <= (3, 9):
-    import collections
-    import typing
     from typing import Iterable
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
 else:
-    from collections import Counter
     from collections.abc import Iterable
 
 
