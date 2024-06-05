@@ -22,7 +22,7 @@ from typing import (
 
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
-from snowflake.snowpark._internal.analyzer.materialization_utils import (
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     Counter,
 )

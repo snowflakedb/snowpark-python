@@ -21,7 +21,7 @@ from typing import (
     Union,
 )
 
-from snowflake.snowpark._internal.analyzer.materialization_utils import Counter
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import Counter
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,

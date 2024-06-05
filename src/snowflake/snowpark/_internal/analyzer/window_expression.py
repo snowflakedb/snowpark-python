@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
-from snowflake.snowpark._internal.analyzer.materialization_utils import (
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     Counter,
 )

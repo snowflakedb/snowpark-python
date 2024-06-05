@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     ScalarSubquery,
 )
-from snowflake.snowpark._internal.analyzer.materialization_utils import (
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     Counter,
 )
