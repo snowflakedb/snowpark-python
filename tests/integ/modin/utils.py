@@ -184,11 +184,9 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
     """
     native_kw_args = kwargs.copy()
     if "index" in native_kw_args:
-        native_kw_args["index"] = try_convert_index_to_native(native_kw_args["index"])
+        kwargs["index"] = pd.Index(native_kw_args["index"])
     if "columns" in native_kw_args:
-        native_kw_args["columns"] = try_convert_index_to_native(
-            native_kw_args["columns"]
-        )
+        kwargs["columns"] = pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 

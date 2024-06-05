@@ -2086,7 +2086,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [2, 1, 3],
             [3, 0, 2],
-            pd.Index([456]),
+            native_pd.Index([456]),
         ),
         # Test locations with 1d item (list) values
         (
@@ -2110,7 +2110,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [3, 1, 2],
             [0, 3, 1],
-            pd.Index([99, 98, 97]),
+            native_pd.Index([99, 98, 97]),
         ),
         # Test 3x3 locations with 2d item (list) values
         (
@@ -2134,7 +2134,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [2, 1, 0],
             [1, 0, 2],
-            pd.Index([(55, 56, 57), (58, 59, 60), (61, 62, 63)]),
+            native_pd.Index([(55, 56, 57), (58, 59, 60), (61, 62, 63)]),
         ),
         # Test 3x3 locations with scalar 0
         (
@@ -2164,6 +2164,10 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
     else:
         expected_join_count = 2
 
+    if isinstance(item_value, native_pd.Index):
+        item_value = pd.Index(item_value)
+        expected_query_count = 4
+
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         helper_test_iloc_set_with_row_and_col_pos(
             numeric_test_data_4x4,
@@ -2172,7 +2176,7 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
             col_pos,
             col_pos,
             item_value,
-            item_value,
+            try_convert_index_to_native(item_value),
             wrap_item="na",
             wrap_row="series",
             wrap_col="series",
