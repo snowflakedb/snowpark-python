@@ -515,6 +515,10 @@ class SelectSnowflakePlan(Selectable):
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_params
 
+    @property
+    def individual_complexity_stat(self) -> Counter[str]:
+        return self.snowflake_plan.individual_complexity_stat
+
 
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.

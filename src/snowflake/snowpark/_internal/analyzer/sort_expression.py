@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
-from snowflake.snowpark._internal.analyzer.table_merge_expression import Counter
+from snowflake.snowpark._internal.analyzer.materialization_utils import Counter
 
 
 class NullOrdering:
