@@ -385,7 +385,7 @@ Series([], dtype: bool)
 """
 
 
-class BasePandasDataset:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class BasePandasDataset:
     """
     Implement most of the common code that exists in DataFrame/Series.
 
