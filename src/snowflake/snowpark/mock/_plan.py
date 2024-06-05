@@ -1721,7 +1721,7 @@ def calculate_expression(
                     & right.apply(lambda x: x is not None and np.isnan(x))
                 ] = True  # NaN == NaN evaluates to False in pandas, but True in Snowflake
                 new_column[new_column.isna() | new_column.isnull()] = False
-            # TODO: the special case with (1,2,3) == [1,2,3] should be True
+            # Special case when [1,2,3] == (1,2,3) should evaluate to True
             index = left.combine(
                 right,
                 lambda x, y: isinstance(x, (list, tuple))
