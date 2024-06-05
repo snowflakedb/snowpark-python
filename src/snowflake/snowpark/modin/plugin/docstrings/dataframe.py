@@ -45,7 +45,7 @@ axis : int or str, optional
 }
 
 
-class DataFrame:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class DataFrame:
     """
     Snowpark pandas representation of ``pandas.DataFrame`` with a lazily-evaluated relational dataset.
 
