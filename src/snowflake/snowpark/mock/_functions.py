@@ -1282,7 +1282,7 @@ def mock_to_array(expr: ColumnEmulator):
         res = expr.apply(lambda x: try_convert(convert_variant_to_array, False, x))
     else:
         res = expr.apply(lambda x: try_convert(lambda y: [y], False, x))
-    res.sf_type = ColumnType(ArrayType(expr.sf_type.datatype), expr.sf_type.nullable)
+    res.sf_type = ColumnType(ArrayType(), expr.sf_type.nullable)
     return res
 
 
@@ -1325,9 +1325,7 @@ def mock_to_object(expr: ColumnEmulator):
             f"Invalid type {type(expr.sf_type.datatype)} parameter 'TO_OBJECT'"
         )
 
-    res.sf_type = ColumnType(
-        MapType(VariantType(), VariantType()), expr.sf_type.nullable
-    )
+    res.sf_type = ColumnType(MapType(), expr.sf_type.nullable)
     return res
 
 
@@ -1875,5 +1873,5 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
         return res
     else:
         raise SnowparkLocalTestingException(
-            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
+            f"[Local Testing] expr1 and expr2 have conflicting datatypes that cannot be coerced: {expr1.sf_type} <-> {expr2.sf_type}"
         )
