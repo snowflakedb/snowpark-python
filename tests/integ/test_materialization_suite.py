@@ -2,12 +2,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
-from typing import Dict
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.materialization_utils import (
+    ComplexityStat,
+    Counter,
+)
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -50,11 +51,11 @@ def sample_table(session):
     Utils.drop_table(session, table_name)
 
 
-def get_cumulative_complexity_stat(df: DataFrame) -> Dict[str, int]:
+def get_cumulative_complexity_stat(df: DataFrame) -> Counter[str]:
     return df._plan.cumulative_complexity_stat
 
 
-def assert_df_subtree_query_complexity(df: DataFrame, estimate: Dict[str, int]):
+def assert_df_subtree_query_complexity(df: DataFrame, estimate: Counter[str]):
     assert (
         get_cumulative_complexity_stat(df) == estimate
     ), f"query = {df.queries['queries'][-1]}"

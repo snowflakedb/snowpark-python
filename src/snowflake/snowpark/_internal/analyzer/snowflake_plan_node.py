@@ -7,11 +7,11 @@ import sys
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import (
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
+from snowflake.snowpark._internal.analyzer.materialization_utils import (
     ComplexityStat,
     Counter,
 )
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 

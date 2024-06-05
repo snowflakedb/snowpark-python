@@ -8,7 +8,7 @@ from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.complexity_stat import (
+from snowflake.snowpark._internal.analyzer.materialization_utils import (
     ComplexityStat,
     Counter,
 )

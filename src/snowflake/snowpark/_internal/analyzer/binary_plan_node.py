@@ -4,11 +4,11 @@
 
 from typing import List, Optional
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import (
+from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.materialization_utils import (
     ComplexityStat,
     Counter,
 )
-from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
