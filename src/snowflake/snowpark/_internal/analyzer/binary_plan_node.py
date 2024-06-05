@@ -74,9 +74,9 @@ class BinaryNode(LogicalPlan):
 
 class SetOperation(BinaryNode):
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> Counter[str]:
         # (left) operator (right)
-        return Counter({PlanNodeCategory.SET_OPERATION.value: 1})
+        return PlanNodeCategory.SET_OPERATION
 
 
 class Except(SetOperation):
@@ -198,19 +198,19 @@ class Join(BinaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        estimate = Counter({PlanNodeCategory.JOIN.value: 1})
+        stat = Counter({PlanNodeCategory.JOIN.value: 1})
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
-            estimate += Counter(
+            stat += Counter(
                 {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)}
             )
-        estimate += (
+        stat += (
             self.join_condition.cumulative_complexity_stat
             if self.join_condition
             else Counter()
         )
-        estimate += (
+        stat += (
             self.match_condition.cumulative_complexity_stat
             if self.match_condition
             else Counter()
         )
-        return estimate
+        return stat

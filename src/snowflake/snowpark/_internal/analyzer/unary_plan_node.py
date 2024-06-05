@@ -76,18 +76,18 @@ class Aggregate(UnaryNode):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        estimate = Counter()
+        stat = Counter()
         if self.grouping_expressions:
             # GROUP BY grouping_exprs
-            estimate += Counter({PlanNodeCategory.GROUP_BY.value: 1}) + sum(
+            stat += Counter({PlanNodeCategory.GROUP_BY.value: 1}) + sum(
                 (expr.cumulative_complexity_stat for expr in self.grouping_expressions),
                 Counter(),
             )
         else:
             # LIMIT 1
-            estimate += Counter({PlanNodeCategory.OTHERS.value: 1})
+            stat += Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
 
-        estimate += sum(
+        stat += sum(
             (
                 getattr(
                     expr,
@@ -98,7 +98,7 @@ class Aggregate(UnaryNode):
             ),
             Counter(),
         )
-        return estimate
+        return stat
 
 
 class Pivot(UnaryNode):
@@ -120,38 +120,38 @@ class Pivot(UnaryNode):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        estimate = Counter()
-        # child estimate adjustment if grouping cols
+        stat = Counter()
+        # child stat adjustment if grouping cols
         if self.grouping_columns and self.aggregates and self.aggregates[0].children:
             # for additional projecting cols when grouping cols is not empty
-            estimate += sum(
+            stat += sum(
                 (col.cumulative_complexity_stat for col in self.grouping_columns),
                 Counter(),
             )
-            estimate += self.pivot_column.cumulative_complexity_stat
-            estimate += self.aggregates[0].children[0].cumulative_complexity_stat
+            stat += self.pivot_column.cumulative_complexity_stat
+            stat += self.aggregates[0].children[0].cumulative_complexity_stat
 
         # pivot col
         if isinstance(self.pivot_values, ScalarSubquery):
-            estimate += self.pivot_values.cumulative_complexity_stat
+            stat += self.pivot_values.cumulative_complexity_stat
         elif isinstance(self.pivot_values, List):
-            estimate += sum(
+            stat += sum(
                 (val.cumulative_complexity_stat for val in self.pivot_values), Counter()
             )
         else:
             # if pivot values is None, then we add OTHERS for ANY
-            estimate += Counter({PlanNodeCategory.OTHERS.value: 1})
+            stat += Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
 
-        # aggregate estimate
-        estimate += sum(
+        # aggregate stat
+        stat += sum(
             (expr.cumulative_complexity_stat for expr in self.aggregates), Counter()
         )
 
         # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
-        estimate += Counter(
+        stat += Counter(
             {PlanNodeCategory.COLUMN.value: 2, PlanNodeCategory.PIVOT.value: 1}
         )
-        return estimate
+        return stat
 
 
 class Unpivot(UnaryNode):
@@ -170,13 +170,13 @@ class Unpivot(UnaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
-        estimate = Counter(
+        stat = Counter(
             {PlanNodeCategory.UNPIVOT.value: 1, PlanNodeCategory.COLUMN.value: 3}
         )
-        estimate += sum(
+        stat += sum(
             (expr.cumulative_complexity_stat for expr in self.column_list), Counter()
         )
-        return estimate
+        return stat
 
 
 class Rename(UnaryNode):
@@ -194,7 +194,7 @@ class Rename(UnaryNode):
         return Counter(
             {
                 PlanNodeCategory.COLUMN.value: 1 + 2 * len(self.column_map),
-                PlanNodeCategory.OTHERS.value: 1 + len(self.column_map),
+                PlanNodeCategory.LOW_IMPACT.value: 1 + len(self.column_map),
             }
         )
 

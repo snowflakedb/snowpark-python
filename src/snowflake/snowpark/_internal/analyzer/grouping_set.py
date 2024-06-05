@@ -25,8 +25,8 @@ class GroupingSet(Expression):
         return derive_dependent_columns(*self.group_by_exprs)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class Cube(GroupingSet):
@@ -57,5 +57,5 @@ class GroupingSetsExpression(Expression):
         )
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT

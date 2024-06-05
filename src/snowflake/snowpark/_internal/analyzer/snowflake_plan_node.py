@@ -30,11 +30,15 @@ class LogicalPlan:
         self._cumulative_complexity_stat: Optional[Counter[str]] = None
 
     @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.OTHERS
+
+    @property
     def individual_complexity_stat(self) -> Counter[str]:
         """Returns the individual contribution of the logical plan node towards the
         overall compilation complexity of the generated sql.
         """
-        return Counter()
+        return Counter({self.plan_node_category.value: 1})
 
     @property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -42,11 +46,11 @@ class LogicalPlan:
         logical plan node. Statistic of current node is included in the final aggregate.
         """
         if self._cumulative_complexity_stat is None:
-            estimate = self.individual_complexity_stat
+            stat = self.individual_complexity_stat
             for node in self.children:
-                estimate += node.cumulative_complexity_stat
+                stat += node.cumulative_complexity_stat
 
-            self._cumulative_complexity_stat = estimate
+            self._cumulative_complexity_stat = stat
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter
@@ -77,7 +81,7 @@ class Range(LeafNode):
                 PlanNodeCategory.ORDER_BY.value: 1,
                 PlanNodeCategory.LITERAL.value: 3,  # step, start, count
                 PlanNodeCategory.COLUMN.value: 1,  # id column
-                PlanNodeCategory.OTHERS.value: 2,  # ROW_NUMBER, GENERATOR
+                PlanNodeCategory.LOW_IMPACT.value: 2,  # ROW_NUMBER, GENERATOR
             }
         )
 
@@ -148,16 +152,14 @@ class SnowflakeCreateTable(LogicalPlan):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (child)
-        estimate = Counter(
-            {PlanNodeCategory.OTHERS.value: 1, PlanNodeCategory.COLUMN.value: 1}
-        )
-        estimate += (
+        # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (query)
+        stat = Counter({PlanNodeCategory.COLUMN.value: 1})
+        stat += (
             Counter({PlanNodeCategory.COLUMN.value: len(self.column_names)})
             if self.column_names
             else Counter()
         )
-        estimate += (
+        stat += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.clustering_exprs),
                 Counter(),
@@ -165,7 +167,7 @@ class SnowflakeCreateTable(LogicalPlan):
             if self.clustering_exprs
             else Counter()
         )
-        return estimate
+        return stat
 
 
 class Limit(LogicalPlan):
@@ -182,7 +184,7 @@ class Limit(LogicalPlan):
     def individual_complexity_stat(self) -> Counter[str]:
         # for limit and offset
         return (
-            Counter({PlanNodeCategory.OTHERS.value: 2})
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 2})
             + self.limit_expr.cumulative_complexity_stat
             + self.offset_expr.cumulative_complexity_stat
         )

@@ -296,7 +296,7 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        """This is the query complexity estimate added by this Selectable node
+        """This is the query complexity stat added by this Selectable node
         to the overall query plan. For default case, it is the number of active
         columns. Specific cases are handled in child classes with additional
         explanation.
@@ -309,14 +309,14 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        """This is sum of individual query complexity estimates for all nodes
+        """This is sum of individual query complexity stats for all nodes
         within a query plan subtree.
         """
         if self._cumulative_complexity_stat is None:
-            estimate = self.individual_complexity_stat
+            stat = self.individual_complexity_stat
             for node in self.children_plan_nodes:
-                estimate += node.cumulative_complexity_stat
-            self._cumulative_complexity_stat = estimate
+                stat += node.cumulative_complexity_stat
+            self._cumulative_complexity_stat = stat
         return self._cumulative_complexity_stat
 
     @cumulative_complexity_stat.setter
@@ -448,7 +448,7 @@ class SelectSQL(Selectable):
             # by a SELECT * FROM table(result_scan(query_id)) statement
             return Counter({PlanNodeCategory.COLUMN.value: 1})
 
-        # no pre-action implies the best estimate we have is of # active columns
+        # no pre-action implies the best stat we have is of # active columns
         return Counter(
             {PlanNodeCategory.COLUMN.value: len(self.column_states.active_columns)}
         )
@@ -714,9 +714,9 @@ class SelectStatement(Selectable):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        estimate = Counter()
+        stat = Counter()
         # projection component
-        estimate += (
+        stat += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.projection), Counter()
             )
@@ -725,7 +725,7 @@ class SelectStatement(Selectable):
         )
 
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
-        estimate += (
+        stat += (
             Counter({PlanNodeCategory.FILTER.value: 1})
             + self.where.cumulative_complexity_stat
             if self.where
@@ -733,7 +733,7 @@ class SelectStatement(Selectable):
         )
 
         # order by component - add complexity for each sort expression
-        estimate += (
+        stat += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.order_by),
                 Counter({PlanNodeCategory.ORDER_BY.value: 1}),
@@ -743,13 +743,13 @@ class SelectStatement(Selectable):
         )
 
         # limit/offset component
-        estimate += (
-            Counter({PlanNodeCategory.OTHERS.value: 1}) if self.limit_ else Counter()
+        stat += (
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 1}) if self.limit_ else Counter()
         )
-        estimate += (
-            Counter({PlanNodeCategory.OTHERS.value: 1}) if self.offset else Counter()
+        stat += (
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 1}) if self.offset else Counter()
         )
-        return estimate
+        return stat
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),

@@ -38,8 +38,8 @@ class UnaryExpression(Expression):
         return derive_dependent_columns(self.child)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class Cast(UnaryExpression):
@@ -89,9 +89,9 @@ class Alias(UnaryExpression, NamedExpression):
         return f"{self.child} {self.sql_operator} {self.name}"
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # child AS name
-        return Counter({PlanNodeCategory.COLUMN.value: 1})
+        return PlanNodeCategory.COLUMN
 
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
@@ -103,5 +103,5 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter()
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.OTHERS

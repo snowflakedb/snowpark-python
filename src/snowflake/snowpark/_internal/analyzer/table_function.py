@@ -39,8 +39,8 @@ class TableFunctionPartitionSpecDefinition(Expression):
     def cumulative_complexity_stat(self) -> Counter[str]:
         if not self.over:
             return Counter()
-        estimate = Counter({PlanNodeCategory.WINDOW.value: 1})
-        estimate += (
+        stat = Counter({PlanNodeCategory.WINDOW.value: 1})
+        stat += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.partition_spec),
                 Counter({PlanNodeCategory.PARTITION_BY.value: 1}),
@@ -48,7 +48,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
             if self.partition_spec
             else Counter()
         )
-        estimate += (
+        stat += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.order_spec),
                 Counter({PlanNodeCategory.ORDER_BY.value: 1}),
@@ -56,7 +56,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
             if self.order_spec
             else Counter()
         )
-        return estimate
+        return stat
 
 
 class TableFunctionExpression(Expression):
@@ -74,17 +74,8 @@ class TableFunctionExpression(Expression):
         self.api_call_source = api_call_source
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.FUNCTION.value: 1})
-
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return (
-            self.partition_spec.cumulative_complexity_stat
-            + self.individual_complexity_stat
-            if self.partition_spec
-            else self.individual_complexity_stat
-        )
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
 
 
 class FlattenFunction(TableFunctionExpression):
@@ -115,16 +106,16 @@ class PosArgumentsTableFunction(TableFunctionExpression):
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        estimate = sum(
+        stat = sum(
             (arg.cumulative_complexity_stat for arg in self.args),
             self.individual_complexity_stat,
         )
-        estimate += (
+        stat += (
             self.partition_spec.cumulative_complexity_stat
             if self.partition_spec
             else Counter()
         )
-        return estimate
+        return stat
 
 
 class NamedArgumentsTableFunction(TableFunctionExpression):
@@ -139,16 +130,16 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        estimate = sum(
+        stat = sum(
             (arg.cumulative_complexity_stat for arg in self.args.values()),
             self.individual_complexity_stat,
         )
-        estimate += (
+        stat += (
             self.partition_spec.cumulative_complexity_stat
             if self.partition_spec
             else Counter()
         )
-        return estimate
+        return stat
 
 
 class GeneratorTableFunction(TableFunctionExpression):
@@ -159,17 +150,17 @@ class GeneratorTableFunction(TableFunctionExpression):
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        estimate = sum(
+        stat = sum(
             (arg.cumulative_complexity_stat for arg in self.args.values()),
             self.individual_complexity_stat,
         )
-        estimate += (
+        stat += (
             self.partition_spec.cumulative_complexity_stat
             if self.partition_spec
             else Counter()
         )
-        estimate += Counter({PlanNodeCategory.COLUMN.value: len(self.operators)})
-        return estimate
+        stat += Counter({PlanNodeCategory.COLUMN.value: len(self.operators)})
+        return stat
 
 
 class TableFunctionRelation(LogicalPlan):

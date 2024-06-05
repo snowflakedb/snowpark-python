@@ -31,8 +31,8 @@ class BinaryExpression(Expression):
         return derive_dependent_columns(self.left, self.right)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.OTHERS.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class BinaryArithmeticExpression(BinaryExpression):
