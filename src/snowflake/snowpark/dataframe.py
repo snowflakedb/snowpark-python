@@ -1293,6 +1293,11 @@ class DataFrame:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name
@@ -3866,14 +3871,14 @@ class DataFrame:
         rename_plan = Rename(rename_map, self._plan)
 
         if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    rename_plan, analyzer=self._session._analyzer
+                ),
+                analyzer=self._session._analyzer,
             )
+            return self._with_plan(select_plan)
+
         return self._with_plan(rename_plan)
 
     @df_api_usage
@@ -3902,6 +3907,11 @@ class DataFrame:
             old_name = quote_name(existing)
         elif isinstance(existing, Column):
             if isinstance(existing._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema
+
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
             elif (
@@ -4181,6 +4191,11 @@ Query List:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name

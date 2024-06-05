@@ -19,6 +19,7 @@ from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_ac
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 
 
 # Snowflake specific dataframe methods
@@ -239,3 +240,17 @@ def to_pandas(
         Name: Animal, dtype: object
     """
     return self._to_pandas(statement_params=statement_params, **kwargs)
+
+
+@register_dataframe_accessor("cache_result")
+@add_cache_result_docstring
+@snowpark_pandas_telemetry_method_decorator
+def cache_result(self, inplace: bool = False) -> Optional[pd.DataFrame]:
+    """
+    Persists the current Snowpark pandas DataFrame to a temporary table that lasts the duration of the session.
+    """
+    new_qc = self._query_compiler.cache_result()
+    if inplace:
+        self._update_inplace(new_qc)
+    else:
+        return pd.DataFrame(query_compiler=new_qc)
