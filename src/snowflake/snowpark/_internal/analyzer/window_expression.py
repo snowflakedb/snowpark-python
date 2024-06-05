@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
@@ -24,7 +24,7 @@ class SpecialFrameBoundary(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
 
 class UnboundedPreceding(SpecialFrameBoundary):
@@ -74,7 +74,7 @@ class SpecifiedWindowFrame(WindowFrame):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -107,12 +107,12 @@ class WindowSpecDefinition(Expression):
     def individual_complexity_stat(self) -> Counter[str]:
         estimate = Counter()
         estimate += (
-            Counter({ComplexityStat.PARTITION_BY.value: 1})
+            Counter({PlanNodeCategory.PARTITION_BY.value: 1})
             if self.partition_spec
             else Counter()
         )
         estimate += (
-            Counter({ComplexityStat.ORDER_BY.value: 1})
+            Counter({PlanNodeCategory.ORDER_BY.value: 1})
             if self.order_spec
             else Counter()
         )
@@ -147,7 +147,7 @@ class WindowExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.WINDOW.value: 1})
+        return Counter({PlanNodeCategory.WINDOW.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -181,14 +181,14 @@ class RankRelatedFunctionExpression(Expression):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # for func_name
-        estimate = Counter({ComplexityStat.FUNCTION.value: 1})
+        estimate = Counter({PlanNodeCategory.FUNCTION.value: 1})
         # for offset
         estimate += (
-            Counter({ComplexityStat.LITERAL.value: 1}) if self.offset else Counter()
+            Counter({PlanNodeCategory.LITERAL.value: 1}) if self.offset else Counter()
         )
         # for ignore nulls
         estimate += (
-            Counter({ComplexityStat.LOW_IMPACT.value: 1})
+            Counter({PlanNodeCategory.OTHERS.value: 1})
             if self.ignore_nulls
             else Counter()
         )

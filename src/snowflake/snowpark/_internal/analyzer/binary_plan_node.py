@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
@@ -76,7 +76,7 @@ class SetOperation(BinaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # (left) operator (right)
-        return Counter({ComplexityStat.SET_OPERATION.value: 1})
+        return Counter({PlanNodeCategory.SET_OPERATION.value: 1})
 
 
 class Except(SetOperation):
@@ -198,10 +198,10 @@ class Join(BinaryNode):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        estimate = Counter({ComplexityStat.JOIN.value: 1})
+        estimate = Counter({PlanNodeCategory.JOIN.value: 1})
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
             estimate += Counter(
-                {ComplexityStat.COLUMN.value: len(self.join_type.using_columns)}
+                {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)}
             )
         estimate += (
             self.join_condition.cumulative_complexity_stat

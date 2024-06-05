@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -23,7 +23,7 @@ class MergeExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.LOW_IMPACT.value: 1})
+        return Counter({PlanNodeCategory.OTHERS.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:

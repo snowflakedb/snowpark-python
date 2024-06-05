@@ -58,10 +58,6 @@ class SortOrder(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
 
-    @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter()
-
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         return self.child.cumulative_complexity_stat + self.individual_complexity_stat

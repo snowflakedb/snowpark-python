@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.materialization_utils import (
-    ComplexityStat,
+    PlanNodeCategory,
     Counter,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
@@ -39,11 +39,11 @@ class TableFunctionPartitionSpecDefinition(Expression):
     def cumulative_complexity_stat(self) -> Counter[str]:
         if not self.over:
             return Counter()
-        estimate = Counter({ComplexityStat.WINDOW.value: 1})
+        estimate = Counter({PlanNodeCategory.WINDOW.value: 1})
         estimate += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.partition_spec),
-                Counter({ComplexityStat.PARTITION_BY.value: 1}),
+                Counter({PlanNodeCategory.PARTITION_BY.value: 1}),
             )
             if self.partition_spec
             else Counter()
@@ -51,7 +51,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
         estimate += (
             sum(
                 (expr.cumulative_complexity_stat for expr in self.order_spec),
-                Counter({ComplexityStat.ORDER_BY.value: 1}),
+                Counter({PlanNodeCategory.ORDER_BY.value: 1}),
             )
             if self.order_spec
             else Counter()
@@ -75,7 +75,7 @@ class TableFunctionExpression(Expression):
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({ComplexityStat.FUNCTION.value: 1})
+        return Counter({PlanNodeCategory.FUNCTION.value: 1})
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -168,7 +168,7 @@ class GeneratorTableFunction(TableFunctionExpression):
             if self.partition_spec
             else Counter()
         )
-        estimate += Counter({ComplexityStat.COLUMN.value: len(self.operators)})
+        estimate += Counter({PlanNodeCategory.COLUMN.value: len(self.operators)})
         return estimate
 
 
@@ -203,9 +203,9 @@ class TableFunctionJoin(LogicalPlan):
         return (
             Counter(
                 {
-                    ComplexityStat.COLUMN.value: len(self.left_cols)
+                    PlanNodeCategory.COLUMN.value: len(self.left_cols)
                     + len(self.right_cols),
-                    ComplexityStat.JOIN.value: 1,
+                    PlanNodeCategory.JOIN.value: 1,
                 }
             )
             + self.table_function.cumulative_complexity_stat
@@ -224,6 +224,6 @@ class Lateral(LogicalPlan):
     def individual_complexity_stat(self) -> Counter[str]:
         # SELECT * FROM (child), LATERAL table_func_expression
         return (
-            Counter({ComplexityStat.COLUMN.value: 1})
+            Counter({PlanNodeCategory.COLUMN.value: 1})
             + self.table_function.cumulative_complexity_stat
         )
