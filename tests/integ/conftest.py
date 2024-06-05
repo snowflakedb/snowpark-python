@@ -4,7 +4,6 @@
 #
 
 import os
-import uuid
 from typing import Dict
 
 import pytest
@@ -14,11 +13,7 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import Utils, running_on_jenkins, running_on_public_ci
-
-TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-if running_on_jenkins():
-    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
 
 
 def print_help() -> None:
