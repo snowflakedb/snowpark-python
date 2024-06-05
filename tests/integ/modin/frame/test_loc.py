@@ -27,7 +27,7 @@ from tests.integ.modin.utils import (
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
-    pd.Index([]),
+    native_pd.Index([]),
     np.array([]),
     native_pd.Series([]),
 ]
@@ -1048,7 +1048,7 @@ LOC_SET_COL_KEYS = [
     ["A"],
     ["Y"],  # append new column
     slice("A", "B", None),
-    pd.Index(["A", "C"]),  # more array type
+    native_pd.Index(["A", "C"]),  # more array type
     np.array(["C", "A"]),
     [False, True, True, False],
     np.array([1, 0, 0, 1], dtype=bool),
@@ -1409,7 +1409,7 @@ def test_df_loc_set_number_of_cols_mismatch_negative():
         ([[1, 2, 3], [4, 5, 6], [7, 8, 9]], None, ["A", "B", "C"]),
         ([1, 2, 3], None, ["A"]),
         # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
-        (None, pd.Index([], dtype=object), ["A", "B"]),
+        (None, native_pd.Index([], dtype=object), ["A", "B"]),
         (None, ["A", "B"], ["X"]),
     ],
 )
@@ -1489,7 +1489,7 @@ def test_df_loc_set_for_empty_dataframe_negative(index, key, value):
     [
         native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["A", "B", "C"]),
         # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
-        native_pd.DataFrame(index=pd.Index([], dtype=object)),
+        native_pd.DataFrame(index=native_pd.Index([], dtype=object)),
     ],
 )
 def test_df_loc_set_row_col_with_non_matching_scalar_key(
@@ -2504,7 +2504,7 @@ def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
         ("w", [1], False, False),
         ("w", (1,), False, False),
         ("a", np.array([1]), False, False),
-        ("a", pd.Index([1]), False, False),
+        ("a", native_pd.Index([1]), False, False),
     ],
 )
 def test_df_loc_set_scalar_with_item_negative(
