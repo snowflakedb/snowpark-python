@@ -9999,7 +9999,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # max            NaN      3.0    NaN
         sorted_percentiles = sorted(percentiles)
         dtypes = self.dtypes
-        query_compiler = self
+        # If we operate on the original frame's labels, then if two columns have the same name but
+        # different dtypes, the JOIN behavior of SnowflakeQueryCompiler.concat will produce incorrect
+        # results. For example, if a frame has two columns named "a", one with `object` dtype and the
+        # other `int64`, the `object` column would have a query compiler for the computed `top`/`freq`,
+        # while the numeric column would have a query compiler for `std` and other numeric aggregations.
+        # We want our final `concat` call that combines query compilers to insert NULL values for
+        # uncomputed statistics, but since `concat` tries to match labels, it would incorrectly try
+        # to combine the `top`/`freq`/`std`/(other numeric) rows into a single column.
+        # To circumvent this, we relabel all columns with a simple integer index, and restore the
+        # correct labels at the very end after `concat`.
+        original_columns = self.columns
+        query_compiler = self.set_columns(list(range(len(self.columns))))
         internal_frame = query_compiler._modin_frame
         # Compute count for all columns regardless of dtype
         query_compilers_to_concat = [
@@ -10323,10 +10334,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert (
             len(query_compilers_to_concat) > 1
         ), "must have more than one QC to concat"
-        return query_compilers_to_concat[0].concat(
-            other=query_compilers_to_concat[1:],
-            axis=0,
-            join="outer",
+        return (
+            query_compilers_to_concat[0].concat(
+                other=query_compilers_to_concat[1:],
+                axis=0,
+                join="outer",
+            )
+            # Restore the original pandas labels
+            .set_columns(original_columns)
         )
 
     def sample(
