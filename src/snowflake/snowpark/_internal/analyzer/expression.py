@@ -353,7 +353,7 @@ class Interval(Expression):
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.LITERAL
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class Like(Expression):
