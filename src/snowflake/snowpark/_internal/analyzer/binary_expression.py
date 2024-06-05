@@ -4,13 +4,13 @@
 
 from typing import AbstractSet, Optional
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import (
-    ComplexityStat,
-    Counter,
-)
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
+)
+from snowflake.snowpark._internal.analyzer.materialization_utils import (
+    ComplexityStat,
+    Counter,
 )
 
 
