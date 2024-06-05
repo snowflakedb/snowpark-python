@@ -5,7 +5,7 @@
 from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark._internal.analyzer.materialization_utils import (
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     Counter,
 )
