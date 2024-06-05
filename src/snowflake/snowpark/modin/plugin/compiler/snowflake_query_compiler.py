@@ -1505,16 +1505,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return pd.Index(self)
 
-    def pandas_index(self) -> native_pd.Index:
-        """
-        Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
-        filled
-
-        Returns:
-            The index (row labels) of the DataFrame.
-        """
-        return self._modin_frame.index_columns_pandas_index
-
     def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
         """
         check whether scalar is contained in index or not. May issue up to one COUNT(...) based query, but tries

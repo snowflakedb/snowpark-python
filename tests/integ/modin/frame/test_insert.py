@@ -40,12 +40,14 @@ def native_df():
         # DataFrame
         native_pd.DataFrame({"col1": ["a", "b", "c"]}),
         # DataFrame with index
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 99, 100])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 99, 100])
+        ),
         # DataFrame with less rows
         native_pd.DataFrame({"col1": ["a"]}),
         # DataFrame with more rows
         native_pd.DataFrame(
-            {"col1": ["a", "b", "c", "d", "e"]}, index=pd.Index([4, 3, 2, 1, 0])
+            {"col1": ["a", "b", "c", "d", "e"]}, index=native_pd.Index([4, 3, 2, 1, 0])
         ),
     ],
 )
@@ -81,13 +83,17 @@ def test_insert_snowpark_pandas_objects(native_df, native_value):
     [
         # Note: Target dataFrame index values are [5, 1, 0]
         # DataFrame with duplicate index value 1
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 1, 1])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 1, 1])
+        ),
         # Series with duplicate index value 1
-        native_pd.Series(["a", "b", "c"], index=pd.Index([0, 1, 1])),
+        native_pd.Series(["a", "b", "c"], index=native_pd.Index([0, 1, 1])),
         # DataFrame with duplicate index value 2. 2 is not present in target dataframe
         # so technically this will not lead to one-to-many join but this is still
         # disallowed in native pandas.
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 2, 2])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 2, 2])
+        ),
     ],
 )
 @sql_count_checker(query_count=2, join_count=1)
