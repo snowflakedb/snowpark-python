@@ -7,8 +7,8 @@
 from textwrap import dedent
 
 
-class Resampler:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
-    def __getitem__(self, key):  # pragma: no cover
+class Resampler:
+    def __getitem__(self, key):
         """
         Get ``Resampler`` based on `key` columns of original dataframe.
 
