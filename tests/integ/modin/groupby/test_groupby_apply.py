@@ -490,8 +490,10 @@ class TestFuncReturnsDataFrame:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    "index": pd.Index(["i0", "i1", "i2", "i1", None], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(
+                        ["i0", "i1", "i2", "i1", None], name="index"
+                    ),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -505,8 +507,8 @@ class TestFuncReturnsDataFrame:
                         ["k0", 15, "c"],
                         ["k0", 16, "b"],
                     ],
-                    "index": pd.Index(["i1", None, "i0", "i2"], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(["i1", None, "i0", "i2"], name="index"),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -685,8 +687,10 @@ class TestFuncReturnsDataFrame:
                 ["k0", 16, "b"],
                 [None, 17, "a"],
             ],
-            index=pd.Index(["i1", None, "i0", "i2", None], name="index"),
-            columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+            index=native_pd.Index(["i1", None, "i0", "i2", None], name="index"),
+            columns=native_pd.Index(
+                ["string_col_1", "int_col", "string_col_2"], name="x"
+            ),
         )
 
         def groupby_apply_without_sort(df):

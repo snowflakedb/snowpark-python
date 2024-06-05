@@ -55,7 +55,7 @@ def test_series_iloc_snowpark_pandas_input_return_dataframe(
     default_index_snowpark_pandas_series,
     default_index_native_series,
 ):
-    expected_query_count = 1 if "Index" in key else 2
+    expected_query_count = 3 if "Index" in key else 2
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,

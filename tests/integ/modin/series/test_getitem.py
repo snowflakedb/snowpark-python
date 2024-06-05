@@ -134,7 +134,7 @@ def test_series_getitem_with_scalars(
     "key",
     [
         [],
-        pd.Index([]),
+        native_pd.Index([]),
         np.array([]),
     ],
 )

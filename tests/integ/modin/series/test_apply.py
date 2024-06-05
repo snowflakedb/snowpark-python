@@ -259,20 +259,20 @@ def test_variant_apply(session):
     ]
 
     # convert first back and check types
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         assert (
             snow_df["col"].to_pandas().apply(lambda x: str(type(x))).tolist()
             == expected_types
         )
 
     # then, apply UDF and check results
-    with SqlCounter(query_count=4, udf_count=1):
+    with SqlCounter(query_count=5, udf_count=1):
         assert (
             snow_df["col"].apply(lambda x: str(type(x))).to_pandas().tolist()
             == expected_types
         )
 
-    with SqlCounter(query_count=4, udf_count=1):
+    with SqlCounter(query_count=5, udf_count=1):
         assert snow_df["col"].apply(str).to_pandas().tolist() == [
             "None",
             "1",
@@ -415,7 +415,9 @@ def test_apply_and_map_numpy(func):
     "native_series, expected_query_count, expected_udf_count",
     [
         (
-            native_pd.Series(dtype=object, name="foo", index=pd.Index([], name="bar")),
+            native_pd.Series(
+                dtype=object, name="foo", index=native_pd.Index([], name="bar")
+            ),
             10,
             4,
         ),

@@ -104,7 +104,7 @@ def test_isin_with_listlike_scalars(values, data, columns):
     "values",
     [
         # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
-        native_pd.Series([], index=pd.Index([], dtype=object)),
+        native_pd.Series([], index=native_pd.Index([], dtype=object)),
         native_pd.Series(index=[1, 2, 3]),
         native_pd.Series([1, 3], index=[10, 11]),
         native_pd.Series([1, 10], index=[10, 11]),
@@ -130,7 +130,7 @@ def test_isin_with_listlike_scalars(values, data, columns):
 )
 def test_isin_with_Series(values, data, columns, index):
     native_df = native_pd.DataFrame(data, columns=columns, index=index)
-    snow_df = pd.DataFrame(data, columns=columns, index=index)
+    snow_df = pd.DataFrame(native_df)
 
     # skip when index types are different ( type coercion in Snowpark pandas )
     if snow_df.index.dtype != values.dtype:
@@ -141,8 +141,8 @@ def test_isin_with_Series(values, data, columns, index):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        # 2 queries: 1 for the isin, 1 extra query to handle empty dataframe special case
-        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=2),
+        # 4 queries: 1 for the isin, 1 extra query to handle empty dataframe special case, 2 queries for index
+        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=4),
     )
 
 
@@ -196,8 +196,8 @@ def test_isin_with_Dataframe(df, other):
             values = pd.DataFrame(other)
         else:
             values = other
-        #  3 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case
-        return _test_isin_with_snowflake_logic(df, values, query_count=3)
+        #  5 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case, 2 queries for index
+        return _test_isin_with_snowflake_logic(df, values, query_count=5)
 
     eval_snowpark_pandas_result(
         snow_df,
