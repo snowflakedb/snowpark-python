@@ -135,7 +135,8 @@ class StringType(_AtomicType):
         return super().__hash__()
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        ast.sp_string_type.length = self._MAX_LENGTH if self.length is None else self.length
+        if self.length is not None:
+            ast.sp_string_type.length = self.length
 
 
 class _NumericType(_AtomicType):
@@ -510,7 +511,7 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        ast.sp_struct_type.structured = True
+        ast.sp_struct_type.structured = self.structured
         for field in self.fields:
             field.fill_ast(ast.sp_struct_type.fields.add())
 

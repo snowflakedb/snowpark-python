@@ -838,7 +838,7 @@ class Column:
         """Returns a new renamed Column. Alias of :func:`name`."""
         return self.name(alias, variant_is_as=False)
 
-    def name(self, alias: str, variant_is_as: bool = True) -> "Column":
+    def name(self, alias: str, variant_is_as: bool = None) -> "Column":
         """Returns a new renamed Column."""
         ast = Column._create_ast(
             property="sp_column_alias",

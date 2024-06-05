@@ -457,7 +457,9 @@ def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
     const_variant = PYTHON_TO_AST_CONST_MAPPINGS.get(type(obj))
     if isinstance(obj, decimal.Decimal):
         dec_tuple = obj.as_tuple()
-        getattr(ast, const_variant).unscaled_value = -dec_tuple.sign * reduce(lambda val, digit: val*10 + digit, dec_tuple.digits)
+        unscaled_val = -dec_tuple.sign * reduce(lambda val, digit: val*10 + digit, dec_tuple.digits)
+        req_bytes = (unscaled_val.bit_length() + 7) // 8
+        getattr(ast, const_variant).unscaled_value = unscaled_val.to_bytes(req_bytes, 'big', signed=True)
         getattr(ast, const_variant).scale = dec_tuple.exponent
     
     elif isinstance(obj, datetime.date):
