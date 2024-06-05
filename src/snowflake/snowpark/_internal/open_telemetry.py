@@ -12,8 +12,6 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
-from opentelemetry.trace import Status, StatusCode
-
 logger = getLogger(__name__)
 target_modules = [
     "dataframe.py",
