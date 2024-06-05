@@ -351,11 +351,13 @@ def test_async_batch_insert(session):
     reason="TODO(SNOW-932722): Cancel query is not allowed in stored proc",
 )
 def test_async_is_running_and_cancel(session):
+    # creating a sproc here because describe query on SYSTEM$WAIT()
+    # triggers the wait and the async job fails because we don't hit
+    # the correct time boundaries
+    @sproc(name="wait_sproc", packages=["snowflake-snowpark-python"])
     def wait(_: Session, sec: int) -> str:
         sleep(sec)
         return "success"
-
-    sproc(wait, name="wait_sproc", packages=["snowflake-snowpark-python"])
 
     async_job = session.sql("call wait_sproc(3)").collect_nowait()
     while not async_job.is_done():
