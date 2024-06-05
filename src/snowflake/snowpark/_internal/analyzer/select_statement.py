@@ -444,8 +444,8 @@ class SelectSQL(Selectable):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         if self.pre_actions:
-            # having pre-actions implies we have a non-select query followed by a
-            # SELECT * FROM table(result_scan(query_id)) statement
+            # Currently having pre-actions implies we have a non-select query followed
+            # by a SELECT * FROM table(result_scan(query_id)) statement
             return Counter({ComplexityStat.COLUMN.value: 1})
 
         # no pre-action implies the best estimate we have is of # active columns

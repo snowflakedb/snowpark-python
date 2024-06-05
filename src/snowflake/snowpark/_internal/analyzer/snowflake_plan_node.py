@@ -31,10 +31,16 @@ class LogicalPlan:
 
     @property
     def individual_complexity_stat(self) -> Counter[str]:
+        """Returns the individual contribution of the logical plan node towards the
+        overall compilation complexity of the generated sql.
+        """
         return Counter()
 
     @property
     def cumulative_complexity_stat(self) -> Counter[str]:
+        """Returns the aggregate sum complexity statistic from the subtree rooted at this
+        logical plan node. Statistic of current node is included in the final aggregate.
+        """
         if self._cumulative_complexity_stat is None:
             estimate = self.individual_complexity_stat
             for node in self.children:

@@ -87,13 +87,15 @@ class Aggregate(UnaryNode):
             # LIMIT 1
             estimate += Counter({ComplexityStat.LOW_IMPACT.value: 1})
 
-        get_complexity_stat = (
-            lambda expr: expr.cumulative_complexity_stat
-            if hasattr(expr, "cumulative_complexity_stat")
-            else Counter({ComplexityStat.COLUMN.value: 1})
-        )
         estimate += sum(
-            (get_complexity_stat(expr) for expr in self.aggregate_expressions),
+            (
+                getattr(
+                    expr,
+                    "cumulative_complexity_stat",
+                    Counter({ComplexityStat.COLUMN.value: 1}),
+                )
+                for expr in self.aggregate_expressions
+            ),
             Counter(),
         )
         return estimate
@@ -221,12 +223,17 @@ class Project(UnaryNode):
         if not self.project_list:
             return Counter({ComplexityStat.COLUMN.value: 1})
 
-        get_complexity_stat = (
-            lambda col: col.cumulative_complexity_stat
-            if hasattr(col, "cumulative_complexity_stat")
-            else Counter({ComplexityStat.COLUMN.value: 1})
+        return sum(
+            (
+                getattr(
+                    col,
+                    "cumulative_complexity_stat",
+                    Counter({ComplexityStat.COLUMN.value: 1}),
+                )
+                for col in self.project_list
+            ),
+            Counter(),
         )
-        return sum((get_complexity_stat(col) for col in self.project_list), Counter())
 
 
 class ViewType:
