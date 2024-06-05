@@ -62,7 +62,7 @@ from tests.integ.modin.utils import (
         lambda x: 1.0**x,
     ],
 )
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=7)
 def test_binary_arithmetic_method_number_scalar(func):
     # test both NULL and NaN in Snowflake
     data = [[-10, 1, 1.5], [100000, math.e, "NaN"], [-100000, math.pi, None]]
@@ -93,7 +93,7 @@ def test_binary_arithmetic_method_number_scalar(func):
         lambda x: x.rfloordiv(-5.5),
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=3)
 def test_binary_arithmetic_method_number_scalar_negative(func):
     # test both NULL and NaN in Snowflake
     data = [[0, 1, 1.5], [-math.e, 0, "NaN"], [math.pi, None, 0]]
@@ -404,8 +404,8 @@ def list_like_rhs_params(values):
         # The ndarray is created with the float dtype to avoid raising TypeError for operations between
         # a float and NoneType.
         pytest.param(np.array(values, dtype=float), id="ndarray"),
-        pytest.param(pd.Index(values), id="index"),
-        pytest.param(pd.Index(values, name="some name"), id="index_with_name"),
+        pytest.param(native_pd.Index(values), id="index"),
+        pytest.param(native_pd.Index(values, name="some name"), id="index_with_name"),
     ]
 
 
@@ -515,7 +515,7 @@ TEST_DATA_FOR_BINARY_SERIES_STRING = [
     "native_df",
     TEST_DATA_FOR_BINARY_SERIES_NUMERIC + TEST_DATA_FOR_BINARY_SERIES_STRING,
 )
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_binary_add_between_series(native_df):
     snow_df = pd.DataFrame(native_df)
 
@@ -773,12 +773,14 @@ class TestFillValue:
         "rhs", list_like_rhs_params([-14, np.nan, 24.4, 175, np.nan])
     )
     @pytest.mark.parametrize("fill_value", [24])
-    @sql_count_checker(query_count=1, join_count=1)
     def test_binary_arithmetic_ops_between_series_and_list_like(
         self, op, rhs, fill_value
     ):
         # Test whether fill_value param works for Series <op> list-like object.
         lhs = [-14, 16.8, 175, np.nan, np.nan]
+
+        if isinstance(rhs, native_pd.Index):
+            rhs = pd.Index(rhs)
 
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         def op_helper(ser):
@@ -794,7 +796,10 @@ class TestFillValue:
                 other = index_as_list
             return getattr(ser, op)(other=other, fill_value=fill_value)
 
-        eval_snowpark_pandas_result(*create_test_series(lhs), op_helper)
+        with SqlCounter(
+            query_count=4 if isinstance(rhs, pd.Index) else 1, join_count=1
+        ):
+            eval_snowpark_pandas_result(*create_test_series(lhs), op_helper)
 
     @pytest.mark.parametrize("rhs", list_like_rhs_params([2, np.nan, np.nan]))
     @pytest.mark.parametrize("fill_value", [10])
@@ -1492,7 +1497,7 @@ TEST_DATA_THAT_MATCHES_FOR_SERIES_MOD = [
 
 
 @pytest.mark.parametrize("native_df", TEST_DATA_THAT_MATCHES_FOR_DF_MOD)
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_binary_mod_matches_between_df(native_df):
     snow_df = pd.DataFrame(native_df)
 
@@ -1506,7 +1511,7 @@ def test_binary_mod_matches_between_df(native_df):
 # Snowpark mod with negative operands has different behavior/computation than
 # traditional mod and native pandas mod.
 @pytest.mark.parametrize("native_df, res", TEST_DATA_THAT_DEVIATES_FOR_DF_MOD)
-@sql_count_checker(query_count=2, join_count=0)
+@sql_count_checker(query_count=6, join_count=0)
 def test_binary_mod_deviates_between_df(native_df, res):
     snow_df = pd.DataFrame(native_df)
 
@@ -1750,7 +1755,7 @@ TEST_DATA_THAT_DEVIATES_FOR_SERIES_POW = [
 # Native pandas raises a ValueError for 0 raised to any negative integer,
 # Snowpark returns inf as the result, therefore excluding input data at index 0.
 @pytest.mark.parametrize("native_df", TEST_DATA_FOR_BINARY_SERIES_NUMERIC[1:])
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_binary_pow_between_series(native_df):
     snow_df = pd.DataFrame(native_df)
 
@@ -2521,7 +2526,7 @@ def test_binary_bitwise_op_on_df(df1, df2, func, expected):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, expected)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 @pytest.mark.parametrize(
     "func",
     [
@@ -2541,7 +2546,7 @@ def test_binary_single_row_dataframe_and_series(func):
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_df_sub_series():
 
     series1 = native_pd.Series(np.random.randn(3), index=["a", "b", "c"])
