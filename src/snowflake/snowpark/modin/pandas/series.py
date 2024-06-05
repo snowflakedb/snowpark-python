@@ -30,6 +30,8 @@ from typing import IO, TYPE_CHECKING, Any, Callable, Literal
 import numpy as np
 import numpy.typing as npt
 import pandas
+from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
@@ -49,9 +51,7 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseAccessor
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
-from snowflake.snowpark.modin.pandas.iterator import PartitionIterator
 from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
     is_scalar,

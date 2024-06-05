@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+from pandas.util._decorators import doc
+
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+
 _shared_docs: dict[str, str] = {}
 
 _shared_docs[
@@ -60,3 +64,61 @@ behavior or errors and are not supported.
 
 A passed user-defined-function will be passed a Series for evaluation.
 {examples}"""
+
+
+_doc_binary_operation = """
+Return {operation} of {left} and `{right}` (binary operator `{bin_op}`).
+
+Parameters
+----------
+{right} : {right_type}
+    The second operand to perform computation.
+
+Returns
+-------
+{returns}
+"""
+
+
+def _doc_binary_op(operation, bin_op, left="Series", right="right", returns="Series"):
+    """
+    Return callable documenting `Series` or `DataFrame` binary operator.
+
+    Parameters
+    ----------
+    operation : str
+        Operation name.
+    bin_op : str
+        Binary operation name.
+    left : str, default: 'Series'
+        The left object to document.
+    right : str, default: 'right'
+        The right operand name.
+    returns : str, default: 'Series'
+        Type of returns.
+
+    Returns
+    -------
+    callable
+    """
+    if left == "Series":
+        right_type = "Series or scalar value"
+    elif left == "DataFrame":
+        right_type = "DataFrame, Series or scalar value"
+    elif left == "BasePandasDataset":
+        right_type = "BasePandasDataset or scalar value"
+    else:
+        ErrorMessage.not_implemented(
+            f"Only 'BasePandasDataset', `DataFrame` and 'Series' `left` are allowed, actually passed: {left}"
+        )  # pragma: no cover
+    doc_op = doc(
+        _doc_binary_operation,
+        operation=operation,
+        right=right,
+        right_type=right_type,
+        bin_op=bin_op,
+        returns=returns,
+        left=left,
+    )
+
+    return doc_op

@@ -88,6 +88,8 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from modin.pandas import plotting  # type: ignore[import]
+
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 from snowflake.snowpark.modin.pandas.general import (
     concat,
@@ -140,7 +142,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_xml,
     to_pickle,
 )
-from snowflake.snowpark.modin.pandas.plotting import Plotting as plotting
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 
