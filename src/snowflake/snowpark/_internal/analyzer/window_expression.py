@@ -2,28 +2,18 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 from functools import cached_property
 from typing import AbstractSet, List, Optional
 
-from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.complexity_stat import (
+    ComplexityStat,
+    Counter,
+)
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
-
-if sys.version_info <= (3, 9):
-    import collections
-    import typing
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
-else:
-    from collections import Counter
 
 
 class SpecialFrameBoundary(Expression):

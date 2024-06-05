@@ -2,24 +2,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 from functools import cached_property
 from typing import AbstractSet, List, Optional
 
-# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
-if sys.version_info <= (3, 9):
-    import collections
-    import typing
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
-else:
-    from collections import Counter
-
-from snowflake.snowpark._internal.analyzer.complexity_stat import ComplexityStat
+from snowflake.snowpark._internal.analyzer.complexity_stat import (
+    ComplexityStat,
+    Counter,
+)
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
