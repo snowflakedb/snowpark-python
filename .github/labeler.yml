@@ -4,7 +4,7 @@ snowpark-pandas:
       - src/snowflake/snowpark/modin/**
       - tests/integ/modin/**
 
-local-testing:
+local testing:
   - changed-files:
     - any-glob-to-any-file:
       - src/snowflake/snowpark/mock/**
