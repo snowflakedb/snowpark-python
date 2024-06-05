@@ -23,8 +23,8 @@ from typing import (
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -744,10 +744,14 @@ class SelectStatement(Selectable):
 
         # limit/offset component
         stat += (
-            Counter({PlanNodeCategory.LOW_IMPACT.value: 1}) if self.limit_ else Counter()
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+            if self.limit_
+            else Counter()
         )
         stat += (
-            Counter({PlanNodeCategory.LOW_IMPACT.value: 1}) if self.offset else Counter()
+            Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+            if self.offset
+            else Counter()
         )
         return stat
 
@@ -1135,7 +1139,9 @@ class SetStatement(Selectable):
     @property
     def individual_complexity_stat(self) -> Counter[str]:
         # we add #set_operands - 1 additional operators in sql query
-        return Counter({PlanNodeCategory.SET_OPERATION.value: len(self.set_operands) - 1})
+        return Counter(
+            {PlanNodeCategory.SET_OPERATION.value: len(self.set_operands) - 1}
+        )
 
 
 class DeriveColumnDependencyError(Exception):

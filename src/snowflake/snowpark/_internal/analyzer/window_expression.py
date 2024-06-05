@@ -10,8 +10,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
@@ -197,12 +197,8 @@ class RankRelatedFunctionExpression(Expression):
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
-        stat = (
-            self.individual_complexity_stat + self.expr.cumulative_complexity_stat
-        )
-        stat += (
-            self.default.cumulative_complexity_stat if self.default else Counter()
-        )
+        stat = self.individual_complexity_stat + self.expr.cumulative_complexity_stat
+        stat += self.default.cumulative_complexity_stat if self.default else Counter()
         return stat
 
 

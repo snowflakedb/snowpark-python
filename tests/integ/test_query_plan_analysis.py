@@ -6,8 +6,8 @@
 import pytest
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -114,7 +114,13 @@ def test_generator_table_function(session: Session):
     assert_df_subtree_query_complexity(
         df2,
         get_cumulative_complexity_stat(df1)
-        + Counter({PlanNodeCategory.ORDER_BY.value: 1, PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.OTHERS.value: 1}),
+        + Counter(
+            {
+                PlanNodeCategory.ORDER_BY.value: 1,
+                PlanNodeCategory.COLUMN.value: 1,
+                PlanNodeCategory.OTHERS.value: 1,
+            }
+        ),
     )
 
 
@@ -144,12 +150,15 @@ def test_join_table_function(session: Session):
 
     #  SELECT T_LEFT.*, T_RIGHT.* FROM (select 'James' as name, 'address1 address2 address3' as addresses) AS T_LEFT JOIN  TABLE (split_to_table("ADDRESS", ' ') ) AS T_RIGHT
     df3 = df1.join_table_function(split_to_table(col("address"), lit(" ")))
-    assert_df_subtree_query_complexity(df3, {
+    assert_df_subtree_query_complexity(
+        df3,
+        {
             PlanNodeCategory.COLUMN.value: 5,
             PlanNodeCategory.JOIN.value: 1,
             PlanNodeCategory.FUNCTION.value: 1,
             PlanNodeCategory.LITERAL.value: 1,
-        })
+        },
+    )
 
 
 @pytest.mark.parametrize(
@@ -304,14 +313,17 @@ def test_join_statement(session: Session, sample_table: str):
     assert_df_subtree_query_complexity(
         df4,
         get_cumulative_complexity_stat(df3)
-        + Counter({PlanNodeCategory.COLUMN.value: 4, PlanNodeCategory.LOW_IMPACT.value: 3}),
+        + Counter(
+            {PlanNodeCategory.COLUMN.value: 4, PlanNodeCategory.LOW_IMPACT.value: 3}
+        ),
     )
 
     df5 = df1.join(df2, using_columns=["a", "b"])
     # SELECT  *  FROM ( (ch1) AS SNOWPARK_LEFT INNER JOIN (ch2) AS SNOWPARK_RIGHT USING (a, b))
     assert_df_subtree_query_complexity(
         df5,
-        get_cumulative_complexity_stat(df3) + Counter({PlanNodeCategory.COLUMN.value: 2}),
+        get_cumulative_complexity_stat(df3)
+        + Counter({PlanNodeCategory.COLUMN.value: 2}),
     )
 
 
@@ -429,14 +441,21 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     assert_df_subtree_query_complexity(
         df4,
         get_cumulative_complexity_stat(df3)
-        + Counter({PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.ORDER_BY.value: 1, PlanNodeCategory.OTHERS.value: 1}),
+        + Counter(
+            {
+                PlanNodeCategory.COLUMN.value: 1,
+                PlanNodeCategory.ORDER_BY.value: 1,
+                PlanNodeCategory.OTHERS.value: 1,
+            }
+        ),
     )
 
     # for additional ,"C" ASC NULLS FIRST
     df5 = df4.sort(col("c").desc())
     assert_df_subtree_query_complexity(
         df5,
-        get_cumulative_complexity_stat(df4) + Counter({PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.OTHERS.value: 1}),
+        get_cumulative_complexity_stat(df4)
+        + Counter({PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.OTHERS.value: 1}),
     )
 
     # add filter

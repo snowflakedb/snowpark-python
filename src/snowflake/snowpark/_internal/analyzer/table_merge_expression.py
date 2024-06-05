@@ -7,8 +7,8 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     LogicalPlan,
@@ -82,12 +82,8 @@ class InsertMergeExpression(MergeExpression):
         stat += (
             self.condition.cumulative_complexity_stat if self.condition else Counter()
         )
-        stat += sum(
-            (key.cumulative_complexity_stat for key in self.keys), Counter()
-        )
-        stat += sum(
-            (val.cumulative_complexity_stat for val in self.values), Counter()
-        )
+        stat += sum((key.cumulative_complexity_stat for key in self.keys), Counter())
+        stat += sum((val.cumulative_complexity_stat for val in self.values), Counter())
         return stat
 
 

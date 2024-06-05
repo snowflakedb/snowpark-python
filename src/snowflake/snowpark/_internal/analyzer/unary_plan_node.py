@@ -10,8 +10,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ScalarSubquery,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder

@@ -6,8 +6,8 @@ from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -74,7 +74,7 @@ class BinaryNode(LogicalPlan):
 
 class SetOperation(BinaryNode):
     @property
-    def plan_node_category(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # (left) operator (right)
         return PlanNodeCategory.SET_OPERATION
 

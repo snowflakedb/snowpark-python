@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
     Counter,
+    PlanNodeCategory,
 )
 
 if TYPE_CHECKING:
@@ -150,11 +150,9 @@ class MultipleExpression(Expression):
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        return (
-            sum(
-                (expr.cumulative_complexity_stat for expr in self.expressions),
-                Counter(),
-            )
+        return sum(
+            (expr.cumulative_complexity_stat for expr in self.expressions),
+            Counter(),
         )
 
 
