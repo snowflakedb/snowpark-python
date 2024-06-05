@@ -12,8 +12,6 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
-from opentelemetry.trace import Status, StatusCode
-
 logger = getLogger(__name__)
 target_class = [
     "dataframe.py",
@@ -28,6 +26,7 @@ udf_class = ["udf.py", "udtf.py", "udaf.py"]
 open_telemetry_found = True
 try:
     from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
 
 except ImportError:
     open_telemetry_found = False
@@ -72,28 +71,28 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        # first try to get func if it is udf, then try to get handler if it is udtf/udaf, if still None, means it is
-        # loading from file
-        udf_func = (
-            parameters.get("func")
-            if parameters.get("func")
-            else parameters.get("handler")
-        )
-        # if udf_func is not None, meaning it is a function or handler, get handler_name from it, otherwise find
-        # function name or handler name from parameter
-        handler_name = (
-            udf_func.__name__
-            if udf_func
-            else (
-                parameters.get("func_name")
-                if parameters.get("func_name")
-                else parameters.get("handler_name")
-            )
-        )
         tracer = trace.get_tracer(f"snow.snowpark.stored_procedure:{class_name}")
 
         with tracer.start_as_current_span(name) as cur_span:
             try:
+                # first try to get func if it is udf, then try to get handler if it is udtf/udaf, if still None, means it is
+                # loading from file
+                udf_func = (
+                    parameters.get("func")
+                    if parameters.get("func")
+                    else parameters.get("handler")
+                )
+                # if udf_func is not None, meaning it is a function or handler, get handler_name from it, otherwise find
+                # function name or handler name from parameter
+                handler_name = (
+                    udf_func.__name__
+                    if udf_func
+                    else (
+                        parameters.get("func_name")
+                        if parameters.get("func_name")
+                        else parameters.get("handler_name")
+                    )
+                )
                 if cur_span.is_recording():
                     # store execution location in span
                     filename, lineno = context_manager_code_location(

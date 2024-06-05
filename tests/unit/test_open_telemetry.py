@@ -21,7 +21,16 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.functions import udaf, udf, udtf
 from snowflake.snowpark.session import _add_session, _remove_session
-from snowflake.snowpark.types import IntegerType, StructField, StructType
+from snowflake.snowpark.types import (
+    BinaryType,
+    BooleanType,
+    DecimalType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 
 def spans_to_dict(spans):
@@ -127,6 +136,7 @@ def test_inline_register_udaf():
         PythonSumUDAF,
         output_schema=StructType([StructField("number", IntegerType())]),
         input_types=[IntegerType()],
+        return_type=IntegerType(),
         name="sum_udaf",
     )
     spans = spans_to_dict(dict_exporter.get_finished_spans())
@@ -141,7 +151,12 @@ def test_inline_register_udaf():
     lineno = inspect.currentframe().f_lineno + 4
 
     # test register with @udaf
-    @udaf(name="sum_udaf")
+    @udaf(
+        name="sum_udaf",
+        session=session,
+        input_types=[IntegerType()],
+        return_type=IntegerType(),
+    )
     class PythonSumUDAF:
         def __init__(self) -> None:
             self._sum = 0
@@ -185,14 +200,33 @@ def test_register_udtf_from_file():
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
+    schema = StructType(
+        [
+            StructField("int_", IntegerType()),
+            StructField("float_", FloatType()),
+            StructField("bool_", BooleanType()),
+            StructField("decimal_", DecimalType(10, 2)),
+            StructField("str_", StringType()),
+            StructField("bytes_", BinaryType()),
+            StructField("bytearray_", BinaryType()),
+        ]
+    )
 
     lineno = inspect.currentframe().f_lineno + 1
-    session.udf.register_from_file(
+    session.udtf.register_from_file(
         test_file,
         "MyUDTFWithTypeHints",
         name="MyUDTFWithTypeHints_from_file",
-        return_type=IntegerType(),
-        input_types=[IntegerType()],
+        output_schema=schema,
+        input_types=[
+            IntegerType(),
+            FloatType(),
+            BooleanType(),
+            DecimalType(10, 2),
+            StringType(),
+            BinaryType(),
+            BinaryType(),
+        ],
         immutable=True,
     )
     spans = spans_to_dict(dict_exporter.get_finished_spans())
@@ -240,7 +274,11 @@ def test_inline_register_udtf():
     lineno = inspect.currentframe().f_lineno + 4
 
     # test register with @udtf
-    @udtf(output_schema=["number"], name="generate_udtf_with_decorator")
+    @udtf(
+        output_schema=StructType([StructField("number", IntegerType())]),
+        name="generate_udtf_with_decorator",
+        session=session,
+    )
     class GeneratorUDTFwithDecorator:
         def process(self, n):
             for i in range(n):
@@ -327,7 +365,7 @@ def test_inline_register_udf():
     lineno = inspect.currentframe().f_lineno + 4
 
     # test register with decorator @udf
-    @udf(name="minus")
+    @udf(name="minus", session=session)
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
