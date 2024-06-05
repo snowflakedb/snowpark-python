@@ -487,10 +487,6 @@ def test_coalesce(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1362837: equal_nan and is_null not consistent yet.",
-)
 def test_nan_and_null(session):
     nan_data1 = TestData.nan_data1(session)
     Utils.check_answer(
@@ -1361,6 +1357,18 @@ def test_to_time(session, local_testing_mode):
         [
             Row(time(1, 2, 3)),
             Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH24:MI:SS.FF4") for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
         ],
     )
 
@@ -1583,7 +1591,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_tz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1596,7 +1606,7 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         (
             to_timestamp_ntz,
             [
-                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 1, 0, 0, 0, 123456)),
                 Row(datetime(2024, 2, 2, 0, 0)),
                 Row(datetime(2024, 2, 3, 0, 0)),
             ],
@@ -1605,7 +1615,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_ltz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1626,7 +1638,7 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
     ):
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
         data = [
-            ("2024-02-01 00:00:00.000000", "YYYY-MM-DD HH24:MI:SS.FF"),
+            ("2024-02-01 00:00:00.123456789", "YYYY-MM-DD HH24:MI:SS.FF1"),
             ("20240202000000000000", "YYYYMMDDHH24MISSFF"),
             ("03 Feb 2024 00:00:00", "DD mon YYYY HH24:MI:SS"),
         ]
@@ -3823,6 +3835,52 @@ def test_convert_timezone(session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
+def test_convert_timezone_neg(session):
+    df = TestData.datetime_primitives1(session)
+    with pytest.raises(SnowparkSQLException):
+        df.select(
+            convert_timezone(lit("UTC"), "timestamp_tz", lit("US/Eastern"))
+        ).collect()
+
+
+def test_convert_timezone_nulls(session):
+    null_df = session.create_dataframe([[None]]).to_df("timestamp")
+    Utils.check_answer(
+        null_df.select(convert_timezone(lit("UTC"), to_timestamp_ntz("timestamp"))),
+        [Row(None)],
+    )
+    Utils.check_answer(
+        null_df.select(
+            convert_timezone(
+                lit("UTC"), to_timestamp_ntz("timestamp"), lit("US/Eastern")
+            )
+        ),
+        [Row(None)],
+    )
+
+
+def test_convert_timezone_with_source(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives2(session)
+
+        Utils.check_answer(
+            df.select(convert_timezone(lit("UTC"), "timestamp", lit("US/Eastern"))),
+            [
+                Row(datetime(9999, 12, 31, 5, 0, 0, 123456)),
+                Row(datetime(1583, 1, 2, 4, 56, 1, 567890)),
+            ],
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="time_from_parts is not yet supported in local testing mode.",
@@ -4605,16 +4663,14 @@ def test_rank(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1374081: row_number over window does not have consistent result.",
-)
 def test_row_number(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
-        ),
-        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        TestData.xyz(session)
+        .select(
+            "X", row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
+        )
+        .order_by("X"),
+        [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2), Row(2, 3)],
         sort=False,
     )
 

@@ -54,6 +54,69 @@ def df_data():
 
 
 @pytest.fixture(scope="module")
+def df_data_more_pivot_values():
+    return {
+        "A": [
+            "foo",
+            "foo",
+            "foo",
+            "foo",
+            "bar",
+            "bar",
+            "bar",
+            "bar",
+            "foo",
+            "foo",
+            "foo",
+            "bar",
+            "bar",
+            "foo",
+            "foo",
+            "foo",
+        ],
+        "B": [
+            "on.e",
+            "on.e",
+            "on.e",
+            'tw"o',
+            "on.e",
+            "on.e",
+            "on.e",
+            'tw"o',
+            'tw"o',
+            'tw"o',
+            "on.e",
+            "thr.ee",
+            "thr.ee",
+            "thr.ee",
+            "on.e",
+            'tw"o',
+        ],
+        "C": [
+            "dull",
+            "dull",
+            "shi'ny",
+            "dull",
+            "dull",
+            "shi'ny",
+            "shi'ny",
+            "dull",
+            "shi'ny",
+            "shi'ny",
+            "shi'ny",
+            "dull",
+            "shi'ny",
+            "pla.in",
+            "pla.in",
+            "pla.in",
+        ],
+        "D": np.arange(0, 16),
+        "E": np.arange(1, 17),
+        "F": np.arange(2, 18),
+    }
+
+
+@pytest.fixture(scope="module")
 def df_data_with_duplicates():
     return (
         # NOTE: This call to np.array converts all the numbers to string

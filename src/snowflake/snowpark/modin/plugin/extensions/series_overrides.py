@@ -18,7 +18,6 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
-from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
@@ -31,64 +30,6 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     # TODO: SNOW-1264697: push implementation down to query compiler
     return 0
-
-
-@_inherit_docstrings(native_pd.Series.infer_objects, apilink="pandas.Series")
-@register_series_accessor("infer_objects")
-@snowpark_pandas_telemetry_method_decorator
-@series_not_implemented()
-def infer_objects(self) -> Series:  # pragma: no cover # noqa: RT01, D200
-    """
-    Attempt to infer better dtypes for object columns.
-    """
-    return self.__constructor__(query_compiler=self._query_compiler.infer_objects())
-
-
-@_inherit_docstrings(native_pd.Series.nunique, apilink="pandas.Series")
-@register_series_accessor("nunique")
-@snowpark_pandas_telemetry_method_decorator
-def nunique(self, dropna: bool = True) -> int:
-    """
-    Return number of unique elements in the series.
-
-    Excludes NA values by default. Snowpark pandas API does not distinguish between different NaN types like None,
-    pd.NA or np.nan and treats them as the same
-
-    Parameters
-    ----------
-    dropna : bool, default True
-        Don't include NaN in the count.
-
-    Returns
-    -------
-    int
-
-    Examples
-    --------
-    >>> import snowflake.snowpark.modin.pandas as pd
-    >>> import numpy as np
-    >>> s = pd.Series([1, 3, 5, 7, 7])
-    >>> s
-    0    1
-    1    3
-    2    5
-    3    7
-    4    7
-    dtype: int8
-
-    >>> s.nunique()
-    4
-
-    >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
-    >>> s.nunique()
-    1
-
-    >>> s.nunique(dropna=False)
-    2
-
-    """
-    # TODO: SNOW-1264688: remove this override
-    return super(Series, self).nunique(dropna=dropna)
 
 
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
