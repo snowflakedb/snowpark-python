@@ -1023,7 +1023,6 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
-    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
     res = column.combine(fmt, convert_char)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
