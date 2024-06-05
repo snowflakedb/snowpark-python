@@ -8,9 +8,9 @@ import pytest
 from pandas import _testing as tm
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.utils import running_on_public_ci
 
 
 # TODO (SNOW-767685): This whole suite is skipped in ci run because those are tests for unsupported
