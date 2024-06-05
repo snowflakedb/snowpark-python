@@ -2372,15 +2372,7 @@ def test_replace_with_coercion(session):
         [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
     )
 
-    df = session.create_dataframe(
-        [[[1, 2], (1, 3)]],
-        schema=StructType(
-            [
-                StructField("col1", ArrayType(IntegerType())),
-                StructField("col2", ArrayType(IntegerType())),
-            ]
-        ),
-    )  # schema=["col1", "col2"])
+    df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
     Utils.check_answer(
         df.replace([(1, 3)], [[2, 3]]),
         [Row("[\n  1,\n  2\n]", "[\n  2,\n  3\n]")],
