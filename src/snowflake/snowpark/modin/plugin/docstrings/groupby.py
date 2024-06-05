@@ -174,7 +174,7 @@ A
 )
 
 
-class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class DataFrameGroupBy:
     def __getattr__():
         """
         Alter regular attribute access, looks up the name in the columns.
@@ -1872,7 +1872,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
 
-class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class SeriesGroupBy:
     @property
     def ndim(self):
         """

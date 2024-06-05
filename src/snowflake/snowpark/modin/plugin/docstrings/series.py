@@ -33,7 +33,7 @@ axis : int or str, optional
 }
 
 
-class Series:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class Series:
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
