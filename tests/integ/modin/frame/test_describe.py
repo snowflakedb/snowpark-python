@@ -308,26 +308,13 @@ def test_describe_multiindex(index, columns, include, expected_union_count):
         )
 
 
-DUP_COL_FAIL_REASON = "SNOW-1019479: describe on frames with mixed object/number columns with the same name fails"
-
-
 @pytest.mark.parametrize(
     "include, exclude, expected_union_count",
     [
         (None, None, 7),
-        pytest.param(
-            "all",
-            None,
-            0,
-            marks=pytest.mark.xfail(strict=True, reason=DUP_COL_FAIL_REASON),
-        ),
+        ("all", None, 12),
         (np.number, None, 7),
-        pytest.param(
-            None,
-            float,
-            0,
-            marks=pytest.mark.xfail(strict=True, reason=DUP_COL_FAIL_REASON),
-        ),
+        (None, float, 10),
         (object, None, 5),
         (None, object, 7),
         (int, float, 5),
