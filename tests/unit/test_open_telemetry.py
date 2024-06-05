@@ -148,7 +148,7 @@ def test_inline_register_udaf():
     assert span.attributes["code.lineno"] == lineno
     assert span.attributes["snow.executable.name"] == "sum_udaf"
     assert span.attributes["snow.executable.handler"] == "PythonSumUDAF"
-    lineno = inspect.currentframe().f_lineno + 4
+    lineno = inspect.currentframe().f_lineno + 9
 
     # test register with @udaf
     @udaf(
@@ -271,7 +271,7 @@ def test_inline_register_udtf():
     assert span.attributes["code.lineno"] == lineno
     assert span.attributes["snow.executable.name"] == "generate_udtf"
     assert span.attributes["snow.executable.handler"] == "GeneratorUDTF"
-    lineno = inspect.currentframe().f_lineno + 4
+    lineno = inspect.currentframe().f_lineno + 8
 
     # test register with @udtf
     @udtf(
