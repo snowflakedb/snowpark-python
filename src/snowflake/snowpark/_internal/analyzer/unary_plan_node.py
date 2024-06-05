@@ -93,7 +93,7 @@ class Aggregate(UnaryNode):
                     expr,
                     "cumulative_complexity_stat",
                     Counter({ComplexityStat.COLUMN.value: 1}),
-                )
+                )  # type: ignore
                 for expr in self.aggregate_expressions
             ),
             Counter(),
@@ -229,7 +229,7 @@ class Project(UnaryNode):
                     col,
                     "cumulative_complexity_stat",
                     Counter({ComplexityStat.COLUMN.value: 1}),
-                )
+                )  # type: ignore
                 for col in self.project_list
             ),
             Counter(),
