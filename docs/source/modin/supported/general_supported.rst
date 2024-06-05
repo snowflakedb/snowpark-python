@@ -47,28 +47,22 @@ Data manipulations
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``qcut``                    | P                               |                                  | ``N`` if ``labels!=False`` or ``retbins=True``.    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``read_csv``                | P                               | ``engine``, ``converters``,      | Reads both local and staged file(s) into a Snowpark|
-|                             |                                 | ``true_values``,                 | pandas DataFrame. Note, the order of rows in the   |
-|                             |                                 | ``false_values``, ``skipfooter``,| may differ from the order of rows in the original  |
-|                             |                                 | ``skipinitialspace``,            | file(s).                                           |
-|                             |                                 | ``nrows``, ``keep_default_na``,  |                                                    |
-|                             |                                 | ``na_filter``, ``date_parser``,  | Supported parameters are ``sep``, ``header``,      |
-|                             |                                 | ``parse_dates``, ``verbose``,    | ``names``, ``index_col``, ``usecols``, ``dtype``,  |
-|                             |                                 | ``infer_datetime_format``,       | ``compression``, ``na_values``, ``escapechar``,    |
-|                             |                                 | ``date_format``,                 | ``skiprows``, ``encoding``, ``quotechar``, and     |
-|                             |                                 | ``keep_date_col``, ``dayfirst``, | ``skip_blanks_lines``.                             |
-|                             |                                 | ``cache_dates``, ``iterator``,   |                                                    |
-|                             |                                 | ``chunksize``, ``thousands``,    |                                                    |
-|                             |                                 | ``decimal``, ``lineterminator``, |                                                    |
-|                             |                                 | ``quoting``, ``doublequote``,    |                                                    |
-|                             |                                 | ``comment``, ``encoding_errors``,|                                                    |
-|                             |                                 | ``dialect``, ``on_bad_lines``,   |                                                    |
-|                             |                                 | ``low_memory``,                  |                                                    |
-|                             |                                 | ``delim_whitespace``,            |                                                    |
-|                             |                                 | ``memory_map``,                  |                                                    |
-|                             |                                 | ``float_precision``,             |                                                    |
-|                             |                                 | ``storage_options``,             |                                                    |
-|                             |                                 | ``dtype_backend``                |                                                    |
+| ``read_csv``                | P                               |                                  | Reads both local and staged file(s) into a Snowpark|
+|                             |                                 |                                  | pandas DataFrame. Note, the order of rows in the   |
+|                             |                                 |                                  | may differ from the order of rows in the original  |
+|                             |                                 |                                  | file(s) if using staged csvs.                      |
+|                             |                                 |                                  |                                                    |
+|                             |                                 |                                  | Local files are parsed with native pandas and thus |
+|                             |                                 |                                  | support most of the parameters supported by pandas |
+|                             |                                 |                                  | itself. The ``usecols`` and ``names`` parameter are|
+|                             |                                 |                                  | applied after creating a temp table in snowflake.  |
+|                             |                                 |                                  |                                                    |
+|                             |                                 |                                  | Previously staged files will use the Snowflake     |
+|                             |                                 |                                  | ``COPY FROM`` parser and schema inference. If you  |
+|                             |                                 |                                  | need to use staged files often, it is recommended  |
+|                             |                                 |                                  | that you upload these as parquet files to improve  |
+|                             |                                 |                                  | performance. You can force the use of the Snowflake|
+|                             |                                 |                                  | parser with ``engine=snowflake``                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``read_json``               | P                               | ``orient``, ``typ``, ``dtype``,  | ``P``:                                             |
 |                             |                                 | ``convert_axes``, ``lines``,     | - if ndjson files are passed                       |

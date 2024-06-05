@@ -33,7 +33,7 @@ axis : int or str, optional
 }
 
 
-class Series:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class Series:
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -2425,8 +2425,9 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index < 1, ['a']]
+        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -2969,7 +2970,43 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     def nunique():
         """
-        Return number of unique elements in the object.
+        Return number of unique elements in the series.
+
+        Excludes NA values by default.
+        Snowpark pandas API does not distinguish between different NaN types like None,
+        pd.NA, and np.nan, and treats them as the same.
+
+        Parameters
+        ----------
+        dropna : bool, default True
+            Don't include NaN in the count.
+
+        Returns
+        -------
+        int
+
+        Examples
+        --------
+        >>> import snowflake.snowpark.modin.pandas as pd
+        >>> import numpy as np
+        >>> s = pd.Series([1, 3, 5, 7, 7])
+        >>> s
+        0    1
+        1    3
+        2    5
+        3    7
+        4    7
+        dtype: int64
+
+        >>> s.nunique()
+        4
+
+        >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
+        >>> s.nunique()
+        1
+
+        >>> s.nunique(dropna=False)
+        2
         """
 
     @property

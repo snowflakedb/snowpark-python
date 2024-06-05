@@ -152,7 +152,7 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
 # The full set of DateTimeAccessor test is under tests/integ/modin/series/test_dt_accessor.py
 UNSUPPORTED_DT_METHODS = [
     (lambda ds: ds.dt.is_month_start, "property fget:is_month_start"),
-    (lambda ds: ds.dt.dayofweek, "property fget:dayofweek"),
+    (lambda ds: ds.dt.is_year_end, "property fget:is_year_end"),
 ]
 
 
