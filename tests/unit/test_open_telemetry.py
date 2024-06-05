@@ -179,7 +179,6 @@ def test_inline_register_udaf(dict_exporter):
         def finish(self):
             return self._sum
 
-    lineno = inspect.currentframe().f_lineno - 17
     spans = spans_to_dict(dict_exporter.get_finished_spans())
     assert "register" in spans
     span = spans["register"]
@@ -296,7 +295,6 @@ def test_inline_register_udtf(dict_exporter):
             for i in range(n):
                 yield (i,)
 
-    lineno = inspect.currentframe().f_lineno - 5
     spans = spans_to_dict(dict_exporter.get_finished_spans())
     assert "register" in spans
     span = spans["register"]
@@ -380,7 +378,6 @@ def test_inline_register_udf(dict_exporter):
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
-    lineno = inspect.currentframe().f_lineno - 3
     spans = spans_to_dict(dict_exporter.get_finished_spans())
     assert "register" in spans
     span = spans["register"]
