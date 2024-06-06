@@ -99,6 +99,7 @@ from snowflake.snowpark.functions import (
     least,
     length,
     lower,
+    ltrim,
     max as max_,
     min as min_,
     minute,
@@ -112,6 +113,7 @@ from snowflake.snowpark.functions import (
     reverse,
     round,
     row_number,
+    rtrim,
     second,
     substring,
     sum as sum_,
@@ -119,6 +121,7 @@ from snowflake.snowpark.functions import (
     timestamp_ntz_from_parts,
     to_date,
     to_variant,
+    trim,
     upper,
     when,
     year,
@@ -12838,6 +12841,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_removesuffix(self, prefix: str) -> None:
         ErrorMessage.method_not_implemented_error("removesuffix", "Series.str")
 
+    def _str_strip_variant(
+        self, sp_func: Callable, pd_func_name: str, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Remove leading and/or trailing characters depending on sp_func.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left and/or right sides depending on sp_func. Replaces any non-strings in Series with NaNs. Equivalent to str.strip(), str.lstrip(), or str.rstrip() depending on sp_func.
+
+        Parameters
+        ----------
+        sp_func: Callable
+            Snopwark function to use - trim, ltrim, or rtrim.
+        pd_func_name: str
+            Name of pandas string function - strip, lstrip, or rstrip.
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not pandas.isnull(to_strip) and not isinstance(to_strip, str):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas Series.str.{pd_func_name} does not yet support non-str 'to_strip' argument"
+            )
+        if to_strip is None:
+            to_strip = "\t\n\r\f "
+
+        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
+            new_col = sp_func(col(col_name), pandas_lit(to_strip))
+            return self._replace_non_str(col(col_name), new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
     def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading and trailing characters.
@@ -12853,27 +12893,47 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        if not pandas.isnull(to_strip) and not isinstance(to_strip, str):
-            ErrorMessage.not_implemented(
-                "Snowpark pandas doesn't support non-str 'to_strip' argument"
-            )
-        if to_strip is None:
-            to_strip = "\t\n\r\f "
-
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            new_col = builtin("trim")(col(col_name), pandas_lit(to_strip))
-            return self._replace_non_str(col(col_name), new_col)
-
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            output_col
+        return self._str_strip_variant(
+            sp_func=trim, pd_func_name="strip", to_strip=to_strip
         )
-        return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_lstrip(self, to_strip: Union[str, None] = None) -> None:
-        ErrorMessage.method_not_implemented_error("lstrip", "Series.str")
+    def str_lstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
+        """
+        Remove leading characters.
 
-    def str_rstrip(self, to_strip: Union[str, None] = None) -> None:
-        ErrorMessage.method_not_implemented_error("rstrip", "Series.str")
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left side. Replaces any non-strings in Series with NaNs. Equivalent to str.lstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        return self._str_strip_variant(
+            sp_func=ltrim, pd_func_name="lstrip", to_strip=to_strip
+        )
+
+    def str_rstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
+        """
+        Remove trailing characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from right side. Replaces any non-strings in Series with NaNs. Equivalent to str.rstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        return self._str_strip_variant(
+            sp_func=rtrim, pd_func_name="rstrip", to_strip=to_strip
+        )
 
     def str_swapcase(self) -> None:
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
