@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    Counter,
     PlanNodeCategory,
 )
 from snowflake.snowpark.types import DataType
@@ -102,5 +103,6 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.OTHERS
+    def individual_complexity_stat(self) -> Counter[str]:
+        # this is a wrapper around child
+        return Counter()
