@@ -15,7 +15,6 @@ from pandas.errors import IndexingError
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
@@ -24,6 +23,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     generate_a_random_permuted_list_exclude_self,
 )
+from tests.utils import running_on_public_ci
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
@@ -1805,7 +1805,7 @@ def test_df_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_ind
         [random.choice([True, False]) for _ in range(random.randint(1000, 2000))],
     ],
 )
-@pytest.mark.skipif(running_on_github(), reason="slow test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
 def test_df_loc_get_key_bool_series_with_1k_shape(key, native_df_1k_1k):
     def loc_helper(df):
         # Note:
@@ -2030,7 +2030,7 @@ def test_df_loc_get_key_non_boolean(
         [random.randint(-1500, 1500) for _ in range(random.randint(1000, 1500))],
     ],
 )
-@pytest.mark.skipif(running_on_github(), reason="slow test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
 def test_df_loc_get_key_non_boolean_series_with_1k_shape(key, native_df_1k_1k):
     def loc_helper(df):
         # similarly, remove out-of-bound values, so we can avoid error and compare

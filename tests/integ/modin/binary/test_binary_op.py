@@ -17,7 +17,6 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -27,6 +26,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize(
@@ -2446,7 +2446,7 @@ def test_binary_sub_dataframe_and_dataframe_duplicate_labels_negative(
     ],
 )
 @pytest.mark.parametrize("df1,df2", DATAFRAME_DATAFRAME_TEST_LIST)
-@pytest.mark.skipif(running_on_github(), reason="exhaustive and slow operation test")
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive and slow operation test")
 @pytest.mark.parametrize("fill_value", [None, 42])
 def test_binary_op_between_dataframe_and_dataframe_exhaustive(
     opname, df1, df2, fill_value

@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import os
 import pathlib
 import re
 from datetime import datetime
@@ -22,7 +21,7 @@ from tests.integ.modin.sql_counter import (
     generate_sql_count_report,
     is_sql_counter_called,
 )
-from tests.utils import Utils
+from tests.utils import Utils, running_on_public_ci
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
@@ -39,11 +38,6 @@ nullable_bool_sample = np.random.choice([True, False, None], size=INDEX_SAMPLE_S
 # The dataframe/series aggregation methods supported with Snowpark pandas
 skipna_agg_methods = ["max", "min", "sum", "std", "var", "mean", "median"]
 agg_methods = skipna_agg_methods + ["count"]
-
-
-def running_on_github() -> bool:
-    """Whether or not tests are currently running on one of our public CIs."""
-    return os.getenv("GITHUB_ACTIONS") == "true"
 
 
 def pytest_addoption(parser):
@@ -97,7 +91,9 @@ def auto_annotate_sql_counter(request):
 
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
-    do_check = INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_github()
+    do_check = (
+        INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_public_ci()
+    )
 
     if do_check:
         clear_sql_counter_called()

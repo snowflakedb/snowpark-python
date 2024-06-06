@@ -140,22 +140,7 @@ from snowflake.snowpark.mock._select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
-from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import _NumericType
-
-
-def serialize_expression(exp: Expression):
-    if isinstance(exp, Attribute):
-        return str(exp)
-    elif isinstance(exp, UnresolvedAttribute):
-        return str(exp)
-    else:
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name=f"Expression {type(exp).__name__}",
-            internal_feature_name="_analyzer.serialize_expression",
-            parameters_info={"exp": type(exp).__name__},
-            raise_error=TypeError,
-        )
 
 
 class MockAnalyzer:
@@ -172,7 +157,6 @@ class MockAnalyzer:
         expr: Union[Expression, NamedExpression],
         expr_to_alias: Optional[Dict[str, str]] = None,
         parse_local_name=False,
-        escape_column_name=False,
         keep_alias=True,
     ) -> Union[str, List[str]]:
         """
@@ -308,9 +292,6 @@ class MockAnalyzer:
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
-            if escape_column_name:
-                # TODO: ideally we should not escape here
-                return f"`{expr.name}`"
             return expr.name
 
         if isinstance(expr, FunctionExpression):
@@ -356,10 +337,6 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, TableFunctionExpression):
-            if expr.api_call_source is not None:
-                self.session._conn._telemetry_client.send_function_usage_telemetry(
-                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
-                )
             return self.table_function_expression_extractor(expr, expr_to_alias)
 
         if isinstance(expr, TableFunctionPartitionSpecDefinition):
@@ -409,7 +386,6 @@ class MockAnalyzer:
                 expr,
                 expr_to_alias,
                 parse_local_name,
-                escape_column_name=escape_column_name,
             )
 
         if isinstance(expr, InsertMergeExpression):
@@ -539,7 +515,6 @@ class MockAnalyzer:
         expr: BinaryExpression,
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
-        escape_column_name=False,
     ) -> str:
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
@@ -549,13 +524,11 @@ class MockAnalyzer:
                     expr.left,
                     expr_to_alias,
                     parse_local_name,
-                    escape_column_name=escape_column_name,
                 ),
                 self.analyze(
                     expr.right,
                     expr_to_alias,
                     parse_local_name,
-                    escape_column_name=escape_column_name,
                 ),
             )
         else:
@@ -566,13 +539,11 @@ class MockAnalyzer:
                         expr.left,
                         expr_to_alias,
                         parse_local_name,
-                        escape_column_name=escape_column_name,
                     ),
                     self.analyze(
                         expr.right,
                         expr_to_alias,
                         parse_local_name,
-                        escape_column_name=escape_column_name,
                     ),
                 ],
                 False,
@@ -614,9 +585,6 @@ class MockAnalyzer:
         if expr_to_alias is None:
             expr_to_alias = {}
         result = self.do_resolve(logical_plan, expr_to_alias)
-
-        if self.subquery_plans:
-            result = result.with_subqueries(self.subquery_plans)
 
         return result
 

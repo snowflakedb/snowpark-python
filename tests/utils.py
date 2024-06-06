@@ -9,6 +9,7 @@ import os
 import platform
 import random
 import string
+import uuid
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -88,6 +89,22 @@ IS_STRUCTURED_TYPES_SUPPORTED = (
 )
 ICEBERG_ENVIRONMENTS = {"dev", "aws"}
 IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
+
+RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
+TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+if RUNNING_ON_JENKINS:
+    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+
+
+def running_on_public_ci() -> bool:
+    """Whether tests are currently running on one of our public CIs."""
+    return RUNNING_ON_GH
+
+
+def running_on_jenkins() -> bool:
+    """Whether tests are currently running on a Jenkins node."""
+    return RUNNING_ON_JENKINS
 
 
 class Utils:

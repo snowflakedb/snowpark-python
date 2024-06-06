@@ -9,9 +9,9 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,7 @@ def test_quantile(interpolation, a_vals, b_vals, q):
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_quantile_array():
     # https://github.com/pandas-dev/pandas/issues/27526
@@ -130,7 +130,7 @@ def test_quantile_array():
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_quantile_array_list_like_q():
     # https://github.com/pandas-dev/pandas/pull/28085#issuecomment-524066959
@@ -154,7 +154,7 @@ def test_quantile_array_list_like_q():
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
 def test_quantile_array_no_sort():
     df = pd.DataFrame({"A": [0, 1, 2], "B": [3, 4, 5]})
@@ -179,7 +179,7 @@ def test_quantile_array_no_sort():
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_quantile_array_multiple_levels():
     df = pd.DataFrame(
@@ -201,7 +201,7 @@ def test_quantile_array_multiple_levels():
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
 @pytest.mark.parametrize("groupby", [[0], [0, 1]])
 @pytest.mark.parametrize("q", [[0.5, 0.6]])
@@ -254,7 +254,7 @@ def test_quantile_raises():
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=9)
 def test_quantile_out_of_bounds_q_raises():
     # https://github.com/pandas-dev/pandas/issues/27470
@@ -304,7 +304,7 @@ def test_quantile_missing_group_values_correct_results(
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
     "interpolation, val1, val2", [("lower", 2, 2), ("higher", 2, 3), ("nearest", 2, 2)]
 )
@@ -328,7 +328,7 @@ def test_groupby_quantile_all_na_group_masked(interpolation, val1, val2):
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
 def test_groupby_quantile_nonmulti_levels_order():
     # Non-regression test for GH #53009

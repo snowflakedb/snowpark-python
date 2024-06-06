@@ -9,14 +9,14 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.utils import running_on_public_ci
 
 
 @pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
-    if running_on_github():
+    if running_on_public_ci():
         pytest.skip(
             "Disable series str tests for public ci",
             allow_module_level=True,

@@ -19,7 +19,6 @@ from pandas.errors import IndexingError
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -27,6 +26,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len
 AXIS_LEN = 7
@@ -776,7 +776,7 @@ def test_df_iloc_get_key_bool(
         [random.choice([True, False]) for _ in range(random.randint(1000, 2000))],
     ],
 )
-@pytest.mark.skipif(running_on_github(), reason="slow test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
 def test_df_iloc_get_key_bool_series_with_1k_shape(key, native_df_1k_1k):
     def iloc_helper(df):
         # Note:
@@ -1021,7 +1021,7 @@ def test_df_iloc_get_key_int_series_with_name(default_index_snowpark_pandas_df):
         [random.uniform(-1500, 1500) for _ in range(random.randint(1000, 1500))],
     ],
 )
-@pytest.mark.skipif(running_on_github(), reason="slow test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow test")
 def test_df_iloc_get_key_int_series_with_1k_shape(key, native_df_1k_1k):
     def iloc_helper(df):
         # similarly, remove out-of-bound values, so we can avoid error and compare
@@ -1360,7 +1360,7 @@ TEST_DATA_FOR_ILOC_GET_SLICE = [0, -10, -2, -1, None, 1, 2, 10]
 @pytest.mark.parametrize("stop", TEST_DATA_FOR_ILOC_GET_SLICE)
 @pytest.mark.parametrize("step", TEST_DATA_FOR_ILOC_GET_SLICE[1:])
 @pytest.mark.parametrize("axis", ILOC_GET_KEY_AXIS)
-@pytest.mark.skipif(running_on_github(), reason="large number of tests")
+@pytest.mark.skipif(running_on_public_ci(), reason="large number of tests")
 def test_df_iloc_get_slice(
     start,
     stop,
