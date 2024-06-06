@@ -314,16 +314,19 @@ class Index:
         """
         Set Index name.
         """
-        # if self.is_lazy:
-        self._query_compiler = self._query_compiler.set_index_names([value])
-        # else :
-        #     self._index.name = value
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names([value])
+        else:
+            self.to_pandas().name = value
 
     def _get_names(self) -> list[Hashable]:
         """
         Get names of index
         """
-        return self._query_compiler.get_index_names()
+        if self.is_lazy:
+            return self._query_compiler.get_index_names()
+        else:
+            return self.to_pandas().names
 
     def _set_names(self, values: list) -> None:
         """
@@ -338,7 +341,10 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        self._query_compiler = self._query_compiler.set_index_names(values)
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names(values)
+        else:
+            self.to_pandas().names = values
 
     names = property(fset=_set_names, fget=_get_names)
 

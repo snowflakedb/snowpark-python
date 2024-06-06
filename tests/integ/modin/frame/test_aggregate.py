@@ -191,7 +191,7 @@ class TestNamedAggDupColPandasFails:
             [[0, np.nan], [np.nan, 2.0]], columns=["A", "A"], index=["x", "x"]
         )
 
-        with SqlCounter(query_count=1, union_count=1):
+        with SqlCounter(query_count=3, union_count=1):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_df.agg(x=("A", "min")), result_df
             )
@@ -223,7 +223,7 @@ class TestNamedAggDupColPandasFails:
             result_df.insert(0, "B", b_col)
             result_df = result_df.sort_index()
 
-        with SqlCounter(query_count=1, union_count=2):
+        with SqlCounter(query_count=5, union_count=2):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_df.agg(**kwargs),
                 result_df,
