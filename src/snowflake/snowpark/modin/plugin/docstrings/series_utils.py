@@ -728,7 +728,7 @@ class StringMethods:
         Examples
         --------
         >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
-        >>> s
+        >>> s  # doctest: +NORMALIZE_WHITESPACE
         0    1. Ant.
         1    2. Bee!\\n
         2    3. Cat?\\t
@@ -774,7 +774,7 @@ class StringMethods:
         Examples
         --------
         >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
-        >>> s
+        >>> s  # doctest: +NORMALIZE_WHITESPACE
         0    1. Ant.
         1    2. Bee!\\n
         2    3. Cat?\\t
