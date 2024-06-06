@@ -14,7 +14,6 @@ from pandas.core.indexing import IndexingError
 from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.modin.sql_counter import (
     SqlCounter,
@@ -22,7 +21,7 @@ from tests.integ.modin.sql_counter import (
     generate_sql_count_report,
     is_sql_counter_called,
 )
-from tests.utils import Utils
+from tests.utils import Utils, running_on_public_ci
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
