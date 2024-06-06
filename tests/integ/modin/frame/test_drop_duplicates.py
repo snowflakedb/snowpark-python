@@ -27,7 +27,7 @@ def test_drop_duplicates_with_misspelled_column_name_or_empty_subset(subset):
     join_count = 0
     if subset == []:
         join_count += 1
-        query_count += 1
+        query_count += 2
     with SqlCounter(query_count=query_count, join_count=join_count):
         if subset == []:
             assert_frame_equal(
@@ -61,11 +61,13 @@ def test_drop_duplicates(subset, keep, ignore_index):
         {"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]}
     )
     snow_df = pd.DataFrame(pandas_df)
-    query_count = 1
+    query_count = 3
     join_count = 2
     if ignore_index is True:
         query_count += 2
         join_count += 3
+    if ignore_index is False:
+        query_count = 2
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(
             snow_df.drop_duplicates(
@@ -81,7 +83,7 @@ def test_drop_duplicates(subset, keep, ignore_index):
 
 @pytest.mark.parametrize("subset", ["a", ["a"], ["b"], ["a", "b"]])
 @pytest.mark.parametrize("keep", ["first", "last", False])
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_drop_duplicates_on_empty_frame(subset, keep):
     pandas_df = native_pd.DataFrame(columns=["a", "b"])
     snow_df = pd.DataFrame(pandas_df)

@@ -476,7 +476,7 @@ def test_from_to_pandas_datetime64_multi_timezone_current_behavior(session, time
         session.sql("alter session unset timezone").collect()
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_from_pandas_duplicate_labels():
     # Duplicate data labels
     native_df = native_pd.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})

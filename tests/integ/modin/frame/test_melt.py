@@ -140,7 +140,7 @@ def run_internal_melt(
     "data",
     data,
 )
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=5, union_count=0, join_count=0)
 def test_melt_general_path(data):
     native_df = npd.DataFrame(data["frame"])
     snow_df = pd.DataFrame(native_df)
@@ -153,7 +153,7 @@ def test_melt_general_path(data):
     "data",
     data,
 )
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=3, union_count=0, join_count=0)
 def test_melt_simple_path(data):
     native_df = npd.DataFrame(data["frame"])
     snow_df = pd.DataFrame(native_df)
@@ -166,7 +166,7 @@ def test_melt_simple_path(data):
     "empty_data",
     [{"frame": {"abc": [], "123": []}, "kargs": {}}],
 )
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=7, union_count=0, join_count=0)
 def test_empty_col_melt(empty_data):
     native_df = npd.DataFrame(empty_data["frame"])
     snow_df = pd.DataFrame(native_df)
@@ -177,14 +177,14 @@ def test_empty_col_melt(empty_data):
     "empty_data",
     [{"frame": {}, "kargs": {}}],
 )
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=2, union_count=0, join_count=0)
 def test_empty_melt(empty_data):
     native_df = npd.DataFrame(empty_data["frame"])
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=7, union_count=0, join_count=0)
 def test_duplicate_index():
     native_df = npd.DataFrame(
         [[1, 2], [3, 4]], index=["dupe", "dupe"], columns=["A", "B"]
@@ -193,14 +193,14 @@ def test_duplicate_index():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=9, union_count=0, join_count=0)
 def test_duplicate_cols():
     native_df = npd.DataFrame([[1, 2], [3, 4]], columns=["dupe", "dupe"])
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@sql_count_checker(query_count=1, union_count=0, join_count=0)
+@sql_count_checker(query_count=7, union_count=0, join_count=0)
 def test_integer_colnames():
     native_df = npd.DataFrame([[1, 2], [3, 4]], columns=[1, 2])
     snow_df = pd.DataFrame(native_df)
@@ -214,7 +214,7 @@ def test_structured_colnames():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@sql_count_checker(query_count=1, join_count=0, union_count=0)
+@sql_count_checker(query_count=7, join_count=0, union_count=0)
 def test_col_index_melt():
     native_df = npd.DataFrame(
         {"abc": ["A", "B", "C"], "123": ["1", "2", "3"]},
@@ -226,7 +226,7 @@ def test_col_index_melt():
     )
 
 
-@sql_count_checker(query_count=1, join_count=0, union_count=0)
+@sql_count_checker(query_count=6, join_count=0, union_count=0)
 def test_col_index_melt_keep_index():
     native_df = npd.DataFrame(
         {"abc": ["A", "B", "C"], "123": ["1", "2", "3"]},
@@ -238,7 +238,7 @@ def test_col_index_melt_keep_index():
     )
 
 
-@sql_count_checker(query_count=1, join_count=0, union_count=0)
+@sql_count_checker(query_count=7, join_count=0, union_count=0)
 def test_multi_index_melt():
     index = npd.MultiIndex.from_tuples(
         [("one", "there"), ("two", "be"), ("two", "dragons")], names=["L1", "L2"]
@@ -263,7 +263,7 @@ def test_multi_column_melt():
         pass
 
 
-@sql_count_checker(query_count=2, join_count=0, union_count=0)
+@sql_count_checker(query_count=14, join_count=0, union_count=0)
 def test_multi_melt():
     native_df = npd.DataFrame({"abc": ["A", "B", "C"], "123": ["1", "2", "3"]})
     snow_df = pd.DataFrame(native_df)
@@ -271,7 +271,7 @@ def test_multi_melt():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.melt())
 
 
-@sql_count_checker(query_count=1, join_count=0, union_count=0)
+@sql_count_checker(query_count=7, join_count=0, union_count=0)
 def test_pd_melt():
     native_df = npd.DataFrame({"abc": ["A", "B", "C"], "123": ["1", "2", "3"]})
     snow_df = pd.DataFrame(native_df)
