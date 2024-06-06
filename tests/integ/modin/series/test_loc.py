@@ -319,7 +319,7 @@ def test_series_loc_get_key_bool(key, key_type, default_index_native_series):
         return _ser.loc[_key]
 
     default_index_series = pd.Series(default_index_native_series)
-    with SqlCounter(query_count=3 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_series,
             default_index_native_series,
@@ -388,7 +388,7 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_series_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
     if use_default_index:
         index = None
@@ -480,7 +480,7 @@ def test_series_loc_get_key_non_boolean_series(
     # Note: here number of queries are 2 due to the data type of the series is variant and to_pandas needs to call
     # typeof to get the value types
     # TODO: SNOW-933782 optimize to_pandas for variant columns to only fire one query
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,
@@ -497,7 +497,7 @@ def test_series_loc_get_key_non_boolean_series(
     non_default_index_snowpark_pandas_series = pd.Series(
         non_default_index_native_series
     )
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             non_default_index_snowpark_pandas_series,
             non_default_index_native_series,
@@ -514,7 +514,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -539,7 +539,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -775,7 +775,14 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
             _item = try_convert_index_to_native(_item)
         s.loc[_row_key] = _item
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    query_count = 1
+    if item_type.startswith("index") and key_type.startswith("index"):
+        query_count = 7
+    elif item_type.startswith("index"):
+        query_count = 5
+    elif key_type.startswith("index"):
+        query_count = 3
+    with SqlCounter(query_count=query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             pd.Series(series), series, loc_set_helper, inplace=True
         )
@@ -826,7 +833,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
 
     qc = 0
     if key_type == "index":
-        qc = 2
+        qc = 1
 
     with SqlCounter(query_count=qc):
         eval_snowpark_pandas_result(
@@ -958,7 +965,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
 @pytest.mark.parametrize(
     "start, stop, step, pandas_fail", [[1, -1, None, True], [10, None, None, False]]
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=3, join_count=4)
 def test_series_loc_set_key_slice_with_series_item_pandas_bug(
     start, stop, step, pandas_fail
 ):

@@ -140,6 +140,14 @@ ITEM_TYPE_LIST_CONVERSION = [
 def test_df_loc_get_tuple_key(
     row, col, str_index_snowpark_pandas_df, str_index_native_df
 ):
+    if isinstance(row, native_pd.Index):
+        snow_row = pd.Index(row)
+    else:
+        snow_row = row
+    if isinstance(col, native_pd.Index):
+        snow_col = pd.Index(col)
+    else:
+        snow_col = col
     # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
     query_count = 1
     if isinstance(row, tuple) or (
@@ -149,29 +157,19 @@ def test_df_loc_get_tuple_key(
 
     if is_scalar(row) and is_scalar(col):
         query_count = 3
-    elif is_scalar(row):
+    elif is_scalar(row) or isinstance(col, tuple):
         query_count += 1
     elif is_scalar(col):
         query_count += 2
-    elif isinstance(col, tuple):
-        query_count += 1
 
     if isinstance(row, native_pd.Index):
-        query_count += 2
+        query_count += 1
     if isinstance(col, native_pd.Index):
         query_count += 5
 
     with SqlCounter(
         query_count=query_count,
     ):
-        if isinstance(row, native_pd.Index):
-            snow_row = pd.Index(row)
-        else:
-            snow_row = row
-        if isinstance(col, native_pd.Index):
-            snow_col = pd.Index(col)
-        else:
-            snow_col = col
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
@@ -1005,7 +1003,7 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
             df.loc[_row_key, :] = pd.DataFrame(item)
 
     with SqlCounter(
-        query_count=3 if key_type == "index" else 1, join_count=expected_join_count
+        query_count=2 if key_type == "index" else 1, join_count=expected_join_count
     ):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, loc_set_helper, inplace=True
@@ -1181,13 +1179,13 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
             )
             df.loc[key] = pd.DataFrame(item)
 
-    query_count, join_count = 3, 2
+    query_count, join_count = 1, 2
     if not all(isinstance(rk_val, bool) for rk_val in row_key):
         join_count += 2
     if isinstance(col_key, native_pd.Series):
-        query_count += 2
+        query_count = 1
     if key_type == "index":
-        query_count += 2
+        query_count -= 1
     with SqlCounter(query_count=query_count, join_count=join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
 
@@ -1261,7 +1259,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
         or (df.columns.equals(df.columns.union(col_key)))
     ):
-        query_count, join_count, expect_exception = 4, 4, False
+        query_count, join_count, expect_exception = 1, 4, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
     with SqlCounter(query_count=query_count, join_count=join_count):

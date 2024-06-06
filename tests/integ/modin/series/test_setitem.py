@@ -935,7 +935,7 @@ def test_series_setitem_df_key_negative(item, default_index_native_series):
 @pytest.mark.parametrize("key", ARRAY_LIKE_VALUES)  # + BOOLEAN_ARRAY_LIKE_VALUES)
 @pytest.mark.parametrize("item", SCALAR_LIKE_VALUES)
 # Parameters commented here due to reasons described at the top.
-@sql_count_checker(query_count=1, join_count=2)
+# @sql_count_checker(query_count=1, join_count=2)
 def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     key, item, mixed_type_index_native_series_mixed_type_index
 ):
@@ -995,6 +995,9 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     # 3       d
     # dtype: object
 
+    if isinstance(key, native_pd.Index):
+        key = pd.Index(key)
+
     native_ser = mixed_type_index_native_series_mixed_type_index.copy()
     snowpark_ser = pd.Series(native_ser)
 
@@ -1006,8 +1009,9 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
     if not isinstance(key, slice) and any(x == 1 for x in key):
         # If the key contains the int 1, native pandas treats this as True but Snowpark pandas sees them as different
         # labels. This does not happen in all cases that contain 1 (like the elif statement below).
-        with pytest.raises(AssertionError, match=err_msg):
-            assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
+        with SqlCounter(query_count=1, join_count=2):
+            with pytest.raises(AssertionError, match=err_msg):
+                assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
     elif (isinstance(key, pd.Index) and item == "xyz") or (
         isinstance(key, slice) and (item is None or item == "xyz")
@@ -1018,12 +1022,14 @@ def test_series_setitem_array_like_key_and_scalar_item_mixed_types(
         # 1. key = Index(['a', 'b', 'c', 'b'], dtype='object'), item = 'xyz'
         # 2. key = slice(-100, 2, None), item = 'xyz'
         # 3. key = slice(-100, 2, None), item = None
-        with pytest.raises(AssertionError, match=err_msg):
-            assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
+        with SqlCounter(query_count=1, join_count=2):
+            with pytest.raises(AssertionError, match=err_msg):
+                assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
     else:
-        # In all other cases, native pandas and Snowpark pandas behavior matches.
-        assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
+        with SqlCounter(query_count=1, join_count=2):
+            # In all other cases, native pandas and Snowpark pandas behavior matches.
+            assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
 
 @pytest.mark.skip(
@@ -1554,7 +1560,7 @@ def test_series_setitem_with_empty_key_and_empty_item_negative(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 0):
+    with SqlCounter(query_count=1 if isinstance(key, native_pd.Index) else 0):
 
         err_msg = "The length of the value/item to set is empty"
         with pytest.raises(ValueError, match=err_msg):
@@ -1595,7 +1601,7 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=3 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
         native_ser[key] = item
         snowpark_ser[
             pd.Series(snowpark_key)
@@ -1644,7 +1650,7 @@ def test_series_setitem_with_empty_key_and_scalar_item(
         snowpark_key = key
 
     with SqlCounter(
-        query_count=3 if isinstance(key, native_pd.Index) else 1, join_count=2
+        query_count=2 if isinstance(key, native_pd.Index) else 1, join_count=2
     ):
         native_ser[key] = item
         snowpark_ser[

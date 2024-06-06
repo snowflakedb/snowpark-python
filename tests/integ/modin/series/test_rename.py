@@ -52,7 +52,7 @@ class TestRename:
         renamed = ser.rename({"b": "foo", "d": "bar"})
         assert_index_equal(renamed.index, native_pd.Index(["a", "foo", "c", "bar"]))
 
-    @sql_count_checker(query_count=3, join_count=1)
+    @sql_count_checker(query_count=1, join_count=0)
     def test_rename_retain_index_name(self):
         # index with name
         renamer = Series(
