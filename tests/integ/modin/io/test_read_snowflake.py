@@ -273,7 +273,7 @@ def test_read_snowflake_both_index_col_columns(session):
     assert pdf.columns[0] == "Y"
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=7)
 def test_read_snowflake_duplicate_columns(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

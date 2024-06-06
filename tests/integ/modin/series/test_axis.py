@@ -30,7 +30,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         native_pd.Series({"A": [1, 2, 3], 5 / 6: [4, 5, 6]}),
         "index",
         [None] * 2,
-        5,
+        4,
         1,
     ],
     [
@@ -44,7 +44,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         "index",
         ["iccanobif", "serauqs", "semirp"],
-        5,
+        4,
         1,
     ],
     [
@@ -58,7 +58,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         "index",
         native_pd.Series(["iccanobif", "serauqs", "semirp"], name="reverse names"),
-        6,
+        4,
         1,
     ],
     [
@@ -73,7 +73,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999]),
-        5,
+        4,
         1,
     ],
     [
@@ -88,7 +88,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999], name="index with name"),
-        6,
+        4,
         1,
     ],
     [
@@ -104,7 +104,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999], name="index with name"),
-        6,
+        4,
         1,
     ],
     [  # Index is a MultiIndex from tuples.
@@ -165,14 +165,14 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         native_pd.Series({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         "index",
         {1: 1, 2: 2},
-        5,
+        4,
         1,
     ],
     [
         native_pd.Series({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         "rows",
         {1, 2},
-        5,
+        4,
         1,
     ],
 ]
@@ -440,7 +440,7 @@ def test_set_axis_series_raises_value_error_diff_error_msg(
 ):
     # Should raise a ValueError if length of labels passed in
     # don't match the number of rows.
-    with SqlCounter(query_count=2 if isinstance(labels, native_pd.MultiIndex) else 4):
+    with SqlCounter(query_count=2 if isinstance(labels, native_pd.MultiIndex) else 3):
         with pytest.raises(ValueError, match=error_msg):
             pd.Series(ser).set_axis(labels, axis=axis)
 
@@ -474,7 +474,7 @@ def test_set_axis_series_raises_type_error(ser, axis, labels, error_msg):
         pd.Series(ser).set_axis(labels, axis=axis)
 
 
-@sql_count_checker(query_count=5, join_count=1)
+@sql_count_checker(query_count=4, join_count=1)
 def test_series_set_axis_copy_true(caplog):
     # Test that warning is raised when copy argument is used.
     series = native_pd.Series([1.25])
