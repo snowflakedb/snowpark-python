@@ -40,7 +40,6 @@ def setup(session, resources_path):
     session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
 
 
-@pytest.mark.short_regress
 @sql_count_checker(query_count=2)
 def test_read_csv():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
@@ -80,7 +79,6 @@ def test_read_csv_header_simple(resources_path, header):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@pytest.mark.precommit
 @pytest.mark.parametrize("engine", ["c", "python", "pyarrow"])
 @sql_count_checker(query_count=2)
 def test_read_csv_engine_local(resources_path, engine):
@@ -91,7 +89,6 @@ def test_read_csv_engine_local(resources_path, engine):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@pytest.mark.precommit
 @sql_count_checker(query_count=9)
 def test_read_csv_engine_snowflake(resources_path):
     test_files = TestFiles(resources_path)
