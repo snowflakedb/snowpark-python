@@ -15,7 +15,7 @@ from tests.integ.modin.utils import (
 )
 
 
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=5, union_count=2)
 def test_cut_empty_series_negative():
     with pytest.raises(ValueError, match="Cannot cut empty array"):
         pd.cut(pd.Series(), 3)
@@ -46,7 +46,7 @@ def test_cut_with_no_labels(data, cuts, right, include_lowest, precision, duplic
         "duplicates": duplicates,
     }
 
-    with SqlCounter(query_count=2, join_count=1):
+    with SqlCounter(query_count=6, join_count=1):
         snow_ans = pd.cut(snow_series, cuts, **kwargs)
         native_ans = native_pd.cut(native_series, cuts, **kwargs)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
@@ -109,7 +109,7 @@ def test_cut_with_ordered_is_false_negative():
             pd.cut(snow_series, cuts, **kwargs).to_pandas()
 
 
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=5, union_count=2)
 def test_cut_non_increasing_bins_negative():
     with pytest.raises(
         ValueError, match=re.escape("bins must increase monotonically.")
@@ -118,7 +118,7 @@ def test_cut_non_increasing_bins_negative():
 
 
 @pytest.mark.parametrize("bins", [[7, 8, 8]])
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=5, union_count=2)
 def test_cut_duplicate_edges_negative(bins):
     data = [0, 7, 8, 90]
     try:
@@ -135,7 +135,7 @@ def test_cut_retbins_negative():
         pd.cut(pd.Series([1, 4, 7, 90]), 3, retbins=True)
 
 
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=5, union_count=2)
 def test_cut_labels_none_negative():
     with pytest.raises(
         NotImplementedError, match="pandas type interval.* is not implemented"
@@ -143,7 +143,7 @@ def test_cut_labels_none_negative():
         pd.cut(pd.Series([1, 4, 7, 90]), 3, labels=None)
 
 
-@sql_count_checker(query_count=1, union_count=2)
+@sql_count_checker(query_count=5, union_count=2)
 @pytest.mark.parametrize(
     "labels",
     [

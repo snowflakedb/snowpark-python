@@ -30,7 +30,6 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -306,23 +305,25 @@ class Index:
         >>> idx.name
         'x'
         """
-        self.to_pandas_warning()
-        return self.to_pandas().name
+        if self.names:
+            return self.names[0]
+        return None
 
     @name.setter
     def name(self, value: Hashable) -> None:
         """
         Set Index name.
         """
-        self.to_pandas_warning()
-        self.to_pandas().name = value
+        # if self.is_lazy:
+        self._query_compiler = self._query_compiler.set_index_names([value])
+        # else :
+        #     self._index.name = value
 
-    def _get_names(self) -> FrozenList:
+    def _get_names(self) -> list[Hashable]:
         """
         Get names of index
         """
-        self.to_pandas_warning()
-        return self.to_pandas()._get_names()
+        return self._query_compiler.get_index_names()
 
     def _set_names(self, values: list) -> None:
         """
@@ -337,8 +338,7 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        self.to_pandas_warning()
-        self.to_pandas()._set_names(values)
+        self._query_compiler = self._query_compiler.set_index_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
 

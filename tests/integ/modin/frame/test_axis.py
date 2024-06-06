@@ -81,7 +81,6 @@ def test_index(test_df):
 
 
 @pytest.mark.parametrize("test_df", test_dfs)
-@sql_count_checker(query_count=8, join_count=3)
 def test_set_and_assign_index(test_df):
     def assign_index(df, keys):
         df.index = keys
@@ -92,30 +91,32 @@ def test_set_and_assign_index(test_df):
         return df.index
 
     new_index = pd.Index(np.random.rand(len(test_df)))
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_df),
-        test_df,
-        lambda df: assign_index(df, new_index),
-        comparator=assert_index_equal,
-    )
+    with SqlCounter(query_count=6):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_df),
+            test_df,
+            lambda df: assign_index(df, new_index),
+            comparator=assert_index_equal,
+        )
 
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_df),
-        test_df,
-        lambda df: set_index(df, df.columns[0]),
-        comparator=assert_index_equal,
-    )
-
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_df),
+            test_df,
+            lambda df: set_index(df, df.columns[0]),
+            comparator=assert_index_equal,
+        )
     new_mi = pd.MultiIndex.from_arrays(
         [np.random.rand(len(test_df)), np.random.rand(len(test_df))],
         names=["mi1", "mi2"],
     )
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_df),
-        test_df,
-        lambda df: assign_index(df, new_mi),
-        comparator=assert_index_equal,
-    )
+    with SqlCounter(query_count=4):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_df),
+            test_df,
+            lambda df: assign_index(df, new_mi),
+            comparator=assert_index_equal,
+        )
 
 
 @pytest.mark.parametrize("test_df", test_dfs)
@@ -152,19 +153,18 @@ def set_columns_func(df, labels):
         native_pd.MultiIndex.from_tuples([("A", "a"), ("B", "b")]),
     ],
 )
-@sql_count_checker(query_count=0)
 def test_set_columns(columns):
     if isinstance(columns, native_pd.Index) and not isinstance(
         columns, native_pd.MultiIndex
     ):
         columns = pd.Index(columns)
-
-    eval_snowpark_pandas_result(
-        pd.DataFrame(test_dfs[0].copy()),
-        test_dfs[0].copy(),
-        lambda df: set_columns_func(df, labels=columns),
-        comparator=assert_index_equal,
-    )
+    with SqlCounter(query_count=2 if isinstance(columns, pd.Index) else 0):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(test_dfs[0].copy()),
+            test_dfs[0].copy(),
+            lambda df: set_columns_func(df, labels=columns),
+            comparator=assert_index_equal,
+        )
 
 
 @pytest.mark.parametrize("col_name", VALID_PANDAS_LABELS)
@@ -203,19 +203,19 @@ def test_set_columns_valid_names(col_name):
             ["a"],
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
-            2,
+            0,
         ),
         (
             native_pd.Index(["a"]),
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 1 elements",
-            3,
+            2,
         ),
         (
             ["a", "b", "c"],
             ValueError,
             "Length mismatch: Expected axis has 2 elements, new values have 3 elements",
-            2,
+            0,
         ),
         (
             [["A", "a", 1], ["B", "b", 1]],
@@ -241,7 +241,7 @@ def test_set_columns_negative(columns, error_type, error_msg, qc):
 
 
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=2)
 def test_set_columns_index_name(index_name):
     eval_snowpark_pandas_result(
         pd.DataFrame(test_dfs[0]),
@@ -251,7 +251,7 @@ def test_set_columns_index_name(index_name):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_duplicate_labels_assignment():
     # Duplicate data labels
     snow_df = pd.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
@@ -295,7 +295,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         native_pd.DataFrame({"A": [3.14, 1.414, 1.732], "B": [9.8, 1.0, 0]}),
         "rows",
         [None] * 3,
-        5,
+        6,
         2,
     ],
     [  # Labels is a MultiIndex from tuples.
@@ -312,7 +312,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         native_pd.DataFrame({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         0,
         {1: "c", 2: "b", 3: "a"},
-        5,
+        6,
         2,
     ],
     [
@@ -332,7 +332,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         0,
         ['"row 1"', "row 2"],
-        5,
+        6,
         2,
     ],
     [
@@ -345,7 +345,7 @@ TEST_DATA_FOR_DF_SET_AXIS = [
         ),
         "rows",
         list(range(10)),
-        5,
+        6,
         2,
     ],
     [
@@ -875,14 +875,14 @@ def test_set_axis_df_raises_value_error(native_df, axis, labels):
     "native_df, axis, labels, error_msg",
     TEST_DATA_FOR_DF_SET_AXIS_RAISES_VALUE_ERROR_DIFF_ERROR_MSG,
 )
-@sql_count_checker(query_count=2)
 def test_set_axis_df_raises_value_error_diff_error_msg(
     native_df, axis, labels, error_msg
 ):
     # Should raise a ValueError if the labels for row-like axis are invalid.
     # The error messages do not match native pandas.
-    with pytest.raises(ValueError, match=error_msg):
-        pd.DataFrame(native_df).set_axis(labels, axis=axis)
+    with SqlCounter(query_count=2 if isinstance(labels, native_pd.MultiIndex) else 3):
+        with pytest.raises(ValueError, match=error_msg):
+            pd.DataFrame(native_df).set_axis(labels, axis=axis)
 
 
 @pytest.mark.parametrize(
@@ -898,7 +898,7 @@ def test_set_axis_df_raises_type_error_diff_error_msg(
         pd.DataFrame(native_df).set_axis(labels, axis=axis)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=4, join_count=1)
 def test_df_set_axis_copy_true(caplog):
     # Test that warning is raised when copy argument is used.
     native_df = native_pd.DataFrame({"A": [1.25], "B": [3]})
@@ -929,7 +929,6 @@ def test_df_set_axis_copy_false(caplog):
         assert "keyword is unused and is ignored." in caplog.text
 
 
-@sql_count_checker(query_count=6, join_count=3)
 def test_df_set_axis_with_quoted_index():
     # reported as bug in https://snowflakecomputing.atlassian.net/browse/SNOW-933782
     data = {"A": [1, 2, 3], "B": [4, 5, 6]}
@@ -940,11 +939,11 @@ def test_df_set_axis_with_quoted_index():
     # check first that operation result is the same
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=4):
         eval_snowpark_pandas_result(snow_df, native_df, helper)
 
     # then, explicitly compare axes
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         ans = helper(snow_df)
 
     native_ans = helper(native_df)
@@ -953,5 +952,5 @@ def test_df_set_axis_with_quoted_index():
         assert_axes_result_equal(ans.axes, native_ans.axes)
 
     assert list(native_ans.index) == labels
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         assert list(ans.index) == labels

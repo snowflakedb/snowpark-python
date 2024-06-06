@@ -43,7 +43,7 @@ class TestDataFrameGroupByHeadTail:
         ["lion", 1234, 456, 78, 9],
     ]
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=3)
     def test_df_groupby_head_tail(self, op_type, n, dropna, as_index, sort, group_keys):
         """
         Test DataFrameGroupBy.head and DataFrameGroupBy.tail with a small df with no NA values.
@@ -141,7 +141,7 @@ def test_df_groupby_head_tail_non_integer_n_negative(
 
 @pytest.mark.parametrize("n", [0, 1, -2])
 @pytest.mark.parametrize("op_type", ["head", "tail"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_groupby_head_tail_df_with_duplicate_columns(op_type, n):
     data = [
         [None, 1, 1, 0, None, 0],
