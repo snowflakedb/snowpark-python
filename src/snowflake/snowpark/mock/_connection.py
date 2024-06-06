@@ -6,9 +6,6 @@
 import functools
 import json
 import logging
-import os
-import sys
-import time
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -19,8 +16,7 @@ from unittest.mock import Mock
 import snowflake.snowpark.mock._constants
 from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
-from snowflake.connector.network import ReauthenticationRequest
+from snowflake.connector.errors import NotSupportedError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
@@ -28,17 +24,12 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    BatchInsertQuery,
-    SnowflakePlan,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
-    normalize_local_file,
     result_set_to_rows,
-    unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
@@ -64,24 +55,6 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
-
-
-def _build_put_statement(*args, **kwargs):
-    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-        external_feature_name="PUT stream",
-        internal_feature_name="_connection._build_put_statement",
-        raise_error=NotImplementedError,
-    )
-
-
-def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
-    qualified_stage_name = unwrap_stage_location_single_quote(stage_location)
-    dest_prefix_name = (
-        dest_prefix
-        if not dest_prefix or dest_prefix.startswith("/")
-        else f"/{dest_prefix}"
-    )
-    return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
 
 
 class MockedSnowflakeConnection(SnowflakeConnection):
@@ -237,44 +210,6 @@ class MockServerConnection:
                 return self.view_registry[name]
             raise SnowparkLocalTestingException(f"View {name} does not exist")
 
-    class _Decorator:
-        @classmethod
-        def wrap_exception(cls, func):
-            def wrap(*args, **kwargs):
-                try:
-                    return func(*args, **kwargs)
-                except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
-                        ex.cause
-                    )
-                except Exception as ex:
-                    raise ex
-
-            return wrap
-
-        @classmethod
-        def log_msg_and_perf_telemetry(cls, msg):
-            def log_and_telemetry(func):
-                @functools.wraps(func)
-                def wrap(*args, **kwargs):
-                    logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
-                    sfqid = result["sfqid"] if result and "sfqid" in result else None
-                    # If we don't have a query id, then its pretty useless to send perf telemetry
-                    if sfqid:
-                        args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
-                        )
-                    logger.debug(f"Finished in {duration:.4f} secs")
-                    return result
-
-                return wrap
-
-            return log_and_telemetry
-
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
@@ -368,7 +303,6 @@ class MockServerConnection:
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
-    @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
             name = getattr(self, f"_active_{param}", None)
@@ -396,7 +330,6 @@ class MockServerConnection:
     # def get_result_attributes(self, query: str) -> List[Attribute]:
     #     return convert_result_meta_to_attribute(self._cursor.describe(query))
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
         self,
         path: str,
@@ -407,35 +340,11 @@ class MockServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():  # pragma: no cover
-            file_name = os.path.basename(path)
-            target_path = _build_target_path(stage_location, dest_prefix)
-            try:
-                # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    open(path, "rb"), f"{target_path}/{file_name}"
-                )
-            except ProgrammingError as pe:
-                tb = sys.exc_info()[2]
-                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                    pe
-                )
-                raise ne.with_traceback(tb) from None
-        else:
-            uri = normalize_local_file(path)
-            return self.run_query(
-                _build_put_statement(
-                    uri,
-                    stage_location,
-                    dest_prefix,
-                    parallel,
-                    compress_data,
-                    source_compression,
-                    overwrite,
-                )
-            )
+        self.log_not_supported_error(
+            external_feature_name="MockServerConnection.upload_file",
+            raise_error=NotImplementedError,
+        )
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
         input_stream: IO[bytes],
@@ -533,7 +442,6 @@ class MockServerConnection:
             input_stream, stage_location, dest_filename, overwrite=overwrite
         )
 
-    @_Decorator.wrap_exception
     def run_query(
         self,
         query: str,
@@ -715,90 +623,11 @@ class MockServerConnection:
         ],
         List[ResultMetadata],
     ]:
-        action_id = plan.session._generate_new_action_id()
-
-        result, result_meta = None, None
-        try:
-            placeholders = {}
-            is_batch_insert = False
-            for q in plan.queries:
-                if isinstance(q, BatchInsertQuery):
-                    is_batch_insert = True
-                    break
-            # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
-                final_query = f"""EXECUTE IMMEDIATE $$
-DECLARE
-    res resultset;
-BEGIN
-    {";".join(q.sql for q in plan.queries[:-1])};
-    res := ({plan.queries[-1].sql});
-    return table(res);
-END;
-$$"""
-                # In multiple queries scenario, we are unable to get the query id of former query, so we replace
-                # place holder with fucntion last_query_id() here
-                for q in plan.queries:
-                    final_query = final_query.replace(
-                        f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
-                    )
-
-                result = self.run_query(
-                    final_query,
-                    to_pandas,
-                    to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
-                    block=block,
-                    data_type=data_type,
-                    async_job_plan=plan,
-                    **kwargs,
-                )
-
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
-                # AsyncJob instance when needed
-                result_meta = None
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-            else:
-                for i, query in enumerate(plan.queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(plan.queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        result = self.run_query(
-                            final_query,
-                            to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
-                            data_type=data_type,
-                            async_job_plan=plan,
-                            **kwargs,
-                        )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
-                        result_meta = self._cursor.description
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-        finally:
-            # delete created tmp object
-            if block:
-                for action in plan.post_actions:
-                    self.run_query(
-                        action.sql,
-                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                        block=block,
-                        **kwargs,
-                    )
-
-        if result is None:
-            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
-
-        return result, result_meta
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_set",
+            raise_error=NotImplementedError,
+        )
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
@@ -829,9 +658,11 @@ $$"""
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        # get the iterator such that the data is not fetched
-        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
-        return result_set["sfqid"]
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_query_id",
+            raise_error=NotImplementedError,
+        )
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":

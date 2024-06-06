@@ -7,7 +7,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.groupby.conftest import multiindex_data
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
@@ -15,6 +14,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize("grouping_columns", ["B", ["A", "B"]])
@@ -127,7 +127,7 @@ def test_df_groupby_idxmax_idxmin_with_dates_on_axis_0(func):
     strict=True,
     raises=RuntimeError,
 )
-@pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @sql_count_checker(
     query_count=11,

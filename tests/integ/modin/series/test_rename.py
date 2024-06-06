@@ -14,9 +14,9 @@ import pytest
 from modin.pandas import Index, MultiIndex, Series
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.conftest import running_on_github
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, assert_series_equal
+from tests.utils import running_on_public_ci
 
 
 class TestRename:
@@ -180,7 +180,7 @@ class TestRename:
         with pytest.raises(KeyError, match=match):
             ser.rename({2: 9}, errors="raise")
 
-    @pytest.mark.skipif(running_on_github(), reason="slow fallback test")
+    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
     @sql_count_checker(query_count=8, join_count=12)
     def test_rename_copy_false(self):
         # GH 46889
