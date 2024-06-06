@@ -51,7 +51,7 @@ warnings.warn(
     stacklevel=1,
 )
 
-from modin.config import DocModule as ModinDocModule  # isort: skip  # noqa: E402
+from modin.config import DocModule as ModinDocModule  # type: ignore[import]  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
 
