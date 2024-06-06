@@ -426,7 +426,7 @@ def loc_snowpark_pandas_input_map():
         "series[bool]_col": (
             pd.Series(
                 [True, True, True, False, False, True, True],
-                index=pandas.Index(["A", "B", "x", "D", "F", "E", "C"]),
+                index=["A", "B", "x", "D", "F", "E", "C"],
             ),
             pandas.Series(
                 [True, True, True, False, False, True, True],
@@ -444,7 +444,7 @@ def loc_snowpark_pandas_input_map():
                     True,
                     True,
                 ],
-                index=pandas.Index([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+                index=[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
             ),
             pandas.Series(
                 [

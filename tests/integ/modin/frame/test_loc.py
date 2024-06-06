@@ -9,7 +9,7 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from modin.pandas import DataFrame
-from pandas._libs.lib import is_bool, is_scalar
+from pandas._libs.lib import is_bool, is_list_like, is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -140,18 +140,44 @@ ITEM_TYPE_LIST_CONVERSION = [
 def test_df_loc_get_tuple_key(
     row, col, str_index_snowpark_pandas_df, str_index_native_df
 ):
-    with SqlCounter(
-        query_count=2
-        if is_scalar(row)
-        or isinstance(row, tuple)
-        or is_scalar(col)
-        or isinstance(col, tuple)
-        else 1
+    # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
+    query_count = 1
+    if isinstance(row, tuple) or (
+        is_list_like(col) and not isinstance(col, native_pd.Index)
     ):
+        query_count += 1
+
+    if is_scalar(row) and is_scalar(col):
+        query_count = 3
+    elif is_scalar(row):
+        query_count += 1
+    elif is_scalar(col):
+        query_count += 2
+    elif isinstance(col, tuple):
+        query_count += 1
+
+    if isinstance(row, native_pd.Index):
+        query_count += 2
+    if isinstance(col, native_pd.Index):
+        query_count += 5
+
+    with SqlCounter(
+        query_count=query_count,
+    ):
+        if isinstance(row, native_pd.Index):
+            snow_row = pd.Index(row)
+        else:
+            snow_row = row
+        if isinstance(col, native_pd.Index):
+            snow_col = pd.Index(col)
+        else:
+            snow_col = col
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
-            lambda df: df.loc[row, col],
+            lambda df: df.loc[snow_row, snow_col]
+            if isinstance(df, pd.DataFrame)
+            else df.loc[row, col],
         )
 
 
@@ -167,7 +193,7 @@ def test_df_loc_get_tuple_key(
         lambda x: ["A", "C"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_df_loc_get_callable_key(
     row, col, str_index_snowpark_pandas_df, str_index_native_df
 ):
@@ -185,14 +211,24 @@ def test_df_loc_get_callable_key(
 def test_df_loc_get_col_non_boolean_key(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
-    with SqlCounter(query_count=2 if is_scalar(key) or isinstance(key, tuple) else 1):
+    query_count = 1
+    if is_scalar(key):
+        query_count = 3
+    if isinstance(key, tuple):
+        query_count += 2
+    elif is_list_like(key):
+        query_count += 1
+
+    with SqlCounter(query_count=query_count):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
             lambda df: df.loc[:, key],
         )
     if not is_scalar(key) and not isinstance(key, slice):
-        with SqlCounter(query_count=2):
+        with SqlCounter(
+            query_count=query_count + 1 if not isinstance(key, tuple) else query_count
+        ):
             eval_snowpark_pandas_result(
                 str_index_snowpark_pandas_df,
                 str_index_native_df,
@@ -209,7 +245,6 @@ def test_df_loc_get_col_non_boolean_key(
     "key",
     boolean_indexer,
 )
-@sql_count_checker(query_count=3)
 def test_df_loc_get_col_boolean_indexer(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
@@ -220,7 +255,8 @@ def test_df_loc_get_col_boolean_indexer(
             lambda df: df.loc[:, key],
         )
 
-    with SqlCounter(query_count=2):
+    # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
+    with SqlCounter(query_count=8):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
@@ -237,7 +273,7 @@ def test_df_loc_get_col_boolean_indexer(
     "key",
     list_like_time_col_inputs,
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_loc_get_col_time_df(
     key, time_column_snowpark_pandas_df, time_column_native_df
 ):
@@ -275,20 +311,22 @@ def test_df_loc_get_int_index_row_snowpark_pandas_input(
     "key",
     snowpark_pandas_col_inputs,
 )
-@sql_count_checker(query_count=2)
 def test_df_loc_get_col_snowpark_pandas_input(
     key,
     str_index_snowpark_pandas_df,
     str_index_native_df,
     loc_snowpark_pandas_input_map,
 ):
-    eval_snowpark_pandas_result(
-        str_index_snowpark_pandas_df,
-        str_index_native_df,
-        lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
-        if isinstance(df, DataFrame)
-        else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
-    )
+
+    # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
+    with SqlCounter(query_count=8 if key == "series[bool]_col" else 3):
+        eval_snowpark_pandas_result(
+            str_index_snowpark_pandas_df,
+            str_index_native_df,
+            lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
+            if isinstance(df, pd.DataFrame)
+            else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
+        )
 
 
 @pytest.mark.parametrize(
@@ -306,7 +344,11 @@ def test_df_loc_get_empty_key(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-    with SqlCounter(query_count=1):
+    if len(key) == 0 or isinstance(key[1], slice):
+        query_count = 1
+    else:
+        query_count = 2
+    with SqlCounter(query_count=query_count):
         eval_snowpark_pandas_result(
             empty_snowpark_pandas_df,
             native_pd.DataFrame(),
@@ -314,7 +356,7 @@ def test_df_loc_get_empty_key(
             comparator=assert_snowpark_pandas_equal_to_pandas,
             check_column_type=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=query_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -847,7 +889,7 @@ def test_df_loc_set_boolean_row_indexer(row_key, col_key, item):
         6 if isinstance(col_key, str) and isinstance(item, list) else 1
     )
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
 
 
@@ -938,7 +980,9 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
             _row_key = key_converter(row_key, df)
             df.loc[_row_key] = pd.DataFrame(item)
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(
+        query_count=2 if key_type == "index" else 1, join_count=expected_join_count
+    ):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, loc_set_helper, inplace=True
         )
@@ -960,7 +1004,9 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
             _row_key = key_converter(row_key, df)
             df.loc[_row_key, :] = pd.DataFrame(item)
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(
+        query_count=3 if key_type == "index" else 1, join_count=expected_join_count
+    ):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, loc_set_helper, inplace=True
         )
@@ -995,7 +1041,7 @@ def test_df_loc_set_series_and_list_like_row_key_negative(key_type):
         _key = key
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(key)
+            _key = native_pd.Index(key)
         elif key_type == "array":
             _key = np.array(key)
         elif key_type == "series":
@@ -1135,11 +1181,13 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
             )
             df.loc[key] = pd.DataFrame(item)
 
-    query_count, join_count = 1, 2
+    query_count, join_count = 3, 2
     if not all(isinstance(rk_val, bool) for rk_val in row_key):
         join_count += 2
     if isinstance(col_key, native_pd.Series):
-        query_count += 1
+        query_count += 2
+    if key_type == "index":
+        query_count += 2
     with SqlCounter(query_count=query_count, join_count=join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
 
@@ -1202,7 +1250,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
             df.loc[key] = pd.DataFrame(item)
 
     # pandas raise error if the main frame columns have duplicates when enlargement may happen.
-    query_count, join_count, expect_exception = 0, 0, True
+    query_count, join_count, expect_exception = 1, 0, True
 
     if (
         isinstance(col_key, slice)
@@ -1213,7 +1261,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
         or (df.columns.equals(df.columns.union(col_key)))
     ):
-        query_count, join_count, expect_exception = 1, 4, False
+        query_count, join_count, expect_exception = 4, 4, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
     with SqlCounter(query_count=query_count, join_count=join_count):
@@ -3494,7 +3542,8 @@ def test_df_loc_set_item_2d_array_col_length_no_match():
             expect_exception=True,
             expect_exception_type=ValueError,
             assert_exception_equal=False,
-            expect_exception_match="shape mismatch: the number of columns 3 from the item does not match with the number of columns 4 to set",  # Our error message is slightly different from pandas.
+            expect_exception_match="shape mismatch: the number of columns 3 from the item does not match with the number of columns 4 to set",
+            # Our error message is slightly different from pandas.
         )
 
     # When there are too many cols
@@ -3518,7 +3567,8 @@ def test_df_loc_set_item_2d_array_col_length_no_match():
             assert_exception_equal=False,
             expect_exception=True,
             expect_exception_type=ValueError,
-            expect_exception_match="shape mismatch: the number of columns 5 from the item does not match with the number of columns 4 to set",  # Our error message is slightly different from pandas.
+            expect_exception_match="shape mismatch: the number of columns 5 from the item does not match with the number of columns 4 to set",
+            # Our error message is slightly different from pandas.
         )
 
 

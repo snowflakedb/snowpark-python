@@ -28,28 +28,30 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         np.array([], dtype=bool),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_series_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_series, default_index_native_series
 ):
     if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
+        snow_key = pd.Index(key)
+    else:
+        snow_key = key
 
     def getitem_helper(ser):
         # Native pandas can only handle boolean list-likes objects of length = num(rows).
         if isinstance(ser, native_pd.Series):
             # If native pandas Series, truncate the series and key.
             _ser = ser[: len(key)]
-            _key = try_convert_index_to_native(key)[: len(_ser)]
+            _key = key[: len(_ser)]
         else:
-            _key, _ser = key, ser
+            _key, _ser = snow_key, ser
         return _ser[_key]
 
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_series,
-        default_index_native_series,
-        getitem_helper,
-    )
+    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_series,
+            default_index_native_series,
+            getitem_helper,
+        )
 
 
 @pytest.mark.parametrize(

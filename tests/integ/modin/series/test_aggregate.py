@@ -87,7 +87,10 @@ def test_agg_series(
     native_series = native_series.astype(dtype)
     snow_series = pd.Series(native_series)
 
-    with SqlCounter(query_count=1, union_count=expected_union_count):
+    with SqlCounter(
+        query_count=5 if has_count_aggregate else 3 if expected_union_count >= 1 else 1,
+        union_count=expected_union_count,
+    ):
         if is_scalar:
             eval_snowpark_pandas_result(
                 snow_series, native_series, func, comparator=validate_scalar_result
@@ -205,7 +208,10 @@ def test_general_agg_numeric_series(skipna_agg_method, data, dtype, skipna):
 def test_agg_on_empty_series(func, is_scalar, expected_union_count):
     native_empty_series = native_pd.Series([], dtype="float64")
     snow_series = pd.Series(native_empty_series)
-    with SqlCounter(query_count=1, union_count=expected_union_count):
+    with SqlCounter(
+        query_count=3 if expected_union_count == 1 else 1,
+        union_count=expected_union_count,
+    ):
         if is_scalar:
             eval_snowpark_pandas_result(
                 snow_series,
@@ -287,7 +293,7 @@ def test_duplicate_agg_funcs_raise(native_series):
         snow_series.aggregate([min, max, min])
 
 
-@sql_count_checker(query_count=1, union_count=1)
+@sql_count_checker(query_count=3, union_count=1)
 def test_duplicate_named_agg_funcs_succeeds(native_series):
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
@@ -334,7 +340,7 @@ def test_agg_invalid_min_max_dtype_raise(agg_func, data, data_type):
 
 
 # skew is a little different, skipna is ignored in pandas.df.skew
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=4)
 def test_skew_series():
     native_df = native_pd.DataFrame(np.array([1, 2, 3]), columns=["A"])
     snow_df = pd.DataFrame(native_df)

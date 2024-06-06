@@ -22,7 +22,7 @@ def snow_df():
             "a": ["abc", " ", "", "ABC", "_", "XYZ"],
             "b": ["1", "10", "xyz", "0", "2", "abc"],
         },
-        index=native_pd.Index([1, 2, 3, 4, 5, 6], name="ind"),
+        index=pd.Index([1, 2, 3, 4, 5, 6], name="ind"),
     )
 
 
@@ -33,7 +33,7 @@ def snow_series(snow_df):
 
 @pytest.mark.parametrize("by", ["A", "B", "a", "b"])
 @pytest.mark.parametrize("ascending", [True, False])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_sort_values(snow_df, by, ascending):
     snow_series = snow_df[by]
     native_series = snow_series.to_pandas()

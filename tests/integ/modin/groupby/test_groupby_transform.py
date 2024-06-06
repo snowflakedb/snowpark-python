@@ -39,7 +39,11 @@ def test_dataframe_groupby_transform(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(
+        query_count=6 + (1 if dropna else 0),
+        join_count=1 + (1 if dropna else 0),
+        udtf_count=1,
+    ):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(

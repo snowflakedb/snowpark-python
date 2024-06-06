@@ -156,6 +156,8 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 
 QUERY_COUNT_WITHOUT_TRANSFORM_CHECK = 5
 QUERY_COUNT_WITH_TRANSFORM_CHECK = 6
+QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX = 7
+QUERY_COUNT_WITH_TRANSFORM_CHECK_INDEX = 8
 JOIN_COUNT = 1
 UDTF_COUNT = 1
 
@@ -966,7 +968,7 @@ class TestFuncReturnsSeries:
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -990,7 +992,9 @@ class TestFuncReturnsSeries:
                     ["k0", 16, "b"],
                 ],
                 index=pandas_index,
-                columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+                columns=native_pd.Index(
+                    ["string_col_1", "int_col", "string_col_2"], name="x"
+                ),
             ),
             lambda df: df.groupby("index", dropna=dropna).apply(
                 lambda group: native_pd.Series(
@@ -1079,7 +1083,7 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK_INDEX
             if not group_keys
             and func
             in (
@@ -1088,7 +1092,7 @@ class TestSeriesGroupBy:
                 series_transform_returns_frame,
                 series_transform_returns_series,
             )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
@@ -1101,8 +1105,8 @@ class TestSeriesGroupBy:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
-                    columns=pd.Index(
+                    index=native_pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
+                    columns=native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 ),

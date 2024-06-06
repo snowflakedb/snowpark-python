@@ -15,7 +15,7 @@ import pandas as native_pd
 import pandas._testing as tm
 import pytest
 import pytz
-from modin.pandas import DatetimeIndex, Index, NaT, Series, Timestamp, to_datetime
+from modin.pandas import DatetimeIndex, NaT, Series, Timestamp, to_datetime
 from pandas.core.arrays import DatetimeArray
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -59,7 +59,7 @@ class TestTimeConversionFormats:
         expected = Series([], dtype=object)
         assert_series_equal(result, expected)
 
-    @pytest.mark.parametrize("box", [Series, Index])
+    @pytest.mark.parametrize("box", [Series, native_pd.Index])
     @pytest.mark.parametrize(
         "format, expected",
         [
@@ -527,11 +527,11 @@ class TestTimeConversionFormats:
         ):
             to_datetime([date], format=fmt).to_pandas()
 
-    @sql_count_checker(query_count=0)
+    @sql_count_checker(query_count=6)
     def test_to_datetime_parse_timezone_keeps_name(self):
         # GH 21697
         fmt = "%Y-%m-%d %H:%M:%S %z"
-        arg = Index(["2010-01-01 12:00:00 Z"], name="foo")
+        arg = pd.Index(["2010-01-01 12:00:00 Z"], name="foo")
         result = to_datetime(arg, format=fmt)
         assert result.name == arg.name
 

@@ -13,7 +13,7 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize(
     "data, index",
     [
@@ -83,7 +83,7 @@ def test_idxmax_idxmin_df(data, index, func, axis, skipna):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize(
     "data, index",
     [
@@ -194,7 +194,7 @@ def test_idxmax_idxmin_with_dates(func, axis):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("axis", [0, 1])
 def test_idxmax_idxmin_with_strings(func, axis):
@@ -214,7 +214,7 @@ def test_idxmax_idxmin_with_strings(func, axis):
 @pytest.mark.parametrize("axis", [0, 1])
 def test_idxmax_idxmin_empty_df_with_index(func, axis):
     if axis == 0:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=2):
             eval_snowpark_pandas_result(
                 *create_test_dfs(
                     data={},
@@ -252,7 +252,7 @@ def test_idxmax_idxmin_crazy_column_names_axis_1(func, axis):
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("axis", [0, 1])
-@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.xfail(strict=True, raises=ValueError)
 def test_idxmax_idxmin_multiindex_unsupported(func, axis):
     arrays = [
         ["bar", "bar", "baz", "baz", "foo", "foo", "qux", "qux"],

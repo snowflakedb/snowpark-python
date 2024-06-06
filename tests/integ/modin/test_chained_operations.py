@@ -10,7 +10,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_chained_op1():
     # bug fix SNOW-1348886
     data = {"X": [1, 2, 3], "Y": [4, 5, 6]}

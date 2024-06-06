@@ -637,7 +637,7 @@ def test_3rd_party_package_mix_and_match(udf_packages, session_packages):
     assert len(ans) == 3
 
 
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=9, udf_count=1)
 def test_SNOW_1344784_udf_decorator():
     # tests udf decorator with no packages specified
 
