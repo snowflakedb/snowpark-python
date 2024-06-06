@@ -732,7 +732,7 @@ class StringMethods:
         0    1. Ant.
         1    2. Bee!\\n
         2    3. Cat?\\t
-        3          NaN
+        3         None
         4           10
         5         True
         dtype: object
@@ -778,7 +778,7 @@ class StringMethods:
         0    1. Ant.
         1    2. Bee!\\n
         2    3. Cat?\\t
-        3          NaN
+        3         None
         4           10
         5         True
         dtype: object
