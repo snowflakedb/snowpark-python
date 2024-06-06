@@ -783,7 +783,7 @@ class StringMethods:
         5         True
         dtype: object
 
-        >>> s.str.lstrip('123.')
+        >>> s.str.lstrip('123.')  # doctest: +NORMALIZE_WHITESPACE
         0    Ant.
         1    Bee!\\n
         2    Cat?\\t
