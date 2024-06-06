@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import functools
 import inspect
 import os
 
@@ -31,28 +30,6 @@ def spans_to_dict(spans):
         res[span.name] = span
     return res
 
-
-def dummy_decorator(func):
-    @functools.wraps(func)
-    def wrapper(*arg, **kwarg):
-        return func(*arg, **kwarg)
-
-    return wrapper
-
-
-@dummy_decorator
-def dummy_function1():
-    return
-
-
-def dummy_function2():
-    return
-
-
-api_calls = [
-    {"name": "Session.create_dataframe[values]"},
-    {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-]
 
 resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
 trace_provider = TracerProvider(resource=resource)
