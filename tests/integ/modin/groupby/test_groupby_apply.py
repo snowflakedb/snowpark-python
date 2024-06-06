@@ -161,7 +161,6 @@ UDTF_COUNT = 1
 
 
 class TestFuncReturnsDataFrame:
-    @pytest.mark.precommit
     @pytest.mark.parametrize(
         "func",
         [
@@ -725,7 +724,6 @@ class TestFuncReturnsDataFrame:
 
 
 class TestFuncReturnsScalar:
-    @pytest.mark.precommit
     @pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
     @pytest.mark.parametrize("as_index", [True, False], ids=lambda v: f"as_index_{v}")
     @pytest.mark.parametrize(
@@ -897,7 +895,6 @@ class TestFuncReturnsScalar:
 
 
 class TestFuncReturnsSeries:
-    @pytest.mark.precommit
     @pytest.mark.parametrize(
         "by,level",
         [
@@ -1052,7 +1049,6 @@ class TestFuncReturnsSeries:
         )
 
 
-@pytest.mark.precommit
 @pytest.mark.parametrize(
     "func",
     [
