@@ -23,8 +23,8 @@ class SpecialFrameBoundary(Expression):
         super().__init__()
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class UnboundedPreceding(SpecialFrameBoundary):
@@ -73,8 +73,8 @@ class SpecifiedWindowFrame(WindowFrame):
         return derive_dependent_columns(self.lower, self.upper)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:
@@ -146,8 +146,8 @@ class WindowExpression(Expression):
         return derive_dependent_columns(self.window_function, self.window_spec)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return Counter({PlanNodeCategory.WINDOW.value: 1})
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.WINDOW
 
     @cached_property
     def cumulative_complexity_stat(self) -> Counter[str]:

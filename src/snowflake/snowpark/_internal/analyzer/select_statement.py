@@ -295,23 +295,7 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        """This is the query complexity stat added by this Selectable node
-        to the overall query plan. For default case, it is the number of active
-        columns. Specific cases are handled in child classes with additional
-        explanation.
-        """
-        if isinstance(self.snowflake_plan.source_plan, Selectable):
-            return Counter(
-                {PlanNodeCategory.COLUMN.value: len(self.column_states.active_columns)}
-            )
-        return self.snowflake_plan.individual_complexity_stat
-
-    @property
     def cumulative_complexity_stat(self) -> Counter[str]:
-        """This is sum of individual query complexity stats for all nodes
-        within a query plan subtree.
-        """
         if self._cumulative_complexity_stat is None:
             stat = self.individual_complexity_stat
             for node in self.children_plan_nodes:
@@ -382,9 +366,9 @@ class SelectableEntity(Selectable):
         return self.sql_query
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
         # SELECT * FROM entity
-        return Counter({PlanNodeCategory.COLUMN.value: 1})
+        return PlanNodeCategory.COLUMN
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -1056,6 +1040,10 @@ class SelectTableFunction(Selectable):
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self.snowflake_plan.queries[-1].params
+
+    @property
+    def individual_complexity_stat(self) -> Counter[str]:
+        return self.snowflake_plan.individual_complexity_stat
 
 
 class SetOperand:

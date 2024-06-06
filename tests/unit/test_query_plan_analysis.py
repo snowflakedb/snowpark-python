@@ -1,0 +1,165 @@
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
+
+from collections import Counter
+from unittest import mock
+
+import pytest
+
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    NamedExpression,
+)
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
+)
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    Selectable,
+    SelectableEntity,
+    SelectSnowflakePlan,
+    SelectSQL,
+    SelectStatement,
+    SelectTableFunction,
+    SetStatement,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark.types import IntegerType
+
+
+@pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
+def test_assign_custom_cumulative_complexity_stat(
+    mock_session, mock_analyzer, mock_query, node_type
+):
+    def get_node_for_type(node_type):
+        if node_type == LogicalPlan:
+            return LogicalPlan()
+        if node_type == SnowflakePlan:
+            return SnowflakePlan(
+                [mock_query], "", source_plan=LogicalPlan(), session=mock_session
+            )
+        return SelectSnowflakePlan(
+            SnowflakePlan(
+                [mock_query], "", source_plan=LogicalPlan(), session=mock_session
+            ),
+            analyzer=mock_analyzer,
+        )
+
+    def set_children(node, node_type, children):
+        if node_type == LogicalPlan:
+            node.children = children
+        elif node_type == SnowflakePlan:
+            node.source_plan.children = children
+        else:
+            node.snowflake_plan.source_plan.children = children
+
+    nodes = [get_node_for_type(node_type) for _ in range(7)]
+
+    """
+                            o                       o
+                           / \\                     / \
+                          o   o                   x   o
+                         /|\
+                        o o o       ->
+                          |
+                          o
+    """
+    set_children(nodes[0], node_type, [nodes[1], nodes[2]])
+    set_children(nodes[1], node_type, [nodes[3], nodes[4], nodes[5]])
+    set_children(nodes[2], node_type, [])
+    set_children(nodes[3], node_type, [])
+    set_children(nodes[4], node_type, [nodes[6]])
+    set_children(nodes[5], node_type, [])
+    set_children(nodes[6], node_type, [])
+
+    assert nodes[0].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 7}
+    assert nodes[1].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 5}
+    assert nodes[2].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[3].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[4].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 2}
+    assert nodes[5].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[6].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+
+    nodes[1].cumulative_complexity_stat = Counter({PlanNodeCategory.COLUMN.value: 1})
+
+    # assert that only value that is reset is changed
+    assert nodes[0].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 7}
+    assert nodes[1].cumulative_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
+    assert nodes[2].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+
+
+def test_selectable_entity_individual_complexity_stat(mock_analyzer):
+    plan_node = SelectableEntity(entity_name="dummy entity", analyzer=mock_analyzer)
+    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
+
+
+def test_select_sql_individual_complexity_stat(mock_session, mock_analyzer):
+    plan_node = SelectSQL(
+        "non-select statement", convert_to_select=True, analyzer=mock_analyzer
+    )
+    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
+
+    def mocked_get_result_attributes(sql):
+        return [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
+
+    def mocked_analyze(
+        attr: Attribute, df_aliased_col_name_to_real_col_name, parse_local_name
+    ):
+        return attr.name
+
+    with mock.patch.object(
+        mock_session, "_get_result_attributes", side_effect=mocked_get_result_attributes
+    ):
+        with mock.patch.object(mock_analyzer, "analyze", side_effect=mocked_analyze):
+            plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
+            assert plan_node.individual_complexity_stat == {
+                PlanNodeCategory.COLUMN.value: 2
+            }
+
+
+def test_select_snowflake_plan_individual_complexity_stat(
+    mock_session, mock_analyzer, mock_query
+):
+    source_plan = Project([NamedExpression(), NamedExpression()], LogicalPlan())
+    snowflake_plan = SnowflakePlan(
+        [mock_query], "", source_plan=source_plan, session=mock_session
+    )
+    plan_node = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
+    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 2}
+
+
+@pytest.mark.parametrize(
+    "attribute,value,expected_stat",
+    [
+        ("projection", [NamedExpression()], {}),
+        ("order_by", [Expression()], {}),
+        ("where", Expression(), {}),
+        ("limit_", 10, {}),
+        ("offset", 2, {}),
+    ],
+)
+def test_select_statement_individual_complexity_stat(
+    mock_analyzer, attribute, value, expected_stat
+):
+    from_ = mock.create_autospec(Selectable)
+    from_.pre_actions = None
+    plan_node = SelectStatement(
+        from_=mock.create_autospec(Selectable), analyzer=mock_analyzer
+    )
+    setattr(plan_node, attribute, value)
+    assert plan_node.individual_complexity_stat == expected_stat
+
+
+def test_select_table_function_individual_complexity_stat():
+    pass
+
+
+def test_set_statement_individual_complexity_stat():
+    pass
+
+
+def test_snowflake_create_table():
+    pass

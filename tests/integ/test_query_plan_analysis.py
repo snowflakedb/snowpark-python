@@ -76,8 +76,8 @@ def test_create_dataframe_from_values(session: Session):
 
 
 def test_session_table(session: Session, sample_table: str):
-    df = session.table(sample_table)
     # select * from sample_table
+    df = session.table(sample_table)
     assert_df_subtree_query_complexity(df, {PlanNodeCategory.COLUMN.value: 1})
 
 
@@ -148,15 +148,24 @@ def test_join_table_function(session: Session):
         },
     )
 
-    #  SELECT T_LEFT.*, T_RIGHT.* FROM (select 'James' as name, 'address1 address2 address3' as addresses) AS T_LEFT JOIN  TABLE (split_to_table("ADDRESS", ' ') ) AS T_RIGHT
-    df3 = df1.join_table_function(split_to_table(col("address"), lit(" ")))
+    #  SELECT T_LEFT.*, T_RIGHT.* FROM (select 'James' as name, 'address1 address2 address3' as addresses) AS T_LEFT
+    #   JOIN  TABLE (split_to_table("ADDRESS", ' ')  OVER (PARTITION BY "LAST_NAME"  ORDER BY "FIRST_NAME" ASC NULLS FIRST)) AS T_RIGHT
+    df3 = df1.join_table_function(
+        split_to_table(col("address"), lit(" ")).over(
+            partition_by="last_name", order_by="first_name"
+        )
+    )
     assert_df_subtree_query_complexity(
         df3,
         {
-            PlanNodeCategory.COLUMN.value: 5,
+            PlanNodeCategory.COLUMN.value: 7,
             PlanNodeCategory.JOIN.value: 1,
             PlanNodeCategory.FUNCTION.value: 1,
             PlanNodeCategory.LITERAL.value: 1,
+            PlanNodeCategory.PARTITION_BY.value: 1,
+            PlanNodeCategory.ORDER_BY.value: 1,
+            PlanNodeCategory.WINDOW.value: 1,
+            PlanNodeCategory.OTHERS.value: 1,
         },
     )
 
@@ -421,13 +430,17 @@ def test_sample(session: Session, sample_table):
 
 
 def test_select_statement_with_multiple_operations(session: Session, sample_table: str):
-    df1 = session.table(sample_table)
+    df = session.table(sample_table)
 
     # add select
-    # SELECT "A", "B", "C" FROM sample_table
-    # note that column stat is 4 even though selected columns is 3. This is because we count 1 column
+    # SELECT "A", "B", "C", "D" FROM sample_table
+    # note that column stat is 5 even though selected columns is 4. This is because we count 1 column
     # from select * from sample_table which is flattened out. This is a known limitation but is okay
     # since we are not off my much
+    df1 = df.select(df["*"])
+    assert_df_subtree_query_complexity(df1, {PlanNodeCategory.COLUMN.value: 5})
+
+    # SELECT "A", "B", "C" FROM sample_table
     df2 = df1.select("a", "b", "c")
     assert_df_subtree_query_complexity(df2, {PlanNodeCategory.COLUMN.value: 4})
 
