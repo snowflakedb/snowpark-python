@@ -7,6 +7,7 @@ import inspect
 import os
 from unittest import mock
 
+import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -185,6 +186,10 @@ def test_inline_register_udaf():
     dict_exporter.clear()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDTF not supported in Local Testing",
+)
 def test_register_udtf_from_file():
     test_file = os.path.normpath(
         os.path.join(
@@ -240,6 +245,10 @@ def test_register_udtf_from_file():
     dict_exporter.clear()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDTF not supported in Local Testing",
+)
 def test_inline_register_udtf():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
@@ -382,6 +391,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
+    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
@@ -395,6 +405,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
+    _remove_session(session)
     dict_exporter.clear()
 
 
@@ -402,6 +413,7 @@ def test_open_telemetry_span_from_dataframe_writer():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
+    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
@@ -415,6 +427,7 @@ def test_open_telemetry_span_from_dataframe_writer():
         os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
     )
     assert span.attributes["code.lineno"] == lineno
+    _remove_session(session)
     dict_exporter.clear()
 
 

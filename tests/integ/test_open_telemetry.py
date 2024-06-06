@@ -155,6 +155,10 @@ def test_inline_register_udaf(session):
     dict_exporter.clear()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDTF not supported in Local Testing",
+)
 def test_register_udtf_from_file(session):
     test_file = os.path.normpath(
         os.path.join(
@@ -207,6 +211,10 @@ def test_register_udtf_from_file(session):
     dict_exporter.clear()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="UDTF not supported in Local Testing",
+)
 def test_inline_register_udtf(session):
     # test register with udtf.register
 
