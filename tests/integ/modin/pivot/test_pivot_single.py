@@ -261,13 +261,15 @@ def test_pivot_on_inline_data_using_temp_table():
     ],
 )
 @pytest.mark.parametrize("margins", [True, False])
-@pytest.mark.parametrize("named_columns", [True, False])
+@pytest.mark.parametrize(
+    "named_columns", [True, False], ids=["named_columns", "unnamed_columns"]
+)
 def test_pivot_empty_frame_snow_1013918(index, columns, margins, named_columns):
     cols = list("abcd")
     if named_columns:
         cols = pd.Index(cols, name="columns")
     snow_df, native_df = create_test_dfs(columns=cols)
-    query_count = 2 if index is None else 1
+    query_count = 3 if index is None else 1
     join_count = 1 if index is not None and len(columns) == 1 else 0
     with SqlCounter(query_count=query_count, join_count=join_count):
         snow_df = snow_df.pivot_table(index=index, columns=columns, margins=margins)
@@ -283,10 +285,12 @@ def test_pivot_empty_frame_snow_1013918(index, columns, margins, named_columns):
                 columns = [None if not named_columns else "columns"] + columns
             else:
                 levels = codes = [[]]
+            idx = pd.Index([], name=index[0])
             native_df = native_pd.DataFrame(
-                index=pd.Index([], name=index if isinstance(index, str) else index[0]),
+                index=idx,
                 columns=pd.MultiIndex(levels=levels, codes=codes, names=columns),
             )
+            native_df.index.name = index[0]
         else:
             native_df = native_df.pivot_table(
                 index=index, columns=columns, margins=margins

@@ -399,6 +399,9 @@ def pivot_helper(
     if not isinstance(columns, list):
         columns = [columns]
     if len(pivot_aggr_groupings[0].prefix_label) != 0:
+        # This handles the case when we have a list of values (even if it is a list of length 1) -
+        # the columns labels for the result is None * (num_prefixes - len(original_df.columns.names))
+        # + original_df.columns.names + columns.
         columns = (
             [None]
             * (

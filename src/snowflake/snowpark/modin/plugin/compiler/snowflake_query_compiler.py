@@ -6725,10 +6725,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if e.sql_error_code == 1146:
                 from snowflake.snowpark.modin.pandas.utils import from_pandas
 
+                native_df = native_pd.DataFrame(index=self.index, columns=self.columns)
+                native_df.index.names = self.index.names
+                native_df.columns.names = self.columns.names
                 return from_pandas(
-                    native_pd.DataFrame(
-                        index=self.index, columns=self.columns
-                    ).pivot_table(
+                    native_df.pivot_table(
                         index=index,
                         values=values,
                         columns=columns,
