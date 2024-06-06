@@ -6,6 +6,7 @@ import itertools
 import json
 import logging
 import re
+import typing
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, Literal, Optional, Union, get_args
@@ -12254,6 +12255,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if flags & re.DOTALL:
             params = params + "s"
         return params
+
+    def str___getitem__(self, key: Union[Scalar, slice]) -> "SnowflakeQueryCompiler":
+        """
+        Retrieve character(s) or substring(s) from each element in the Series or Index according to `key`.
+
+        Parameters
+        ----------
+        key : scalar or slice
+            Index to retrieve data from.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not is_scalar(key) and not isinstance(key, slice):
+            # Follow pandas behavior; all values will be None.
+            key = None
+        if is_scalar(key):
+            if key is not None and not isinstance(key, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas string indexing doesn't yet support non-numeric keys"
+                )
+            return self.str_get(typing.cast(int, key))
+        else:
+            assert isinstance(key, slice), "key is expected to be slice here"
+            if key.step == 0:
+                raise ValueError("slice step cannot be zero")
+            return self.str_slice(key.start, key.stop, key.step)
 
     def str_center(self, width: int, fillchar: str = " ") -> None:
         ErrorMessage.method_not_implemented_error("center", "Series.str")

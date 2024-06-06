@@ -17,7 +17,6 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -27,6 +26,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize(
