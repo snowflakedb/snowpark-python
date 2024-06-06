@@ -702,7 +702,15 @@ class SelectStatement(Selectable):
         # projection component
         stat += (
             sum(
-                (expr.cumulative_complexity_stat for expr in self.projection), Counter()
+                (
+                    getattr(
+                        expr,
+                        "cumulative_complexity_stat",
+                        Counter({PlanNodeCategory.COLUMN.value: 1}),
+                    )
+                    for expr in self.projection
+                ),
+                Counter(),
             )
             if self.projection
             else Counter()
