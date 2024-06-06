@@ -5,6 +5,7 @@
 import inspect
 import os
 
+import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -22,6 +23,14 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="UDTF not supported in Local Testing",
+    ),
+]
 
 
 def spans_to_dict(spans):
