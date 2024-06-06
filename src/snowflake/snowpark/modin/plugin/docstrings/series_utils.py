@@ -741,9 +741,9 @@ class StringMethods:
         0    1. Ant
         1    2. Bee
         2    3. Cat
-        3       NaN
-        4       NaN
-        5       NaN
+        3      None
+        4      None
+        5      None
         dtype: object
         """
 
@@ -787,9 +787,9 @@ class StringMethods:
         0    Ant.
         1    Bee!\\n
         2    Cat?\\t
-        3       NaN
-        4       NaN
-        5       NaN
+        3      None
+        4      None
+        5      None
         dtype: object
         """
 
