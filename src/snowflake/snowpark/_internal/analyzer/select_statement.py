@@ -707,7 +707,7 @@ class SelectStatement(Selectable):
                         expr,
                         "cumulative_complexity_stat",
                         Counter({PlanNodeCategory.COLUMN.value: 1}),
-                    )
+                    )  # type: ignore
                     for expr in self.projection
                 ),
                 Counter(),
