@@ -4,7 +4,7 @@
 
 import copy
 import uuid
-from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple, Union
 
 import snowflake.snowpark._internal.utils
 
@@ -31,16 +31,25 @@ COLUMN_DEPENDENCY_EMPTY: AbstractSet[str] = frozenset()  # depend on no columns.
 def derive_dependent_columns(
     *expressions: "Optional[Expression]",
 ) -> Optional[AbstractSet[str]]:
+    # write it in an iterative way so we won't reach maximum recursion limit
+    # when there are more than 1000 columns
+    stack = list(expressions)
     result = set()
-    for exp in expressions:
+
+    while stack:
+        exp = stack.pop()
         if exp is not None:
-            child_dependency = exp.dependent_column_names()
+            child_dependency = exp.dependent_column_expressions()
+            if isinstance(child_dependency, list):
+                stack.extend(child_dependency)
+                continue
             if child_dependency == COLUMN_DEPENDENCY_DOLLAR:
                 return COLUMN_DEPENDENCY_DOLLAR
             if child_dependency == COLUMN_DEPENDENCY_ALL:
                 return COLUMN_DEPENDENCY_ALL
             assert child_dependency is not None
             result.update(child_dependency)
+
     return result
 
 
@@ -59,7 +68,9 @@ class Expression:
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List["Expression"]]]:
         # TODO: consider adding it to __init__ or use cached_property.
         return COLUMN_DEPENDENCY_EMPTY
 
@@ -105,7 +116,9 @@ class ScalarSubquery(Expression):
         super().__init__()
         self.plan = plan
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
 
@@ -114,8 +127,10 @@ class MultipleExpression(Expression):
         super().__init__()
         self.expressions = expressions
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.expressions)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return self.expressions
 
 
 class InExpression(Expression):
@@ -124,8 +139,10 @@ class InExpression(Expression):
         self.columns = columns
         self.values = values
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.columns, *self.values)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.columns, *self.values]
 
 
 class Attribute(Expression, NamedExpression):
@@ -152,7 +169,9 @@ class Attribute(Expression, NamedExpression):
     def __str__(self):
         return self.name
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
         return {self.name}
 
 
@@ -164,8 +183,10 @@ class Star(Expression):
         self.expressions = expressions
         self.df_alias = df_alias
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.expressions)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return self.expressions
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
@@ -198,7 +219,9 @@ class UnresolvedAttribute(Expression, NamedExpression):
     def __hash__(self):
         return hash(self.name)
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
         return self._dependent_column_names
 
 
@@ -279,8 +302,10 @@ class Like(Expression):
         self.expr = expr
         self.pattern = pattern
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, self.pattern)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr, self.pattern]
 
 
 class RegExp(Expression):
@@ -289,8 +314,10 @@ class RegExp(Expression):
         self.expr = expr
         self.pattern = pattern
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, self.pattern)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr, self.pattern]
 
 
 class Collate(Expression):
@@ -299,8 +326,10 @@ class Collate(Expression):
         self.expr = expr
         self.collation_spec = collation_spec
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr]
 
 
 class SubfieldString(Expression):
@@ -309,8 +338,10 @@ class SubfieldString(Expression):
         self.expr = expr
         self.field = field
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr]
 
 
 class SubfieldInt(Expression):
@@ -319,8 +350,10 @@ class SubfieldInt(Expression):
         self.expr = expr
         self.field = field
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr]
 
 
 class FunctionExpression(Expression):
@@ -351,8 +384,10 @@ class FunctionExpression(Expression):
             f"{self.pretty_name}({distinct}{', '.join([c.sql for c in self.children])})"
         )
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.children)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return self.children
 
 
 class WithinGroup(Expression):
@@ -362,8 +397,10 @@ class WithinGroup(Expression):
         self.order_by_cols = order_by_cols
         self.datatype = expr.datatype
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, *self.order_by_cols)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr, *self.order_by_cols]
 
 
 class CaseWhen(Expression):
@@ -376,13 +413,15 @@ class CaseWhen(Expression):
         self.branches = branches
         self.else_value = else_value
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
         exps = []
         for exp_tuple in self.branches:
             exps.extend(exp_tuple)
         if self.else_value is not None:
             exps.append(self.else_value)
-        return derive_dependent_columns(*exps)
+        return exps
 
 
 class SnowflakeUDF(Expression):
@@ -401,8 +440,10 @@ class SnowflakeUDF(Expression):
         self.nullable = nullable
         self.api_call_source = api_call_source
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.children)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return self.children
 
 
 class ListAgg(Expression):
@@ -412,5 +453,7 @@ class ListAgg(Expression):
         self.delimiter = delimiter
         self.is_distinct = is_distinct
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.col)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.col]

@@ -2,12 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, List, Optional
+from typing import AbstractSet, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import (
-    Expression,
-    derive_dependent_columns,
-)
+from snowflake.snowpark._internal.analyzer.expression import Expression
 
 
 class GroupingSet(Expression):
@@ -16,8 +13,10 @@ class GroupingSet(Expression):
         self.group_by_exprs = group_by_exprs
         self.children = group_by_exprs
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(*self.group_by_exprs)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return self.group_by_exprs
 
 
 class Cube(GroupingSet):
@@ -33,6 +32,8 @@ class GroupingSetsExpression(Expression):
         super().__init__()
         self.args = args
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
         flattened_args = [exp for sublist in self.args for exp in sublist]
-        return derive_dependent_columns(*flattened_args)
+        return flattened_args

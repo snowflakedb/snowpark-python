@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     Cube,
@@ -86,100 +87,106 @@ from snowflake.snowpark.types import IntegerType
 
 def test_expression():
     a = Expression()
-    assert a.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert a.dependent_column_expressions() == COLUMN_DEPENDENCY_EMPTY
     b = Expression(child=UnresolvedAttribute("a"))
-    assert b.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert b.dependent_column_expressions() == COLUMN_DEPENDENCY_EMPTY
     # root class Expression always returns empty dependency
 
 
 def test_literal():
     a = Literal(5)
-    assert a.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert a.dependent_column_expressions() == COLUMN_DEPENDENCY_EMPTY
 
 
 def test_attribute():
     a = Attribute("A", IntegerType())
-    assert a.dependent_column_names() == {"A"}
+    assert a.dependent_column_expressions() == {"A"}
 
 
 def test_unresolved_attribute():
     a = UnresolvedAttribute("A")
-    assert a.dependent_column_names() == {"A"}
+    assert a.dependent_column_expressions() == {"A"}
 
     b = UnresolvedAttribute("a > 1", is_sql_text=True)
-    assert b.dependent_column_names() == COLUMN_DEPENDENCY_ALL
+    assert b.dependent_column_expressions() == COLUMN_DEPENDENCY_ALL
 
     c = UnresolvedAttribute("$1 > 1", is_sql_text=True)
-    assert c.dependent_column_names() == COLUMN_DEPENDENCY_DOLLAR
+    assert c.dependent_column_expressions() == COLUMN_DEPENDENCY_DOLLAR
 
 
 def test_case_when():
     a = Column("a")
     b = Column("b")
     z = when(a > b, col("c")).when(a < b, col("d")).else_(col("e"))
-    assert z._expression.dependent_column_names() == {'"A"', '"B"', '"C"', '"D"', '"E"'}
+    assert derive_dependent_columns(*z._expression.dependent_column_expressions()) == {
+        '"A"',
+        '"B"',
+        '"C"',
+        '"D"',
+        '"E"',
+    }
 
 
 def test_collate():
     a = Collate(UnresolvedAttribute("a"), "spec")
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 def test_function_expression():
     a = FunctionExpression("test_func", [UnresolvedAttribute(x) for x in "abcd"], False)
-    assert a.dependent_column_names() == set("abcd")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcd")
 
 
 def test_in_expression():
     a = InExpression(UnresolvedAttribute("e"), [UnresolvedAttribute(x) for x in "abcd"])
-    assert a.dependent_column_names() == set("abcde")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcde")
 
 
 def test_like():
     a = Like(UnresolvedAttribute("a"), UnresolvedAttribute("b"))
-    assert a.dependent_column_names() == {"a", "b"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a", "b"}
 
 
 def test_list_agg():
     a = ListAgg(UnresolvedAttribute("a"), ",", True)
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 def test_multiple_expression():
     a = MultipleExpression([UnresolvedAttribute(x) for x in "abcd"])
-    assert a.dependent_column_names() == set("abcd")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcd")
 
 
 def test_reg_exp():
     a = RegExp(UnresolvedAttribute("a"), UnresolvedAttribute("b"))
-    assert a.dependent_column_names() == {"a", "b"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a", "b"}
 
 
 def test_scalar_subquery():
     a = ScalarSubquery(None)
-    assert a.dependent_column_names() == COLUMN_DEPENDENCY_DOLLAR
+    assert a.dependent_column_expressions() == COLUMN_DEPENDENCY_DOLLAR
 
 
 def test_snowflake_udf():
     a = SnowflakeUDF(
         "udf_name", [UnresolvedAttribute(x) for x in "abcd"], IntegerType()
     )
-    assert a.dependent_column_names() == set("abcd")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcd")
 
 
 def test_star():
     a = Star([Attribute(x, IntegerType()) for x in "abcd"])
-    assert a.dependent_column_names() == set("abcd")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcd")
 
 
 def test_subfield_string():
     a = SubfieldString(UnresolvedAttribute("a"), "field")
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 def test_within_group():
     a = WithinGroup(UnresolvedAttribute("e"), [UnresolvedAttribute(x) for x in "abcd"])
-    assert a.dependent_column_names() == set("abcde")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcde")
 
 
 @pytest.mark.parametrize(
@@ -188,17 +195,17 @@ def test_within_group():
 )
 def test_unary_expression(expression_class):
     a = expression_class(child=UnresolvedAttribute("a"))
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 def test_alias():
     a = Alias(child=Add(UnresolvedAttribute("a"), UnresolvedAttribute("b")), name="c")
-    assert a.dependent_column_names() == {"a", "b"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a", "b"}
 
 
 def test_cast():
     a = Cast(UnresolvedAttribute("a"), IntegerType())
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 @pytest.mark.parametrize(
@@ -231,9 +238,11 @@ def test_binary_expression(expression_class):
     a = UnresolvedAttribute("A", False)
     b = UnresolvedAttribute("B", False)
     binary_expression = expression_class(a, b)
-    assert a.dependent_column_names() == {"A"}
-    assert b.dependent_column_names() == {"B"}
-    assert binary_expression.dependent_column_names() == {"A", "B"}
+    assert a.dependent_column_expressions() == {"A"}
+    assert b.dependent_column_expressions() == {"B"}
+    assert derive_dependent_columns(
+        *binary_expression.dependent_column_expressions()
+    ) == {"A", "B"}
 
 
 @pytest.mark.parametrize(
@@ -253,7 +262,12 @@ def test_grouping_set(expression_class):
             UnresolvedAttribute("d"),
         ]
     )
-    assert a.dependent_column_names() == {"a", "b", "c", "d"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {
+        "a",
+        "b",
+        "c",
+        "d",
+    }
 
 
 def test_grouping_sets_expression():
@@ -263,25 +277,30 @@ def test_grouping_sets_expression():
             [UnresolvedAttribute("c"), UnresolvedAttribute("d")],
         ]
     )
-    assert a.dependent_column_names() == {"a", "b", "c", "d"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {
+        "a",
+        "b",
+        "c",
+        "d",
+    }
 
 
 def test_sort_order():
     a = SortOrder(UnresolvedAttribute("a"), Ascending())
-    assert a.dependent_column_names() == {"a"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a"}
 
 
 def test_specified_window_frame():
     a = SpecifiedWindowFrame(
         RowFrame(), UnresolvedAttribute("a"), UnresolvedAttribute("b")
     )
-    assert a.dependent_column_names() == {"a", "b"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a", "b"}
 
 
 @pytest.mark.parametrize("expression_class", [RankRelatedFunctionExpression, Lag, Lead])
 def test_rank_related_function_expression(expression_class):
     a = expression_class(UnresolvedAttribute("a"), 1, UnresolvedAttribute("b"), False)
-    assert a.dependent_column_names() == {"a", "b"}
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == {"a", "b"}
 
 
 def test_window_spec_definition():
@@ -295,7 +314,7 @@ def test_window_spec_definition():
             RowFrame(), UnresolvedAttribute("e"), UnresolvedAttribute("f")
         ),
     )
-    assert a.dependent_column_names() == set("abcdef")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcdef")
 
 
 def test_window_expression():
@@ -310,7 +329,7 @@ def test_window_expression():
         ),
     )
     a = WindowExpression(UnresolvedAttribute("x"), window_spec_definition)
-    assert a.dependent_column_names() == set("abcdefx")
+    assert derive_dependent_columns(*a.dependent_column_expressions()) == set("abcdefx")
 
 
 @pytest.mark.parametrize(
@@ -325,4 +344,4 @@ def test_window_expression():
 )
 def test_other_window_expressions(expression_class):
     a = expression_class()
-    assert a.dependent_column_names() == COLUMN_DEPENDENCY_EMPTY
+    assert a.dependent_column_expressions() == COLUMN_DEPENDENCY_EMPTY
