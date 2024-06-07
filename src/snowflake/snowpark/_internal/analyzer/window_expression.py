@@ -2,12 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, List, Optional
+from typing import AbstractSet, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import (
-    Expression,
-    derive_dependent_columns,
-)
+from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
 
@@ -60,8 +57,10 @@ class SpecifiedWindowFrame(WindowFrame):
         self.lower = lower
         self.upper = upper
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.lower, self.upper)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.lower, self.upper]
 
 
 class WindowSpecDefinition(Expression):
@@ -76,10 +75,10 @@ class WindowSpecDefinition(Expression):
         self.order_spec = order_spec
         self.frame_spec = frame_spec
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(
-            *self.partition_spec, *self.order_spec, self.frame_spec
-        )
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [*self.partition_spec, *self.order_spec, self.frame_spec]
 
 
 class WindowExpression(Expression):
@@ -90,8 +89,10 @@ class WindowExpression(Expression):
         self.window_function = window_function
         self.window_spec = window_spec
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.window_function, self.window_spec)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.window_function, self.window_spec]
 
 
 class RankRelatedFunctionExpression(Expression):
@@ -110,8 +111,10 @@ class RankRelatedFunctionExpression(Expression):
         self.default = default
         self.ignore_nulls = ignore_nulls
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.expr, self.default)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.expr, self.default]
 
 
 class Lag(RankRelatedFunctionExpression):

@@ -2,13 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from typing import AbstractSet, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import (
-    Expression,
-    NamedExpression,
-    derive_dependent_columns,
-)
+from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark.types import DataType
 
 
@@ -30,8 +26,10 @@ class UnaryExpression(Expression):
             else f"{self.child} {self.sql_operator}"
         )
 
-    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        return derive_dependent_columns(self.child)
+    def dependent_column_expressions(
+        self,
+    ) -> Union[Optional[AbstractSet[str]], Optional[List[Expression]]]:
+        return [self.child]
 
 
 class Cast(UnaryExpression):
