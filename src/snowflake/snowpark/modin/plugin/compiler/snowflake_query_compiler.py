@@ -10000,9 +10000,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sorted_percentiles = sorted(percentiles)
         dtypes = self.dtypes
         # If we operate on the original frame's labels, then if two columns have the same name but
-        # different dtypes, the JOIN behavior of SnowflakeQueryCompiler.concat will produce incorrect
-        # results. For example, consider the following dataframe, where an `object` column and
-        # `int64` column both share the label "a":
+        # different one is `object` and one is numeric,, the JOIN behavior of SnowflakeQueryCompiler.concat
+        # will produce incorrect results. For example, consider the following dataframe, where an
+        # `object` column and `int64` column both share the label "a":
         #     +---+-----+---+-----+
         #     | a |  a  | b |  c  |
         #     +---+-----+---+-----+
