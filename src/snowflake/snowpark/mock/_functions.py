@@ -18,7 +18,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
-from snowflake.connector.options import pandas
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -80,9 +80,11 @@ class LocalTimezone:
         cls.LOCAL_TZ = tz
 
     @classmethod
-    def to_local_timezone(cls, d: datetime.datetime) -> datetime.datetime:
+    def to_local_timezone(
+        cls, d: Optional[datetime.datetime]
+    ) -> Optional[datetime.datetime]:
         """Converts an input datetime to the local timezone."""
-        return d.astimezone(tz=cls.LOCAL_TZ)
+        return d.astimezone(tz=cls.LOCAL_TZ) if d is not None else d
 
     @classmethod
     def replace_tz(cls, d: datetime.datetime) -> datetime.datetime:
@@ -336,12 +338,11 @@ def mock_to_date(
     """
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
-    def convert_date(row):
+    def convert_date(data, _fmt):
         try:
-            _fmt = fmt[row.name]
-            data = row[0]
             auto_detect = _fmt is None or _fmt.lower() == "auto"
             date_format, _ = convert_snowflake_datetime_format(
                 _fmt, default_format="%Y-%m-%d"
@@ -397,7 +398,7 @@ def mock_to_date(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    res = column.to_frame().apply(convert_date, axis=1)
+    res = column.combine(fmt, convert_date)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
 
@@ -488,8 +489,15 @@ def mock_to_decimal(
         [x] If the variant contains JSON null value, the output is NULL.
     """
 
+    def is_str_int(s):
+        if s[0] in ("-", "+"):
+            return s[1:].isdigit()
+        return s.isdigit()
+
     def cast_as_float_convert_to_decimal(x: Union[Decimal, float, str, bool]):
-        x = float(x)
+        # casting int of big value to float leads to precision loss
+        # e.g. float(9223372036854775807) = 9.223372036854776e+18
+        x = int(x) if is_str_int(str(x)) else float(x)
         if x in (math.inf, -math.inf, math.nan):
             SnowparkLocalTestingException.raise_from_error(
                 ValueError("Values of infinity and NaN cannot be converted to decimal")
@@ -536,6 +544,7 @@ def mock_to_time(
         [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+    import dateutil.parser
 
     def convert_int_string_to_time(d: str):
         return datetime.datetime.utcfromtimestamp(
@@ -549,13 +558,17 @@ def mock_to_time(
             seconds_part = data_parts[1]
             # find the idx that the seconds part ends
             idx = 0
-            while seconds_part[idx].isdigit():
+            while idx < len(seconds_part) and seconds_part[idx].isdigit():
                 idx += 1
             # truncate to precision
             seconds_part = (
                 seconds_part[: min(idx, _fractional_seconds)] + seconds_part[idx:]
             )
             _data = f"{data_parts[0]}.{seconds_part}"
+
+        # %f is optional if fractional seconds part doesn't show up in the input which means it is 0 nanoseconds
+        if len(data_parts) == 1 and ".%f" in _time_format:
+            _time_format = _time_format.replace(".%f", "")
 
         target_datetime = datetime.datetime.strptime(
             process_string_time_with_fractional_seconds(_data, _fractional_seconds),
@@ -578,13 +591,15 @@ def mock_to_time(
                 time_fmt,
                 fractional_seconds,
             ) = convert_snowflake_datetime_format(_fmt, default_format="%H:%M:%S")
-
+            auto_detect = _fmt is None or str(_fmt).lower() == "auto"
             if isinstance(datatype, StringType):
                 if data.isdigit():
                     res.append(convert_int_string_to_time(data))
                 else:
                     res.append(
-                        convert_string_to_time(data, time_fmt, fractional_seconds)
+                        dateutil.parser.parse(data).time()
+                        if auto_detect
+                        else convert_string_to_time(data, time_fmt, fractional_seconds)
                     )
             elif isinstance(datatype, TimestampType):
                 res.append(data.time())
@@ -593,9 +608,8 @@ def mock_to_time(
                     if data.isdigit():
                         res.append(convert_int_string_to_time(data))
                     else:
-                        res.append(
-                            convert_string_to_time(data, time_fmt, fractional_seconds)
-                        )
+                        # variant type does not support format input
+                        res.append(dateutil.parser.parse(data).time())
                 elif isinstance(data, datetime.time):
                     res.append(data)
                 else:
@@ -669,6 +683,9 @@ def _to_timestamp(
 
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    if len(column) == 0:
+        return []
+
     import dateutil.parser
 
     fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
@@ -800,11 +817,9 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    return ColumnEmulator(
-        data=_to_timestamp(column, fmt, try_cast),
-        sf_type=ColumnType(TimestampType(), column.sf_type.nullable),
-        dtype=object,
-    )
+    result = mock_timestamp_ntz(column, fmt, try_cast)
+    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    return result
 
 
 @patch("to_timestamp_ntz")
@@ -816,7 +831,9 @@ def mock_timestamp_ntz(
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
-        data=[x.replace(tzinfo=None) for x in result],
+        data=[
+            try_convert(lambda x: x.replace(tzinfo=None), try_cast, x) for x in result
+        ],
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
@@ -915,10 +932,9 @@ def mock_to_char(
             return try_convert(convert_numeric_to_str, try_cast, data)
         elif isinstance(source_datatype, (DateType, TimeType)):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(type(source_datatype))
-            (
-                format,
-                _,
-            ) = convert_snowflake_datetime_format(_fmt, default_format=default_format)
+            (format, _,) = convert_snowflake_datetime_format(
+                _fmt, default_format=default_format, is_input_format=False
+            )
             convert_date_time_to_str = (
                 datetime.datetime.strftime
                 if isinstance(source_datatype, DateType)
@@ -929,10 +945,9 @@ def mock_to_char(
             )
         elif isinstance(source_datatype, TimestampType):
             default_format = _DEFAULT_OUTPUT_FORMAT.get(TimestampType)
-            (
-                format,
-                fractional_seconds,
-            ) = convert_snowflake_datetime_format(_fmt, default_format)
+            (format, fractional_seconds,) = convert_snowflake_datetime_format(
+                _fmt, default_format, is_input_format=False
+            )
             # handle 3f, can use str index
             time_str = try_convert(
                 lambda x: datetime.date.strftime(x, format), try_cast, data
@@ -1354,7 +1369,7 @@ def _object_construct(exprs, drop_nulls):
             if x[i] is not None and not (drop_nulls and x[i + 1] is None)
         }
 
-    combined = pandas.concat(exprs, axis=1)
+    combined = pandas.concat(exprs, axis=1, ignore_index=True)
     return combined.apply(construct_dict, axis=1)
 
 
@@ -1394,7 +1409,7 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
-    return date + datetime.timedelta(**{f"{unit}s": duration * scalar})
+    return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
 @patch("dateadd")
@@ -1517,7 +1532,7 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
                 f"{part} is an invalid date part for column of type {datatype.__class__.__name__}"
             )
         )
-    return ColumnEmulator(res, sf_type=ColumnType(LongType, nullable=True))
+    return ColumnEmulator(res, sf_type=ColumnType(LongType(), nullable=True))
 
 
 @patch("date_trunc")
@@ -1684,9 +1699,7 @@ def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
 
 @patch("convert_timezone")
 def mock_convert_timezone(
-    target_timezone: ColumnEmulator,
-    source_time: ColumnEmulator,
-    source_timezone: Optional[ColumnEmulator] = None,
+    *args: ColumnEmulator,
 ) -> ColumnEmulator:
     """Converts the given source_time to the target timezone.
 
@@ -1694,32 +1707,45 @@ def mock_convert_timezone(
     """
     import dateutil
 
-    is_ntz = source_time.sf_type.datatype.tz is TimestampTimeZone.NTZ
-    if source_timezone is not None and not is_ntz:
-        SnowparkLocalTestingException.raise_from_error(
-            ValueError(
+    # mock_convert_timezone matches the sql function call semantics.
+    # It has different parameters when called with 2 or 3 args.
+    # When called with two args, the third will be replaced with None.
+    if args[2] is None:
+        target_timezone, source_time, _ = args
+        source_timezone = pandas.Series([None] * len(source_time))
+        return_type = TimestampTimeZone.TZ
+    else:
+        source_timezone, target_timezone, source_time = args
+        return_type = TimestampTimeZone.NTZ
+        if source_time.sf_type.datatype.tz is not TimestampTimeZone.NTZ:
+            raise ValueError(
                 "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
             )
-        )
 
-    # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
-    from_tz = None if source_timezone is None else dateutil.tz.gettz(source_timezone)
+    combined = pandas.concat(
+        [source_timezone, target_timezone, source_time], axis=1, ignore_index=True
+    )
 
-    if from_tz is not None:
-        timestamps = [ts.replace(tzinfo=from_tz) for ts in source_time]
-        return_type = TimestampTimeZone.NTZ
-    else:
-        timestamps = list(source_time)
-        return_type = TimestampTimeZone.TZ
+    def _convert(row):
+        source_timezone, target_timezone, source_time = row
+        if source_time is None:
+            return None
 
-    res = []
-    for tz, ts in zip(target_timezone, timestamps):
-        # Add local tz if info is missing
-        if ts.tzinfo is None:
-            ts = LocalTimezone.replace_tz(ts)
+        if source_timezone is not None:
+            # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
+            source_time = source_time.replace(tzinfo=dateutil.tz.gettz(source_timezone))
 
-        # Convert all timestamps to the target tz
-        res.append(ts.astimezone(dateutil.tz.gettz(tz)))
+        if source_time.tzinfo is None:
+            source_time = LocalTimezone.replace_tz(source_time)
+
+        result = source_time.astimezone(dateutil.tz.gettz(target_timezone))
+
+        if return_type == TimestampTimeZone.NTZ:
+            result = result.replace(tzinfo=None)
+
+        return result
+
+    res = combined.apply(_convert, axis=1)
 
     return ColumnEmulator(
         res,

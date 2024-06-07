@@ -20,19 +20,22 @@
 # Version 2.0.
 
 """Implement utils for pandas component."""
+from __future__ import annotations
 
 from collections.abc import Hashable, Iterator, Sequence
 from types import BuiltinFunctionType
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 import numpy as np
 import pandas
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
+from pandas._libs import lib
 from pandas._typing import (
     AggFuncType,
     AggFuncTypeBase,
     AggFuncTypeDict,
     AnyArrayLike,
+    Axes,
     IndexLabel,
     Scalar,
 )
@@ -290,7 +293,7 @@ def check_both_not_none(option1, option2):
 
 def _walk_aggregation_func(
     key: IndexLabel, value: AggFuncType, depth: int = 0
-) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, Optional[str], bool]]:
+) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, str | None, bool]]:
     """
     Walk over a function from a dictionary-specified aggregation.
 
@@ -342,7 +345,7 @@ def _walk_aggregation_func(
 
 def walk_aggregation_dict(
     agg_dict: AggFuncTypeDict,
-) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, Optional[str], bool]]:
+) -> Iterator[tuple[IndexLabel, AggFuncTypeBase, str | None, bool]]:
     """
     Walk over an aggregation dictionary.
 
@@ -383,10 +386,8 @@ def raise_if_native_pandas_objects(obj: Any) -> None:
 
 
 def replace_external_data_keys_with_empty_pandas_series(
-    keys: Optional[
-        Union[Hashable, AnyArrayLike, Sequence[Union[Hashable, AnyArrayLike]]]
-    ] = None
-) -> Optional[Union[Hashable, pandas.Series, list[Union[Hashable, pandas.Series]]]]:
+    keys: None | (Hashable | AnyArrayLike | Sequence[Hashable | AnyArrayLike]) = None,
+) -> Hashable | pandas.Series | list[Hashable | pandas.Series] | None:
     """
     Replace any array-like key with empty series.
     Args:
@@ -430,9 +431,7 @@ def create_empty_pandas_series_from_array_like(obj: AnyArrayLike) -> pandas.Seri
     return obj.head(0)
 
 
-def create_empty_native_pandas_frame(
-    obj: Union["pd.Series", "pd.DataFrame"]
-) -> pandas.DataFrame:
+def create_empty_native_pandas_frame(obj: pd.Series | pd.DataFrame) -> pandas.DataFrame:
     """
     Create an empty native pandas DataFrame using the columns and index labels info from
     the given object. Empty here implies zero rows.
@@ -454,13 +453,9 @@ def create_empty_native_pandas_frame(
 
 
 def replace_external_data_keys_with_query_compiler(
-    frame: "pd.DataFrame",
-    keys: Optional[
-        Union[Hashable, AnyArrayLike, Sequence[Union[Hashable, AnyArrayLike]]]
-    ] = None,
-) -> Optional[
-    Union[Hashable, BaseQueryCompiler, list[Union[Hashable, BaseQueryCompiler]]]
-]:
+    frame: pd.DataFrame,
+    keys: None | (Hashable | AnyArrayLike | Sequence[Hashable | AnyArrayLike]) = None,
+) -> None | (Hashable | BaseQueryCompiler | list[Hashable | BaseQueryCompiler]):
     """
     Replace any array-like join key(s) with query compiler.
 
@@ -497,8 +492,8 @@ def replace_external_data_keys_with_query_compiler(
 
 
 def try_convert_builtin_func_to_str(
-    fn: Union[AggFuncTypeBase, list[AggFuncTypeBase]], obj: object
-) -> Union[AggFuncTypeBase, list[AggFuncTypeBase]]:
+    fn: AggFuncTypeBase | list[AggFuncTypeBase], obj: object
+) -> AggFuncTypeBase | list[AggFuncTypeBase]:
     """
     Try to convert an aggregation function to a string or list of such if the function is a
     builtin function and supported in the current object dir.
@@ -553,8 +548,10 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         A dictionary mapping columns to a tuple containing the aggregation to perform, as well
         as the pandas label to give the aggregated column.
     """
+    from snowflake.snowpark.modin.pandas import Series
     from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
 
+    is_series_like = isinstance(obj, (Series, SeriesGroupBy))
     named_aggs = {}
     accepted_keys = []
     columns = obj._query_compiler.columns
@@ -562,12 +559,36 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         if isinstance(value, pd.NamedAgg) or (
             isinstance(value, tuple) and len(value) == 2
         ):
+            if is_series_like:
+                # pandas does not allow pd.NamedAgg or 2-tuples for named aggregations
+                # when the base object is a Series, but has different errors depending
+                # on whether we are doing a Series.agg or Series.groupby.agg.
+                if isinstance(obj, Series):
+                    raise SpecificationError("nested renamer is not supported")
+                else:
+                    value_type_str = (
+                        "NamedAgg" if isinstance(value, pd.NamedAgg) else "tuple"
+                    )
+                    raise TypeError(
+                        f"func is expected but received {value_type_str} in **kwargs."
+                    )
             if axis == 0:
                 # If axis == 1, we would need a query to materialize the index to check its existence
                 # so we defer the error checking to later.
                 if value[0] not in columns:
                     raise KeyError(f"Column(s) ['{value[0]}'] do not exist")
 
+            # This function converts our named aggregations dictionary from a mapping of
+            # new_label -> tuple[column_name, agg_func] to a mapping of
+            # column_name -> tuple[agg_func, new_label] in order to process
+            # the aggregation functions internally. One issue with this is that the order
+            # of the named aggregations can change - say we have the following aggregations:
+            # {new_col: ('A', min), new_col1: ('B', max), new_col2: ('A', max)}
+            # The output of this function will look like this:
+            # {A: [AggFuncWithLabel(func=min, label=new_col), AggFuncWithLabel(func=max, label=new_col2)]
+            # B: AggFuncWithLabel(func=max, label=new_col1)}
+            # And so our final dataframe will have the wrong order. We handle the reordering of the generated
+            # labels at the QC layer.
             if value[0] in named_aggs:
                 if not isinstance(named_aggs[value[0]], list):
                     named_aggs[value[0]] = [named_aggs[value[0]]]
@@ -577,8 +598,11 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
             else:
                 named_aggs[value[0]] = AggFuncWithLabel(func=value[1], pandas_label=key)
             accepted_keys += [key]
-        elif isinstance(obj, SeriesGroupBy):
-            col_name = obj._df._query_compiler.columns[0]
+        elif is_series_like:
+            if isinstance(obj, SeriesGroupBy):
+                col_name = obj._df._query_compiler.columns[0]
+            else:
+                col_name = obj._query_compiler.columns[0]
             if col_name not in named_aggs:
                 named_aggs[col_name] = AggFuncWithLabel(func=value, pandas_label=key)
             else:
@@ -587,14 +611,15 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
                 named_aggs[col_name] += [AggFuncWithLabel(func=value, pandas_label=key)]
             accepted_keys += [key]
 
-    if len(named_aggs.keys()) == 0:
-        ErrorMessage.not_implemented(
-            "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
-        )
-
-    if any(key not in accepted_keys for key in kwargs.keys()):
-        # For compatibility with pandas errors. Otherwise, we would just ignore
-        # those kwargs.
+    if len(named_aggs.keys()) == 0 or any(
+        key not in accepted_keys for key in kwargs.keys()
+    ):
+        # First check makes sure that some functions have been passed. If nothing has been passed,
+        # we raise the TypeError.
+        # The second check is for compatibility with pandas errors. Say the user does something like this:
+        # df.agg(x=pd.NamedAgg('A', 'min'), random_extra_kwarg=14). pandas errors out, since func is None
+        # and not every kwarg is a named aggregation. Without this check explicitly, we would just ignore
+        # the extraneous kwargs, so we include this check for parity with pandas.
         raise TypeError("Must provide 'func' or tuples of '(column, aggfunc).")
 
     validated_named_aggs = {}
@@ -659,11 +684,6 @@ def validate_and_try_convert_agg_func_arg_func_to_str(
             If nested dict configuration is used when agg_func is dict like or functions with duplicated names.
 
     """
-    if agg_func is None:
-        ErrorMessage.not_implemented(
-            "Must provide value for 'func' argument, func=None is currently not supported with Snowpark pandas"
-        )
-
     if callable(agg_func):
         result_agg_func = try_convert_builtin_func_to_str(agg_func, obj)
     elif is_dict_like(agg_func):
@@ -772,12 +792,11 @@ def _doc_binary_op(operation, bin_op, left="Series", right="right", returns="Ser
 
 
 def get_as_shape_compatible_dataframe_or_series(
-    other: Union["pd.DataFrame", "pd.Series", Callable, AnyArrayLike, Scalar],
-    reference_df: "pd.DataFrame",
-    shape_mismatch_message: Optional[
-        str
-    ] = "Array conditional must be same shape as self",
-) -> Union["pd.DataFrame", "pd.Series"]:
+    other: pd.DataFrame | pd.Series | Callable | AnyArrayLike | Scalar,
+    reference_df: pd.DataFrame,
+    shape_mismatch_message: None
+    | (str) = "Array conditional must be same shape as self",
+) -> pd.DataFrame | pd.Series:
     """
     Get the "other" type as a shape compatible dataframe or series using the reference_df as a reference for
     compatible shape and construction.  If there is no shape on the other type then wrap as a numpy array.
@@ -812,3 +831,65 @@ def get_as_shape_compatible_dataframe_or_series(
 
 _original_pandas_MultiIndex_from_frame = pandas.MultiIndex.from_frame
 pandas.MultiIndex.from_frame = from_modin_frame_to_mi
+
+
+def ensure_index(
+    index_like: Axes | pd.Index | pd.Series, copy: bool = False
+) -> pd.Index | pandas.MultiIndex:
+    """
+    Ensure that we have an index from some index-like object.
+
+    Parameters
+    ----------
+    index_like : sequence
+        An Index or other sequence
+    copy : bool, default False
+
+    Returns
+    -------
+    Index
+
+    Examples
+    --------
+    >>> ensure_index(['a', 'b'])
+    Index(['a', 'b'], dtype='object')
+
+    >>> ensure_index([('a', 'a'),  ('b', 'c')])
+    Index([('a', 'a'), ('b', 'c')], dtype='object')
+    """
+    # if we have an index object already, simply copy it if required and return
+    if isinstance(index_like, (pandas.MultiIndex, pd.Index)):
+        if copy:
+            index_like = index_like.copy()
+        return index_like
+
+    if isinstance(index_like, list):
+        # if we have a non-empty list that is multi dimensional, convert this to a multi-index and return
+        if len(index_like) and lib.is_all_arraylike(index_like):
+            return pandas.MultiIndex.from_arrays(index_like)
+        else:
+            # otherwise, we have a one dimensional index, so set tupleize_cols=False and return a pd.Index
+            return pd.Index(index_like, copy=copy, tupleize_cols=False)
+    else:
+        return pd.Index(index_like, copy=copy)
+
+
+def try_convert_index_to_native(index_like: Any) -> Any:
+    """
+    Try to convert the given item to a native pandas Index.
+    This conversion is only performed if `index_like` is a Snowpark pandas Index. Otherwise, the original input will be returned.
+
+    Parameters
+    ----------
+    index_like : Any
+        An index-like object, such as a list, ndarray or Index object that we would like to try to convert to pandas Index
+
+    Return
+    ----------
+        A pandas Index if index_like is a Snowpark pandas Index, otherwise return index_like
+    """
+    from snowflake.snowpark.modin.plugin._internal.index import Index
+
+    if isinstance(index_like, Index):
+        index_like = index_like.to_pandas()
+    return index_like
