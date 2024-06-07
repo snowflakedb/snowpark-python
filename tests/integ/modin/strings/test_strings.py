@@ -430,11 +430,6 @@ def test_slice_replace(start, stop, repl, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method, exp",
     [
@@ -442,7 +437,7 @@ def test_slice_replace(start, stop, repl, expected):
         ["rstrip", ["  aa", " bb", np.nan, "cc"]],
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_lstrip_rstrip(method, exp):
     ser = pd.Series(["  aa   ", " bb \n", np.nan, "cc  "], dtype=object)
 
