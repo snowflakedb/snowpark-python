@@ -16,6 +16,12 @@ from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
 
 
+class MockUserDefinedFunction(UserDefinedFunction):
+    def __init__(self, *args, strict=False, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.strict = strict
+
+
 class MockUDFRegistration(UDFRegistration):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -121,13 +127,7 @@ class MockUDFRegistration(UDFRegistration):
             raise ValueError("options replace and if_not_exists are incompatible")
 
         if udf_name in self._registry and if_not_exists:
-            return UserDefinedFunction(
-                self._registry[udf_name],
-                return_type,
-                input_types,
-                udf_name,
-                packages=packages,
-            )
+            return self._registry[udf_name]
 
         if udf_name in self._registry and not replace:
             raise SnowparkSQLException(
@@ -151,17 +151,23 @@ class MockUDFRegistration(UDFRegistration):
 
         if type(func) is tuple:  # register from file
             module_name = self._import_file(func[0], udf_name=udf_name)
-            self._registry[udf_name] = UserDefinedFunction(
+            self._registry[udf_name] = MockUserDefinedFunction(
                 (module_name, func[1]),
                 return_type,
                 input_types,
                 udf_name,
+                strict=strict,
                 packages=packages,
             )
         else:
             # register from callable
-            self._registry[udf_name] = UserDefinedFunction(
-                func, return_type, input_types, udf_name, packages=packages
+            self._registry[udf_name] = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                udf_name,
+                strict=strict,
+                packages=packages,
             )
 
         return self._registry[udf_name]

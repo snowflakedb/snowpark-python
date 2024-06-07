@@ -9,8 +9,10 @@ from textwrap import dedent
 import pandas
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
 _shared_doc_kwargs = {
@@ -33,7 +35,7 @@ axis : int or str, optional
 }
 
 
-class Series:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class Series:
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -2425,8 +2427,9 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index < 1, ['a']]
+        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
         >>> df_0a
            a
         0  1

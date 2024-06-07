@@ -1173,7 +1173,7 @@ class _iLocIndexer(_LocationIndexerBase):
                     SET_CELL_WITH_LIST_LIKE_VALUE_ERROR_MESSAGE
                 )
 
-            if isinstance(item, pandas.Index):
+            if isinstance(item, pd.Index):
                 item = np.array(item.tolist()).transpose()
             else:
                 item = np.array(item)

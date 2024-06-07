@@ -9,13 +9,13 @@ import modin.pandas as pd
 import pandas as native_pd
 import pytest
 from pandas import Index, MultiIndex
-from pandas.testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
+    assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
@@ -1044,12 +1044,7 @@ def test_concat_none_index_name(index1, index2):
     )
 
 
-@sql_count_checker(
-    query_count=19,
-    union_count=1,
-    high_count_expected=True,
-    high_count_reason="Uploading file",
-)
+@sql_count_checker(query_count=5, union_count=1)
 def test_concat_from_file(resources_path):
     test_files = TestFiles(resources_path)
     df1 = pd.read_csv(test_files.test_concat_file1_csv)

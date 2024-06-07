@@ -18,7 +18,7 @@ from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
@@ -26,6 +26,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len
 AXIS_LEN = 7
@@ -279,7 +280,9 @@ def test_df_iloc_get_row_input_snowpark_pandas_return_dataframe(
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
-            lambda df: df.iloc[iloc_snowpark_pandas_input_map[key]],
+            lambda df: df.iloc[
+                try_convert_index_to_native(iloc_snowpark_pandas_input_map[key])
+            ],
         )
 
 
@@ -298,7 +301,9 @@ def test_df_iloc_get_col_input_snowpark_pandas_return_dataframe(
         label = iloc_snowpark_pandas_input_map[key]
 
         # convert to native pandas because iloc_snowpandas_input_map[key] holds SnowPandas objects
-        if not isinstance(df, DataFrame) and isinstance(label, (Series, DataFrame)):
+        if not isinstance(df, DataFrame) and isinstance(
+            label, (Series, DataFrame, pd.Index)
+        ):
             label = label.to_pandas()
 
         return df.iloc[slice(None), label]
@@ -339,7 +344,7 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        lambda df: df.iloc[lambda x: x.index % 2 == 0],
+        lambda df: df.iloc[lambda x: try_convert_index_to_native(x.index) % 2 == 0],
     )
 
     def test_func(df: DataFrame) -> Series:
@@ -354,7 +359,9 @@ def test_df_iloc_get_callable(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_df,
         default_index_native_df,
-        lambda df: df.iloc[(lambda x: x.index % 2 == 0, [2, 3])],
+        lambda df: df.iloc[
+            lambda x: try_convert_index_to_native(x.index) % 2 == 0, [2, 3]
+        ],
     )
 
 
@@ -692,6 +699,8 @@ def test_df_iloc_get_key_bool(
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
 
+        if isinstance(_df, native_pd.DataFrame):
+            _key = try_convert_index_to_native(_key)
         return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
@@ -918,6 +927,9 @@ def test_df_iloc_get_key_numeric(
         elif key_type == "series" and isinstance(df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
+
+        if isinstance(df, native_pd.DataFrame):
+            _key = try_convert_index_to_native(_key)
         return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
 
     query_count = 2 if (key_type == "series" and axis == "col") else 1
@@ -1250,8 +1262,8 @@ def test_df_iloc_get_invalid_slice_key_negative(
         np.nan,
         np.array(["this", "is", "an", "ndarray!"]),
         native_pd.Index(["index", "of", "strings"]),
-        pd.Index([]),
-        pd.Index([], dtype=str),
+        native_pd.Index([]),
+        native_pd.Index([], dtype=str),
         "string",
         "test",
         ["list", "of", "strings"],
@@ -1266,6 +1278,8 @@ def test_df_iloc_get_non_numeric_key_negative(
     # Check whether invalid non-numeric keys passed in raise TypeError. list-like objects need to be numeric, scalar
     # keys can only be integers. Native pandas Series and DataFrames are invalid inputs.
 
+    if isinstance(key, native_pd.Index):
+        key = pd.Index(key)
     # General case fails with TypeError.
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
     with pytest.raises(IndexError, match=error_msg):
@@ -1770,13 +1784,15 @@ def test_df_iloc_set_with_row_key_slice_range(numeric_test_data_4x4, start, stop
     [
         lambda l: list(l),
         lambda l: np.array(l),
-        lambda l: pd.Index([(tuple(t) if is_list_like(t) else t) for t in l]),
+        lambda l: native_pd.Index([(tuple(t) if is_list_like(t) else t) for t in l]),
     ],
 )
 def test_df_iloc_set_with_row_key_list(
     numeric_test_data_4x4, row_pos, col_pos, item_values, list_convert
 ):
     row_pos = list_convert(row_pos)
+    if isinstance(row_pos, native_pd.Index):
+        row_pos = pd.Index(row_pos)
 
     expected_query_count = 1
     expected_join_count = 2 if isinstance(item_values, int) else 3
@@ -1791,8 +1807,8 @@ def test_df_iloc_set_with_row_key_list(
             item_values,
             item_values,
             wrap_item="na",
-            wrap_row="na",
-            wrap_col="na",
+            wrap_row="index",
+            wrap_col="index",
         )
 
 
@@ -2228,6 +2244,9 @@ def wrap_key_as_expected_type(wrap_type, snow_pos, native_pos):
     elif wrap_type == "tuple":
         snow_key = tuple(snow_pos)
         native_key = tuple(native_pos)
+    elif wrap_type == "index":
+        snow_key = pd.Index(snow_pos)
+        native_key = native_pd.Index(native_pos)
     else:
         snow_key = snow_pos
         native_key = native_pos
