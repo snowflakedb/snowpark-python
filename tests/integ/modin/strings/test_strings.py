@@ -9,13 +9,13 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 # This whole suite is skipped in ci run because those are tests for unsupported
@@ -359,7 +359,7 @@ def test_index_raises_not_implemented_error(method):
     msg = f"{method} is not yet implemented for Series.str"
 
     with pytest.raises(NotImplementedError, match=msg):
-        getattr(obj.str, method)(0)
+        getattr(obj.str, method)("sub")
 
 
 @pytest.mark.xfail(

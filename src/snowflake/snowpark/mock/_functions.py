@@ -338,12 +338,11 @@ def mock_to_date(
     """
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
-    def convert_date(row):
+    def convert_date(data, _fmt):
         try:
-            _fmt = fmt[row.name]
-            data = row[0]
             auto_detect = _fmt is None or _fmt.lower() == "auto"
             date_format, _ = convert_snowflake_datetime_format(
                 _fmt, default_format="%Y-%m-%d"
@@ -399,7 +398,7 @@ def mock_to_date(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    res = column.to_frame().apply(convert_date, axis=1)
+    res = column.combine(fmt, convert_date)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
 
@@ -907,12 +906,10 @@ def mock_to_char(
     """
     source_datatype = column.sf_type.datatype
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
-    def convert_char(row):
-        _fmt = fmt[row.name]
-        data = row[0]
-
+    def convert_char(data, _fmt):
         if isinstance(source_datatype, _NumericType):
             if _fmt:
                 # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
@@ -1026,8 +1023,7 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
-    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
-    res = column.to_frame().apply(convert_char, axis=1)
+    res = column.combine(fmt, convert_char)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
 
@@ -1700,9 +1696,7 @@ def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
 
 @patch("convert_timezone")
 def mock_convert_timezone(
-    target_timezone: ColumnEmulator,
-    source_time: ColumnEmulator,
-    source_timezone: Optional[ColumnEmulator] = None,
+    *args: ColumnEmulator,
 ) -> ColumnEmulator:
     """Converts the given source_time to the target timezone.
 
@@ -1710,32 +1704,45 @@ def mock_convert_timezone(
     """
     import dateutil
 
-    is_ntz = source_time.sf_type.datatype.tz is TimestampTimeZone.NTZ
-    if source_timezone is not None and not is_ntz:
-        SnowparkLocalTestingException.raise_from_error(
-            ValueError(
+    # mock_convert_timezone matches the sql function call semantics.
+    # It has different parameters when called with 2 or 3 args.
+    # When called with two args, the third will be replaced with None.
+    if args[2] is None:
+        target_timezone, source_time, _ = args
+        source_timezone = pandas.Series([None] * len(source_time))
+        return_type = TimestampTimeZone.TZ
+    else:
+        source_timezone, target_timezone, source_time = args
+        return_type = TimestampTimeZone.NTZ
+        if source_time.sf_type.datatype.tz is not TimestampTimeZone.NTZ:
+            raise ValueError(
                 "[Local Testing] convert_timezone can only convert NTZ timestamps when source_timezone is specified."
             )
-        )
 
-    # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
-    from_tz = None if source_timezone is None else dateutil.tz.gettz(source_timezone)
+    combined = pandas.concat(
+        [source_timezone, target_timezone, source_time], axis=1, ignore_index=True
+    )
 
-    if from_tz is not None:
-        timestamps = [ts.replace(tzinfo=from_tz) for ts in source_time]
-        return_type = TimestampTimeZone.NTZ
-    else:
-        timestamps = list(source_time)
-        return_type = TimestampTimeZone.TZ
+    def _convert(row):
+        source_timezone, target_timezone, source_time = row
+        if source_time is None:
+            return None
 
-    res = []
-    for tz, ts in zip(target_timezone, timestamps):
-        # Add local tz if info is missing
-        if ts.tzinfo is None:
-            ts = LocalTimezone.replace_tz(ts)
+        if source_timezone is not None:
+            # Using dateutil because it uses iana timezones while pytz would use Olson tzdb.
+            source_time = source_time.replace(tzinfo=dateutil.tz.gettz(source_timezone))
 
-        # Convert all timestamps to the target tz
-        res.append(ts.astimezone(dateutil.tz.gettz(tz)))
+        if source_time.tzinfo is None:
+            source_time = LocalTimezone.replace_tz(source_time)
+
+        result = source_time.astimezone(dateutil.tz.gettz(target_timezone))
+
+        if return_type == TimestampTimeZone.NTZ:
+            result = result.replace(tzinfo=None)
+
+        return result
+
+    res = combined.apply(_convert, axis=1)
 
     return ColumnEmulator(
         res,

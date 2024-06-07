@@ -2265,10 +2265,6 @@ def test_deprecate_call_udf_with_list(session, caplog):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1370035: support strict UDF in Local Testing",
-)
 def test_strict_udf(session):
     @udf(strict=True)
     def echo(num: int) -> int:

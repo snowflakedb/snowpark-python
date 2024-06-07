@@ -36,6 +36,10 @@ from typing import IO, Any, Callable, Literal
 
 import numpy as np
 import pandas
+from modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
+
+# from . import _update_engine
+from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -69,15 +73,11 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as pd
-from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-
-# from . import _update_engine
-from snowflake.snowpark.modin.pandas.iterator import PartitionIterator
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
@@ -154,6 +154,8 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         # Siblings are other dataframes that share the same query compiler. We
         # use this list to update inplace when there is a shallow copy.
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+
         self._siblings = []
 
         # Engine.subscribe(_update_engine)
@@ -227,9 +229,13 @@ class DataFrame(BasePandasDataset):
                     if dtype is not None:
                         new_qc = new_qc.astype({col: dtype for col in new_qc.columns})
                     if index is not None:
-                        new_qc = new_qc.reindex(axis=0, labels=index)
+                        new_qc = new_qc.reindex(
+                            axis=0, labels=try_convert_index_to_native(index)
+                        )
                     if columns is not None:
-                        new_qc = new_qc.reindex(axis=1, labels=columns)
+                        new_qc = new_qc.reindex(
+                            axis=1, labels=try_convert_index_to_native(columns)
+                        )
 
                     self._query_compiler = new_qc
                     return
@@ -239,7 +245,11 @@ class DataFrame(BasePandasDataset):
                     for k, v in data.items()
                 }
             pandas_df = pandas.DataFrame(
-                data=data, index=index, columns=columns, dtype=dtype, copy=copy
+                data=try_convert_index_to_native(data),
+                index=try_convert_index_to_native(index),
+                columns=try_convert_index_to_native(columns),
+                dtype=dtype,
+                copy=copy,
             )
             self._query_compiler = from_pandas(pandas_df)._query_compiler
         else:
@@ -307,13 +317,13 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pandas.Index:
+    def _get_columns(self) -> pd.Index:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 
         Returns
         -------
-        pandas.Index
+        Index
             The all columns.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
@@ -2291,7 +2301,7 @@ class DataFrame(BasePandasDataset):
                 label_or_series.append(key._query_compiler)
             elif isinstance(key, (np.ndarray, list, Iterator)):
                 label_or_series.append(pd.Series(key)._query_compiler)
-            elif isinstance(key, pd.Index):
+            elif isinstance(key, (pd.Index, pandas.MultiIndex)):
                 label_or_series += [
                     s._query_compiler for s in self._to_series_list(key)
                 ]

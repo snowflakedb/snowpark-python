@@ -30,6 +30,8 @@ from typing import IO, TYPE_CHECKING, Any, Callable, Literal
 import numpy as np
 import numpy.typing as npt
 import pandas
+from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
@@ -49,10 +51,12 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseAccessor
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
-from snowflake.snowpark.modin.pandas.iterator import PartitionIterator
-from snowflake.snowpark.modin.pandas.utils import from_pandas, is_scalar
+from snowflake.snowpark.modin.pandas.utils import (
+    from_pandas,
+    is_scalar,
+    try_convert_index_to_native,
+)
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -140,7 +144,7 @@ class Series(BasePandasDataset):
             if name is None:
                 name = MODIN_UNNAMED_SERIES_LABEL
                 if (
-                    isinstance(data, (pandas.Series, pandas.Index))
+                    isinstance(data, (pandas.Series, pandas.Index, pd.Index))
                     and data.name is not None
                 ):
                     name = data.name
@@ -148,8 +152,8 @@ class Series(BasePandasDataset):
             query_compiler = from_pandas(
                 pandas.DataFrame(
                     pandas.Series(
-                        data=data,
-                        index=index,
+                        data=try_convert_index_to_native(data),
+                        index=try_convert_index_to_native(index),
                         dtype=dtype,
                         name=name,
                         copy=copy,
