@@ -15,7 +15,7 @@ import typing
 import uuid
 from collections.abc import Iterable
 from enum import Enum
-from functools import cached_property, partial
+from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
@@ -89,6 +89,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
+    ColumnSum,
     Expression,
     FunctionExpression,
     InExpression,
@@ -1844,6 +1845,12 @@ def calculate_expression(
                 raise_error=NotImplementedError,
             )
         return new_column
+    elif isinstance(exp, ColumnSum):
+        cols = [
+            calculate_expression(e, input_data, analyzer, expr_to_alias)
+            for e in exp.exprs
+        ]
+        return reduce(ColumnEmulator.add, cols)
     if isinstance(exp, UnaryMinus):
         res = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         return -res
