@@ -603,6 +603,7 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
+@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
 @sql_count_checker(query_count=0)
 def test_basic_dataframe_transform(data, apply_func):
