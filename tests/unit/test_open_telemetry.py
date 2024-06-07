@@ -63,15 +63,20 @@ api_calls = [
     {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
 ]
 
-resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-trace_provider = TracerProvider(resource=resource)
-dict_exporter = InMemorySpanExporter()
-processor = SimpleSpanProcessor(dict_exporter)
-trace_provider.add_span_processor(processor)
-trace.set_tracer_provider(trace_provider)
+
+@pytest.fixture(scope="module")
+def dict_exporter():
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+    trace_provider = TracerProvider(resource=resource)
+    dict_exporter = InMemorySpanExporter()
+    processor = SimpleSpanProcessor(dict_exporter)
+    trace_provider.add_span_processor(processor)
+    trace.set_tracer_provider(trace_provider)
+    yield dict_exporter
+    dict_exporter.shutdown()
 
 
-def test_register_udaf_from_file():
+def test_register_udaf_from_file(dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -107,7 +112,7 @@ def test_register_udaf_from_file():
     dict_exporter.clear()
 
 
-def test_inline_register_udaf():
+def test_inline_register_udaf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -190,7 +195,7 @@ def test_inline_register_udaf():
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_register_udtf_from_file():
+def test_register_udtf_from_file(dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -249,7 +254,7 @@ def test_register_udtf_from_file():
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_inline_register_udtf():
+def test_inline_register_udtf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -302,7 +307,7 @@ def test_inline_register_udtf():
     dict_exporter.clear()
 
 
-def test_register_udf_from_file():
+def test_register_udf_from_file(dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -338,7 +343,7 @@ def test_register_udf_from_file():
     dict_exporter.clear()
 
 
-def test_inline_register_udf():
+def test_inline_register_udf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
@@ -386,7 +391,7 @@ def test_inline_register_udf():
     dict_exporter.clear()
 
 
-def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
+def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
     # set up exporter
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
@@ -409,7 +414,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     dict_exporter.clear()
 
 
-def test_open_telemetry_span_from_dataframe_writer():
+def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
