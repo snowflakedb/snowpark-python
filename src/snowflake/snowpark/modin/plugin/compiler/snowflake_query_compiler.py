@@ -10002,7 +10002,61 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # max            NaN      3.0    NaN
         sorted_percentiles = sorted(percentiles)
         dtypes = self.dtypes
-        query_compiler = self
+        # If we operate on the original frame's labels, then if two columns have the same name but
+        # different one is `object` and one is numeric,, the JOIN behavior of SnowflakeQueryCompiler.concat
+        # will produce incorrect results. For example, consider the following dataframe, where an
+        # `object` column and `int64` column both share the label "a":
+        #     +---+-----+---+-----+
+        #     | a |  a  | b |  c  |
+        #     +---+-----+---+-----+
+        #     | 1 | 'x' | 3 | 'i' |
+        #     +---+-----+---+-----+
+        #     | 2 | 'y' | 4 | 'j' |
+        #     +---+-----+---+-----+
+        #     | 3 | 'x' | 5 | 'j' |
+        #     +---+-----+---+-----+
+        # For all `object` columns in the frame, we will generate a query compiler with the computed
+        # `top`/`freq` statistics. Similarly, for the numeric columns we will generate a query compiler
+        # containing the `std`, `min`/`max`, and other numeric statistics:
+        #     OBJECT QUERY COMPILER    NUMERIC QUERY COMPILER
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |      |  a  |  c  |     |     |  a  |  b  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |  top | 'x' | 'j' |     | min |  1  |  3  |
+        #     +------+-----+-----+     +-----+-----+-----+ (additional aggregations omitted)
+        #     | freq |  2  |  2  |     | max |  3  |  5  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        # We `concat` these two query compilers (+ an additional one for the `count` statistic computed
+        # for all columns). Numeric columns will have NULL values for the `top` and `freq` statistics,
+        # and object columns will have NULL values for `min`, `max`, etc. This is accomplished by
+        # the `join="outer"` parameter, but it will still erroneously try to combine the aggregations
+        # of the object and numeric columns that share a label.
+        # To circumvent this, we relabel all columns with a simple integer index, and restore the
+        # correct labels at the very end after `concat`.
+        # The end result (before restoring the original pandas labels) should look something like this
+        # (many rows omitted for brevity):
+        #     Column mapping: {0: "a", 1: "a", 2: "b", 3: "c"}
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |      |  1  |  3  |              |     |  0  |  2  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |  top | 'x' | 'j' | -- CONCAT -- | min |  1  |  3  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     | freq |  2  |  2  |              | max |  3  |  5  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #                               =
+        #              +------+-----+------+-----+------+
+        #              |      |  0  |   1  |  2  |   3  |
+        #              +------+-----+------+-----+------+
+        #              |  top | NaN |  'x' | NaN |  'j' |
+        #              +------+-----+------+-----+------+
+        #              | freq | NaN |   2  | NaN |   2  |
+        #              +------+-----+------+-----+------+
+        #              |  min |  1  | None |  3  | None |
+        #              +------+-----+------+-----+------+
+        #              |  max |  3  | None |  5  | None |
+        #              +------+-----+------+-----+------+
+        original_columns = self.columns
+        query_compiler = self.set_columns(list(range(len(self.columns))))
         internal_frame = query_compiler._modin_frame
         # Compute count for all columns regardless of dtype
         query_compilers_to_concat = [
@@ -10326,10 +10380,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert (
             len(query_compilers_to_concat) > 1
         ), "must have more than one QC to concat"
-        return query_compilers_to_concat[0].concat(
-            other=query_compilers_to_concat[1:],
-            axis=0,
-            join="outer",
+        return (
+            query_compilers_to_concat[0].concat(
+                other=query_compilers_to_concat[1:],
+                axis=0,
+                join="outer",
+            )
+            # Restore the original pandas labels
+            .set_columns(original_columns)
         )
 
     def sample(
