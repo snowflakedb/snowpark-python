@@ -333,6 +333,21 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
         )
 
 
+def test_describe_duplicate_columns_mixed():
+    # Test that describing a frame where there are multiple columns (including ones with numeric data
+    # but `object` dtype) that share the same label is correct.
+    data = [[5, 0, 1.0], [6, 3, 4.0]]
+
+    def helper(df):
+        # Convert first column to `object` dtype
+        df = df.astype({0: object})
+        df.columns = ["a"] * 3
+        return df.describe()
+
+    with SqlCounter(query_count=1, union_count=7):
+        eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: helper(df))
+
+
 @sql_count_checker(
     query_count=3,
     union_count=21,
