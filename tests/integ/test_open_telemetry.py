@@ -40,15 +40,19 @@ def spans_to_dict(spans):
     return res
 
 
-resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-trace_provider = TracerProvider(resource=resource)
-dict_exporter = InMemorySpanExporter()
-processor = SimpleSpanProcessor(dict_exporter)
-trace_provider.add_span_processor(processor)
-trace.set_tracer_provider(trace_provider)
+@pytest.fixture(scope="module")
+def dict_exporter():
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+    trace_provider = TracerProvider(resource=resource)
+    dict_exporter = InMemorySpanExporter()
+    processor = SimpleSpanProcessor(dict_exporter)
+    trace_provider.add_span_processor(processor)
+    trace.set_tracer_provider(trace_provider)
+    yield dict_exporter
+    dict_exporter.shutdown()
 
 
-def test_register_udaf_from_file(session):
+def test_register_udaf_from_file(session, dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -80,7 +84,7 @@ def test_register_udaf_from_file(session):
     dict_exporter.clear()
 
 
-def test_inline_register_udaf(session):
+def test_inline_register_udaf(session, dict_exporter):
     # test register with udaf.register
 
     class PythonSumUDAF:
@@ -159,7 +163,7 @@ def test_inline_register_udaf(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_register_udtf_from_file(session):
+def test_register_udtf_from_file(session, dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -215,7 +219,7 @@ def test_register_udtf_from_file(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="UDTF not supported in Local Testing",
 )
-def test_inline_register_udtf(session):
+def test_inline_register_udtf(session, dict_exporter):
     # test register with udtf.register
 
     class GeneratorUDTF:
@@ -264,7 +268,7 @@ def test_inline_register_udtf(session):
     dict_exporter.clear()
 
 
-def test_register_udf_from_file(session):
+def test_register_udf_from_file(session, dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -296,7 +300,7 @@ def test_register_udf_from_file(session):
     dict_exporter.clear()
 
 
-def test_inline_register_udf(session):
+def test_inline_register_udf(session, dict_exporter):
     # test register with udf.register
 
     def add_udf(x: int, y: int) -> int:
@@ -337,7 +341,9 @@ def test_inline_register_udf(session):
     dict_exporter.clear()
 
 
-def test_open_telemetry_span_from_dataframe_writer_and_dataframe(session):
+def test_open_telemetry_span_from_dataframe_writer_and_dataframe(
+    session, dict_exporter
+):
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
     lineno = inspect.currentframe().f_lineno - 1
@@ -353,7 +359,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(session):
     dict_exporter.clear()
 
 
-def test_open_telemetry_span_from_dataframe_writer(session):
+def test_open_telemetry_span_from_dataframe_writer(session, dict_exporter):
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
     lineno = inspect.currentframe().f_lineno - 1
