@@ -10001,14 +10001,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dtypes = self.dtypes
         # If we operate on the original frame's labels, then if two columns have the same name but
         # different dtypes, the JOIN behavior of SnowflakeQueryCompiler.concat will produce incorrect
-        # results. For example, if a frame has two columns named "a", one with `object` dtype and the
-        # other `int64`, the `object` column would have a query compiler for the computed `top`/`freq`,
-        # while the numeric column would have a query compiler for `std` and other numeric aggregations.
-        # We want our final `concat` call that combines query compilers to insert NULL values for
-        # uncomputed statistics, but since `concat` tries to match labels, it would incorrectly try
-        # to combine the `top`/`freq`/`std`/(other numeric) rows into a single column.
+        # results. For example, consider the following dataframe, where an `object` column and
+        # `int64` column both share the label "a":
+        #     +---+-----+---+-----+
+        #     | a |  a  | b |  c  |
+        #     +---+-----+---+-----+
+        #     | 1 | 'x' | 3 | 'i' |
+        #     +---+-----+---+-----+
+        #     | 2 | 'y' | 4 | 'j' |
+        #     +---+-----+---+-----+
+        #     | 3 | 'x' | 5 | 'j' |
+        #     +---+-----+---+-----+
+        # For all `object` columns in the frame, we will generate a query compiler with the computed
+        # `top`/`freq` statistics. Similarly, for the numeric columns we will generate a query compiler
+        # containing the `std`, `min`/`max`, and other numeric statistics:
+        #     OBJECT QUERY COMPILER    NUMERIC QUERY COMPILER
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |      |  a  |  c  |     |     |  a  |  b  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |  top | 'x' | 'j' |     | min |  1  |  3  |
+        #     +------+-----+-----+     +-----+-----+-----+ (additional aggregations omitted)
+        #     | freq |  2  |  2  |     | max |  3  |  5  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        # We `concat` these two query compilers (+ an additional one for the `count` statistic computed
+        # for all columns). Numeric columns will have NULL values for the `top` and `freq` statistics,
+        # and object columns will have NULL values for `min`, `max`, etc. This is accomplished by
+        # the `join="outer"` parameter, but it will still erroneously try to combine the aggregations
+        # of the object and numeric columns that share a label.
         # To circumvent this, we relabel all columns with a simple integer index, and restore the
         # correct labels at the very end after `concat`.
+        # The end result (before restoring the original pandas labels) should look something like this
+        # (many rows omitted for brevity):
+        #     Column mapping: {0: "a", 1: "a", 2: "b", 3: "c"}
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |      |  1  |  3  |              |     |  0  |  2  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |  top | 'x' | 'j' | -- CONCAT -- | min |  1  |  3  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     | freq |  2  |  2  |              | max |  3  |  5  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #                               =
+        #              +------+-----+------+-----+------+
+        #              |      |  0  |   1  |  2  |   3  |
+        #              +------+-----+------+-----+------+
+        #              |  top | NaN |  'x' | NaN |  'j' |
+        #              +------+-----+------+-----+------+
+        #              | freq | NaN |   2  | NaN |   2  |
+        #              +------+-----+------+-----+------+
+        #              |  min |  1  | None |  3  | None |
+        #              +------+-----+------+-----+------+
+        #              |  max |  3  | None |  5  | None |
+        #              +------+-----+------+-----+------+
         original_columns = self.columns
         query_compiler = self.set_columns(list(range(len(self.columns))))
         internal_frame = query_compiler._modin_frame
