@@ -58,7 +58,7 @@ def eval_groupby_result(
     return snowpark_pandas_groupby, pandas_groupby
 
 
-@pytest.mark.short_regress
+@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])
 @sql_count_checker(query_count=2)
 def test_basic_single_group_row_groupby(

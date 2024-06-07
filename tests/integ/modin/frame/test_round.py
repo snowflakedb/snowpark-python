@@ -21,7 +21,7 @@ all_decimals = pytest.mark.parametrize("decimals", [-2, -1, 0, 1, 2])
 zero_only_decimals = pytest.mark.parametrize("decimals", [0])
 
 
-@pytest.mark.precommit
+@pytest.mark.modin_sp_precommit
 @all_decimals
 @sql_count_checker(query_count=1)
 def test_df_round(decimals):
