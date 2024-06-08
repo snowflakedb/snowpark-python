@@ -3,11 +3,11 @@ from snowflake.snowpark.functions import col
 
 df = session.table("test_table")
 
-df = df.select("STR", col("A"))
+df = df.select(df.col("STR"), df.STR, df["STR"])
 
 
 ## EXPECTED OUTPUT
 
 res1 = session.table('test_table')
 
-res2 = res1.select(col("STR"), col("A"))
+res2 = res1.select(res1["STR"], res1["STR"], res1["STR"])

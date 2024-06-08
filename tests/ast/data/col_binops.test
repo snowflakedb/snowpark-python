@@ -1,0 +1,65 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(col("A") == col("B"))
+
+df = df.select(col("A") != col("B"))
+
+df = df.select(col("A") > col("B"))
+
+df = df.select(col("A") < col("B"))
+
+df = df.select(col("A") >= col("B"))
+
+df = df.select(col("A") <= col("B"))
+
+df = df.select(col("A") + col("B"))
+
+df = df.select(col("A") - col("B"))
+
+df = df.select(col("A") * col("B"))
+
+df = df.select(col("A") / col("B"))
+
+df = df.select(col("A") % col("B"))
+
+df = df.select(col("A") ** col("B"))
+
+df = df.select(col("A") & col("B"))
+
+df = df.select(col("A") | col("B"))
+
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(col("A") == col("B"))
+
+res3 = res2.select(col("A") != col("B"))
+
+res4 = res3.select(col("A") > col("B"))
+
+res5 = res4.select(col("A") < col("B"))
+
+res6 = res5.select(col("A") >= col("B"))
+
+res7 = res6.select(col("A") <= col("B"))
+
+res8 = res7.select(col("A") + col("B"))
+
+res9 = res8.select(col("A") - col("B"))
+
+res10 = res9.select(col("A") * col("B"))
+
+res11 = res10.select(col("A") / col("B"))
+
+res12 = res11.select(col("A") % col("B"))
+
+res13 = res12.select(col("A") ** col("B"))
+
+res14 = res13.select(col("A") & col("B"))
+
+res15 = res14.select(col("A") | col("B"))
