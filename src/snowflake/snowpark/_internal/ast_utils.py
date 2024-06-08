@@ -27,7 +27,7 @@ PYTHON_TO_AST_CONST_MAPPINGS = {
 def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance"""
     if obj is None:
-        ast.null_val.v = True
+        fill_src_position(ast.null_val.src)
         return
         
     const_variant = PYTHON_TO_AST_CONST_MAPPINGS.get(type(obj))
