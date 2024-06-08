@@ -1443,7 +1443,7 @@ def list_agg(col: str, delimiter: str, is_distinct: bool) -> str:
     )
 
 
-def column_sum(cols: list[str]) -> str:
+def column_sum(cols: List[str]) -> str:
     return LEFT_PARENTHESIS + PLUS.join(cols) + RIGHT_PARENTHESIS
 
 
