@@ -9,6 +9,7 @@
 #	  HostName sdp-devvm-<ldap user>
 
 set -euxo pipefail
+SCRIPT_DIR=$(dirname "$0")
 
 # Step 1: Build the python proto file from scratch via bazel
 ssh $1 "bash -c 'cd Snowflake/trunk;bazel build //Snowpark:py_proto'"
@@ -17,4 +18,4 @@ ssh $1 "bash -c 'cd Snowflake/trunk;bazel build //Snowpark:py_proto'"
 REMOTE_HOME=$(ssh $1 "bash -c 'echo \$HOME'")
 
 # Step 3: Copy file from devvm to local machine
-scp $1:$REMOTE_HOME/Snowflake/trunk/Snowpark/python/src/snowflake/snowpark/_internal/tcm/proto/ast_pb2.py .
+scp $1:$REMOTE_HOME/Snowflake/trunk/Snowpark/python/src/snowflake/snowpark/_internal/tcm/proto/ast_pb2.py $SCRIPT_DIR/

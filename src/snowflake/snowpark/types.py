@@ -135,7 +135,7 @@ class StringType(_AtomicType):
         return super().__hash__()
 
     def fill_ast(self, ast: proto.SpDataType) -> None:
-        ast.sp_string_type.len_spec = self.length is not None
+        ast.sp_string_type.length.SetInParent()
         if self.length is not None:
             ast.sp_string_type.length.value = self.length
 
