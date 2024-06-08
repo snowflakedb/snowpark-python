@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryMinus,
     UnresolvedAlias,
 )
+from snowflake.snowpark._internal.ast_utils import infer_const_ast, setattr_if_not_none
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -71,7 +72,6 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
-    infer_const_ast,
     type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list, quote_name
@@ -256,12 +256,14 @@ class Column:
                 if expr2 == "*":
                     self._ast = Column._create_ast(
                         property="sp_column_sql_expr",
-                        assign_fields={"sql": "*", "df_alias": expr1},
+                        assign_fields={"sql": "*"},
+                        assign_opt_fields={"df_alias": expr1},
                     )
                 else:
                     self._ast = Column._create_ast(
                         property="sp_column",
-                        assign_fields={"name": quote_name(expr2), "df_alias": expr1},
+                        assign_fields={"name": quote_name(expr2)},
+                        assign_opt_fields={"df_alias": expr1},
                     )
         elif isinstance(expr1, str):
             if expr1 == "*":
@@ -290,7 +292,7 @@ class Column:
             ast = Column._create_ast(
                 property="sp_column_apply__string",
                 copy_messages={"col": self._ast},
-                assign_fields={"field": field},
+                assign_fields={"field": quote_name(field, keep_case=True)},
             )
             return Column(SubfieldString(self._expression, field), ast=ast)
         elif isinstance(field, int):
@@ -533,11 +535,9 @@ class Column:
             copy_messages={"col": self._ast},
             fill_expr_asts={"lower_bound": lower_bound, "upper_bound": upper_bound},
         )
-        return Column(
-            (Column._to_expr(lower_bound) <= self)
-            & (self <= Column._to_expr(upper_bound))._expression,
-            ast=ast,
-        )
+        ret = (Column._to_expr(lower_bound) <= self) & (self <= Column._to_expr(upper_bound))
+        ret._ast = ast
+        return ret
 
     def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Bitwise and."""
@@ -551,16 +551,16 @@ class Column:
         """Bitwise xor."""
         return self._bin_op_rimpl("bit_xor", BitwiseXor, other)
 
-    def _unary_op_impl(self, property: str, operator: UnaryExpression) -> "Column":
+    def _unary_op_impl(self, property: str, operator: UnaryExpression, attr: str = "col") -> "Column":
         ast = Column._create_ast(
             property=property,
-            copy_messages={"col": self._ast},
+            copy_messages={attr: self._ast},
         )
         return Column(operator(self._expression), ast=ast)
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        return self._unary_op_impl("neg", UnaryMinus)
+        return self._unary_op_impl("neg", UnaryMinus, attr="operand")
 
     def equal_null(self, other: "Column") -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
@@ -595,22 +595,23 @@ class Column:
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        return self._unary_op_impl("not", Not)
+        return self._unary_op_impl("not", Not, attr="operand")
 
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
+        if isinstance(to, str):
+            to = type_string_to_type_object(to)
         if try_:
             ast = Column._create_ast(
                 property="sp_column_try_cast",
                 copy_messages={"col": self._ast},
             )
+            to.fill_ast(ast.sp_column_try_cast.to)
         else:
             ast = Column._create_ast(
                 property="sp_column_cast",
                 copy_messages={"col": self._ast},
             )
-        if isinstance(to, str):
-            to = type_string_to_type_object(to)
-        to.fill_ast(ast.sp_column_cast.to)
+            to.fill_ast(ast.sp_column_cast.to)
 
         return Column(Cast(self._expression, to, try_), ast=ast)
 
@@ -639,7 +640,7 @@ class Column:
         ast = Column._create_ast(
             property="sp_column_desc",
             copy_messages={"col": self._ast},
-            assign_fields={"nulls_first": True},
+            assign_opt_fields={"nulls_first": True},
         )
         return Column(SortOrder(self._expression, Descending(), NullsFirst()), ast=ast)
 
@@ -649,7 +650,7 @@ class Column:
         ast = Column._create_ast(
             property="sp_column_desc",
             copy_messages={"col": self._ast},
-            assign_fields={"nulls_first": False},
+            assign_opt_fields={"nulls_first": False},
         )
         return Column(SortOrder(self._expression, Descending(), NullsLast()), ast=ast)
 
@@ -667,7 +668,7 @@ class Column:
         ast = Column._create_ast(
             property="sp_column_asc",
             copy_messages={"col": self._ast},
-            assign_fields={"nulls_first": True},
+            assign_opt_fields={"nulls_first": True},
         )
         return Column(SortOrder(self._expression, Ascending(), NullsFirst()), ast=ast)
 
@@ -677,7 +678,7 @@ class Column:
         ast = Column._create_ast(
             property="sp_column_asc",
             copy_messages={"col": self._ast},
-            assign_fields={"nulls_first": False},
+            assign_opt_fields={"nulls_first": False},
         )
         return Column(SortOrder(self._expression, Ascending(), NullsLast()), ast=ast)
 
@@ -843,7 +844,8 @@ class Column:
         ast = Column._create_ast(
             property="sp_column_alias",
             copy_messages={"col": self._ast},
-            assign_fields={"name": quote_name(alias), "variant_is_as": variant_is_as},
+            assign_fields={"name": quote_name(alias)},
+            assign_opt_fields={"variant_is_as": variant_is_as},
         )
         return Column(Alias(self._expression, quote_name(alias)), ast=ast)
 
@@ -948,6 +950,7 @@ class Column:
     def _create_ast(
         property: Optional[str] = None,
         assign_fields: Dict[str, Any] = {},
+        assign_opt_fields: Dict[str, Any] = {},
         copy_messages: Dict[str, Any] = {},
         fill_expr_asts: Dict[str, ColumnOrLiteral] = {},
     ) -> proto.SpColumnExpr:
@@ -967,7 +970,9 @@ class Column:
         if property is not None:
             prop_ast = getattr(ast, property)
             for attr, value in assign_fields.items():
-                setattr(prop_ast, attr, value)
+                setattr_if_not_none(prop_ast, attr, value)
+            for attr, value in assign_opt_fields.items():
+                setattr_if_not_none(getattr(prop_ast, attr), "value", value)
             for attr, messg in copy_messages.items():
                 getattr(prop_ast, attr).CopyFrom(messg)
             for attr, other in fill_expr_asts.items():
@@ -989,6 +994,8 @@ class Column:
             return ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             infer_const_ast(value, ast)
+        elif isinstance(value, Expression):
+            pass    # TODO: clean up hack
         else:
             raise TypeError(
                 f"{type(value)} is not a valid type for Column or literal AST."

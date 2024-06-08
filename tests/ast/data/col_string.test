@@ -1,0 +1,37 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(col("A").like("test"))
+
+df = df.select(col("A").regexp("test"))
+
+df = df.select(col("A").startswith("test"))
+
+df = df.select(col("A").endswith("test"))
+
+df = df.select(col("A").substr(col("B"), col("C")))
+
+df = df.select(col("A").collate("test"))
+
+df = df.select(col("A").contains("test"))
+
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(col("A").like('test'))
+
+res3 = res2.select(col("A").regexp('test'))
+
+res4 = res3.select(col("A").startswith('test'))
+
+res5 = res4.select(col("A").endswith('test'))
+
+res6 = res5.select(col("A").substr(col("B"), col("C")))
+
+res7 = res6.select(col("A").collate('test'))
+
+res8 = res7.select(col("A").contains('test'))

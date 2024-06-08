@@ -1,0 +1,41 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(42 + col("B"))
+
+df = df.select(42 - col("B"))
+
+df = df.select(42 * col("B"))
+
+df = df.select(42 / col("B"))
+
+df = df.select(42 % col("B"))
+
+df = df.select(42 ** col("B"))
+
+df = df.select(42 & col("B"))
+
+df = df.select(42 | col("B"))
+
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(42 + col("B"))
+
+res3 = res2.select(42 - col("B"))
+
+res4 = res3.select(42 * col("B"))
+
+res5 = res4.select(42 / col("B"))
+
+res6 = res5.select(42 % col("B"))
+
+res7 = res6.select(42 ** col("B"))
+
+res8 = res7.select(42 & col("B"))
+
+res9 = res8.select(42 | col("B"))

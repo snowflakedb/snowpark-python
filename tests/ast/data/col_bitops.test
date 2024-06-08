@@ -1,0 +1,21 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(col("A").bitand(col("B")))
+
+df = df.select(col("A").bitor(col("B")))
+
+df = df.select(col("A").bitxor(col("B")))
+
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(col("A").bitand(col("B")))
+
+res3 = res2.select(col("A").bitor(col("B")))
+
+res4 = res3.select(col("A").bitxor(col("B")))

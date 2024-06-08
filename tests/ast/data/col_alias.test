@@ -1,0 +1,20 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(col("A").as_("test"))
+
+df = df.select(col("A").alias("test"))
+
+df = df.select(col("A").name("test"))
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(col("A").as_("TEST"))
+
+res3 = res2.select(col("A").alias("TEST"))
+
+res4 = res3.select(col("A").name("TEST"))
