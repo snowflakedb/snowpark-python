@@ -51,7 +51,6 @@ warnings.warn(
     stacklevel=1,
 )
 
-
 # We need this import here to prevent circular dependency issues, since snowflake.snowpark.modin.pandas
 # currently imports some internal utilities from snowflake.snowpark.modin.plugin. Test cases will
 # import snowflake.snowpark.modin.plugin before snowflake.snowpark.modin.pandas, so in order to prevent
