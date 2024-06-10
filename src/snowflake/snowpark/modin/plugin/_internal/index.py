@@ -1921,12 +1921,6 @@ class Index:
         Returns
         -------
         Index
-
-        Examples
-        --------
-        >>> idx = pd.Index([1, 2, 3])
-        >>> idx.append(pd.Index([4]))
-        Index([1, 2, 3, 4], dtype='int64')
         """
         # TODO: SNOW-1458149 implement append
 
@@ -2219,7 +2213,6 @@ class Index:
         example below.
         """
 
-    @index_not_implemented()
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
