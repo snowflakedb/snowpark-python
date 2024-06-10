@@ -3880,9 +3880,3 @@ def test_df_loc_set_with_index_and_column_labels():
         }
     )
     eval_snowpark_pandas_result(snow_df, native_df, loc_set_helper, inplace=True)
-
-
-def test_as_type():
-    idx1 = pd.Index(["a", "b", "c", "d"])
-    idx2 = pd.Index([1, 2, 3, 4], convert_to_lazy=False)
-    idx1.union(idx2)

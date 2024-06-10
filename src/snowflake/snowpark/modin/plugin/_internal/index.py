@@ -253,6 +253,36 @@ class Index:
         """
         return not self.is_unique
 
+    @is_lazy_check
+    def unique(self, level: Hashable | None = None) -> Index:
+        """
+        Return unique values in the index.
+
+        Unique values are returned in order of appearance, this does NOT sort.
+
+        Parameters
+        ----------
+        level : int or hashable, optional
+            Only return values from specified level (for MultiIndex).
+            If int, gets the level by integer position, else by level name.
+
+        Returns
+        -------
+        Index
+
+        See Also
+        --------
+        unique : Numpy array of unique values in that column.
+        Series.unique : Return unique values of Series object.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 1, 2, 3, 3])
+        >>> idx.unique()
+        Index([1, 2, 3], dtype='int64')
+        """
+        return Index(self.to_pandas().unique(level=level))
+
     @property
     @is_lazy_check
     def dtype(self) -> DtypeObj:
