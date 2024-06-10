@@ -91,6 +91,9 @@ class Index:
         )
 
         self.is_lazy = convert_to_lazy
+        # create empty qc here
+        # if data is None:
+        #     qc = SnowflakeQueryCompiler()
         if isinstance(data, (DataFrame, Series, Index)):
             qc = data._query_compiler
         elif isinstance(data, SnowflakeQueryCompiler):

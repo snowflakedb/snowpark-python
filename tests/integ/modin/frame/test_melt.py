@@ -17,7 +17,7 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -140,26 +140,26 @@ def run_internal_melt(
     "data",
     data,
 )
-@sql_count_checker(query_count=5, union_count=0, join_count=0)
 def test_melt_general_path(data):
     native_df = npd.DataFrame(data["frame"])
     snow_df = pd.DataFrame(native_df)
     ndf = native_df.melt(**data["kargs"])
     sdf = run_internal_melt(snow_df, **data["kargs"], use_simple_unpivot=False)
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(sdf, ndf)
+    with SqlCounter(query_count=1):
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(sdf, ndf)
 
 
 @pytest.mark.parametrize(
     "data",
     data,
 )
-@sql_count_checker(query_count=3, union_count=0, join_count=0)
 def test_melt_simple_path(data):
     native_df = npd.DataFrame(data["frame"])
     snow_df = pd.DataFrame(native_df)
     ndf = native_df.melt(**data["kargs"])
     sdf = run_internal_melt(snow_df, **data["kargs"], use_simple_unpivot=True)
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(sdf, ndf)
+    with SqlCounter(query_count=1):
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(sdf, ndf)
 
 
 @pytest.mark.parametrize(

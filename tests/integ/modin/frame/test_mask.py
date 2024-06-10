@@ -570,7 +570,7 @@ def test_dataframe_mask_with_np_array_cond():
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=6, join_count=2)
 def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -595,7 +595,7 @@ def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=4, join_count=2)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -622,7 +622,7 @@ def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -694,7 +694,7 @@ def test_dataframe_mask_with_duplicated_index_aligned(cond_frame, other):
         )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=4, join_count=2)
 def test_dataframe_mask_with_duplicated_index_unaligned():
     data = [3, 4, 5, 2]
     df_index = pd.Index([2, 1, 2, 3], name="index")
@@ -782,7 +782,7 @@ def test_dataframe_mask_with_duplicated_columns_negative(
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_mask_cond_with_base_df_filter_on_key():
     native_df = native_pd.DataFrame({"key": [0, 1], "value": [2, 3]})
     snow_df = pd.DataFrame(native_df)

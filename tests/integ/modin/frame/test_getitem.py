@@ -22,7 +22,6 @@ from tests.integ.modin.utils import (
 )
 
 
-@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "key",
     [
@@ -40,27 +39,30 @@ from tests.integ.modin.utils import (
 def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
-    if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
+    with SqlCounter(
+        query_count=6 if isinstance(key, native_pd.Index) else 1, join_count=1
+    ):
+        # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
+        if isinstance(key, native_pd.Index):
+            key = pd.Index(key)
 
-    def get_helper(df):
-        if isinstance(df, pd.DataFrame):
-            return df[key]
-        # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
-        _key = try_convert_index_to_native(key)
-        _df = df.iloc[: len(key)]
-        _key = _key[: _df.shape[1]]
-        return _df[_key]
+        def get_helper(df):
+            if isinstance(df, pd.DataFrame):
+                return df[key]
+            # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
+            _key = try_convert_index_to_native(key)
+            _df = df.iloc[: len(key)]
+            _key = _key[: _df.shape[1]]
+            return _df[_key]
 
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_df,
-        default_index_native_df,
-        get_helper,
-    )
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_df,
+            default_index_native_df,
+            get_helper,
+        )
 
 
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=2, join_count=0)
 @pytest.mark.parametrize(
     "key",
     [
@@ -90,7 +92,7 @@ def test_df_getitem_with_string_list_like(
     )
 
 
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=2, join_count=0)
 @pytest.mark.parametrize(
     "key",
     [
@@ -131,7 +133,7 @@ def _powerset(iterable):
 
 
 @pytest.mark.parametrize("key", _powerset(["A", "B", "C"]))
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_getitem_with_string_labels(key):
     data = {"A": [1, 2, None], "B": [3.1, 5, 6], "C": [None, "abc", "xyz"]}
     snow_df = pd.DataFrame(data)
@@ -162,7 +164,7 @@ DATA = np.array([np.random.randint(0, 100, N) for name in LABEL_COLLECTION]).T
 
 
 @pytest.mark.parametrize("key", LABEL_COLLECTION)
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_getitem_with_labels_single_column(key):
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)

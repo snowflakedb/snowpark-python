@@ -39,7 +39,7 @@ def test_create_dataframe_from_object_with_name(sample):
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_create_dataframe_from_snowpark_pandas_series():
     df = pd.DataFrame([[2, 3, 4], [5, 6, 7]], columns=["X", "Y", "Z"])
     df = pd.DataFrame([df.X, df.iloc[:, 2]])

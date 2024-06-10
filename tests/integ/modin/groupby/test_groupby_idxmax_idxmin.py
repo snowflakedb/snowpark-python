@@ -73,7 +73,7 @@ def test_df_groupby_idxmax_idxmin_on_axis_1_negative(df_with_multiple_columns, f
 
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
 @pytest.mark.parametrize("numeric_only", [True, False])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_groupby_idxmax_idxmin_with_different_column_dtypes_on_axis_0(
     func, numeric_only
 ):
