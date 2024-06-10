@@ -140,6 +140,7 @@ class Index:
         >>> idx.values
         array([1, 2, 3])
         """
+        # TODO: SNOW-1458117 implement values
         return self.to_pandas().values
 
     @property
@@ -193,21 +194,21 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([1, 5, 7, 7])
-        >>> idx.is_unique  # doctest: +SKIP
+        >>> idx.is_unique
         False
 
         >>> idx = pd.Index([1, 5, 7])
-        >>> idx.is_unique  # doctest: +SKIP
+        >>> idx.is_unique
         True
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.is_unique  # doctest: +SKIP
+        >>> idx.is_unique
         False
 
         >>> idx = pd.Index(["Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.is_unique  # doctest: +SKIP
+        >>> idx.is_unique
         True
         """
         # TODO: SNOW-1458131 implement is_unique
@@ -231,21 +232,21 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([1, 5, 7, 7])
-        >>> idx.has_duplicates  # doctest: +SKIP
+        >>> idx.has_duplicates
         True
 
         >>> idx = pd.Index([1, 5, 7])
-        >>> idx.has_duplicates  # doctest: +SKIP
+        >>> idx.has_duplicates
         False
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.has_duplicates  # doctest: +SKIP
+        >>> idx.has_duplicates
         True
 
         >>> idx = pd.Index(["Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.has_duplicates  # doctest: +SKIP
+        >>> idx.has_duplicates
         False
         """
         # TODO: SNOW-1458131 implement has_duplicates
@@ -266,7 +267,7 @@ class Index:
         >>> idx = pd.Index([1, 2, 3])
         >>> idx
         Index([1, 2, 3], dtype='int64')
-        >>> idx.dtype  # doctest: +SKIP
+        >>> idx.dtype
         dtype('int64')
         """
         # TODO: SNOW-1458123 implement dtype
@@ -408,6 +409,13 @@ class Index:
         Memory usage does not include memory consumed by elements that are not components of the array if deep=False or
         if used on PyPy.
         """
+
+    @property
+    def nlevels(self) -> int:
+        """
+        Number of levels.
+        """
+        return 1
 
     @index_not_implemented()
     def all(self) -> None:
@@ -559,8 +567,8 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> new_idx = idx.copy()  # doctest: +SKIP
-        >>> idx is new_idx  # doctest: +SKIP
+        >>> new_idx = idx.copy()
+        >>> idx is new_idx
         False
         """
         # TODO: SNOW-1458120 implement copy
@@ -616,7 +624,7 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> idx.drop(['a'])  # doctest: +SKIP
+        >>> idx.drop(['a'])
         Index(['b', 'c'], dtype='object')
         """
         # TODO: SNOW-1458146 implement drop
@@ -682,23 +690,23 @@ class Index:
         set to False and all others to True:
 
         >>> idx = pd.Index(['lama', 'cow', 'lama', 'beetle', 'lama'])
-        >>> idx.duplicated()  # doctest: +SKIP
+        >>> idx.duplicated()
         array([False, False,  True, False,  True])
 
         which is equivalent to
 
-        >>> idx.duplicated(keep='first')  # doctest: +SKIP
+        >>> idx.duplicated(keep='first')
         array([False, False,  True, False,  True])
 
         By using 'last', the last occurrence of each set of duplicated values
         is set on False and all others on True:
 
-        >>> idx.duplicated(keep='last')  # doctest: +SKIP
+        >>> idx.duplicated(keep='last')
         array([ True, False,  True, False, False])
 
         By setting keep on ``False``, all duplicates are True:
 
-        >>> idx.duplicated(keep=False)  # doctest: +SKIP
+        >>> idx.duplicated(keep=False)
         array([ True, False,  True, False,  True])
         """
         # TODO: SNOW-1458147 implement duplicated
@@ -1057,6 +1065,7 @@ class Index:
         Series.min : Return the minimum value in a Series.
         DataFrame.min : Return the minimum values in a DataFrame.
         """
+        # TODO: SNOW-1458127 implement min
 
     @index_not_implemented()
     def max(self) -> None:
@@ -1083,6 +1092,7 @@ class Index:
         Series.max : Return the maximum value in a Series.
         DataFrame.max : Return the maximum values in a DataFrame.
         """
+        # TODO: SNOW-1458127 implement max
 
     @index_not_implemented()
     def reindex(self) -> None:
@@ -1135,6 +1145,7 @@ class Index:
         Series.reindex : Conform Series to new index with optional filling logic.
         DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
         """
+        # TODO: SNOW-1458121 implement reindex
 
     @index_not_implemented()
     def rename(self) -> None:
@@ -1161,6 +1172,7 @@ class Index:
         --------
         Index.set_names : Able to set new names partially and by level.
         """
+        # TODO: SNOW-1458122 implement rename
 
     @index_not_implemented()
     def repeat(self) -> None:
@@ -1275,6 +1287,7 @@ class Index:
         unique : Numpy array of unique values in that column.
         Series.unique : Return unique values of Series object.
         """
+        # TODO: SNOW-1458132 implement unique
 
     @index_not_implemented()
     def nunique(self) -> None:
@@ -1297,6 +1310,7 @@ class Index:
         DataFrame.nunique: Method nunique for DataFrame.
         Series.count: Count non-NA/null observations in the Series.
         """
+        # TODO: SNOW-1458132 implement nunique
 
     def value_counts(
         self,
@@ -1368,6 +1382,7 @@ class Index:
         apparitions of values, divide the index in the specified
         number of half-open bins.
         """
+        # TODO: SNOW-1458133 implement value_counts
         self.to_pandas_warning()
         return self.to_pandas().value_counts(
             normalize=normalize,
@@ -1408,6 +1423,7 @@ class Index:
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
+        # TODO: SNOW-1458122 implement set_names
         self.to_pandas_warning()
         if not inplace:
             return Index(
@@ -1460,6 +1476,7 @@ class Index:
         DataFrame.fillna : Fill NaN values of a DataFrame.
         Series.fillna : Fill NaN Values of a Series.
         """
+        # TODO: SNOW-1458139 implement fillna
 
     @index_not_implemented()
     def dropna(self) -> None:
@@ -1476,6 +1493,7 @@ class Index:
         -------
         Index
         """
+        # TODO: SNOW-1458139 implement dropna
 
     @index_not_implemented()
     def isna(self) -> None:
@@ -1500,6 +1518,7 @@ class Index:
         isna : Top-level isna.
         Series.isna : Detect missing values in Series object.
         """
+        # TODO: SNOW-1458139 implement isna
 
     @index_not_implemented()
     def notna(self) -> None:
@@ -1523,6 +1542,26 @@ class Index:
         Index.isna: Inverse of notna.
         notna : Top-level notna.
         """
+        # TODO: SNOW-1458139 implement notna
+
+    @index_not_implemented()
+    def hasnans(self) -> None:
+        """
+        Return True if there are any NaNs.
+
+        Enables various performance speedups.
+
+        Returns
+        -------
+        bool
+
+        See Also
+        --------
+        Index.isna : Detect missing values.
+        Index.dropna : Return Index without NA/NaN values.
+        Index.fillna : Fill NA/NaN values with the specified value.
+        """
+        # TODO: SNOW-1458139 implement hasnans
 
     def astype(self, dtype: Any, copy: bool = True) -> Index:
         """
@@ -1556,6 +1595,7 @@ class Index:
         >>> idx.astype('float')
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
+        # TODO: SNOW-1458125 implement astype
         self.to_pandas_warning()
         return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
 
@@ -1574,6 +1614,7 @@ class Index:
         ValueError
             If the data is not length = 1.
         """
+        # TODO: SNOW-1458117 implement item
 
     @index_not_implemented()
     def map(self) -> None:
@@ -1635,6 +1676,7 @@ class Index:
         Index.to_frame : Convert an Index to a DataFrame.
         Series.to_frame : Convert Series to DataFrame.
         """
+        # TODO: SNOW-1458117 implement to_series
 
     @index_not_implemented()
     def to_frame(self) -> None:
@@ -1660,6 +1702,7 @@ class Index:
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
         """
+        # TODO: SNOW-1458117 implement to_frame
 
     @index_not_implemented()
     def view(self) -> None:
@@ -1758,6 +1801,7 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
+        # TODO: SNOW-1458117 implement to_list
         return self.to_pandas().tolist()
 
     to_list = tolist
@@ -1819,6 +1863,7 @@ class Index:
         >>> idx.sort_values(ascending=False, return_indexer=True)
         (Index([1000, 100, 10, 1], dtype='int64'), array([3, 1, 0, 2]))
         """
+        # TODO: SNOW-1458130 implement sort_values
         self.to_pandas_warning()
         ret = self.to_pandas().sort_values(
             return_indexer=return_indexer,
@@ -1883,6 +1928,7 @@ class Index:
         >>> idx.append(pd.Index([4]))
         Index([1, 2, 3, 4], dtype='int64')
         """
+        # TODO: SNOW-1458149 implement append
 
     @index_not_implemented()
     def join(self) -> None:
@@ -1903,6 +1949,7 @@ class Index:
         -------
         join_index, (left_indexer, right_indexer)
         """
+        # TODO: SNOW-1458150 implement join
 
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
@@ -1933,6 +1980,7 @@ class Index:
         >>> idx1.intersection(idx2)
         Index([3, 4], dtype='int64')
         """
+        # TODO: SNOW-1458151 implement intersection
         self.to_pandas_warning()
         return Index(
             self.to_pandas().intersection(
@@ -1984,6 +2032,8 @@ class Index:
         >>> idx1.union(idx2)
         Index(['a', 'b', 'c', 'd', 1, 2, 3, 4], dtype='object')
         """
+        # TODO: SNOW-1458149 implement union w/o sort
+        # TODO: SNOW-1468240 implement union w/ sort
         self.to_pandas_warning()
         return Index(
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
@@ -2022,6 +2072,7 @@ class Index:
         >>> idx1.difference(idx2, sort=False)
         Index([2, 1], dtype='int64')
         """
+        # TODO: SNOW-1458152 implement difference
         self.to_pandas_warning()
         return Index(
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
@@ -2325,6 +2376,7 @@ class Index:
         - if it is the name of one *and only one* index level, use that level;
         - otherwise it should be a number indicating level position.
         """
+        # TODO: SNOW-1458153 implement isin
 
     def slice_indexer(
         self,
