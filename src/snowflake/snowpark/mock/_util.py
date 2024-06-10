@@ -3,8 +3,12 @@
 #
 
 import math
+import os
+import shutil
+import sys
+import tempfile
 from functools import cmp_to_key, partial
-from typing import Any, Iterable, Tuple, Union
+from typing import Any, Callable, Iterable, Optional, Set, Tuple, Union
 
 from snowflake.snowpark._internal.utils import parse_table_name, quote_name
 from snowflake.snowpark.mock._options import pandas as pd
@@ -324,3 +328,60 @@ def get_fully_qualified_name(
     if len(name) == 2:
         name = [current_database] + name
     return ".".join(quote_name(n) for n in name)
+
+
+class ImportContext:
+    def __init__(self, imports: Set[str]) -> None:
+        self._imports = imports
+        self._callback: Optional[Callable] = None
+
+    def __enter__(self):
+        # Initialize import directory
+        temporary_import_path = tempfile.TemporaryDirectory()
+        last_import_directory = sys._xoptions.get("snowflake_import_directory")
+        sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
+
+        # Save a copy of module cache
+        frozen_sys_module_keys = set(sys.modules.keys())
+        # Save a copy of sys path
+        frozen_sys_path = list(sys.path)
+
+        def cleanup_imports():
+            added_path = set(sys.path) - set(frozen_sys_path)
+            for module_path in self._imports:
+                if module_path in added_path:
+                    sys.path.remove(module_path)
+
+            # Clear added entries in sys.modules cache
+            added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+            for key in added_keys:
+                del sys.modules[key]
+
+            # Cleanup import directory
+            temporary_import_path.cleanup()
+
+            # Restore snowflake_import_directory
+            if last_import_directory is not None:
+                sys._xoptions["snowflake_import_directory"] = last_import_directory
+            else:
+                del sys._xoptions["snowflake_import_directory"]
+
+        self._callback = cleanup_imports
+
+        try:
+            # Process imports
+            for module_path in self._imports:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+                if os.path.isdir(module_path):
+                    shutil.copytree(
+                        module_path, temporary_import_path.name, dirs_exist_ok=True
+                    )
+                else:
+                    shutil.copy2(module_path, temporary_import_path.name)
+        except BaseException:
+            self._callback()
+            raise
+
+    def __exit__(self, type, value, traceback):
+        self._callback()

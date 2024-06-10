@@ -3,12 +3,7 @@
 #
 
 import json
-import os
-import shutil
-import sys
-import tempfile
 import typing
-from contextlib import ExitStack
 from copy import copy
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
@@ -29,7 +24,7 @@ from snowflake.snowpark.mock._udf_utils import (
     extract_import_dir_and_module_name,
     types_are_compatible,
 )
-from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.stored_procedure import (
     StoredProcedure,
@@ -119,49 +114,7 @@ class MockStoredProcedure(StoredProcedure):
                     )
                 parsed_args.append(arg)
 
-        # Initialize import directory
-        temporary_import_path = tempfile.TemporaryDirectory()
-        last_import_directory = sys._xoptions.get("snowflake_import_directory")
-        sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
-
-        # Save a copy of module cache
-        frozen_sys_module_keys = set(sys.modules.keys())
-        # Save a copy of sys path
-        frozen_sys_path = list(sys.path)
-
-        def cleanup_imports():
-            added_path = set(sys.path) - set(frozen_sys_path)
-            for module_path in self.imports:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-
-            # Clear added entries in sys.modules cache
-            added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
-            for key in added_keys:
-                del sys.modules[key]
-
-            # Cleanup import directory
-            temporary_import_path.cleanup()
-
-            # Restore snowflake_import_directory
-            if last_import_directory is not None:
-                sys._xoptions["snowflake_import_directory"] = last_import_directory
-            else:
-                del sys._xoptions["snowflake_import_directory"]
-
-        with ExitStack() as stack:
-            stack.callback(cleanup_imports)
-
-            for module_path in self.imports:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-
+        with ImportContext(self.imports):
             # Resolve handler callable
             if type(self.func) is tuple:
                 module_name, handler_name = self.func
