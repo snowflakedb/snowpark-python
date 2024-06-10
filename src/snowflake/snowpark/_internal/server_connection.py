@@ -352,6 +352,11 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+
+        # remove _dataframe_ast argument from kwargs as this will create an error within the python connector.
+        if "_dataframe_ast" in kwargs.keys():
+            kwargs.pop("_dataframe_ast")
+
         results_cursor = self._cursor.execute(query, **kwargs)
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
