@@ -30,6 +30,7 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
+from pandas.core.dtypes.inference import is_list_like
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
@@ -82,10 +83,13 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
+        convert_to_lazy: bool = True,
     ) -> None:
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
+
+        self.is_lazy = convert_to_lazy
 
         # TODO: SNOW-1359041: Switch to lazy index implementation
         if isinstance(data, native_pd.Index):
@@ -103,6 +107,27 @@ class Index:
                 tupleize_cols=tupleize_cols,
             )
 
+    def is_lazy_check(func: Any) -> Any:
+        def check_lazy(*args: Any, **kwargs: Any) -> Any:
+            if args[0].is_lazy:
+                returned_value = func(*args, **kwargs)
+                return returned_value
+            else:
+                func_name = func.__name__
+                native_index = args[0]._index
+                native_func = getattr(native_index, func_name)
+                args = args[1:]
+                returned_value = native_func(*args, **kwargs)
+                if isinstance(returned_value, native_pd.Index):
+                    returned_value = Index(returned_value, convert_to_lazy=False)
+                elif is_list_like(returned_value) and isinstance(
+                    returned_value[0], native_pd.Index
+                ):
+                    returned_value[0] = Index(returned_value[0], convert_to_lazy=False)
+                return returned_value
+
+        return check_lazy
+
     def to_pandas(self) -> native_pd.Index:
         """
         Convert Snowpark pandas Index to pandas Index
@@ -115,6 +140,7 @@ class Index:
         return self._index
 
     @property
+    @is_lazy_check
     def values(self) -> ArrayLike:
         """
         Return an array representing the data in the Index.
@@ -141,6 +167,7 @@ class Index:
         return self.to_pandas().values
 
     @property
+    @is_lazy_check
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -178,6 +205,7 @@ class Index:
         return self.to_pandas().is_unique
 
     @property
+    @is_lazy_check
     def has_duplicates(self) -> bool:
         """
         Check if the Index has duplicate values.
@@ -214,6 +242,7 @@ class Index:
         return not self.is_unique
 
     @property
+    @is_lazy_check
     def dtype(self) -> DtypeObj:
         """
         Get the dtype object of the underlying data.
@@ -234,6 +263,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().dtype
 
+    @is_lazy_check
     def astype(self, dtype: Any, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
@@ -362,12 +392,14 @@ class Index:
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
     @property
+    @is_lazy_check
     def nlevels(self) -> int:
         """
         Number of levels.
         """
         return 1
 
+    @is_lazy_check
     def copy(
         self,
         name: Hashable | None = None,
@@ -404,6 +436,7 @@ class Index:
         self.to_pandas_warning()
         return Index(self.to_pandas().copy(deep=deep, name=name))
 
+    @is_lazy_check
     def drop(
         self,
         labels: Any,
@@ -437,6 +470,7 @@ class Index:
         self.to_pandas_warning()
         return Index(self.to_pandas().drop(labels=labels, errors=errors))
 
+    @is_lazy_check
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
         """
         Indicate duplicate index values.
@@ -494,6 +528,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().duplicated(keep=keep)
 
+    @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index object are equal.
@@ -556,6 +591,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().equals(try_convert_index_to_native(other))
 
+    @is_lazy_check
     def value_counts(
         self,
         normalize: bool = False,
@@ -635,6 +671,7 @@ class Index:
             dropna=dropna,
         )
 
+    @is_lazy_check
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -665,6 +702,7 @@ class Index:
 
     to_list = tolist
 
+    @is_lazy_check
     def sort_values(
         self,
         return_indexer: bool = False,
@@ -734,6 +772,7 @@ class Index:
         else:
             return Index(ret)
 
+    @is_lazy_check
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
         Form the intersection of two Index objects.
@@ -770,6 +809,7 @@ class Index:
             )
         )
 
+    @is_lazy_check
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -819,6 +859,7 @@ class Index:
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
+    @is_lazy_check
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -857,6 +898,7 @@ class Index:
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
+    @is_lazy_check
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -878,6 +920,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().get_indexer_for(target=target)
 
+    @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
         """
         Analogue to pandas.Index.get_indexer that raises if any elements are missing.
@@ -886,6 +929,7 @@ class Index:
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return Index(tup[0]), tup[1]
 
+    @is_lazy_check
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -921,6 +965,7 @@ class Index:
         self.to_pandas_warning()
         return Index(self.to_pandas().get_level_values(level=level))
 
+    @is_lazy_check
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -966,12 +1011,14 @@ class Index:
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
 
     @property
+    @is_lazy_check
     def array(self) -> ExtensionArray:
         """
         return the array of values
         """
         return self.to_pandas().array
 
+    @is_lazy_check
     def _summary(self, name: Any = None) -> str:
         """
         Return a summarized representation.
@@ -989,18 +1036,21 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas()._summary(name=name)
 
+    @is_lazy_check
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
         """
         return self.to_pandas().__array__(dtype=dtype)
 
+    @is_lazy_check
     def __repr__(self) -> str:
         """
         Return a string representation for this object.
         """
         return self.to_pandas().__repr__()
 
+    @is_lazy_check
     def __iter__(self) -> Iterator:
         """
         Return an iterator of the values.
@@ -1026,6 +1076,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().__iter__()
 
+    @is_lazy_check
     def __contains__(self, key: Any) -> bool:
         """
         Return a boolean indicating whether the provided key is in the index.
@@ -1059,13 +1110,14 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().__contains__(key=key)
 
+    @is_lazy_check
     def __len__(self) -> int:
         """
         Return the length of the Index as an int.
         """
-        self.to_pandas_warning()
         return self.to_pandas().__len__()
 
+    @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
         Override numpy.ndarray's __getitem__ method to work as desired.
@@ -1079,6 +1131,7 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().__getitem__(key=key)
 
+    @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:
         """
         Override numpy.ndarray's __setitem__ method to work as desired.

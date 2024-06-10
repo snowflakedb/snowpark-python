@@ -389,6 +389,7 @@ class InternalFrame:
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
                 tupleize_cols=False,
+                convert_to_lazy=False,
             )
 
     @property
