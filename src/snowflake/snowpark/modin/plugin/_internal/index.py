@@ -275,7 +275,6 @@ class Index:
         return self.to_pandas().dtype
 
     @property
-    @index_not_implemented()
     def inferred_type(self) -> None:
         """
         Return a string of the type inferred from the values.
