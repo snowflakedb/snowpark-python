@@ -1179,13 +1179,28 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
             )
             df.loc[key] = pd.DataFrame(item)
 
-    query_count, join_count = 1, 2
-    if not all(isinstance(rk_val, bool) for rk_val in row_key):
-        join_count += 2
-    if isinstance(col_key, native_pd.Series):
-        query_count = 1
-    if key_type == "index":
-        query_count -= 1
+    query_count, join_count = 3, 2
+
+    if isinstance(col_key, slice) or (
+        (hasattr(col_key, "dtype") and col_key.dtype == bool)
+        or isinstance(col_key[0], bool)
+    ):
+        if key_type == "index" and isinstance(col_key, native_pd.Series):
+            query_count = 6
+        elif key_type == "index":
+            query_count = 2
+        elif isinstance(col_key, native_pd.Series):
+            query_count = 5
+        else:
+            query_count = 1
+    elif key_type == "index" and isinstance(col_key, native_pd.Series):
+        query_count = 5
+    elif key_type == "index" or isinstance(col_key, native_pd.Series):
+        query_count = 4
+
+    if not isinstance(row_key[0], bool):
+        join_count = 4
+
     with SqlCounter(query_count=query_count, join_count=join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
 
@@ -1250,19 +1265,23 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
     # pandas raise error if the main frame columns have duplicates when enlargement may happen.
     query_count, join_count, expect_exception = 1, 0, True
 
-    if (
-        isinstance(col_key, slice)
-        or (
-            (hasattr(col_key, "dtype") and col_key.dtype == bool)
-            or isinstance(col_key[0], bool)
-        )
-        # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
-        or (df.columns.equals(df.columns.union(col_key)))
+    if isinstance(col_key, slice) or (
+        (hasattr(col_key, "dtype") and col_key.dtype == bool)
+        or isinstance(col_key[0], bool)
     ):
         query_count, join_count, expect_exception = 1, 4, False
-    if isinstance(col_key, native_pd.Series):
-        query_count += 1
-    with SqlCounter(query_count=query_count, join_count=join_count):
+        if isinstance(col_key, native_pd.Series):
+            query_count = 5
+    elif df.columns.equals(df.columns.union(col_key)):
+        # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
+        query_count, join_count, expect_exception = 4, 4, False
+    elif isinstance(col_key, native_pd.Series):
+        query_count = 2
+
+    with SqlCounter(
+        query_count=query_count + 1 if key_type == "index" else query_count,
+        join_count=join_count,
+    ):
         eval_snowpark_pandas_result(
             pd.DataFrame(df),
             df,
@@ -1297,7 +1316,6 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=4)
 def test_df_loc_set_general_key_with_duplicate_rows(item, key_type):
     df = native_pd.DataFrame(
         [[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]],
@@ -1337,25 +1355,28 @@ def test_df_loc_set_general_key_with_duplicate_rows(item, key_type):
         else:
             df.loc[row_key, :] = pd.DataFrame(item)
 
-    if item.index.has_duplicates:
-        # pandas fails to update duplicated rows with duplicated item
-        with pytest.raises(
-            ValueError,
-            match=re.escape("cannot reindex on an axis with duplicate labels"),
-        ):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=4):
+        if item.index.has_duplicates:
+            # pandas fails to update duplicated rows with duplicated item
+            with pytest.raises(
+                ValueError,
+                match=re.escape("cannot reindex on an axis with duplicate labels"),
+            ):
+                loc_set_helper(df)
+            snow = pd.DataFrame(df)
+            loc_set_helper(snow)
+            # Snowpark pandas won't raise error but the total number of rows will be changed (e.g., from 3 to 5)
+            row_key = [1]
+            item = item[~item.index.duplicated(keep="last")]
             loc_set_helper(df)
-        snow = pd.DataFrame(df)
-        loc_set_helper(snow)
-        # Snowpark pandas won't raise error but the total number of rows will be changed (e.g., from 3 to 5)
-        row_key = [1]
-        item = item[~item.index.duplicated(keep="last")]
-        loc_set_helper(df)
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow, df)
-    else:
-        eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow, df)
+        else:
+            eval_snowpark_pandas_result(
+                pd.DataFrame(df), df, loc_set_helper, inplace=True
+            )
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=4, join_count=4)
 def test_df_loc_set_duplicate_cols_in_df_and_col_key():
     df = native_pd.DataFrame(
         [[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], columns=["D", "B", "B", "A"]
@@ -1548,7 +1569,7 @@ def test_df_loc_set_row_col_with_non_matching_scalar_key(
 
     if len(native_df.index) > 0 and not isinstance(row_key, type(native_df.index[0])):
         # We should expect this case will fail because of snowflake type system mismatch.
-        with SqlCounter(query_count=0):
+        with SqlCounter(query_count=2):
             with pytest.raises(
                 SnowparkSQLException, match="Numeric value '.*' is not recognized"
             ):
@@ -1556,7 +1577,7 @@ def test_df_loc_set_row_col_with_non_matching_scalar_key(
                 # Trigger action to run query
                 snow_df.to_pandas()
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=3):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df.copy(),
@@ -1577,7 +1598,7 @@ def test_df_loc_set_row_col_with_non_matching_scalar_key(
         native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["A", "B", "C"]),
     ],
 )
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_df_loc_set_row_col_with_col_enlargement(native_df, key, value):
     snow_df = pd.DataFrame(native_df)
 
@@ -1610,7 +1631,7 @@ def test_df_loc_set_with_multi_index_not_implemented():
         ["c2", "c1", "c2"],
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_loc_get_col_str_key(key):
     df = native_pd.DataFrame({"c1": [1, 2, 3], "c2": [4, 5, 6]})
     snow_df = pd.DataFrame(df)
@@ -1629,7 +1650,6 @@ def test_df_loc_get_col_str_key(key):
         [random.choice([True, False]) for _ in range(random.randint(8, 20))],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_get_key_bool(
     key, key_type, default_index_snowpark_pandas_df, default_index_native_df
 ):
@@ -1659,7 +1679,7 @@ def test_df_loc_get_key_bool(
 
         return _df.loc[_key]
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -1667,7 +1687,7 @@ def test_df_loc_get_key_bool(
         )
 
 
-@sql_count_checker(query_count=2, join_count=0)
+@sql_count_checker(query_count=5, join_count=0)
 def test_df_loc_get_key_bool_self_series():
     native_df = native_pd.DataFrame(
         {
@@ -1679,7 +1699,7 @@ def test_df_loc_get_key_bool_self_series():
     )
     snow_df = pd.DataFrame(native_df)
 
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=2, join_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -1688,7 +1708,7 @@ def test_df_loc_get_key_bool_self_series():
             else df.loc[df["B"]],
         )
 
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=3, join_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -1713,7 +1733,7 @@ def test_df_loc_get_key_bool_series_with_aligned_indices(key, use_default_index)
         index = None
     else:
         # index can have null values and duplicates
-        index = pd.Index(["a", "a", None, "b", "b"], name="index")
+        index = native_pd.Index(["a", "a", None, "b", "b"], name="index")
     native_df = native_pd.DataFrame(
         {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
     )
@@ -1745,7 +1765,7 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
         key_index = np.random.permutation(range(5))
     else:
         index_value = ["a", "b", "c", "d", "e"]
-        index = pd.Index(index_value, name="index")
+        index = native_pd.Index(index_value, name="index")
         key_index = generate_a_random_permuted_list_exclude_self(index_value)
     native_df = native_pd.DataFrame(
         {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
@@ -1760,20 +1780,23 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     key = [True] * 5
     # index can have null values and duplicates
     index_value = ["a", "a", None, "b", "b"]
-    index = pd.Index(index_value, name="index")
+    index = native_pd.Index(index_value, name="index")
     native_df = native_pd.DataFrame(
         {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
     )
     permuted_index_value = generate_a_random_permuted_list_exclude_self(index_value)
-    key_index = pd.Index(permuted_index_value, dtype="string")
+    native_key_index = native_pd.Index(permuted_index_value, dtype="string")
+    snow_key_index = pd.Index(native_key_index, dtype="string")
     snow_df = pd.DataFrame(native_df)
-    series_key = pd.Series(key, index=key_index, dtype="bool", name="key")
-    native_series_key = native_pd.Series(key, index=key_index, dtype="bool", name="key")
+    series_key = pd.Series(key, index=snow_key_index, dtype="bool", name="key")
+    native_series_key = native_pd.Series(
+        key, index=native_key_index, dtype="bool", name="key"
+    )
 
     # Note:
     # pandas: always raise IndexingError when indices with duplicates are not aligned
@@ -1788,7 +1811,7 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
                 "c1": [1, 1, 2, 2, 3, 4, 4, 5, 5],
                 "c2": ["x", "x", "y", "y", "z", "d", "d", "e", "e"],
             },
-            index=pd.Index(
+            index=native_pd.Index(
                 ["a", "a", "a", "a", None, "b", "b", "b", "b"], name="index"
             ),
         ),
@@ -1808,39 +1831,41 @@ def test_df_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
-    if use_default_index:
-        index = None
-        key_index = np.random.permutation(len(key))
-    else:
-        index = ["a", "b", "c", "d", "e", "a1", "b1", "c1", "d1", "e1"]
-        key_index = pd.Index(np.random.permutation(index[: len(key)]), dtype="string")
-        index = np.random.permutation(index[:5])
-    native_df = native_pd.DataFrame(
-        {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
-    )
-    snow_df = pd.DataFrame(native_df)
-    native_series_key = native_pd.Series(key, index=key_index, dtype="bool")
-
-    series_key = pd.Series(key, index=key_index, dtype="bool")
-    if len(key) < 5:
-        # Native pandas raises error if any index from native_df is not in the key; when no missing index exists, native
-        # pandas will perform as expected even though the key includes out-of-bound index
-        with pytest.raises(IndexingError):
-            native_df.loc[native_series_key]
-        # Snowpark pandas does not raise error but select the index existing in the key. So the behavior is same as
-        # the native one if the missing ones are dropped from native_df
-        native_df = native_df.drop(
-            index=[i for i in native_df.index if i not in native_series_key.index]
+    with SqlCounter(query_count=1 if use_default_index else 4, join_count=1):
+        if use_default_index:
+            index = None
+            key_index = np.random.permutation(len(key))
+        else:
+            index = ["a", "b", "c", "d", "e", "a1", "b1", "c1", "d1", "e1"]
+            key_index = pd.Index(
+                np.random.permutation(index[: len(key)]), dtype="string"
+            )
+            index = np.random.permutation(index[:5])
+        native_df = native_pd.DataFrame(
+            {"c1": [1, 2, 3, 4, 5], "c2": ["x", "y", "z", "d", "e"]}, index=index
         )
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.loc[series_key]
-        if isinstance(df, pd.DataFrame)
-        else df.loc[native_series_key],
-    )
+        snow_df = pd.DataFrame(native_df)
+        native_series_key = native_pd.Series(key, index=key_index, dtype="bool")
+
+        series_key = pd.Series(key, index=key_index, dtype="bool")
+        if len(key) < 5:
+            # Native pandas raises error if any index from native_df is not in the key; when no missing index exists, native
+            # pandas will perform as expected even though the key includes out-of-bound index
+            with pytest.raises(IndexingError):
+                native_df.loc[native_series_key]
+            # Snowpark pandas does not raise error but select the index existing in the key. So the behavior is same as
+            # the native one if the missing ones are dropped from native_df
+            native_df = native_df.drop(
+                index=[i for i in native_df.index if i not in native_series_key.index]
+            )
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.loc[series_key]
+            if isinstance(df, pd.DataFrame)
+            else df.loc[native_series_key],
+        )
 
 
 @pytest.mark.parametrize(
@@ -1973,7 +1998,6 @@ def test_df_loc_get_key_scalar(
         ),
     ],
 )
-@sql_count_checker(query_count=4, join_count=4)
 def test_df_loc_get_key_non_boolean(
     native_series_key,
     key_type,
@@ -1997,7 +2021,7 @@ def test_df_loc_get_key_non_boolean(
             )
 
     # default index
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -2011,7 +2035,7 @@ def test_df_loc_get_key_non_boolean(
         "index"
     )
     non_default_index_snowpark_pandas_df = pd.DataFrame(non_default_index_native_df)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             non_default_index_snowpark_pandas_df,
             non_default_index_native_df,
@@ -2031,7 +2055,7 @@ def test_df_loc_get_key_non_boolean(
         ]
     )
     dup_snowpandas_df = pd.DataFrame(dup_native_df)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_df,
             dup_native_df,
@@ -2056,7 +2080,7 @@ def test_df_loc_get_key_non_boolean(
         ]
     )
     dup_snowpandas_df = pd.DataFrame(dup_native_df)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_df,
             dup_native_df,
@@ -2268,7 +2292,7 @@ def test_df_loc_get_with_duplicate_index_get_key_slice(key):
         [slice("d", "b"), ["d", None, "d", "b"]],
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_df_loc_get_with_non_monotonic_index_get_key_slice(key, expected_index):
     native_df = native_pd.DataFrame(
         {"c": [0, 1, 2, 3, 4, 5]}, index=["b", "d", None, "d", "b", "e"]
@@ -2324,7 +2348,7 @@ def test_df_loc_get_key_slice_negative(
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_df_loc_self_df_set_aligned_row_key(df):
     item = native_pd.DataFrame(
         [[10, 20, 30], [40, 50, 60], [70, 80, 90]],
@@ -2434,7 +2458,6 @@ def test_df_loc_self_df_set_aligned_row_key(df):
         ["a", "a", "c", "d"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_df_loc_set_scalar_row_key_enlargement(
     row_key, col_key, item_values, data_index
 ):
@@ -2451,7 +2474,6 @@ def test_df_loc_set_scalar_row_key_enlargement(
         "C": [7, 10, 13, 16],
         "D": [8, 11, 14, 17],
     }
-
     snow_df = pd.DataFrame(data, index=data_index)
     native_df = native_pd.DataFrame(data, index=data_index)
 
@@ -2461,7 +2483,8 @@ def test_df_loc_set_scalar_row_key_enlargement(
         else:
             df.loc[row_key, col_key] = item_values
 
-    eval_snowpark_pandas_result(snow_df, native_df, set_loc_helper, inplace=True)
+    with SqlCounter(query_count=1 if col_key is None else 3):
+        eval_snowpark_pandas_result(snow_df, native_df, set_loc_helper, inplace=True)
 
 
 @pytest.mark.parametrize(
@@ -2506,7 +2529,7 @@ def test_df_loc_set_scalar_row_key_enlargement(
         ["a", "a", "c", "d"],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas(
     row_key, col_key, item_values, data_index
 ):
@@ -2578,7 +2601,7 @@ def test_df_loc_set_scalar_with_item_negative(
             df.loc[row_key, col_key] = item_
 
     if not expect_pandas_fail and not expect_snowpark_fail:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=3):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,
@@ -2586,7 +2609,9 @@ def test_df_loc_set_scalar_with_item_negative(
                 inplace=True,
             )
     else:
-        with SqlCounter(query_count=0):
+        with SqlCounter(
+            query_count=2 if isinstance(item_value, native_pd.Series) else 0
+        ):
             if expect_pandas_fail and expect_snowpark_fail:
                 eval_snowpark_pandas_result(
                     snow_df,
@@ -2616,7 +2641,7 @@ def test_empty_df_loc_set_scalar():
     # Check `loc` with column scalar on empty DataFrame.
     native_df = native_pd.DataFrame()
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         with pytest.raises(
             ValueError, match="cannot set a frame with no defined index and a scalar"
         ):
@@ -2641,7 +2666,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
             snow_df, native_df, col_loc, inplace=True, check_column_type=False
         )
@@ -2660,7 +2685,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         col_loc(snow_df)
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2683,7 +2708,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2693,7 +2718,7 @@ def test_empty_df_loc_set_scalar():
 
     # Test enlargening of empty DataFrame
     snow_df = pd.DataFrame()
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         snow_df.loc[0] = 0
         snow_df.loc[:, 0] = 0
         assert_snowpark_pandas_equal_to_pandas(
@@ -2730,7 +2755,7 @@ def test_empty_df_loc_set_series_and_list(native_item):
         item = native_item if isinstance(df, native_pd.DataFrame) else snow_item
         df.loc[:, "A"] = item
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         if isinstance(native_item, native_pd.Series):
             eval_snowpark_pandas_result(snow_df, native_df, setitem_op, inplace=True)
         else:
@@ -2840,7 +2865,7 @@ def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
             else:
                 df.loc[:, ["A"]] = val
 
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=3, join_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, setitem, inplace=True
         )
@@ -2862,7 +2887,7 @@ def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=3, join_count=2)
 def test_df_loc_set_with_scalar_item(col_key):
     item = 100
     data = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
@@ -3042,7 +3067,10 @@ def test_df_loc_set_with_column_wise_list_like_item(
             )
 
     expected_join_count = 4 if len(item) > 1 else 2
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(
+        query_count=7 if item_type_name == "index" else 3,
+        join_count=expected_join_count,
+    ):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -3098,7 +3126,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
         if len(item) > 1:
             # When col_key is list and item's length > 1 or new label exists, both native pandas and Snowpark pandas
             # raises error if the length of item and col_key do not match when col_key length > 1
-            with SqlCounter(query_count=0, join_count=0):
+            with SqlCounter(
+                query_count=6 if item_type_name == "index" else 2, join_count=0
+            ):
                 eval_snowpark_pandas_result(
                     snow_df,
                     native_df,
@@ -3120,7 +3150,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
                 if len(col_key) <= len(item)
                 else item + ([item[-1]] * (len(col_key) - len(item)))
             )
-            with SqlCounter(query_count=1, join_count=2):
+            with SqlCounter(
+                query_count=7 if item_type_name == "index" else 3, join_count=2
+            ):
                 eval_snowpark_pandas_result(
                     snow_df, native_df, loc_set_helper, inplace=True
                 )
@@ -3136,7 +3168,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
             native_df.loc[row_key, col_key] = try_convert_index_to_native(
                 item_to_type(item)
             )
-        with SqlCounter(query_count=0, join_count=0):
+        with SqlCounter(
+            query_count=5 if item_type_name == "index" else 2, join_count=0
+        ):
             snowpark_err_msg = (
                 "Must have equal len keys and value when setting with an iterable"
             )
@@ -3146,7 +3180,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
 
     else:
         # Both Snowpark pandas and Native pandas should have same non-error behavior.
-        with SqlCounter(query_count=1, join_count=2):
+        with SqlCounter(
+            query_count=7 if item_type_name == "index" else 3, join_count=2
+        ):
             eval_snowpark_pandas_result(
                 snow_df, native_df, loc_set_helper, inplace=True
             )
@@ -3160,17 +3196,17 @@ def test_df_loc_set_columns_with_boolean_series_optimized():
     def helper(df):
         df.loc[df["a"] != 1, "b"] = 10
 
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=4, join_count=0):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
     def helper(df):
         df.loc[df["a"] != 1, "b"] = df["c"]
 
-    with SqlCounter(query_count=1, join_count=0):
+    with SqlCounter(query_count=5, join_count=0):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_set_boolean_series_with_non_default_index_key_and_scalar_item():
     native_df = native_pd.DataFrame([1, 2, 3], columns=["A"])
     snow_df = pd.DataFrame(native_df)
@@ -3217,7 +3253,7 @@ def test_df_loc_set_boolean_series_with_non_default_index_key_and_scalar_item():
         ["duplicate", [1, 1, 2, 3]],
     ],
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=3, join_count=4)
 def test_df_loc_set_duplicate_index(
     self_index_type, self_index_val, index, columns, item
 ):
@@ -3278,7 +3314,7 @@ def test_df_loc_set_duplicate_index(
         [slice(None), ["x"], native_pd.DataFrame({"x": ["abc", "xyz"]}, index=[1, 1])],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_set_duplicate_index_negative(index, columns, item):
     data = {"x": ["a", "b", "c", "d"]}
     snow_df = pd.DataFrame(data)
@@ -3332,7 +3368,7 @@ def test_df_loc_set_item_2d_array(indexer, item_type):
     snow_indexers = []
     for i in indexer:
         if isinstance(i, native_pd.Series):
-            query_count += 1
+            query_count = 4
             snow_indexers.append(pd.Series(i))
         else:
             snow_indexers.append(i)
@@ -3358,6 +3394,8 @@ def test_df_loc_set_item_2d_array(indexer, item_type):
     expected_join_count = 4
     if isinstance(indexer[0], slice):
         expected_join_count = 1
+    if isinstance(indexer[1], list):
+        query_count = 3
 
     with SqlCounter(query_count=query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
@@ -3740,7 +3778,7 @@ def test_df_loc_set_with_empty_key_and_list_like_item(
             _key = try_convert_index_to_native(_key)
             df.loc[_key] = try_convert_index_to_native(item)
 
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=5, join_count=2):
         eval_snowpark_pandas_result(
             simple_snowpark_pandas_df,
             simple_native_pandas_df,
@@ -3875,7 +3913,7 @@ def test_df_single_value_with_slice_key():
     eval_snowpark_pandas_result(snowpark_df, native_df, lambda df: df.loc[0:1])
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_loc_set_none():
     native_df = native_pd.DataFrame({"a": [1, 2, 3]})
 
@@ -3898,7 +3936,7 @@ def test_df_loc_set_none():
     )
 
 
-@sql_count_checker(query_count=1, join_count=3)
+@sql_count_checker(query_count=3, join_count=3)
 def test_df_loc_set_with_index_and_column_labels():
     """
     Create a DataFrame using 3 Series objects and perform loc set with a scalar.

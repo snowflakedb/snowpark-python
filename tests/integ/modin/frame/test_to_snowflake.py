@@ -17,7 +17,7 @@ from tests.integ.modin.utils import VALID_PANDAS_LABELS, VALID_SNOWFLAKE_COLUMN_
 @sql_count_checker(query_count=2)
 def test_to_snowflake_index(test_table_name, index, index_labels):
     df = pd.DataFrame(
-        {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
+        {"a": [1, 2, 3], "b": [4, 5, 6]}, index=native_pd.Index([2, 3, 4], name="index")
     )
 
     df.to_snowflake(
@@ -177,7 +177,7 @@ def test_to_snowflake_column_with_quotes(session, test_table_name):
     verify_columns(test_table_name, ['a"b', 'a""b'])
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_index_label_none_raises(test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 
@@ -194,7 +194,7 @@ def test_to_snowflake_index_label_none_raises(test_table_name):
         df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_data_label_none_raises(test_table_name):
     df = pd.DataFrame(
         {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")

@@ -49,19 +49,19 @@ def test_logical_operators():
     snow_df = pd.DataFrame(data)
     pandas_df = native_pd.DataFrame(data)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         # Test simple logical not
         snow_result = np.logical_not(snow_df["B"])
         pandas_result = np.logical_not(pandas_df["B"])
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=2):
         # Test for chaining pandas and numpy calls
         snow_result = np.logical_not(snow_df["C"].isin(["a", "d"]))
         pandas_result = np.logical_not(pandas_df["C"].isin(["a", "d"]))
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         # Test binary logical operator
         snow_result = np.logical_and(snow_df["B"], snow_df["A"])
         pandas_result = np.logical_and(pandas_df["B"], pandas_df["A"])
@@ -104,7 +104,7 @@ def test_np_where_notimplemented():
     }
     snow_df = pd.DataFrame(data)
 
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         with pytest.raises(TypeError):
             np.where(
                 np.array([True, False, True, True, False, True, False, False, False]),

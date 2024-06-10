@@ -527,7 +527,7 @@ class TestTimeConversionFormats:
         ):
             to_datetime([date], format=fmt).to_pandas()
 
-    @sql_count_checker(query_count=6)
+    @sql_count_checker(query_count=2)
     def test_to_datetime_parse_timezone_keeps_name(self):
         # GH 21697
         fmt = "%Y-%m-%d %H:%M:%S %z"

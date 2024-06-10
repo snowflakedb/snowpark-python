@@ -222,7 +222,7 @@ def test_pivot_table_with_sum_and_count_null_and_empty_values_matching_behavior_
     )
 
 
-@sql_count_checker(query_count=5, join_count=1)
+@sql_count_checker(query_count=6, join_count=1)
 def test_pivot_on_inline_data_using_temp_table():
     # Create a large dataframe of inlined data that will spill to a temporary table.
     snow_df = pd.DataFrame(

@@ -82,7 +82,7 @@ def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     assert sorted(snowpandas_index.values.tolist()) == [0, 1]
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_to_snowpark_pandas_with_operations(session, tmp_table_basic) -> None:
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = (
