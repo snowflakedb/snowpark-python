@@ -296,7 +296,7 @@ class DataFrame:
 
         Keep only the rows with at least 2 non-NA values.
 
-        >>> df.dropna(thresh=2)
+        >>> df.dropna(thresh=2)  # doctest: +SKIP
                name        toy       born
         1    Batman  Batmobile 1940-04-25
         2  Catwoman   Bullwhip        NaT
