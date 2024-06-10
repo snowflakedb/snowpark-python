@@ -47,7 +47,7 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
 
 warnings.warn(
     "Snowpark pandas has been in Public Preview since 1.17.0."
-    + " See https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas for details.",  # TODO: SNOW-1326280 update link
+    + " See https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas for details.",
     stacklevel=1,
 )
 
