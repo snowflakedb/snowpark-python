@@ -133,7 +133,7 @@
 
 #### New Features
 
-- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas) for more details.
+- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas) for more details.
 
 ### Snowpark Local Testing Updates
 
