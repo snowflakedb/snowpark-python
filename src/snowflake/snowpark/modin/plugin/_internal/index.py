@@ -180,7 +180,6 @@ class Index:
         # TODO: SNOW-1458134 implement is_monotonic_decreasing
 
     @property
-    @index_not_implemented()
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -219,7 +218,6 @@ class Index:
         return self.to_pandas().is_unique
 
     @property
-    @index_not_implemented()
     def has_duplicates(self) -> bool:
         """
         Check if the Index has duplicate values.
@@ -257,7 +255,6 @@ class Index:
         return not self.is_unique
 
     @property
-    @index_not_implemented()
     def dtype(self) -> DtypeObj:
         """
         Get the dtype object of the underlying data.
@@ -295,7 +292,6 @@ class Index:
         # TODO: SNOW-1458118 implement shape
 
     @property
-    @index_not_implemented()
     def name(self) -> Hashable:
         """
         Get the index name.
@@ -539,7 +535,6 @@ class Index:
         """
         # TODO: SNOW-1458142 implement argmax
 
-    @index_not_implemented()
     def copy(
         self,
         name: Hashable | None = None,
@@ -599,7 +594,6 @@ class Index:
         """
         # TODO: SNOW-1458146 implement delete
 
-    @index_not_implemented()
     def drop(
         self,
         labels: Any,
@@ -658,7 +652,6 @@ class Index:
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
-    @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
         """
         Indicate duplicate index values.
@@ -717,7 +710,6 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().duplicated(keep=keep)
 
-    @index_not_implemented()
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index object are equal.
@@ -819,7 +811,7 @@ class Index:
         """
 
     @index_not_implemented()
-    def identical(self, other: Index) -> None:
+    def identical(self) -> None:
         """
         Similar to equals, but checks that object attributes and types are also equal.
 
@@ -1311,7 +1303,6 @@ class Index:
         Series.count: Count non-NA/null observations in the Series.
         """
 
-    @index_not_implemented()
     def value_counts(
         self,
         normalize: bool = False,
@@ -1391,7 +1382,6 @@ class Index:
             dropna=dropna,
         )
 
-    @index_not_implemented()
     def set_names(
         self, names: Any, level: Any = None, inplace: bool = False
     ) -> Self | None:
@@ -1539,7 +1529,6 @@ class Index:
         notna : Top-level notna.
         """
 
-    @index_not_implemented()
     def astype(self, dtype: Any, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
@@ -1679,10 +1668,12 @@ class Index:
 
     @index_not_implemented()
     def view(self) -> None:
-        pass
+        """
+        No documentation on pandas!
+        """
 
     @index_not_implemented()
-    def argsort(self, *args: Any, **kwargs: Any) -> None:
+    def argsort(self) -> None:
         """
         Return the integer indices that would sort the index.
 
@@ -1776,7 +1767,6 @@ class Index:
 
     to_list = tolist
 
-    @index_not_implemented()
     def sort_values(
         self,
         return_indexer: bool = False,
@@ -1919,7 +1909,6 @@ class Index:
         join_index, (left_indexer, right_indexer)
         """
 
-    @index_not_implemented()
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
         Form the intersection of two Index objects.
@@ -1956,7 +1945,6 @@ class Index:
             )
         )
 
-    @index_not_implemented()
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -2006,7 +1994,6 @@ class Index:
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
-    @index_not_implemented()
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -2231,7 +2218,6 @@ class Index:
             These correspond to the -1 in the indexer array.
         """
 
-    @index_not_implemented()
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2345,7 +2331,6 @@ class Index:
         - otherwise it should be a number indicating level position.
         """
 
-    @index_not_implemented()
     def slice_indexer(
         self,
         start: Hashable | None = None,
