@@ -3328,12 +3328,12 @@ class DataFrame:
         repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
 
-        if self._session._conn.phase1_enabled():
+        if self._session._conn.is_phase1_enabled():
             ast = self._session._ast_batch.flush()
             res = self._session._conn.ast_query(ast)
             print(f"AST response: {res}")
         else:
-            (_, kwargs["_dataframe_ast"]) = self._session._ast_batch.flush()
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(

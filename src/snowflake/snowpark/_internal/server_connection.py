@@ -719,7 +719,7 @@ class ServerConnection:
             f"/queries/v1/query-request?requestId={request_id}", req
         )
     
-    def phase1_enabled(self) -> bool:
+    def is_phase1_enabled(self) -> bool:
         return os.getenv("SNOWPARK_PHASE_1", False)
 
 

@@ -800,7 +800,8 @@ $$"""
         # It's not necessary to mock this call.
         pass
 
-    def phase1_enabled(self):
+    def is_phase1_enabled(self):
+        # We don't yet mock Phase 1.
         return False
 
 
