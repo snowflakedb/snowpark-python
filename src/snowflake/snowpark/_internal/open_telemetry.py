@@ -20,8 +20,9 @@ target_modules = [
     "udtf.py",
     "udaf.py",
     "functions.py",
+    "stored_procedure.py",
 ]
-registration_modules = ["udf.py", "udtf.py", "udaf.py"]
+registration_modules = ["udf.py", "udtf.py", "udaf.py", "stored_procedure.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
