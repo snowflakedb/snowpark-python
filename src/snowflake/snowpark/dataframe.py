@@ -3328,23 +3328,17 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        # TODO: A little hack to prevent infinite recursion.
-        if not "snowpark_coprocessor" in query:
-            # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
-            repr = self._session._ast_batch.assign()
-            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
-            self._session._ast_batch.eval(repr)
+        # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+        repr = self._session._ast_batch.assign()
+        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        self._session._ast_batch.eval(repr)
 
-            print(f"Original: {self._plan.queries}")
-            print(f"AST: {self._session._ast_batch._request}")
-
+        if self._session._conn.is_phase1_enabled():
             ast = self._session._ast_batch.flush()
-            # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
-            # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
-            # print(f'Base 64: {preview_sql}')
-            # self._session.sql(preview_sql).show()
             res = self._session._conn.ast_query(ast)
             print(f"AST response: {res}")
+        else:
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
