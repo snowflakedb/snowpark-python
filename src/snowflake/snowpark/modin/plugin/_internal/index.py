@@ -34,10 +34,7 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    index_not_implemented,
-)
+from snowflake.snowpark.modin.plugin.utils.error_message import index_not_implemented
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -325,7 +322,6 @@ class Index:
         """
         Get names of index
         """
-        raise ErrorMessage.NotImplementedError("Index.names is not yet implemented")
         self.to_pandas_warning()
         return self.to_pandas()._get_names()
 
@@ -342,7 +338,6 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        raise ErrorMessage.NotImplementedError("Index.names is not yet implemented")
         self.to_pandas_warning()
         self.to_pandas()._set_names(values)
 
