@@ -146,5 +146,3 @@ docs/source/modin/pandas_api/
 # performance test result
 tests/perf/results/
 tests/perf/*.dat
-
-tests/parameters.py
