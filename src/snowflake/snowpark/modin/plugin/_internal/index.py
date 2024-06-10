@@ -33,6 +33,10 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    index_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -141,6 +145,41 @@ class Index:
         return self.to_pandas().values
 
     @property
+    @index_not_implemented()
+    def is_monotonic_increasing(self) -> None:
+        """
+        Return a boolean if the values are equal or increasing.
+
+        Returns
+        -------
+        bool
+            Whether the values are equal or increasing
+
+        See Also
+        --------
+        Index.is_monotonic_decreasing : Check if the values are equal or decreasing
+        """
+        # TODO: SNOW-1458134 implement is_monotonic_increasing
+
+    @property
+    @index_not_implemented()
+    def is_monotonic_decreasing(self) -> None:
+        """
+        Return a boolean if the values are equal or decreasing.
+
+        Returns
+        -------
+        bool
+            Whether the values are equal or decreasing
+
+        See Also
+        --------
+        Index.is_monotonic_increasing : Check if the values are equal or increasing
+        """
+        # TODO: SNOW-1458134 implement is_monotonic_decreasing
+
+    @property
+    @index_not_implemented()
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -157,27 +196,29 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([1, 5, 7, 7])
-        >>> idx.is_unique
+        >>> idx.is_unique  # doctest: +SKIP
         False
 
         >>> idx = pd.Index([1, 5, 7])
-        >>> idx.is_unique
+        >>> idx.is_unique  # doctest: +SKIP
         True
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.is_unique
+        >>> idx.is_unique  # doctest: +SKIP
         False
 
         >>> idx = pd.Index(["Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.is_unique
+        >>> idx.is_unique  # doctest: +SKIP
         True
         """
+        # TODO: SNOW-1458131 implement is_unique
         self.to_pandas_warning()
         return self.to_pandas().is_unique
 
     @property
+    @index_not_implemented()
     def has_duplicates(self) -> bool:
         """
         Check if the Index has duplicate values.
@@ -194,26 +235,28 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([1, 5, 7, 7])
-        >>> idx.has_duplicates
+        >>> idx.has_duplicates  # doctest: +SKIP
         True
 
         >>> idx = pd.Index([1, 5, 7])
-        >>> idx.has_duplicates
+        >>> idx.has_duplicates  # doctest: +SKIP
         False
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.has_duplicates
+        >>> idx.has_duplicates  # doctest: +SKIP
         True
 
         >>> idx = pd.Index(["Orange", "Apple",
         ...                 "Watermelon"]).astype("category")
-        >>> idx.has_duplicates
+        >>> idx.has_duplicates  # doctest: +SKIP
         False
         """
+        # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
     @property
+    @index_not_implemented()
     def dtype(self) -> DtypeObj:
         """
         Get the dtype object of the underlying data.
@@ -228,48 +271,30 @@ class Index:
         >>> idx = pd.Index([1, 2, 3])
         >>> idx
         Index([1, 2, 3], dtype='int64')
-        >>> idx.dtype
+        >>> idx.dtype  # doctest: +SKIP
         dtype('int64')
         """
+        # TODO: SNOW-1458123 implement dtype
         self.to_pandas_warning()
         return self.to_pandas().dtype
 
-    def astype(self, dtype: Any, copy: bool = True) -> Index:
+    @property
+    @index_not_implemented()
+    def inferred_type(self) -> None:
         """
-        Create an Index with values cast to dtypes.
-
-        The class of a new Index is determined by dtype. When conversion is
-        impossible, a TypeError exception is raised.
-
-        Parameters
-        ----------
-        dtype : numpy dtype or pandas type
-            Note that any signed integer `dtype` is treated as ``'int64'``,
-            and any unsigned integer `dtype` is treated as ``'uint64'``,
-            regardless of the size.
-        copy : bool, default True
-            By default, astype always returns a newly allocated object.
-            If copy is set to False and internal requirements on dtype are
-            satisfied, the original data is used to create a new Index
-            or the original Index is returned.
-
-        Returns
-        -------
-        Index
-            Index with values cast to specified dtype.
-
-        Examples
-        --------
-        >>> idx = pd.Index([1, 2, 3])
-        >>> idx
-        Index([1, 2, 3], dtype='int64')
-        >>> idx.astype('float')
-        Index([1.0, 2.0, 3.0], dtype='float64')
+        Return a string of the type inferred from the values.
         """
-        self.to_pandas_warning()
-        return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
 
     @property
+    @index_not_implemented()
+    def shape(self) -> None:
+        """
+        Return a tuple of the shape of the underlying data.
+        """
+        # TODO: SNOW-1458118 implement shape
+
+    @property
+    @index_not_implemented()
     def name(self) -> Hashable:
         """
         Get the index name.
@@ -287,6 +312,7 @@ class Index:
         >>> idx.name
         'x'
         """
+        # TODO: SNOW-1458122 implement name
         self.to_pandas_warning()
         return self.to_pandas().name
 
@@ -302,6 +328,7 @@ class Index:
         """
         Get names of index
         """
+        raise ErrorMessage.NotImplementedError("Index.names is not yet implemented")
         self.to_pandas_warning()
         return self.to_pandas()._get_names()
 
@@ -318,56 +345,204 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
+        raise ErrorMessage.NotImplementedError("Index.names is not yet implemented")
         self.to_pandas_warning()
         self.to_pandas()._set_names(values)
 
+    # TODO: SNOW-1458122 implement names
     names = property(fset=_set_names, fget=_get_names)
 
-    def set_names(
-        self, names: Any, level: Any = None, inplace: bool = False
-    ) -> Self | None:
+    @property
+    @index_not_implemented()
+    def nbytes(self) -> None:
         """
-        Set Index name.
+        Return the number of bytes in the underlying data.
+        """
 
-        Able to set new names partially and by level.
+    @property
+    @index_not_implemented()
+    def ndim(self) -> None:
+        """
+        Number of dimensions of the underlying data, by definition 1.
+        """
+
+    @property
+    @index_not_implemented()
+    def size(self) -> None:
+        """
+        Return the number of elements in the underlying data.
+        """
+        # TODO: SNOW-1458118 implement size
+
+    @property
+    @index_not_implemented()
+    def empty(self) -> None:
+        """
+        Whether the index is empty.
+        """
+        # TODO: SNOW-1458118 implement empty
+
+    @property
+    @index_not_implemented()
+    def T(self) -> Index:
+        """
+        Return the transpose, which is by definition self.
+        """
+        # TODO: SNOW-1458140 implement T
+        return self
+
+    @property
+    @index_not_implemented()
+    def memory_usage(self, deep: bool = False) -> None:
+        """
+        Memory usage of the values.
 
         Parameters
         ----------
-        names : label or list of label or dict-like for MultiIndex
-            Name(s) to set.
-
-        level : int, label or list of int or label, optional
-
-        inplace : bool, default False
-            Modifies the object directly, instead of creating a new Index.
+        deep : bool, default False
+            Introspect the data deeply, interrogate object dtypes for system-level memory consumption.
 
         Returns
         -------
-        Index or None
-            The same type as the caller or None if ``inplace=True``.
+        bytes
+            The number of bytes used.
 
-        Examples
+        See Also
         --------
-        >>> idx = pd.Index([1, 2, 3, 4])
-        >>> idx
-        Index([1, 2, 3, 4], dtype='int64')
-        >>> idx.set_names('quarter')
-        Index([1, 2, 3, 4], dtype='int64', name='quarter')
-        """
-        self.to_pandas_warning()
-        if not inplace:
-            return Index(
-                self.to_pandas().set_names(names, level=level, inplace=inplace)
-            )
-        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+        numpy.ndarray.nbytes : Total bytes consumed by the elements of the array.
 
-    @property
-    def nlevels(self) -> int:
+        Notes
+        -----
+        Memory usage does not include memory consumed by elements that are not components of the array if deep=False or
+        if used on PyPy.
         """
-        Number of levels.
-        """
-        return 1
 
+    @index_not_implemented()
+    def all(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Return whether all elements are Truthy.
+
+        Parameters
+        ----------
+        *args : Any
+            Required for compatibility with numpy.
+        **kwargs : Any
+            Required for compatibility with numpy.
+
+        Returns
+        -------
+        bool or array-like (if axis is specified)
+            A single element array-like may be converted to bool.
+
+        See Also
+        --------
+        Index.any : Return whether any element in an Index is True.
+        Series.any : Return whether any element in a Series is True.
+        Series.all : Return whether all elements in a Series are True.
+
+        Notes
+        -----
+        Not a Number (NaN), positive infinity and negative infinity
+        evaluate to True because these are not equal to zero.
+        """
+        # TODO: SNOW-1458141 implement all
+
+    @index_not_implemented()
+    def any(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Return whether any element is Truthy.
+
+        Parameters
+        ----------
+        *args
+            Required for compatibility with numpy.
+        **kwargs
+            Required for compatibility with numpy.
+
+        Returns
+        -------
+        bool or array-like (if axis is specified)
+            A single element array-like may be converted to bool.
+
+        See Also
+        --------
+        Index.all : Return whether all elements are True.
+        Series.all : Return whether all elements are True.
+
+        Notes
+        -----
+        Not a Number (NaN), positive infinity and negative infinity
+        evaluate to True because these are not equal to zero.
+        """
+        # TODO: SNOW-1458141 implement any
+
+    @index_not_implemented()
+    def argmin(
+        self, axis: str | None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> None:
+        """
+        Return int position of the smallest value in the Series.
+
+        If the minimum is achieved in multiple locations, the first row position is returned.
+
+        Parameters
+        ----------
+        axis : {None}
+            Unused. Parameter needed for compatibility with DataFrame.
+        skipna: bool, default True
+            Exclude NA/null values when showing the result.
+        *args, **kwargs
+            Additional arguments and keywords for compatibility with NumPy.
+
+        Returns
+        -------
+        int
+            Row position of the minimum value.
+
+        See Also
+        --------
+        Series.argmin : Return position of the minimum value.
+        Series.argmax : Return position of the maximum value.
+        numpy.ndarray.argmin : Equivalent method for numpy arrays.
+        Series.idxmax : Return index label of the maximum values.
+        Series.idxmin : Return index label of the minimum values.
+        """
+        # TODO: SNOW-1458142 implement argmin
+
+    @index_not_implemented()
+    def argmax(
+        self, axis: str | None, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> None:
+        """
+        Return int position of the largest value in the Series.
+
+        If the maximum is achieved in multiple locations, the first row position is returned.
+
+        Parameters
+        ----------
+        axis : {None}
+            Unused. Parameter needed for compatibility with DataFrame.
+        skipna: bool, default True
+            Exclude NA/null values when showing the result.
+        *args, **kwargs
+            Additional arguments and keywords for compatibility with NumPy.
+
+        Returns
+        -------
+        int
+            Row position of the maximum value.
+
+        See Also
+        --------
+        Series.argmin : Return position of the minimum value.
+        Series.argmax : Return position of the maximum value.
+        numpy.ndarray.argmax : Equivalent method for numpy arrays.
+        Series.idxmax : Return index label of the maximum values.
+        Series.idxmin : Return index label of the minimum values.
+        """
+        # TODO: SNOW-1458142 implement argmax
+
+    @index_not_implemented()
     def copy(
         self,
         name: Hashable | None = None,
@@ -387,7 +562,7 @@ class Index:
         Returns
         -------
         Index
-            Index refer to new object which is a copy of this object.
+            Index refers to new object which is a copy of this object.
 
         Notes
         -----
@@ -397,26 +572,50 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> new_idx = idx.copy()
-        >>> idx is new_idx
+        >>> new_idx = idx.copy()  # doctest: +SKIP
+        >>> idx is new_idx  # doctest: +SKIP
         False
         """
+        # TODO: SNOW-1458120 implement copy
         self.to_pandas_warning()
         return Index(self.to_pandas().copy(deep=deep, name=name))
 
+    @index_not_implemented()
+    def delete(self) -> None:
+        """
+        Make new Index with passed location(-s) deleted.
+
+        Parameters
+        ----------
+        loc : int or list of int
+            Location of item(-s) which will be deleted.
+            Use a list of locations to delete more than one value at the same time.
+
+        Returns
+        -------
+        Index
+            Will be the same type as self, except for RangeIndex.
+
+        See Also
+        --------
+        numpy.delete : Delete any rows and column from NumPy array (ndarray).
+        """
+        # TODO: SNOW-1458146 implement delete
+
+    @index_not_implemented()
     def drop(
         self,
         labels: Any,
         errors: Literal["ignore", "raise"] = "raise",
     ) -> Index:
         """
-        Make new Index with passed list of labels deleted.
+        Make new Index with the passed list of labels deleted.
 
         Parameters
         ----------
         labels : array-like or scalar
         errors : {'ignore', 'raise'}, default 'raise'
-            If 'ignore', suppress error and existing labels are dropped.
+            If 'ignore', suppress the error and existing labels are dropped.
 
         Returns
         -------
@@ -426,17 +625,43 @@ class Index:
         Raises
         ------
         KeyError
-            If not all of the labels are found in the selected axis
+            If all labels are not found in the selected axis
 
         Examples
         --------
         >>> idx = pd.Index(['a', 'b', 'c'])
-        >>> idx.drop(['a'])
+        >>> idx.drop(['a'])  # doctest: +SKIP
         Index(['b', 'c'], dtype='object')
         """
+        # TODO: SNOW-1458146 implement drop
         self.to_pandas_warning()
         return Index(self.to_pandas().drop(labels=labels, errors=errors))
 
+    @index_not_implemented()
+    def drop_duplicates(self) -> None:
+        """
+        Return Index with duplicate values removed.
+
+        Parameters
+        ----------
+        keep : {'first', 'last', ``False``}, default 'first'
+            - 'first' : Drop duplicates except for the first occurrence.
+            - 'last' : Drop duplicates except for the last occurrence.
+            - ``False`` : Drop all duplicates.
+
+        Returns
+        -------
+        Index
+
+        See Also
+        --------
+        Series.drop_duplicates : Equivalent method on Series.
+        DataFrame.drop_duplicates : Equivalent method on DataFrame.
+        Index.duplicated : Related method on Index, indicating duplicate Index values.
+        """
+        # TODO: SNOW-1458147 implement drop_duplicates
+
+    @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
         """
         Indicate duplicate index values.
@@ -472,28 +697,30 @@ class Index:
         set to False and all others to True:
 
         >>> idx = pd.Index(['lama', 'cow', 'lama', 'beetle', 'lama'])
-        >>> idx.duplicated()
+        >>> idx.duplicated()  # doctest: +SKIP
         array([False, False,  True, False,  True])
 
         which is equivalent to
 
-        >>> idx.duplicated(keep='first')
+        >>> idx.duplicated(keep='first')  # doctest: +SKIP
         array([False, False,  True, False,  True])
 
         By using 'last', the last occurrence of each set of duplicated values
         is set on False and all others on True:
 
-        >>> idx.duplicated(keep='last')
+        >>> idx.duplicated(keep='last')  # doctest: +SKIP
         array([ True, False,  True, False, False])
 
         By setting keep on ``False``, all duplicates are True:
 
-        >>> idx.duplicated(keep=False)
+        >>> idx.duplicated(keep=False)  # doctest: +SKIP
         array([ True, False,  True, False,  True])
         """
+        # TODO: SNOW-1458147 implement duplicated
         self.to_pandas_warning()
         return self.to_pandas().duplicated(keep=keep)
 
+    @index_not_implemented()
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index object are equal.
@@ -553,9 +780,466 @@ class Index:
         >>> int64_idx.equals(uint64_idx)
         True
         """
+        # TODO: SNOW-1458148 implement equals
         self.to_pandas_warning()
         return self.to_pandas().equals(try_convert_index_to_native(other))
 
+    @index_not_implemented()
+    def factorize(self) -> None:
+        """
+        Encode the object as an enumerated type or categorical variable.
+
+        This method is useful for obtaining a numeric representation of an
+        array when all that matters is identifying distinct values.
+        factorize is available as both a top-level function pandas.factorize(),
+        and as a method Series.factorize() and Index.factorize().
+
+        Parameters
+        ----------
+        sort : bool, default False
+            Sort uniques and shuffle codes to maintain the relationship.
+        use_na_sentinel: bool, default True
+            If True, the sentinel -1 will be used for NaN values.
+            If False, NaN values will be encoded as non-negative integers
+            and will not drop the NaN from the uniques of the values.
+
+        Returns
+        -------
+        A tuple of the form (codes, uniques).
+        codes : ndarray
+            An integer ndarray that’s an indexer into uniques.
+            uniques.take(codes) will have the same values as values.
+
+        uniques : ndarray, Index, or Categorical
+            The unique valid values. When values is Categorical, uniques is a Categorical.
+            When values is some other pandas object, an Index is returned.
+            Otherwise, a 1-D ndarray is returned.
+
+        See Also
+        --------
+        cut : Discretize a continuous-valued array.
+        unique : Find the unique value in an array.
+        """
+
+    @index_not_implemented()
+    def identical(self, other: Index) -> None:
+        """
+        Similar to equals, but checks that object attributes and types are also equal.
+
+        Returns
+        -------
+        bool
+            If two Index objects have equal elements and the same type True,
+            otherwise False.
+        """
+        # TODO: SNOW-1458148 implement identical
+
+    @index_not_implemented()
+    def insert(self) -> None:
+        """
+        Make new Index inserting new item at location.
+
+        Follows Python numpy.insert semantics for negative values.
+
+        Parameters
+        ----------
+        loc : int
+        item : object
+
+        Returns
+        -------
+        Index
+        """
+
+    @index_not_implemented()
+    def is_(self) -> None:
+        """
+        More flexible, faster check like ``is`` but that works through views.
+
+        Note: this is *not* the same as ``Index.identical()``, which checks
+        that metadata is also the same.
+
+        Parameters
+        ----------
+        other : object
+            Other object to compare against.
+
+        Returns
+        -------
+        bool
+            True if both have same underlying data, False otherwise.
+
+        See Also
+        --------
+        Index.identical : Works like ``Index.is_`` but also checks metadata.
+        """
+
+    @index_not_implemented()
+    def is_boolean(self) -> None:
+        """
+        Check if the Index only consists of booleans.
+
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_bool_dtype` instead.
+
+        Returns
+        -------
+        bool
+            Whether the Index only consists of booleans.
+
+        See Also
+        --------
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype (deprecated).
+        is_categorical : Check if the Index holds categorical data.
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+        # TODO: SNOW-1458123 implement is_boolean
+
+    @index_not_implemented()
+    def is_categorical(self) -> None:
+        """
+        Check if the Index holds categorical data.
+
+        .. deprecated:: 2.0.0
+              Use `isinstance(index.dtype, pd.CategoricalDtype)` instead.
+
+        Returns
+        -------
+        bool
+            True if the Index is categorical.
+
+        See Also
+        --------
+        CategoricalIndex : Index for categorical data.
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+
+    @index_not_implemented()
+    def is_floating(self) -> None:
+        """
+        Check if the Index is a floating type.
+
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_float_dtype` instead
+
+        The Index may consist of only floats, NaNs, or a mix of floats,
+        integers, or NaNs.
+
+        Returns
+        -------
+        bool
+            Whether or not the Index only consists of only consists of floats, NaNs, or
+            a mix of floats, integers, or NaNs.
+
+        See Also
+        --------
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+
+    # TODO: SNOW-1458123 implement is_floating
+
+    @index_not_implemented()
+    def is_integer(self) -> None:
+        """
+        Check if the Index only consists of integers.
+
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_integer_dtype` instead.
+
+        Returns
+        -------
+        bool
+            Whether or not the Index only consists of integers.
+
+        See Also
+        --------
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+        # TODO: SNOW-1458123 implement is_integer
+
+    @index_not_implemented()
+    def is_interval(self) -> None:
+        """
+        Check if the Index holds Interval objects.
+
+        .. deprecated:: 2.0.0
+            Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
+
+        Returns
+        -------
+        bool
+            Whether or not the Index holds Interval objects.
+
+        See Also
+        --------
+        IntervalIndex : Index for Interval objects.
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        """
+        # TODO: SNOW-1458123 implement is_interval
+
+    @index_not_implemented()
+    def is_numeric(self) -> None:
+        """
+        Check if the Index only consists of numeric data.
+
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_numeric_dtype` instead.
+
+        Returns
+        -------
+        bool
+            Whether or not the Index only consists of numeric data.
+
+        See Also
+        --------
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_object : Check if the Index is of the object dtype. (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+        # TODO: SNOW-1458123 implement is_numeric
+
+    @index_not_implemented()
+    def is_object(self) -> None:
+        """
+        Check if the Index is of the object dtype.
+
+        .. deprecated:: 2.0.0
+           Use `pandas.api.types.is_object_dtype` instead.
+
+        Returns
+        -------
+        bool
+            Whether or not the Index is of the object dtype.
+
+        See Also
+        --------
+        is_boolean : Check if the Index only consists of booleans (deprecated).
+        is_integer : Check if the Index only consists of integers (deprecated).
+        is_floating : Check if the Index is a floating type (deprecated).
+        is_numeric : Check if the Index only consists of numeric data (deprecated).
+        is_categorical : Check if the Index holds categorical data (deprecated).
+        is_interval : Check if the Index holds Interval objects (deprecated).
+        """
+        # TODO: SNOW-1458123 implement is_object
+
+    @index_not_implemented()
+    def min(self) -> None:
+        """
+        Return the minimum value of the Index.
+
+        Parameters
+        ----------
+        axis : {None}
+            Dummy argument for consistency with Series.
+        skipna : bool, default True
+            Exclude NA/null values when showing the result.
+        *args, **kwargs
+            Additional arguments and keywords for compatibility with NumPy.
+
+        Returns
+        -------
+        scalar
+            Minimum value.
+
+        See Also
+        --------
+        Index.max : Return the maximum value of the object.
+        Series.min : Return the minimum value in a Series.
+        DataFrame.min : Return the minimum values in a DataFrame.
+        """
+
+    @index_not_implemented()
+    def max(self) -> None:
+        """
+        Return the maximum value of the Index.
+
+        Parameters
+        ----------
+        axis : int, optional
+            For compatibility with NumPy. Only 0 or None are allowed.
+        skipna : bool, default True
+            Exclude NA/null values when showing the result.
+        *args, **kwargs
+            Additional arguments and keywords for compatibility with NumPy.
+
+        Returns
+        -------
+        scalar
+            Maximum value.
+
+        See Also
+        --------
+        Index.min : Return the minimum value in an Index.
+        Series.max : Return the maximum value in a Series.
+        DataFrame.max : Return the maximum values in a DataFrame.
+        """
+
+    @index_not_implemented()
+    def reindex(self) -> None:
+        """
+        Create index with target's values.
+
+        Parameters
+        ----------
+        target : an iterable
+        method : {None, 'pad'/'ffill', 'backfill'/'bfill', 'nearest'}, optional
+            * default: exact matches only.
+            * pad / ffill: find the PREVIOUS index value if no exact match.
+            * backfill / bfill: use NEXT index value if no exact match
+            * nearest: use the NEAREST index value if no exact match. Tied
+              distances are broken by preferring the larger index value.
+        level : int, optional
+            Level of multiindex.
+        limit : int, optional
+            Maximum number of consecutive labels in ``target`` to match for
+            inexact matches.
+        tolerance : int or float, optional
+            Maximum distance between original and new labels for inexact
+            matches. The values of the index at the matching locations must
+            satisfy the equation ``abs(index[indexer] - target) <= tolerance``.
+
+            Tolerance may be a scalar value, which applies the same tolerance
+            to all values, or list-like, which applies variable tolerance per
+            element. List-like includes list, tuple, array, Series, and must be
+            the same size as the index and its dtype must exactly match the
+            index's type.
+
+        Returns
+        -------
+        new_index : pd.Index
+            Resulting index.
+        indexer : np.ndarray[np.intp] or None
+            Indices of output values in original index.
+
+        Raises
+        ------
+        TypeError
+            If ``method`` passed along with ``level``.
+        ValueError
+            If non-unique multi-index
+        ValueError
+            If non-unique index and ``method`` or ``limit`` passed.
+
+        See Also
+        --------
+        Series.reindex : Conform Series to new index with optional filling logic.
+        DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
+        """
+
+    @index_not_implemented()
+    def rename(self) -> None:
+        """
+        Alter Index or MultiIndex name.
+
+        Able to set new names without level. Defaults to returning new index.
+        Length of names must match number of levels in MultiIndex.
+
+        Parameters
+        ----------
+        name : label or list of labels
+            Name(s) to set.
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new Index or
+            MultiIndex.
+
+        Returns
+        -------
+        Index or None
+            The same type as the caller or None if ``inplace=True``.
+
+        See Also
+        --------
+        Index.set_names : Able to set new names partially and by level.
+        """
+
+    @index_not_implemented()
+    def repeat(self) -> None:
+        """
+        Repeat elements of a Index.
+
+        Returns a new Index where each element of the current Index
+        is repeated consecutively a given number of times.
+
+        Parameters
+        ----------
+        repeats : int or array or ints
+            The number of repetitions for each element.
+            This should be a non-negative integer.
+            Repeating 0 times will return an empty Index.
+        axis : None
+            Must be None. It has no effect but is accepted
+            for compatibility with numpy.
+        """
+
+    @index_not_implemented()
+    def where(self) -> None:
+        """
+        Replace values where the condition is False.
+
+        The replacement is taken from other.
+
+        Parameters
+        ----------
+        cond : bool array-like with the same length as self
+            Condition to select the values on.
+        other : scalar, or array-like, default None
+            Replacement if the condition is False.
+
+        Returns
+        -------
+        pandas.Index
+            A copy of self with values replaced from other
+            where the condition is False.
+
+        See Also
+        --------
+        Series.where : Same method for Series.
+        DataFrame.where : Same method for DataFrame.
+        """
+
+    @index_not_implemented()
+    def take(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def putmask(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def unique(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def nunique(self) -> None:
+        pass
+
+    @index_not_implemented()
     def value_counts(
         self,
         normalize: bool = False,
@@ -635,6 +1319,133 @@ class Index:
             dropna=dropna,
         )
 
+    @index_not_implemented()
+    def set_names(
+        self, names: Any, level: Any = None, inplace: bool = False
+    ) -> Self | None:
+        """
+        Set Index name.
+
+        Able to set new names partially and by level.
+
+        Parameters
+        ----------
+        names : label or list of label or dict-like for MultiIndex
+            Name(s) to set.
+
+        level : int, label or list of int or label, optional
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new Index.
+
+        Returns
+        -------
+        Index or None
+            The same type as the caller or None if ``inplace=True``.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx
+        Index([1, 2, 3, 4], dtype='int64')
+        >>> idx.set_names('quarter')
+        Index([1, 2, 3, 4], dtype='int64', name='quarter')
+        """
+        self.to_pandas_warning()
+        if not inplace:
+            return Index(
+                self.to_pandas().set_names(names, level=level, inplace=inplace)
+            )
+        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+
+    @index_not_implemented()
+    def droplevel(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def fillna(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def dropna(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def isna(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def notna(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def astype(self, dtype: Any, copy: bool = True) -> Index:
+        """
+        Create an Index with values cast to dtypes.
+
+        The class of a new Index is determined by dtype. When conversion is
+        impossible, a TypeError exception is raised.
+
+        Parameters
+        ----------
+        dtype : numpy dtype or pandas type
+            Note that any signed integer `dtype` is treated as ``'int64'``,
+            and any unsigned integer `dtype` is treated as ``'uint64'``,
+            regardless of the size.
+        copy : bool, default True
+            By default, astype always returns a newly allocated object.
+            If copy is set to False and internal requirements on dtype are
+            satisfied, the original data is used to create a new Index
+            or the original Index is returned.
+
+        Returns
+        -------
+        Index
+            Index with values cast to specified dtype.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx
+        Index([1, 2, 3], dtype='int64')
+        >>> idx.astype('float')
+        Index([1.0, 2.0, 3.0], dtype='float64')
+        """
+        self.to_pandas_warning()
+        return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
+
+    @index_not_implemented()
+    def item(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def map(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def ravel(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def to_series(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def to_frame(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def view(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def argsort(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def searchsorted(self) -> None:
+        pass
+
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -665,6 +1476,7 @@ class Index:
 
     to_list = tolist
 
+    @index_not_implemented()
     def sort_values(
         self,
         return_indexer: bool = False,
@@ -734,6 +1546,19 @@ class Index:
         else:
             return Index(ret)
 
+    @index_not_implemented()
+    def shift(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def append(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def join(self) -> None:
+        pass
+
+    @index_not_implemented()
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
         Form the intersection of two Index objects.
@@ -770,6 +1595,7 @@ class Index:
             )
         )
 
+    @index_not_implemented()
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -819,6 +1645,7 @@ class Index:
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
 
+    @index_not_implemented()
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -857,6 +1684,23 @@ class Index:
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
+    @index_not_implemented()
+    def symmetric_difference(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def asof(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def asof_locs(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def get_indexer(self) -> None:
+        pass
+
+    @index_not_implemented()
     def get_indexer_for(self, target: Any) -> Any:
         """
         Guaranteed return of an indexer even when non-unique.
@@ -878,14 +1722,11 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().get_indexer_for(target=target)
 
-    def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
-        """
-        Analogue to pandas.Index.get_indexer that raises if any elements are missing.
-        """
-        self.to_pandas_warning()
-        tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
-        return Index(tup[0]), tup[1]
+    @index_not_implemented()
+    def get_indexer_non_unique(self) -> None:
+        pass
 
+    @index_not_implemented()
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -921,6 +1762,19 @@ class Index:
         self.to_pandas_warning()
         return Index(self.to_pandas().get_level_values(level=level))
 
+    @index_not_implemented()
+    def get_loc(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def get_slice_bound(self) -> None:
+        pass
+
+    @index_not_implemented()
+    def isin(self) -> None:
+        pass
+
+    @index_not_implemented()
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -964,6 +1818,18 @@ class Index:
         """
         self.to_pandas_warning()
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
+
+    @index_not_implemented()
+    def slice_locs(self) -> None:
+        pass
+
+    def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
+        """
+        Analogue to pandas.Index.get_indexer that raises if any elements are missing.
+        """
+        self.to_pandas_warning()
+        tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
+        return Index(tup[0]), tup[1]
 
     @property
     def array(self) -> ExtensionArray:
