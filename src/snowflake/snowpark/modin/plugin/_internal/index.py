@@ -30,7 +30,6 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.inference import is_list_like
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
@@ -107,23 +106,37 @@ class Index:
                 tupleize_cols=tupleize_cols,
             )
 
+    def to_pandas_warning(self, func_name: str) -> None:
+        """
+        Helper method to notify users if they are using a method that currently calls to_pandas()
+        """
+        WarningMessage.single_warning(
+            f"The method {func_name} currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
+        )
+
     def is_lazy_check(func: Any) -> Any:
         def check_lazy(*args: Any, **kwargs: Any) -> Any:
+            func_name = func.__name__
             if args[0].is_lazy:
                 returned_value = func(*args, **kwargs)
+                args[0].to_pandas_warning(func_name)
                 return returned_value
             else:
-                func_name = func.__name__
                 native_index = args[0]._index
                 native_func = getattr(native_index, func_name)
+                if not callable(native_func):
+                    return native_func
                 args = args[1:]
                 returned_value = native_func(*args, **kwargs)
                 if isinstance(returned_value, native_pd.Index):
                     returned_value = Index(returned_value, convert_to_lazy=False)
-                elif is_list_like(returned_value) and isinstance(
+                elif isinstance(returned_value, tuple) and isinstance(
                     returned_value[0], native_pd.Index
                 ):
-                    returned_value[0] = Index(returned_value[0], convert_to_lazy=False)
+                    returned_value = (
+                        Index(returned_value[0], convert_to_lazy=False),
+                        returned_value[1],
+                    )
                 return returned_value
 
         return check_lazy
@@ -201,7 +214,6 @@ class Index:
         >>> idx.is_unique
         True
         """
-        self.to_pandas_warning()
         return self.to_pandas().is_unique
 
     @property
@@ -260,7 +272,6 @@ class Index:
         >>> idx.dtype
         dtype('int64')
         """
-        self.to_pandas_warning()
         return self.to_pandas().dtype
 
     @is_lazy_check
@@ -296,7 +307,6 @@ class Index:
         >>> idx.astype('float')
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
-        self.to_pandas_warning()
         return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
 
     @property
@@ -317,7 +327,7 @@ class Index:
         >>> idx.name
         'x'
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("name")
         return self.to_pandas().name
 
     @name.setter
@@ -325,14 +335,14 @@ class Index:
         """
         Set Index name.
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("name")
         self.to_pandas().name = value
 
     def _get_names(self) -> FrozenList:
         """
         Get names of index
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("_get_names")
         return self.to_pandas()._get_names()
 
     def _set_names(self, values: list) -> None:
@@ -348,7 +358,7 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("_set_names")
         self.to_pandas()._set_names(values)
 
     names = property(fset=_set_names, fget=_get_names)
@@ -384,7 +394,7 @@ class Index:
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("set_names")
         if not inplace:
             return Index(
                 self.to_pandas().set_names(names, level=level, inplace=inplace)
@@ -433,7 +443,6 @@ class Index:
         >>> idx is new_idx
         False
         """
-        self.to_pandas_warning()
         return Index(self.to_pandas().copy(deep=deep, name=name))
 
     @is_lazy_check
@@ -467,7 +476,6 @@ class Index:
         >>> idx.drop(['a'])
         Index(['b', 'c'], dtype='object')
         """
-        self.to_pandas_warning()
         return Index(self.to_pandas().drop(labels=labels, errors=errors))
 
     @is_lazy_check
@@ -525,7 +533,6 @@ class Index:
         >>> idx.duplicated(keep=False)
         array([ True, False,  True, False,  True])
         """
-        self.to_pandas_warning()
         return self.to_pandas().duplicated(keep=keep)
 
     @is_lazy_check
@@ -588,7 +595,6 @@ class Index:
         >>> int64_idx.equals(uint64_idx)
         True
         """
-        self.to_pandas_warning()
         return self.to_pandas().equals(try_convert_index_to_native(other))
 
     @is_lazy_check
@@ -662,7 +668,6 @@ class Index:
         apparitions of values, divide the index in the specified
         number of half-open bins.
         """
-        self.to_pandas_warning()
         return self.to_pandas().value_counts(
             normalize=normalize,
             sort=sort,
@@ -760,7 +765,6 @@ class Index:
         >>> idx.sort_values(ascending=False, return_indexer=True)
         (Index([1000, 100, 10, 1], dtype='int64'), array([3, 1, 0, 2]))
         """
-        self.to_pandas_warning()
         ret = self.to_pandas().sort_values(
             return_indexer=return_indexer,
             ascending=ascending,
@@ -802,7 +806,6 @@ class Index:
         >>> idx1.intersection(idx2)
         Index([3, 4], dtype='int64')
         """
-        self.to_pandas_warning()
         return Index(
             self.to_pandas().intersection(
                 other=try_convert_index_to_native(other), sort=sort
@@ -854,7 +857,6 @@ class Index:
         >>> idx1.union(idx2)
         Index(['a', 'b', 'c', 'd', 1, 2, 3, 4], dtype='object')
         """
-        self.to_pandas_warning()
         return Index(
             self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
         )
@@ -893,7 +895,6 @@ class Index:
         >>> idx1.difference(idx2, sort=False)
         Index([2, 1], dtype='int64')
         """
-        self.to_pandas_warning()
         return Index(
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
@@ -917,7 +918,6 @@ class Index:
         >>> idx.get_indexer_for([np.nan])
         array([0, 2])
         """
-        self.to_pandas_warning()
         return self.to_pandas().get_indexer_for(target=target)
 
     @is_lazy_check
@@ -925,7 +925,6 @@ class Index:
         """
         Analogue to pandas.Index.get_indexer that raises if any elements are missing.
         """
-        self.to_pandas_warning()
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return Index(tup[0]), tup[1]
 
@@ -962,7 +961,6 @@ class Index:
         >>> idx.get_level_values(0)
         Index(['a', 'b', 'c'], dtype='object')
         """
-        self.to_pandas_warning()
         return Index(self.to_pandas().get_level_values(level=level))
 
     @is_lazy_check
@@ -1007,7 +1005,6 @@ class Index:
         >>> idx.slice_indexer(start='b', end='c')
         slice(1, 3, None)
         """
-        self.to_pandas_warning()
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
 
     @property
@@ -1033,7 +1030,6 @@ class Index:
         str
             String with a summarized representation of the index
         """
-        self.to_pandas_warning()
         return self.to_pandas()._summary(name=name)
 
     @is_lazy_check
@@ -1073,7 +1069,6 @@ class Index:
         2
         3
         """
-        self.to_pandas_warning()
         return self.to_pandas().__iter__()
 
     @is_lazy_check
@@ -1107,7 +1102,6 @@ class Index:
         >>> 6 in idx
         False
         """
-        self.to_pandas_warning()
         return self.to_pandas().__contains__(key=key)
 
     @is_lazy_check
@@ -1128,7 +1122,6 @@ class Index:
         If resulting ndim != 1, plain ndarray is returned instead of
         corresponding `Index` subclass.
         """
-        self.to_pandas_warning()
         return self.to_pandas().__getitem__(key=key)
 
     @is_lazy_check
@@ -1164,13 +1157,5 @@ class Index:
         0    AStrSeries
         dtype: object
         """
-        self.to_pandas_warning()
+        self.to_pandas_warning("str")
         return self.to_pandas().str
-
-    def to_pandas_warning(self) -> None:
-        """
-        Helper method to notify users if they are using a method that currently calls to_pandas()
-        """
-        WarningMessage.single_warning(
-            "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
-        )
