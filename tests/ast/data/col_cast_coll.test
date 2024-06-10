@@ -1,0 +1,46 @@
+## TEST CASE
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.types import *
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast("string(42)"))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
+
+df = df.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
+
+df = df.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
+
+df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
+
+df = df.select(col("A").cast(VectorType(int, 64)))
+
+df = df.select(col("A").cast(StructType([
+    StructField(ColumnIdentifier("test1"), StringType(), nullable=False),
+    StructField("test2", IntegerType(), nullable=True),
+    StructField(ColumnIdentifier("test3"), ArrayType(LongType())),
+    StructField("test4", MapType(DecimalType(42, 23), VectorType("float", 64)))
+], structured=True)))
+
+## EXPECTED OUTPUT
+
+res1 = session.table('test_table')
+
+res2 = res1.select(col("A").cast(StringType(42)))
+
+res3 = res2.select(col("A").cast(TimestampType(TimestampTimeZone.NTZ)))
+
+res4 = res3.select(col("A").cast(TimestampType(TimestampTimeZone.LTZ)))
+
+res5 = res4.select(col("A").cast(TimestampType(TimestampTimeZone.TZ)))
+
+res6 = res5.select(col("A").cast(ArrayType(GeometryType(), structured=True)))
+
+res7 = res6.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=True)))
+
+res8 = res7.select(col("A").cast(VectorType(IntegerType(), 64)))
+
+res9 = res8.select(col("A").cast(StructType([StructField("TEST1", StringType(), nullable=False), StructField("TEST2", IntegerType(), nullable=True), StructField("TEST3", ArrayType(LongType(), structured=False), nullable=True), StructField("TEST4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))

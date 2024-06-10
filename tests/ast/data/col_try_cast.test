@@ -89,13 +89,13 @@ res13 = res12.select(col("A").try_cast(TimestampType()))
 
 res14 = res13.select(col("A").try_cast(TimeType()))
 
-res15 = res14.select(col("A").try_cast(ArrayType(StringType())))
+res15 = res14.select(col("A").try_cast(ArrayType(StringType(), structured=False)))
 
-res16 = res15.select(col("A").try_cast(MapType(StringType(), StringType())))
+res16 = res15.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
 
 res17 = res16.select(col("A").try_cast(VectorType(FloatType(), 42)))
 
-res18 = res17.select(col("A").try_cast(StructType([])))
+res18 = res17.select(col("A").try_cast(StructType([], structured=False)))
 
 res19 = res18.select(col("A").try_cast(VariantType()))
 
@@ -115,4 +115,4 @@ res26 = res25.select(col("A").try_cast(DecimalType(38, 0)))
 
 res27 = res26.select(col("A").try_cast(DecimalType(38, 0)))
 
-res28 = res27.select(col("A").try_cast(MapType(StringType(), StringType())))
+res28 = res27.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
