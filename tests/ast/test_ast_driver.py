@@ -12,8 +12,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 DATA_DIR = TEST_DIR / "data"
 
-UNPARSER_SCRIPT = TEST_DIR / "run-unparser.sh"
-
 @dataclass
 class TestCase:
     filename: str
@@ -60,10 +58,11 @@ def render(ast_base64: str) -> str:
     """Uses the unparser to render the AST."""
     assert pytest.unparser_jar, "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
     res = subprocess.run([
-        UNPARSER_SCRIPT,
+        "java",
+        "-cp",
         pytest.unparser_jar,
+        "com.snowflake.snowpark.experimental.unparser.UnparserCli",
         ast_base64,
-        "--lang", "python"
     ], capture_output=True, text=True)
     return res.stdout
 
