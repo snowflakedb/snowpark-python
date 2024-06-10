@@ -58,6 +58,42 @@ def dict_exporter():
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
 )
+def test_register_stored_procedure_from_file(session, dict_exporter):
+    session.add_packages("snowflake-snowpark-python")
+    test_file = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "../resources",
+            "test_sp_dir",
+            "test_sp_file.py",
+        )
+    )
+
+    lineno = inspect.currentframe().f_lineno + 1
+    session.sproc.register_from_file(
+        test_file,
+        "mod5",
+        name="register_stored_proc_from_file",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        replace=True,
+    )
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register_from_file" in spans
+    span = spans["register_from_file"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["snow.executable.name"] == "register_stored_proc_from_file"
+    assert span.attributes["snow.executable.handler"] == "mod5"
+    dict_exporter.clear()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
 def test_inline_register_stored_procedure(session, dict_exporter):
     session.add_packages("snowflake-snowpark-python")
     # test register with sproc.register
