@@ -12,7 +12,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from snowflake.snowpark.functions import udaf, udf, udtf
+import snowflake
+from snowflake.snowpark.functions import sproc, udaf, udf, udtf
 from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
@@ -23,6 +24,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
     pytest.mark.udf,
@@ -50,6 +52,50 @@ def dict_exporter():
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
+def test_inline_register_stored_procedure(session, dict_exporter):
+    session.add_packages("snowflake-snowpark-python")
+    # test register with sproc.register
+
+    def add_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+        return session_.sql(f"select {x} + {y}").collect()[0][0]
+
+    lineno = inspect.currentframe().f_lineno + 1
+    session.sproc.register(
+        add_sp,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name="add_stored_proc",
+    )
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["snow.executable.name"] == "add_stored_proc"
+    assert span.attributes["snow.executable.handler"] == "add_sp"
+
+    # test register with @sproc
+    @sproc(name="minus_stored_proc")
+    def minus_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+        return session_.sql(f"select {x} - {y}").collect()[0][0]
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["snow.executable.name"] == "minus_stored_proc"
+    assert span.attributes["snow.executable.handler"] == "minus_sp"
+    dict_exporter.clear()
 
 
 def test_register_udaf_from_file(session, dict_exporter):
