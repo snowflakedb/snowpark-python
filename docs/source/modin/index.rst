@@ -15,6 +15,7 @@ For your convenience, here is all the :doc:`Supported APIs <supported/index>`
     general_functions
     series
     dataframe
+    Index <indexing>
     window
     groupby
     resampling
