@@ -21,7 +21,7 @@ target_class = [
     "udaf.py",
     "functions.py",
 ]
-udf_class = ["udf.py", "udtf.py", "udaf.py"]
+registration_class = ["udf.py", "udtf.py", "udaf.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
@@ -135,7 +135,7 @@ def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
     for i, frame in enumerate(frame_info):
         file_name = os.path.basename(frame.filename)
         if file_name in target_class:
-            if file_name in udf_class:
+            if file_name in registration_class:
                 target_index = i + decorator_number + 1
                 continue
             target_index = i + decorator_number + 1
