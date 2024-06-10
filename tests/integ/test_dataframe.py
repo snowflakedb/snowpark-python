@@ -2237,6 +2237,15 @@ def test_dropna(session, local_testing_mode):
 
 
 @pytest.mark.localtest
+def test_dropna_large_num_of_columns(session):
+    n = 1000
+    data = [str(i) for i in range(n)]
+    none_data = [None for _ in range(n)]
+    df = session.create_dataframe([data, none_data], schema=data)
+    Utils.check_answer(df.dropna(how="all"), [Row(*data)])
+
+
+@pytest.mark.localtest
 def test_fillna(session, local_testing_mode):
     if not local_testing_mode:  # Enable for local testing after coercion support
         Utils.check_answer(
