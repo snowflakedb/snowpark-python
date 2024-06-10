@@ -67,8 +67,8 @@ DocModule.put(docstrings.__name__)
 # We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
 # that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
 # See https://github.com/modin-project/modin/issues/7122
-import modin.utils  # isort: skip  # noqa: E402
-import modin.pandas.series_utils  # isort: skip  # noqa: E402
+import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
+import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
 modin.utils._inherit_docstrings(
     docstrings.series_utils.StringMethods,
