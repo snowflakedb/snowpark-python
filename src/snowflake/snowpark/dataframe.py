@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast import decode_ast_response_from_snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -3336,6 +3337,9 @@ class DataFrame:
         if self._session._conn.is_phase1_enabled():
             ast = self._session._ast_batch.flush()
             res = self._session._conn.ast_query(ast)
+
+            response = decode_ast_response_from_snowpark(res, self._session._conn._conn._session_parameters)
+
             print(f"AST response: {res}")
         else:
             _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()

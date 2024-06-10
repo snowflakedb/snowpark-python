@@ -5,11 +5,15 @@
 
 import base64
 import itertools
+import json
 import sys
 import uuid
-from typing import Tuple
+from typing import Tuple, Any, Sequence
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from google.protobuf.message import DecodeError
+
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
 
 # TODO: currently unused.
@@ -18,6 +22,68 @@ def expr_to_dataframe_expr(expr):
     variant = expr.WhichOneof("variant")
     getattr(dfe, variant).CopyFrom(getattr(expr, variant))
     return dfe
+
+def decode_ast_response_from_snowpark(res: dict, session_parameters:Any) -> Any:
+    """
+    decodes Snowpark REST response to protobuf response
+    Args:
+        res: dictionary representing a snowpark REST response
+
+    Returns:
+        protobuf object
+    """
+    # data is given as b64 encoded rowset result.
+    # perform two step decode:
+    # Regular Snowpark python decode, then protobuf decode:
+
+    if res['data']['queryResultFormat'] == 'arrow' and 'rowsetBase64' in res['data'].keys():
+
+        rowset_b64 = res['data']['rowsetBase64']
+        from snowflake.connector.result_batch import ArrowResultBatch
+
+        total_len: int = res['data'].get("total", 0)
+        first_chunk_len = total_len
+        from snowflake.connector.arrow_context import ArrowConverterContext
+        arrow_context = ArrowConverterContext(session_parameters)
+
+        from snowflake.connector.cursor import ResultMetadataV2
+        schema: Sequence[ResultMetadataV2] = [
+            ResultMetadataV2.from_column(col) for col in res['data']["rowtype"]
+        ]
+
+        if 'chunks' in res['data']:
+            raise NotImplementedError("decoding chunks not yet supported")
+
+        first_chunk = ArrowResultBatch.from_data(
+            rowset_b64,
+            first_chunk_len,
+            arrow_context,
+            True,
+            True, # does not matter
+            schema,
+            True, # does not matter
+        )
+
+        assert first_chunk.rowcount == 1, 'Result should consist of single row holding protobuf response'
+
+        dict_result = first_chunk.to_arrow().to_pydict()
+
+        # should be single key, value pair:
+        response_as_json: str = list(dict_result.values())[0][0]
+
+        response_as_dict = json.loads(response_as_json)
+
+        if response_as_dict['status'] != 200:
+            raise SnowparkClientExceptionMessages.IR_MESSAGE(f"Coprocessor returned status {response_as_dict['status']}")
+
+        # Should be also able to load the json directly into a python dict via json.loads(...),
+        # however map here to protobuf to make sure contents align with protobuf message.
+        from google.protobuf.json_format import ParseDict
+        response = ParseDict(response_as_json['data'], proto.Response())
+        return response
+    else:
+        raise NotImplementedError("Only inline arrow result decode supported yet.")
+
 
 
 class AstBatch:
