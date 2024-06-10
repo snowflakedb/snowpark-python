@@ -51,23 +51,35 @@ warnings.warn(
     stacklevel=1,
 )
 
-from modin.config import DocModule as ModinDocModule  # type: ignore[import]  # isort: skip  # noqa: E402
+
+# We need this import here to prevent circular dependency issues, since snowflake.snowpark.modin.pandas
+# currently imports some internal utilities from snowflake.snowpark.modin.plugin. Test cases will
+# import snowflake.snowpark.modin.plugin before snowflake.snowpark.modin.pandas, so in order to prevent
+# circular dependencies from manifesting, apparently snowflake.snowpark.modin.pandas needs to
+# be imported first.
+# These imports also all need to occur after modin + pandas dependencies are validated.
+from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
 
-ModinDocModule.put(docstrings.__name__)
 DocModule.put(docstrings.__name__)
 
-# We need to import snowflake.snowpark.modin.pandas here to prevent circular dependency issues, since
-# snowflake.snowpark.modin.pandas currently imports some internal utilities from
-# snowflake.snowpark.modin.plugin. Test cases will import snowflake.snowpark.modin.plugin before
-# snowflake.snowpark.modin.pandas, so in order to prevent circular dependencies from manifesting,
-# apparently snowflake.snowpark.modin.pandas needs to be imported first.
-# Furthermore, this initialization needs to occur after dependency versions validation and
-# after documentation overrides, as ModinDocModule.put will produce a call to `importlib.reload`
-# that will overwrite our extensions.
+
+# We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
+# that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
 # See https://github.com/modin-project/modin/issues/7122
-from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401
+import modin.utils  # isort: skip  # noqa: E402
+import modin.pandas.series_utils  # isort: skip  # noqa: E402
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.StringMethods,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.StringMethods)
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.CombinedDatetimelikeProperties,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.DatetimeProperties)
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
