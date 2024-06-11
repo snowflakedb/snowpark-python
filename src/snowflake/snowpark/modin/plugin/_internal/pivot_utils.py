@@ -400,15 +400,39 @@ def pivot_helper(
         columns = [columns]
     if len(pivot_aggr_groupings[0].prefix_label) != 0:
         # This handles the case when we have a list of values (even if it is a list of length 1) -
-        # the columns labels for the result is None * (num_prefixes - len(original_df.columns.names))
-        # + original_df.columns.names + columns.
+        # the columns labels for the result is original_df.columns.names +
+        #  None * (num_prefixes - len(original_df.columns.names)) + columns.
+        # e.g.
+        # In [8]: df
+        # Out[8]:
+        # column    A     B       C   D   E   F
+        # 0       foo  on.e    dull   0   1   2
+        # 1       foo  on.e    dull   1   2   3
+        # 2       foo  on.e  shi'ny   2   3   4
+        # 3       foo  tw"o    dull   3   4   5
+        # 4       bar  on.e    dull   4   5   6
+        # 5       bar  on.e  shi'ny   5   6   7
+        # 6       bar  on.e  shi'ny   6   7   8
+        # 7       bar  tw"o    dull   7   8   9
+        # 8       foo  tw"o  shi'ny   8   9  10
+        # 9       foo  tw"o  shi'ny   9  10  11
+        # 10      foo  on.e  shi'ny  10  11  12
+
+        # In [9]: df.pivot_table(**{
+        #    ...:                 "index": ["A"],
+        #    ...:                 "columns": ["B", "C"],
+        #    ...:                 "values": ["D", "E", "F"],
+        #    ...:                 "dropna": False,
+        #    ...:                 "aggfunc": {"D": ["count", "max"], "E": ["mean", "sum"]},
+        #    ...: }).columns.names
+        # Out[9]: FrozenList(['column', None, 'B', 'C'])
         columns = (
-            [None]
+            pivot_frame.data_column_pandas_index_names
+            + [None]
             * (
                 len(pivot_aggr_groupings[0].prefix_label)
                 - len(pivot_frame.data_column_pandas_index_names)
             )
-            + pivot_frame.data_column_pandas_index_names
             + columns
         )
 

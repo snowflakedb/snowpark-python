@@ -54,8 +54,7 @@ def pivot_table_test_helper(
 
     if named_columns:
         native_df.columns.names = [f"c{i}" for i in range(len(native_df.columns.names))]
-        snow_df.columns.names = native_df.columns.names
-
+        snow_df.columns = native_df.columns
     if preprocess_df:
         native_df = preprocess_df(native_df)
         snow_df = preprocess_df(snow_df)
