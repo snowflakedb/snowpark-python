@@ -21,5 +21,4 @@ NATIVE_INDEX_TEST_DATA = [
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_transpose(native_index):
     snow_index = pd.Index(native_index)
-    t_index = snow_index.T
-    assert snow_index.equals(t_index) is True
+    assert snow_index.equals(snow_index.T)
