@@ -1184,7 +1184,10 @@ class Index:
         corresponding `Index` subclass.
         """
         WarningMessage.index_to_pandas_warning("__getitem__")
-        return self.to_pandas().__getitem__(key=key)
+        item = self.to_pandas().__getitem__(key=key)
+        if isinstance(item, native_pd.Index):
+            return Index(item)
+        return item
 
     @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:
