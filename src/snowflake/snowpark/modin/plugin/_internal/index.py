@@ -66,8 +66,8 @@ class Index:
         tupleize_cols : bool (default: True)
             When True, attempt to create a MultiIndex if possible.
         convert_to_lazy : bool (default: True)
-            When True, create a lazy index object, otherwise, create an index object that locally saves a pandas index
-            We set convert_to_lazy as False when calling df.columns
+            When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
+            We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
 
         Notes
         -----
@@ -89,9 +89,8 @@ class Index:
             SnowflakeQueryCompiler,
         )
 
-        self.is_lazy = convert_to_lazy
-
         # TODO: SNOW-1359041: Switch to lazy index implementation
+        self.is_lazy = convert_to_lazy
         if isinstance(data, native_pd.Index):
             self._index = data
         elif isinstance(data, Index):
