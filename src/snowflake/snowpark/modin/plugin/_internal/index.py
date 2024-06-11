@@ -349,7 +349,10 @@ class Index:
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
         WarningMessage.index_to_pandas_warning("astype")
-        return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
+        return Index(
+            self.to_pandas().astype(dtype=dtype, copy=copy),
+            convert_to_lazy=self.is_lazy,
+        )
 
     @property
     def name(self) -> Hashable:
@@ -439,7 +442,8 @@ class Index:
         WarningMessage.index_to_pandas_warning("set_names")
         if not inplace:
             return Index(
-                self.to_pandas().set_names(names, level=level, inplace=inplace)
+                self.to_pandas().set_names(names, level=level, inplace=inplace),
+                convert_to_lazy=self.is_lazy,
             )
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
@@ -486,7 +490,9 @@ class Index:
         False
         """
         WarningMessage.index_to_pandas_warning("copy")
-        return Index(self.to_pandas().copy(deep=deep, name=name))
+        return Index(
+            self.to_pandas().copy(deep=deep, name=name), convert_to_lazy=self.is_lazy
+        )
 
     @is_lazy_check
     def drop(
@@ -520,10 +526,13 @@ class Index:
         Index(['b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("drop")
-        return Index(self.to_pandas().drop(labels=labels, errors=errors))
+        return Index(
+            self.to_pandas().drop(labels=labels, errors=errors),
+            convert_to_lazy=self.is_lazy,
+        )
 
     @is_lazy_check
-    def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
+    def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
 
@@ -820,9 +829,9 @@ class Index:
             key=key,
         )
         if return_indexer:
-            return Index(ret[0]), ret[1]
+            return Index(ret[0], convert_to_lazy=self.is_lazy), ret[1]
         else:
-            return Index(ret)
+            return Index(ret, convert_to_lazy=self.is_lazy)
 
     @is_lazy_check
     def intersection(self, other: Any, sort: bool = False) -> Index:
@@ -858,7 +867,8 @@ class Index:
         return Index(
             self.to_pandas().intersection(
                 other=try_convert_index_to_native(other), sort=sort
-            )
+            ),
+            convert_to_lazy=self.is_lazy,
         )
 
     @is_lazy_check
@@ -908,7 +918,8 @@ class Index:
         """
         WarningMessage.index_to_pandas_warning("union")
         return Index(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
+            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort),
+            convert_to_lazy=self.is_lazy,
         )
 
     @is_lazy_check
@@ -947,7 +958,8 @@ class Index:
         """
         WarningMessage.index_to_pandas_warning("difference")
         return Index(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
+            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort),
+            convert_to_lazy=self.is_lazy,
         )
 
     @is_lazy_check
@@ -970,7 +982,10 @@ class Index:
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
-        return self.to_pandas().get_indexer_for(target=target)
+        ret = self.to_pandas().get_indexer_for(target=target)
+        if isinstance(ret, native_pd.Index):
+            return Index(ret, convert_to_lazy=self.is_lazy)
+        return ret
 
     @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
@@ -979,7 +994,7 @@ class Index:
         """
         WarningMessage.index_to_pandas_warning("_get_indexer_strict")
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
-        return Index(tup[0]), tup[1]
+        return Index(tup[0], convert_to_lazy=self.is_lazy), tup[1]
 
     @is_lazy_check
     def get_level_values(self, level: int | str) -> Index:
@@ -1015,7 +1030,9 @@ class Index:
         Index(['a', 'b', 'c'], dtype='object')
         """
         WarningMessage.index_to_pandas_warning("get_level_values")
-        return Index(self.to_pandas().get_level_values(level=level))
+        return Index(
+            self.to_pandas().get_level_values(level=level), convert_to_lazy=self.is_lazy
+        )
 
     @is_lazy_check
     def slice_indexer(
@@ -1185,7 +1202,7 @@ class Index:
         WarningMessage.index_to_pandas_warning("__getitem__")
         item = self.to_pandas().__getitem__(key=key)
         if isinstance(item, native_pd.Index):
-            return Index(item)
+            return Index(item, convert_to_lazy=self.is_lazy)
         return item
 
     @is_lazy_check
