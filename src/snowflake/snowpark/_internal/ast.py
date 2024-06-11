@@ -10,7 +10,12 @@ import sys
 import uuid
 from typing import Any, Sequence, Tuple
 
+from google.protobuf.json_format import ParseDict
+
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.connector.arrow_context import ArrowConverterContext
+from snowflake.connector.cursor import ResultMetadataV2
+from snowflake.connector.result_batch import ArrowResultBatch
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -23,24 +28,26 @@ def expr_to_dataframe_expr(expr):
     return dfe
 
 
-def check_response(response):
-    # TODO
+def check_response(response: Any) -> None:
+    # TODO SNOW-1474659: Add logic here to check whether response is a valid result,
+    # else raise client-compatible exceptions.
     pass
 
 
 def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any:
     """
-    decodes Snowpark REST response to protobuf response
+    Decodes Snowpark REST response to protobuf response message.
     Args:
-        res: dictionary representing a snowpark REST response
+        res: Dictionary representing a snowpark REST response.
 
     Returns:
-        protobuf object
+        Protobuf response message.
     """
 
-    # check if response resulted in error code, if so decode
+    # Check if response resulted in error code, if so decode.
     data = res["data"]
 
+    # Similar to existing Snowpark client, surface errors as SnowparkSQLException.
     if "errorCode" in data.keys():
         is_internal_error = data["internalError"]
         error_code = data["errorCode"]
@@ -52,22 +59,19 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
 
         raise SnowparkSQLException(error_message, error_code=error_code, sfqid=sfqid)
 
-    # data is given as b64 encoded rowset result.
-    # perform two step decode:
-    # Regular Snowpark python decode, then protobuf decode:
+    # `data` is given as b64 encoded rowset result.
+    # First retrieve response from Snowpark Python connector format,
+    # then convert to IR compatible protobuf message.
 
     if data["queryResultFormat"] == "arrow" and "rowsetBase64" in data.keys():
-
+        # This code is a stripped down version from the Snowflake Python connector.
+        # The response object of the IR is delivered as a single STRING column at the moment.
+        # We may change this in the near future.
         rowset_b64 = data["rowsetBase64"]
-        from snowflake.connector.result_batch import ArrowResultBatch
 
         total_len: int = data.get("total", 0)
         first_chunk_len = total_len
-        from snowflake.connector.arrow_context import ArrowConverterContext
-
         arrow_context = ArrowConverterContext(session_parameters)
-
-        from snowflake.connector.cursor import ResultMetadataV2
 
         schema: Sequence[ResultMetadataV2] = [
             ResultMetadataV2.from_column(col) for col in data["rowtype"]
@@ -104,8 +108,6 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
 
         # Should be also able to load the json directly into a python dict via json.loads(...),
         # however map here to protobuf to make sure contents align with protobuf message.
-        from google.protobuf.json_format import ParseDict
-
         response = ParseDict(response_as_dict["data"], proto.Response())
         return response
     else:

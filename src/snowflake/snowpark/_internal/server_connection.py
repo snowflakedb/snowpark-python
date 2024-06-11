@@ -353,7 +353,8 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
 
-        # remove _dataframe_ast argument from kwargs as this will create an error within the python connector.
+        # Remove _dataframe_ast argument from kwargs as this will create an error within
+        # the python connector. TODO SNOW-1473693: Add dataframe_ast as SQL comment to query to execute.
         if "_dataframe_ast" in kwargs.keys():
             kwargs.pop("_dataframe_ast")
 
@@ -725,11 +726,11 @@ class ServerConnection:
         req = {
             "dataframeAst": ast,
         }
-        logger.info(f"query rid={request_id}")
+        logger.debug(f"query rid={request_id}")
         return self._conn._rest.request(
             f"/queries/v1/query-request?requestId={request_id}", req
         )
-    
+
     def is_phase1_enabled(self) -> bool:
         return os.getenv("SNOWPARK_PHASE_1", False)
 
