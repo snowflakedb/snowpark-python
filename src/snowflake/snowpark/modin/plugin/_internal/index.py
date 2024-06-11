@@ -129,7 +129,7 @@ class Index:
                 if not callable(native_func):
                     return native_func
 
-                # Remove the first argument in args, because it is self and we don't need it
+                # Remove the first argument in args, because it is `self` and we don't need it
                 args = args[1:]
                 returned_value = native_func(*args, **kwargs)
 
