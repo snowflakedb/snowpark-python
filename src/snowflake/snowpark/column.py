@@ -666,15 +666,19 @@ class Column:
 
     def as_(self, alias: str) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias)
+        ast = proto.SpColumnExpr()
+        ast.sp_column_alias.variant_is_as = True
+        return self.name(alias, ast)
 
     def alias(self, alias: str) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias)
+        ast = proto.SpColumnExpr()
+        ast.sp_column_alias.variant_is_as = False
+        return self.name(alias, ast)
 
-    def name(self, alias: str) -> "Column":
+    def name(self, alias: str, ast=None) -> "Column":
         """Returns a new renamed Column."""
-        return Column(Alias(self._expression, quote_name(alias)))
+        return Column(Alias(self._expression, quote_name(alias)), ast=ast)
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """

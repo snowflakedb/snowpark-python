@@ -1053,7 +1053,7 @@ class _iLocIndexer(_LocationIndexerBase):
         # IR changes! Add iloc get nodes to AST.
         stmt = pd.session._ast_batch.assign()
         ast = stmt.expr
-        ast.pd_dataframe_i_loc.df.var_id.bitfield1 = self.df._get_ast_id()
+        ast.pd_dataframe_i_loc.df.var_id.bitfield1 = self.df._ast_id
         # Map python built-ins (functions, scalars, lists, slices, etc.) to AST expr and emit Ref nodes for dataframes,
         # series, and indexes.
         ast_expr_from_python_val(ast.pd_dataframe_i_loc.rows, row_loc)
@@ -1067,7 +1067,7 @@ class _iLocIndexer(_LocationIndexerBase):
 
         # Convert all scalar, list-like, and indexer row_loc to a Series object to get a query compiler object.
         if is_scalar(row_loc):
-            row_loc = pd.Series([row_loc])
+            row_loc = pd.Series([row_loc], ast_stmt=stmt)
         elif is_list_like(row_loc):
             if hasattr(row_loc, "dtype"):
                 dtype = row_loc.dtype
@@ -1076,7 +1076,7 @@ class _iLocIndexer(_LocationIndexerBase):
                 dtype = float
             else:
                 dtype = None
-            row_loc = pd.Series(row_loc, dtype=dtype)
+            row_loc = pd.Series(row_loc, dtype=dtype, ast_stmt=stmt)
 
         # Check whether the row and column input is of numeric dtype.
         self._validate_numeric_get_key_values(row_loc, original_row_loc)

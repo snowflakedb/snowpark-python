@@ -11,6 +11,7 @@ import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_object_dtype
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -802,7 +803,9 @@ class InternalFrame:
         )
 
     def rename_snowflake_identifiers(
-        self, old_to_new_identifiers: dict[str, str]
+        self,
+        old_to_new_identifiers: dict[str, str],
+        ast_stmt: Optional[proto.Expr] = None,
     ) -> "InternalFrame":
         """
         Rename columns for underlying ordered dataframe.
@@ -847,7 +850,8 @@ class InternalFrame:
                 # retain the original column
                 select_list.append(old_id)
             else:
-                select_list.append(col(old_id).as_(new_id))
+                ast = ast_stmt.expr if ast_stmt is not None else None
+                select_list.append(col(old_id, ast=ast).as_(new_id))
                 # if the old column is part of the ordering or row position columns, retains the column
                 # as part of the projected columns.
                 if old_id in ordering_and_row_position_columns:

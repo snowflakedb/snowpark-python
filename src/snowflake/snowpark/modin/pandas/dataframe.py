@@ -150,6 +150,7 @@ class DataFrame(BasePandasDataset):
         dtype=None,
         copy=None,
         query_compiler=None,
+        ast_stmt=None,
     ) -> None:
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         # Siblings are other dataframes that share the same query compiler. We
@@ -157,6 +158,11 @@ class DataFrame(BasePandasDataset):
         from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
         self._siblings = []
+
+        if not ast_stmt:
+            ast_stmt = pd.session._ast_batch.assign()
+        self._ast_id = ast_stmt.var_id.bitfield1
+        self._ast_stmt = ast_stmt
 
         # Engine.subscribe(_update_engine)
         if isinstance(data, (DataFrame, Series)):
@@ -254,11 +260,6 @@ class DataFrame(BasePandasDataset):
             self._query_compiler = from_pandas(pandas_df)._query_compiler
         else:
             self._query_compiler = query_compiler
-
-    def _get_ast_id(self):
-        return (
-            self._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id
-        )
 
     def __repr__(self):
         """
@@ -2869,7 +2870,10 @@ class DataFrame(BasePandasDataset):
         # - `_siblings`, which Modin initializes before it appears in __dict__
         # - `_cache`, which pandas.cache_readonly uses to cache properties
         #   before it appears in __dict__.
-        if key in ("_query_compiler", "_siblings", "_cache") or key in self.__dict__:
+        if (
+            key in ("_query_compiler", "_siblings", "_cache", "_ast_id", "_ast_stmt")
+            or key in self.__dict__
+        ):
             pass
         elif key in self and key not in dir(self):
             self.__setitem__(key, value)
