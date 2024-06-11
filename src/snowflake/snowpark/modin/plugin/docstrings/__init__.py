@@ -16,7 +16,7 @@ from snowflake.snowpark.modin.plugin.docstrings.series_utils import (
     CombinedDatetimelikeProperties,
     StringMethods,
 )
-from snowflake.snowpark.modin.plugin.docstrings.window import Rolling
+from snowflake.snowpark.modin.plugin.docstrings.window import Expanding, Rolling
 
 __all__ = [
     "BasePandasDataset",
@@ -25,6 +25,7 @@ __all__ = [
     "CombinedDatetimelikeProperties",
     "Resampler",
     "Rolling",
+    "Expanding",
     "Series",
     "SeriesGroupBy",
     "StringMethods",

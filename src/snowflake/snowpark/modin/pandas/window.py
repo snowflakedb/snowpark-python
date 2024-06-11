@@ -199,18 +199,6 @@ class Rolling(metaclass=TelemetryMeta):
         # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
         return self._aggregate(method_name="count", numeric_only=numeric_only)
 
-    def sem(
-        self,
-        ddof: int = 1,
-        numeric_only: bool = False,
-        *args: Any,
-        **kwargs: Any,
-    ):
-        # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
-        return self._aggregate(
-            method_name="sem", ddof=ddof, numeric_only=numeric_only, *args, **kwargs
-        )
-
     def sum(
         self,
         numeric_only: bool = False,
@@ -438,6 +426,18 @@ class Rolling(metaclass=TelemetryMeta):
             **kwargs,
         )
 
+    def sem(
+        self,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ):
+        # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
+        return self._aggregate(
+            method_name="sem", ddof=ddof, numeric_only=numeric_only, *args, **kwargs
+        )
+
     def rank(
         self,
         method: str = "average",
@@ -457,4 +457,316 @@ class Rolling(metaclass=TelemetryMeta):
         )
 
 
-# TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+@_inherit_docstrings(
+    pandas.core.window.expanding.Expanding,
+    excluded=[pandas.core.window.expanding.Expanding.__init__],
+    modify_doc=doc_replace_dataframe_with_link,
+)
+class Expanding(metaclass=TelemetryMeta):
+    def __init__(
+        self,
+        dataframe,
+        min_periods: int = 1,
+        axis: Union[int, str] = 0,
+        method: str = "single",
+    ) -> None:
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        self._dataframe = dataframe
+        self._query_compiler = dataframe._query_compiler
+        self.expanding_kwargs = {
+            "min_periods": min_periods,
+            "axis": axis,
+            "method": method,
+        }
+        self.axis = axis
+
+    def count(
+        self,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_count(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def sum(
+        self,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_sum(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def mean(
+        self,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_mean(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def median(
+        self,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_median(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def var(
+        self,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_var(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def std(
+        self,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_std(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def min(
+        self,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_min(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def max(
+        self,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_max(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+            )
+        )
+
+    def corr(
+        self,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_corr(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                other=other,
+                pairwise=pairwise,
+                ddof=ddof,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def cov(
+        self,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_cov(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                other=other,
+                pairwise=pairwise,
+                ddof=ddof,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def skew(
+        self,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_skew(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def kurt(
+        self,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_kurt(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def apply(
+        self,
+        func: Any,
+        raw: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_apply(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                func=func,
+                raw=raw,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                args=args,
+                kwargs=kwargs,
+            )
+        )
+
+    def aggregate(
+        self,
+        func: Any,
+        *args,
+        **kwargs,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_aggregate(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                func=func,
+                *args,
+                **kwargs,
+            )
+        )
+
+    def quantile(
+        self,
+        quantile: float,
+        interpolation: str = "linear",
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_quantile(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                quantile=quantile,
+                interpolation=interpolation,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def sem(
+        self,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_sem(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+            )
+        )
+
+    def rank(
+        self,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
+        numeric_only: bool = False,
+    ):
+        # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.expanding_rank(
+                fold_axis=self.axis,
+                expanding_kwargs=self.expanding_kwargs,
+                method=method,
+                ascending=ascending,
+                pct=pct,
+                numeric_only=numeric_only,
+            )
+        )

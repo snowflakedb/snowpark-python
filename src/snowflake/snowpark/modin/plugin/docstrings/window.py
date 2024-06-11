@@ -111,11 +111,8 @@ Examples
 )
 
 
-class Rolling:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class Rolling:
     def count():
-        pass
-
-    def sem():
         pass
 
     @doc(
@@ -427,6 +424,62 @@ class Rolling:  # pragma: no cover: we use this class's docstrings, but we never
     agg = aggregate
 
     def quantile():
+        pass
+
+    def sem():
+        pass
+
+    def rank():
+        pass
+
+
+class Expanding:
+    def count():
+        pass
+
+    def sum():
+        pass
+
+    def mean():
+        pass
+
+    def median():
+        pass
+
+    def var():
+        pass
+
+    def std():
+        pass
+
+    def min():
+        pass
+
+    def max():
+        pass
+
+    def corr():
+        pass
+
+    def cov():
+        pass
+
+    def skew():
+        pass
+
+    def kurt():
+        pass
+
+    def apply():
+        pass
+
+    def aggregate():
+        pass
+
+    def quantile():
+        pass
+
+    def sem():
         pass
 
     def rank():
