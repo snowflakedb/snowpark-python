@@ -8,11 +8,13 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.window_utils import IMPLEMENTED_AGG_FUNCS
+from snowflake.snowpark.modin.plugin._internal.window_utils import (
+    IMPLEMENTED_ROLLING_AGG_FUNCS,
+)
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_FUNCS)
+agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_ROLLING_AGG_FUNCS)
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [1, 2])
 center = pytest.mark.parametrize("center", [True, False])
@@ -238,4 +240,4 @@ def test_rolling_params_unsupported(function):
 def test_rolling_aggregation_unsupported(agg_func, agg_func_kwargs):
     snow_df = pd.DataFrame({"B": [0, 1, 2, np.nan, 4]})
     with pytest.raises(NotImplementedError):
-        getattr(snow_df.rolling(window=2, min_periods=1), agg_func)(agg_func_kwargs),
+        getattr(snow_df.rolling(window=2, min_periods=1), agg_func)(agg_func_kwargs)
