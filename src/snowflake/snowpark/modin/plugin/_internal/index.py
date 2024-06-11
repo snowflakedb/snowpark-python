@@ -133,7 +133,7 @@ class Index:
                 args = args[1:]
                 returned_value = native_func(*args, **kwargs)
 
-                # If we return a native Index, we need to convert this to a modin index
+                # If we return a native Index, we need to convert this to a modin index but keep it locally.
                 # Examples of this are astype and copy
                 if isinstance(returned_value, native_pd.Index):
                     returned_value = Index(returned_value, convert_to_lazy=False)
