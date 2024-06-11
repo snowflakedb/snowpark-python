@@ -958,7 +958,7 @@ def get_frame_by_col_label(
         "pd.Index",
         np.ndarray,
     ],
-) -> InternalFrame:
+) -> tuple[InternalFrame, list[int]]:
     """
     The util method first finds all column positions based on the column labels, and then call get_frame_by_col_pos to
     return a frame with the selected columns
@@ -976,13 +976,13 @@ def get_frame_by_col_label(
 
     if is_column_multiindex and isinstance(col_loc, tuple) and len(col_loc) == 0:
         # multiindex column treats empty tuple as select all columns
-        return internal_frame
+        return internal_frame, list(range(len(internal_frame.data_column_pandas_labels)))
 
     if isinstance(col_loc, slice) and col_loc == slice(None):
-        return internal_frame
+        return internal_frame, list(range(len(internal_frame.data_column_pandas_labels)))
 
     col_pos = get_valid_col_positions_from_col_labels(internal_frame, col_loc)
-    result = get_frame_by_col_pos(internal_frame, col_pos)
+    result, col_pos = get_frame_by_col_pos(internal_frame, col_pos)
 
     # TODO SNOW-962197 Support df/series.droplevel and reuse it here
     multiindex_col_nlevels_to_drop = 0
@@ -1011,7 +1011,7 @@ def get_frame_by_col_label(
             index_column_pandas_labels=result.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result.index_column_snowflake_quoted_identifiers,
         )
-    return result
+    return result, col_pos
 
 
 def get_valid_col_pos_list_from_columns(
@@ -1084,7 +1084,7 @@ def get_frame_by_col_pos(
         list,
         AnyArrayLike,
     ],
-) -> InternalFrame:
+) -> tuple[InternalFrame, list[int]]:
     """
     Select columns from `internal_frame` by column positions in the `columns` frame.
     Args:
@@ -1103,7 +1103,7 @@ def get_frame_by_col_pos(
     valid_indices = get_valid_col_pos_list_from_columns(columns, num_frame_columns)
 
     if valid_indices == list(range(num_frame_columns)):
-        return internal_frame
+        return internal_frame, valid_indices
 
     frame_data_column_pandas_labels_list: list[
         Hashable
@@ -1158,7 +1158,7 @@ def get_frame_by_col_pos(
         data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
-    )
+    ), valid_indices
 
 
 def get_index_frame_by_row_label_slice(

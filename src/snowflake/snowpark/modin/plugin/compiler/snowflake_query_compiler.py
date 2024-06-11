@@ -348,42 +348,48 @@ _logger = logging.getLogger(__name__)
 MAX_QUANTILES_SUPPORTED: int = 16
 
 
+    
+def get_dtypes_from_snowflake(internal_frame: InternalFrame) -> native_pd.Series:
+    """
+    Get columns dtypes.
+
+    Returns
+    -------
+    pandas.Series
+        Series with dtypes of each column.
+    """
+    col_to_type = internal_frame.quoted_identifier_to_snowflake_type()
+    types = [
+        TypeMapper.to_pandas(col_to_type[c])
+        for c in internal_frame.data_column_snowflake_quoted_identifiers
+    ]
+
+    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+
+    return native_pd.Series(
+        data=types,
+        index=try_convert_index_to_native(internal_frame.data_columns_index),
+        dtype=object,
+    )
+
+
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
-    def __init__(self, frame: InternalFrame) -> None:
+    def __init__(self, frame: InternalFrame, dtypes) -> None:
         """this stores internally a local pandas object (refactor this)"""
         assert frame is not None and isinstance(frame, InternalFrame)
         self._modin_frame = frame
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+        self._dtypes = dtypes
 
     @property
     def dtypes(self) -> native_pd.Series:
-        """
-        Get columns dtypes.
-
-        Returns
-        -------
-        pandas.Series
-            Series with dtypes of each column.
-        """
-        col_to_type = self._modin_frame.quoted_identifier_to_snowflake_type()
-        types = [
-            TypeMapper.to_pandas(col_to_type[c])
-            for c in self._modin_frame.data_column_snowflake_quoted_identifiers
-        ]
-
-        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-
-        return native_pd.Series(
-            data=types,
-            index=try_convert_index_to_native(self._modin_frame.data_columns_index),
-            dtype=object,
-        )
+        return self._dtypes
 
     @property
     def index_dtypes(self) -> list[Union[dtype, ExtensionDtype]]:
@@ -405,6 +411,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def from_pandas(
         cls, df: native_pd.DataFrame, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
+        original = df
         # create copy of original dataframe
         df = df.copy()
         # encode column labels to snowflake compliant strings.
@@ -487,16 +494,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
 
-        # construct the internal frame for the dataframe
-        return cls(
-            InternalFrame.create(
+        internal_frame = InternalFrame.create(
                 ordered_dataframe=ordered_dataframe,
                 data_column_pandas_labels=original_column_labels,
                 data_column_pandas_index_names=original_column_index_names,
                 data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=original_index_pandas_labels,
                 index_column_snowflake_quoted_identifiers=index_snowflake_quoted_identifiers,
-            )
+        )
+
+        internal_frame_types = get_dtypes_from_snowflake(internal_frame)
+
+        from pandas.api.types import is_timedelta64_dtype
+        snowpark_pandas_dtypes = native_pd.Series(
+            [
+                pandas_type if isinstance(pandas_type, pd.IntervalDtype) or is_timedelta64_dtype(pandas_type) else internal_frame_type
+                # infer_objects becuase a pandas frame of Intervals does not have interval type!
+                for pandas_type, internal_frame_type in zip(original.infer_objects().dtypes, internal_frame_types)
+            ],
+            index=original.columns
+        )
+
+        # construct the internal frame for the dataframe
+        return cls(
+            frame=internal_frame,
+            dtypes=snowpark_pandas_dtypes
         )
 
     @classmethod
@@ -1946,12 +1968,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
 
             # add new column with result as unnamed
-            new_column_expr = compute_binary_op_with_fill_value(
+            new_column_expr, new_pandas_dtype = compute_binary_op_with_fill_value(
                 op=op,
                 lhs=col(lhs_quoted_identifier),
                 lhs_datatype=lambda: identifier_to_type_map[lhs_quoted_identifier],
+                lhs_pandas_type=self.dtypes[0],
                 rhs=col(rhs_quoted_identifier),
                 rhs_datatype=lambda: identifier_to_type_map[rhs_quoted_identifier],
+                rhs_pandas_type=other._query_compiler.dtypes.iloc[0],
                 fill_value=fill_value,
             )
 
@@ -1966,8 +1990,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_frame = aligned_frame.append_column(new_column_name, new_column_expr)
 
             # return only newly created column. Because column has been appended, this is the last column indexed by -1
+            frame, col_pos =  get_frame_by_col_pos(internal_frame=new_frame, columns=[-1])
             return SnowflakeQueryCompiler(
-                get_frame_by_col_pos(internal_frame=new_frame, columns=[-1])
+                frame, 
+                dtypes=[self.dtypes.iloc[0], other._query_compiler.dtypes.iloc[0], new_pandas_dtype]
             )
         elif squeeze_self or isinstance(other, Series):
             # (Case 4): Series/DataFrame or DataFrame/Series
@@ -7084,27 +7110,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index = pd.Series(index)
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
+                frame_by_col_label, col_pos = get_frame_by_col_label(
+                    get_frame_by_row_pos_frame(
+                        internal_frame=self._modin_frame,
+                        key=index._query_compiler._modin_frame,
+                    ),
+                    columns,
+                )                    
                 return SnowflakeQueryCompiler(
-                    get_frame_by_col_label(
-                        get_frame_by_row_pos_frame(
-                            internal_frame=self._modin_frame,
-                            key=index._query_compiler._modin_frame,
-                        ),
-                        columns,
-                    )
+                    frame_by_col_label, 
+                    dtypes=self.dtypes.iloc[col_pos]
                 )
             index = index._query_compiler
 
+        frame_by_col_label, col_pos = get_frame_by_col_label(
+            get_frame_by_row_label(
+                internal_frame=self._modin_frame,
+                key=index._modin_frame
+                if isinstance(index, SnowflakeQueryCompiler)
+                else index,
+            ),
+            columns,
+        )
         return SnowflakeQueryCompiler(
-            get_frame_by_col_label(
-                get_frame_by_row_label(
-                    internal_frame=self._modin_frame,
-                    key=index._modin_frame
-                    if isinstance(index, SnowflakeQueryCompiler)
-                    else index,
-                ),
-                columns,
-            )
+            frame_by_col_label, 
+            dtypes=self.dtypes.iloc[col_pos]
         )
 
     def has_multiindex(self, axis: int = 0) -> bool:
@@ -7616,9 +7646,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             return SnowflakeQueryCompiler(new_frame)
 
+
+        frame_by_col_label, col_pos =   get_frame_by_col_label(internal_frame=self._modin_frame, col_loc=key)
         # all other indexing is retrieving columns
         return SnowflakeQueryCompiler(  # pragma: no cover
-            get_frame_by_col_label(internal_frame=self._modin_frame, col_loc=key)
+            frame_by_col_label,
+            dtypes=self.dtypes.iloc[col_pos]
         )
 
     def getitem_row_array(
@@ -9597,7 +9630,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # retrieve frame as pandas object
-        new_qc = SnowflakeQueryCompiler(new_frame)
+        # always have same columns.
+        new_qc = SnowflakeQueryCompiler(new_frame, dtypes=self.dtypes)
         pandas_frame = new_qc.to_pandas()
 
         # remove last column after first retrieving row count
