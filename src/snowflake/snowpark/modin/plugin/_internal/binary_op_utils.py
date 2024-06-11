@@ -5,10 +5,11 @@ import functools
 from collections.abc import Hashable
 from dataclasses import dataclass
 
+import pandas as native_pd
 from pandas._typing import Callable, Scalar
 
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when
+from snowflake.snowpark.functions import col, concat, floor, iff, repeat, when, object_construct, datediff, lit, date_part
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinOrAlignInternalFrameResult,
@@ -22,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     _FractionalType,
     _IntegralType,
+    TimestampType   
 )
 
 NAN_COLUMN = pandas_lit("nan").cast("float")
@@ -176,9 +178,13 @@ def compute_binary_op_between_snowpark_columns(
     op: str,
     first_operand: SnowparkColumn,
     first_datatype: Callable[[], DataType],
+    lhs_pandas_type,
     second_operand: SnowparkColumn,
     second_datatype: Callable[[], DataType],
-) -> SnowparkColumn:
+    right_pandas_type,
+    # NOTE that we probably need a small struct for this tuple[SnowparkColumn, object]
+    # which represents (SnwoflakeColumn, pandas_type)
+) -> tuple[SnowparkColumn, object]:
     """
     Compute pandas binary operation for two SnowparkColumns
     Args:
@@ -195,6 +201,8 @@ def compute_binary_op_between_snowpark_columns(
     """
 
     binary_op_result_column = None
+
+    new_pandas_type = None
 
     # some operators and the data types have to be handled specially to align with pandas
     # However, it is difficult to fail early if the arithmetic operator is not compatible
@@ -267,6 +275,14 @@ def compute_binary_op_between_snowpark_columns(
                 repeat(first_operand, second_operand),
                 pandas_lit(""),
             )
+    elif op == "sub" and isinstance(first_datatype(), TimestampType) and isinstance(second_datatype(), TimestampType):
+        binary_op_result_column = object_construct(
+            lit('_snowpark_pandas_object'), 
+            lit("Timedelta"),
+            lit('nanos'),
+            datediff('nanosecond', second_operand, first_operand)
+        )
+        new_pandas_type = native_pd.Timedelta
 
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
@@ -274,7 +290,10 @@ def compute_binary_op_between_snowpark_columns(
     if binary_op_result_column is None:
         binary_op_result_column = getattr(first_operand, f"__{op}__")(second_operand)
 
-    return binary_op_result_column
+    if new_pandas_type is None:
+        raise NotImplementedError('Have not implemented type inference for this binary op')
+
+    return binary_op_result_column , new_pandas_type
 
 
 def compute_binary_op_between_snowpark_column_and_scalar(
@@ -339,10 +358,12 @@ def compute_binary_op_with_fill_value(
     op: str,
     lhs: SnowparkColumn,
     lhs_datatype: Callable[[], DataType],
+    lhs_pandas_type,
     rhs: SnowparkColumn,
     rhs_datatype: Callable[[], DataType],
+    rhs_pandas_type,
     fill_value: Scalar,
-) -> SnowparkColumn:
+) -> tuple[SnowparkColumn, object]:
     """
     Helper method for performing binary operations.
     1. Fills NaN/None values in the lhs and rhs with the given fill_value.
@@ -376,7 +397,7 @@ def compute_binary_op_with_fill_value(
         rhs_cond = iff(rhs.is_null() & ~lhs.is_null(), fill_value_lit, rhs)
 
     return compute_binary_op_between_snowpark_columns(
-        op, lhs_cond, lhs_datatype, rhs_cond, rhs_datatype
+        op, lhs_cond, lhs_datatype, lhs_pandas_type, rhs_cond, rhs_datatype, rhs_pandas_type
     )
 
 
