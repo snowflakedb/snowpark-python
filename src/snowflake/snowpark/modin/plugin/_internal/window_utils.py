@@ -9,7 +9,8 @@ from typing import Any
 
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
-IMPLEMENTED_AGG_FUNCS = ["sum", "mean", "var", "std", "min", "max"]
+IMPLEMENTED_ROLLING_AGG_FUNCS = ["sum", "mean", "var", "std", "min", "max"]
+IMPLEMENTED_EXPANDING_AGG_FUNCS: list[str] = []
 
 
 def check_is_window_supported_by_snowflake(rolling_kwargs: dict[str, Any]) -> None:

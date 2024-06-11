@@ -10543,17 +10543,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="count", class_="Rolling")
 
-    def rolling_sem(
-        self,
-        fold_axis: Union[int, str],
-        rolling_kwargs: dict,
-        ddof: int = 1,
-        numeric_only: bool = False,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="sem", class_="Rolling")
-
     def rolling_sum(
         self,
         fold_axis: Union[int, str],
@@ -10757,6 +10746,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="quantile", class_="Rolling")
 
+    def rolling_sem(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="sem", class_="Rolling")
+
     def rolling_rank(
         self,
         fold_axis: Union[int, str],
@@ -10779,7 +10779,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Compute rolling window with given aggregation.
         Args:
             agg_func: callable, str, list or dict. the aggregation function used.
-            rolling_kwargs: keyword arguments passed for to rolling.
+            rolling_kwargs: keyword arguments passed to rolling.
             agg_kwargs: keyword arguments passed for the aggregation function.
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
@@ -10827,6 +10827,177 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             }
         ).frame
         return self.__constructor__(new_frame)
+
+    def expanding_count(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="count", class_="Expanding")
+
+    def expanding_sum(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="sum", class_="Expanding")
+
+    def expanding_mean(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="mean", class_="Expanding")
+
+    def expanding_median(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="median", class_="Expanding")
+
+    def expanding_var(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="var", class_="Expanding")
+
+    def expanding_std(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="std", class_="Expanding")
+
+    def expanding_min(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="min", class_="Expanding")
+
+    def expanding_max(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="max", class_="Expanding")
+
+    def expanding_corr(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="corr", class_="Expanding")
+
+    def expanding_cov(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="cov", class_="Expanding")
+
+    def expanding_skew(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="skew", class_="Expanding")
+
+    def expanding_kurt(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="kurt", class_="Expanding")
+
+    def expanding_apply(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        func: Any,
+        raw: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="apply", class_="Expanding")
+
+    def expanding_aggregate(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        func: Any,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="aggregate", class_="Expanding")
+
+    def expanding_quantile(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        quantile: float,
+        interpolation: str = "linear",
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="quantile", class_="Expanding")
+
+    def expanding_sem(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="sem", class_="Expanding")
+
+    def expanding_rank(
+        self,
+        fold_axis: Union[int, str],
+        expanding_kwargs: dict,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
+        numeric_only: bool = False,
+    ) -> None:
+        ErrorMessage.method_not_implemented_error(name="rank", class_="Expanding")
 
     def replace(
         self,
