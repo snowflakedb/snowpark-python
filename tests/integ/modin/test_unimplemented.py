@@ -172,10 +172,8 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
 UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.is_monotonic_increasing(),
     lambda idx: idx.is_monotonic_decreasing(),
-    lambda idx: idx.inferred_type(),
     lambda idx: idx.shape(),
     lambda idx: idx.nbytes(),
-    lambda idx: idx.ndim(),
     lambda idx: idx.size(),
     lambda idx: idx.empty(),
     lambda idx: idx.T(),
