@@ -1094,8 +1094,9 @@ class Index:
         """
         Return the length of the Index as an int.
         """
-        self.to_pandas_warning()
-        return self.to_pandas().__len__()
+        if self.is_lazy:
+            return self._query_compiler.get_axis_len(0)
+        return len(self._index)  # type: ignore
 
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
