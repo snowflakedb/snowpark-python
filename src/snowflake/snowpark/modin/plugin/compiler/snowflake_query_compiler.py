@@ -6714,14 +6714,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         except SnowparkSQLException as e:
             # `pivot_table` is implemented on the server side via the dynamic pivot
-            # feature. The dynamic pivot issues an eager query in order to determine
+            # feature. The dynamic pivot issues a query in order to determine
             # what the pivot values are. If there are no pivot values, and no groupby
-            # columns are specified, we eagerly raise an error on the server side.
+            # columns are specified, we raise an error on the server side.
             # Error Code 1146 corresponds to the Snowflake Exception when
             # a dynamic pivot is called and there are no pivot values and no
-            # groupby columns specified. If we hit this error, that means that
-            # we have attempted a pivot on an empty DataFrame, so we catch
-            # the exception and return an empty DataFrame.
+            # groupby columns specified.
+            # This error is raised eagerly, since we have a
+            # describe call on the client side in order to determine the schema of the output.
+            # If we hit this error, that means that we have attempted a pivot on an empty
+            # DataFrame, so we catch the exception and return an empty DataFrame.
             if e.sql_error_code == 1146:
                 from snowflake.snowpark.modin.pandas.utils import from_pandas
 
