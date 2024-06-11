@@ -6,6 +6,8 @@
 
 #### Improvements
 
+- When instrumenting open telemetry span in dataframe action functions, exceptions thrown in action functions will be recorded now.
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
