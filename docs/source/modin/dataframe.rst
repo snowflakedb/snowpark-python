@@ -125,6 +125,7 @@ DataFrame
     DataFrame.mean
     DataFrame.median
     DataFrame.min
+    DataFrame.pct_change
     DataFrame.quantile
     DataFrame.rank
     DataFrame.round
