@@ -183,9 +183,13 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         the arguments to the pandas dataframe constructor.
     """
     native_kw_args = kwargs.copy()
-    if "index" in native_kw_args:
+    if "index" in native_kw_args and isinstance(
+        native_kw_args["index"], native_pd.Index
+    ):
         kwargs["index"] = pd.Index(native_kw_args["index"])
-    if "columns" in native_kw_args:
+    if "columns" in native_kw_args and isinstance(
+        native_kw_args["columns"], native_pd.Index
+    ):
         kwargs["columns"] = pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
