@@ -306,7 +306,7 @@ from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
 )
 from snowflake.snowpark.modin.plugin._internal.window_utils import (
-    check_is_window_supported_by_snowflake,
+    check_is_rolling_window_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,
@@ -10797,7 +10797,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # Throw NotImplementedError if any parameter is unsupported
-        check_is_window_supported_by_snowflake(rolling_kwargs)
+        check_is_rolling_window_supported_by_snowflake(rolling_kwargs)
         frame = query_compiler._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
         if center:
