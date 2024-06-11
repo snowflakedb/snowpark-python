@@ -34,8 +34,39 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from snowflake.snowpark.modin.plugin.utils.error_message import index_not_implemented
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    index_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+
+INDEX_METHODS_NOT_IMPLEMENTED = [
+    "nbytes",
+    "memory_usage",
+    "factorize",
+    "is_",
+    "is_categorical",
+    "repeat",
+    "where",
+    "take",
+    "putmask",
+    "droplevel",
+    "map",
+    "ravel",
+    "view",
+    "argsort",
+    "searchsorted",
+    "shift",
+    "symmetric_difference",
+    "asof",
+    "asof_locs",
+    "get_indexer",
+    "get_indexer_for",
+    "get_indexer_non_unique",
+    "get_loc",
+    "get_slice_bound",
+    "slice_locs",
+]
 
 
 class Index:
@@ -104,6 +135,34 @@ class Index:
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
+
+    def __getattr__(self, key: str) -> Any:
+        """
+        Return item identified by `key`.
+
+        Parameters
+        ----------
+        key : str
+            Key to get.
+
+        Returns
+        -------
+        Any
+
+        Notes
+        -----
+        This method also helps raise NotImplementedError for APIs out
+        of current scope that are not implemented.
+        """
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        try:
+            return object.__getattribute__(self, key)
+        except AttributeError as err:
+            if key in INDEX_METHODS_NOT_IMPLEMENTED:
+                raise ErrorMessage.not_implemented(
+                    f"Index.{key} is not yet implemented"
+                )
+            raise err
 
     def to_pandas(self) -> native_pd.Index:
         """
@@ -345,13 +404,6 @@ class Index:
     names = property(fset=_set_names, fget=_get_names)
 
     @property
-    @index_not_implemented()
-    def nbytes(self) -> None:
-        """
-        Return the number of bytes in the underlying data.
-        """
-
-    @property
     def ndim(self) -> int:
         """
         Number of dimensions of the underlying data, by definition 1.
@@ -382,32 +434,6 @@ class Index:
         """
         # TODO: SNOW-1458140 implement T
         return self
-
-    @property
-    @index_not_implemented()
-    def memory_usage(self) -> None:
-        """
-        Memory usage of the values.
-
-        Parameters
-        ----------
-        deep : bool, default False
-            Introspect the data deeply, interrogate object dtypes for system-level memory consumption.
-
-        Returns
-        -------
-        bytes
-            The number of bytes used.
-
-        See Also
-        --------
-        numpy.ndarray.nbytes : Total bytes consumed by the elements of the array.
-
-        Notes
-        -----
-        Memory usage does not include memory consumed by elements that are not components of the array if deep=False or
-        if used on PyPy.
-        """
 
     @property
     def nlevels(self) -> int:
@@ -776,43 +802,6 @@ class Index:
         return self.to_pandas().equals(try_convert_index_to_native(other))
 
     @index_not_implemented()
-    def factorize(self) -> None:
-        """
-        Encode the object as an enumerated type or categorical variable.
-
-        This method is useful for obtaining a numeric representation of an
-        array when all that matters is identifying distinct values.
-        factorize is available as both a top-level function pandas.factorize(),
-        and as a method Series.factorize() and Index.factorize().
-
-        Parameters
-        ----------
-        sort : bool, default False
-            Sort uniques and shuffle codes to maintain the relationship.
-        use_na_sentinel: bool, default True
-            If True, the sentinel -1 will be used for NaN values.
-            If False, NaN values will be encoded as non-negative integers
-            and will not drop the NaN from the uniques of the values.
-
-        Returns
-        -------
-        A tuple of the form (codes, uniques).
-        codes : ndarray
-            An integer ndarray that’s an indexer into uniques.
-            uniques.take(codes) will have the same values as values.
-
-        uniques : ndarray, Index, or Categorical
-            The unique valid values. When values is Categorical, uniques is a Categorical.
-            When values is some other pandas object, an Index is returned.
-            Otherwise, a 1-D ndarray is returned.
-
-        See Also
-        --------
-        cut : Discretize a continuous-valued array.
-        unique : Find the unique value in an array.
-        """
-
-    @index_not_implemented()
     def identical(self) -> None:
         """
         Similar to equals, but checks that object attributes and types are also equal.
@@ -841,29 +830,7 @@ class Index:
         -------
         Index
         """
-
-    @index_not_implemented()
-    def is_(self) -> None:
-        """
-        More flexible, faster check like ``is`` but that works through views.
-
-        Note: this is *not* the same as ``Index.identical()``, which checks
-        that metadata is also the same.
-
-        Parameters
-        ----------
-        other : object
-            Other object to compare against.
-
-        Returns
-        -------
-        bool
-            True if both have same underlying data, False otherwise.
-
-        See Also
-        --------
-        Index.identical : Works like ``Index.is_`` but also checks metadata.
-        """
+        # TODO: SNOW-1458138 implement insert
 
     @index_not_implemented()
     def is_boolean(self) -> None:
@@ -888,30 +855,6 @@ class Index:
         is_interval : Check if the Index holds Interval objects (deprecated).
         """
         # TODO: SNOW-1458123 implement is_boolean
-
-    @index_not_implemented()
-    def is_categorical(self) -> None:
-        """
-        Check if the Index holds categorical data.
-
-        .. deprecated:: 2.0.0
-              Use `isinstance(index.dtype, pd.CategoricalDtype)` instead.
-
-        Returns
-        -------
-        bool
-            True if the Index is categorical.
-
-        See Also
-        --------
-        CategoricalIndex : Index for categorical data.
-        is_boolean : Check if the Index only consists of booleans (deprecated).
-        is_integer : Check if the Index only consists of integers (deprecated).
-        is_floating : Check if the Index is a floating type (deprecated).
-        is_numeric : Check if the Index only consists of numeric data (deprecated).
-        is_object : Check if the Index is of the object dtype. (deprecated).
-        is_interval : Check if the Index holds Interval objects (deprecated).
-        """
 
     @index_not_implemented()
     def is_floating(self) -> None:
@@ -939,8 +882,7 @@ class Index:
         is_categorical : Check if the Index holds categorical data (deprecated).
         is_interval : Check if the Index holds Interval objects (deprecated).
         """
-
-    # TODO: SNOW-1458123 implement is_floating
+        # TODO: SNOW-1458123 implement is_floating
 
     @index_not_implemented()
     def is_integer(self) -> None:
@@ -1174,97 +1116,6 @@ class Index:
         # TODO: SNOW-1458122 implement rename
 
     @index_not_implemented()
-    def repeat(self) -> None:
-        """
-        Repeat elements of a Index.
-
-        Returns a new Index where each element of the current Index
-        is repeated consecutively a given number of times.
-
-        Parameters
-        ----------
-        repeats : int or array or ints
-            The number of repetitions for each element.
-            This should be a non-negative integer.
-            Repeating 0 times will return an empty Index.
-        axis : None
-            Must be None. It has no effect but is accepted
-            for compatibility with numpy.
-        """
-
-    @index_not_implemented()
-    def where(self) -> None:
-        """
-        Replace values where the condition is False.
-
-        The replacement is taken from other.
-
-        Parameters
-        ----------
-        cond : bool array-like with the same length as self
-            Condition to select the values on.
-        other : scalar, or array-like, default None
-            Replacement if the condition is False.
-
-        Returns
-        -------
-        pandas.Index
-            A copy of self with values replaced from other
-            where the condition is False.
-
-        See Also
-        --------
-        Series.where : Same method for Series.
-        DataFrame.where : Same method for DataFrame.
-        """
-
-    @index_not_implemented()
-    def take(self) -> None:
-        """
-        Return a new Index of the values selected by the indices.
-
-        For internal compatibility with numpy arrays.
-
-        Parameters
-        ----------
-        indices : array-like
-            The indices to be taken.
-        axis : int, optional
-            The axis over which to select values, always 0.
-        allow_fill : bool, default True
-        fill_value : scalar, default None
-            If allow_fill=True and fill_value is not None, indices specified
-            by -1 are regarded as NA.
-            If Index doesn't hold NA, raise ValueError.
-
-        Returns
-        -------
-        Index
-            An index formed of elements at the given indices.
-            It will be the same as self, except for RangeIndex.
-
-        See Also
-        --------
-        numpy.ndarray.take
-            Return an array formed from the elements of `a` at the given indices.
-        """
-
-    @index_not_implemented()
-    def putmask(self) -> None:
-        """
-        Return a new Index of the values set with the mask.
-
-        Returns
-        -------
-        Index
-
-        See Also
-        --------
-        numpy.ndarray.putmask : Changes elements of an array
-            based on conditional and input values.
-        """
-
-    @index_not_implemented()
     def unique(self) -> None:
         """
         Return unique values in the index.
@@ -1429,25 +1280,6 @@ class Index:
                 self.to_pandas().set_names(names, level=level, inplace=inplace)
             )
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
-
-    @index_not_implemented()
-    def droplevel(self) -> None:
-        """
-        Return index with requested level(s) removed.
-
-        If resulting index has only 1 level left, the result will be
-        of Index type, not MultiIndex. The original index is not modified inplace.
-
-        Parameters
-        ----------
-        level : int, str, or list-like, default 0
-            If a string is given, must be the name of a level
-            If list-like, elements must be names or indexes of levels.
-
-        Returns
-        -------
-        Index or MultiIndex
-        """
 
     @index_not_implemented()
     def fillna(self) -> None:
@@ -1616,41 +1448,6 @@ class Index:
         # TODO: SNOW-1458117 implement item
 
     @index_not_implemented()
-    def map(self) -> None:
-        """
-        Map values using an input mapping or function.
-
-        Parameters
-        ----------
-        mapper : function, dict, or Series
-            Mapping correspondence.
-        na_action : {None, 'ignore'}
-            If 'ignore', propagate NA values, without passing them to the
-            mapping correspondence.
-
-        Returns
-        -------
-        Union[Index, MultiIndex]
-            The output of the mapping function applied to the index.
-            If the function returns a tuple with more than one element
-            a MultiIndex will be returned.
-        """
-
-    @index_not_implemented()
-    def ravel(self) -> None:
-        """
-        Return a view on self.
-
-        Returns
-        -------
-        Index
-
-        See Also
-        --------
-        numpy.ndarray.ravel : Return a flattened array.
-        """
-
-    @index_not_implemented()
     def to_series(self) -> None:
         """
         Create a Series with both index and values equal to the index keys.
@@ -1702,77 +1499,6 @@ class Index:
         Series.to_frame : Convert Series to DataFrame.
         """
         # TODO: SNOW-1458117 implement to_frame
-
-    @index_not_implemented()
-    def view(self) -> None:
-        """
-        No documentation on pandas!
-        """
-
-    @index_not_implemented()
-    def argsort(self) -> None:
-        """
-        Return the integer indices that would sort the index.
-
-        Parameters
-        ----------
-        *args
-            Passed to `numpy.ndarray.argsort`.
-        **kwargs
-            Passed to `numpy.ndarray.argsort`.
-
-        Returns
-        -------
-        np.ndarray[np.intp]
-            Integer indices that would sort the index if used as
-            an indexer.
-
-        See Also
-        --------
-        numpy.argsort : Similar method for NumPy arrays.
-        Index.sort_values : Return sorted copy of Index.
-        """
-
-    @index_not_implemented()
-    def searchsorted(self) -> None:
-        """
-        Find indices where elements should be inserted to maintain order.
-
-        Find the indices into a sorted Index self such that, if the corresponding
-        elements in value were inserted before the indices, the order of self would
-        be preserved.
-
-        Note
-        ----
-        The Index must be monotonically sorted, otherwise wrong locations will
-        likely be returned. Pandas does not check this for you.
-
-        Parameters
-        ----------
-        value : array-like or scalar
-            Values to insert into self
-        side : {"left", "right"}, optional
-            If ‘left’, the index of the first suitable location found is given.
-            If ‘right’, return the last such index. If there is no suitable index,
-             return either 0 or N (where N is the length of self).
-        sorter : 1-D array-like, optional
-            Optional array of integer indices that sort self into ascending order.
-            They are typically the result of `np.argsort`.
-
-        Returns
-        -------
-        int or array of int
-            A scalar or array of insertion points with the same shape as value.
-
-        See Also
-        --------
-        sort_values : Sort by the values along either axis.
-        numpy.searchsorted : Similar method from NumPy.
-
-        Notes
-        -----
-        Binary search is used to find the required insertion points.
-        """
 
     def tolist(self) -> list:
         """
@@ -1874,39 +1600,6 @@ class Index:
             return Index(ret[0]), ret[1]
         else:
             return Index(ret)
-
-    @index_not_implemented()
-    def shift(self) -> None:
-        """
-        Shift index by desired number of time frequency increments.
-
-        This method is for shifting the values of datetime-like indexes
-        by a specified time increment a given number of times.
-
-        Parameters
-        ----------
-        periods : int, default 1
-            Number of periods (or increments) to shift by,
-            can be positive or negative.
-        freq : pandas.DateOffset, pandas.Timedelta or str, optional
-            Frequency increment to shift by.
-            If None, the index is shifted by its own `freq` attribute.
-            Offset aliases are valid strings, e.g., 'D', 'W', 'M' etc.
-
-        Returns
-        -------
-        pandas.Index
-            Shifted index.
-
-        See Also
-        --------
-        Series.shift : Shift values of Series.
-
-        Notes
-        -----
-        This method is only implemented for datetime-like index classes,
-        i.e., DatetimeIndex, PeriodIndex and TimedeltaIndex.
-        """
 
     @index_not_implemented()
     def append(self) -> None:
@@ -2071,191 +1764,6 @@ class Index:
             self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
         )
 
-    @index_not_implemented()
-    def symmetric_difference(self) -> None:
-        """
-        Compute the symmetric difference of two Index objects.
-
-        Parameters
-        ----------
-        other : Index or array-like
-        result_name : str
-        sort : bool or None, default None
-            Whether to sort the resulting index. By default, the
-            values are attempted to be sorted, but any TypeError from
-            incomparable elements is caught by pandas.
-
-            * None : Attempt to sort the result, but catch any TypeErrors
-              from comparing incomparable elements.
-            * False : Do not sort the result.
-            * True : Sort the result (which may raise TypeError).
-
-        Returns
-        -------
-        Index
-
-        Notes
-        -----
-        ``symmetric_difference`` contains elements that appear in either
-        ``idx1`` or ``idx2`` but not both. Equivalent to the Index created by
-        ``idx1.difference(idx2) | idx2.difference(idx1)`` with duplicates
-        dropped.
-        """
-
-    @index_not_implemented()
-    def asof(self) -> None:
-        """
-        Return the label from the index, or, if not present, the previous one.
-
-        Assuming that the index is sorted, return the passed index label if it
-        is in the index, or return the previous index label if the passed one
-        is not in the index.
-
-        Parameters
-        ----------
-        label : object
-            The label up to which the method returns the latest index label.
-
-        Returns
-        -------
-        object
-            The passed label if it is in the index. The previous label if the
-            passed label is not in the sorted index or `NaN` if there is no
-            such label.
-
-        See Also
-        --------
-        Series.asof : Return the latest value in a Series up to the
-            passed index.
-        merge_asof : Perform an asof merge (similar to left join but it
-            matches on nearest key rather than equal key).
-        Index.get_loc : An `asof` is a thin wrapper around `get_loc`
-            with method='pad'.
-        """
-
-    @index_not_implemented()
-    def asof_locs(self) -> None:
-        """
-        Return the locations (indices) of labels in the index.
-
-        As in the :meth:`pandas.Index.asof`, if the label (a particular entry in
-        ``where``) is not in the index, the latest index label up to the
-        passed label is chosen and its index returned.
-
-        If all of the labels in the index are later than a label in ``where``,
-        -1 is returned.
-
-        ``mask`` is used to ignore ``NA`` values in the index during calculation.
-
-        Parameters
-        ----------
-        where : Index
-            An Index consisting of an array of timestamps.
-        mask : np.ndarray[bool]
-            Array of booleans denoting where values in the original
-            data are not ``NA``.
-
-        Returns
-        -------
-        np.ndarray[np.intp]
-            An array of locations (indices) of the labels from the index
-            which correspond to the return values of :meth:`pandas.Index.asof`
-            for every element in ``where``.
-
-        See Also
-        --------
-        Index.asof : Return the label from the index, or, if not present, the
-            previous one.
-        """
-
-    @index_not_implemented()
-    def get_indexer(self) -> None:
-        """
-        Compute indexer and mask for new index given the current index.
-
-        The indexer should be then used as an input to ndarray.take to align the
-        current data to the new index.
-
-        Parameters
-        ----------
-        target : Index
-        method : {None, 'pad'/'ffill', 'backfill'/'bfill', 'nearest'}, optional
-            * default: exact matches only.
-            * pad / ffill: find the PREVIOUS index value if no exact match.
-            * backfill / bfill: use NEXT index value if no exact match
-            * nearest: use the NEAREST index value if no exact match. Tied
-              distances are broken by preferring the larger index value.
-        limit : int, optional
-            Maximum number of consecutive labels in ``target`` to match for
-            inexact matches.
-        tolerance : optional
-            Maximum distance between original and new labels for inexact
-            matches. The values of the index at the matching locations must
-            satisfy the equation ``abs(index[indexer] - target) <= tolerance``.
-
-            Tolerance may be a scalar value, which applies the same tolerance
-            to all values, or list-like, which applies variable tolerance per
-            element. List-like includes list, tuple, array, Series, and must be
-            the same size as the index and its dtype must exactly match the
-            index's type.
-
-        Returns
-        -------
-        np.ndarray[np.intp]
-            Integers from 0 to n - 1 indicating that the index at these
-            positions matches the corresponding target values. Missing values
-            in the target are marked by -1.
-
-        Notes
-        -----
-        Returns -1 for unmatched values, for further explanation see the
-        example below.
-        """
-
-    def get_indexer_for(self, target: Any) -> Any:
-        """
-        Guaranteed return of an indexer even when non-unique.
-
-        This dispatches to get_indexer or get_indexer_non_unique
-        as appropriate.
-
-        Returns
-        -------
-        np.ndarray[np.intp]
-            List of indices.
-
-        Examples
-        --------
-        >>> idx = pd.Index([np.nan, 'var1', np.nan])
-        >>> idx.get_indexer_for([np.nan])
-        array([0, 2])
-        """
-        self.to_pandas_warning()
-        return self.to_pandas().get_indexer_for(target=target)
-
-    @index_not_implemented()
-    def get_indexer_non_unique(self) -> None:
-        """
-        Compute indexer and mask for new index given the current index.
-
-        The indexer should be then used as an input to ndarray.take to align
-        the current data to the new index.
-
-        Parameters
-        ----------
-        target : Index
-
-        Returns
-        -------
-        indexer : np.ndarray[np.intp]
-            Integers from 0 to n - 1 indicating that the index at these positions
-            matches the corresponding target values. Missing values in the target
-            are marked by -1.
-        missing : np.ndarray[np.intp]
-            An indexer into the target of the values not found.
-            These correspond to the -1 in the indexer array.
-        """
-
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -2290,44 +1798,6 @@ class Index:
         """
         self.to_pandas_warning()
         return Index(self.to_pandas().get_level_values(level=level))
-
-    @index_not_implemented()
-    def get_loc(self) -> None:
-        """
-        Get integer location, slice or boolean mask for requested label.
-
-        Parameters
-        ----------
-        key : label
-
-        Returns
-        -------
-        int if unique index, slice if monotonic index, else mask
-        """
-
-    @index_not_implemented()
-    def get_slice_bound(self) -> None:
-        """
-        Calculate slice bound that corresponds to given label.
-
-        Returns leftmost (one-past-the-rightmost if ``side=='right'``) position
-        of given label.
-
-        Parameters
-        ----------
-        label : object
-        side : {'left', 'right'}
-
-        Returns
-        -------
-        int
-            Index of label.
-
-        See Also
-        --------
-        Index.get_loc : Get integer location, slice or boolean mask for requested
-            label.
-        """
 
     @index_not_implemented()
     def isin(self) -> None:
@@ -2413,33 +1883,6 @@ class Index:
         """
         self.to_pandas_warning()
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
-
-    @index_not_implemented()
-    def slice_locs(self) -> None:
-        """
-        Compute slice locations for input labels.
-
-        Parameters
-        ----------
-        start : label, default None
-            If None, defaults to the beginning.
-        end : label, default None
-            If None, defaults to the end.
-        step : int, defaults None
-            If None, defaults to 1.
-
-        Returns
-        -------
-        tuple[int, int]
-
-        See Also
-        --------
-        Index.get_loc : Get location for a single label.
-
-        Notes
-        -----
-        This method only works if the index is monotonic or unique.
-        """
 
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
         """
