@@ -16,6 +16,7 @@ def ignore_index(request):
     return request.param
 
 
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=1)
 def test_df_sample_cols():
     data = np.random.randint(100, size=(20, 20))

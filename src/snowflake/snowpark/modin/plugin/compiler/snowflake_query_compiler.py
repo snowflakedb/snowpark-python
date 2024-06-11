@@ -100,6 +100,7 @@ from snowflake.snowpark.functions import (
     least,
     length,
     lower,
+    ltrim,
     max as max_,
     min as min_,
     minute,
@@ -113,6 +114,7 @@ from snowflake.snowpark.functions import (
     reverse,
     round,
     row_number,
+    rtrim,
     second,
     substring,
     sum as sum_,
@@ -120,6 +122,7 @@ from snowflake.snowpark.functions import (
     timestamp_ntz_from_parts,
     to_date,
     to_variant,
+    trim,
     upper,
     when,
     year,
@@ -10067,7 +10070,61 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # max            NaN      3.0    NaN
         sorted_percentiles = sorted(percentiles)
         dtypes = self.dtypes
-        query_compiler = self
+        # If we operate on the original frame's labels, then if two columns have the same name but
+        # different one is `object` and one is numeric,, the JOIN behavior of SnowflakeQueryCompiler.concat
+        # will produce incorrect results. For example, consider the following dataframe, where an
+        # `object` column and `int64` column both share the label "a":
+        #     +---+-----+---+-----+
+        #     | a |  a  | b |  c  |
+        #     +---+-----+---+-----+
+        #     | 1 | 'x' | 3 | 'i' |
+        #     +---+-----+---+-----+
+        #     | 2 | 'y' | 4 | 'j' |
+        #     +---+-----+---+-----+
+        #     | 3 | 'x' | 5 | 'j' |
+        #     +---+-----+---+-----+
+        # For all `object` columns in the frame, we will generate a query compiler with the computed
+        # `top`/`freq` statistics. Similarly, for the numeric columns we will generate a query compiler
+        # containing the `std`, `min`/`max`, and other numeric statistics:
+        #     OBJECT QUERY COMPILER    NUMERIC QUERY COMPILER
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |      |  a  |  c  |     |     |  a  |  b  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        #     |  top | 'x' | 'j' |     | min |  1  |  3  |
+        #     +------+-----+-----+     +-----+-----+-----+ (additional aggregations omitted)
+        #     | freq |  2  |  2  |     | max |  3  |  5  |
+        #     +------+-----+-----+     +-----+-----+-----+
+        # We `concat` these two query compilers (+ an additional one for the `count` statistic computed
+        # for all columns). Numeric columns will have NULL values for the `top` and `freq` statistics,
+        # and object columns will have NULL values for `min`, `max`, etc. This is accomplished by
+        # the `join="outer"` parameter, but it will still erroneously try to combine the aggregations
+        # of the object and numeric columns that share a label.
+        # To circumvent this, we relabel all columns with a simple integer index, and restore the
+        # correct labels at the very end after `concat`.
+        # The end result (before restoring the original pandas labels) should look something like this
+        # (many rows omitted for brevity):
+        #     Column mapping: {0: "a", 1: "a", 2: "b", 3: "c"}
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |      |  1  |  3  |              |     |  0  |  2  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     |  top | 'x' | 'j' | -- CONCAT -- | min |  1  |  3  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #     | freq |  2  |  2  |              | max |  3  |  5  |
+        #     +------+-----+-----+              +-----+-----+-----+
+        #                               =
+        #              +------+-----+------+-----+------+
+        #              |      |  0  |   1  |  2  |   3  |
+        #              +------+-----+------+-----+------+
+        #              |  top | NaN |  'x' | NaN |  'j' |
+        #              +------+-----+------+-----+------+
+        #              | freq | NaN |   2  | NaN |   2  |
+        #              +------+-----+------+-----+------+
+        #              |  min |  1  | None |  3  | None |
+        #              +------+-----+------+-----+------+
+        #              |  max |  3  | None |  5  | None |
+        #              +------+-----+------+-----+------+
+        original_columns = self.columns
+        query_compiler = self.set_columns(list(range(len(self.columns))))
         internal_frame = query_compiler._modin_frame
         # Compute count for all columns regardless of dtype
         query_compilers_to_concat = [
@@ -10391,10 +10448,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert (
             len(query_compilers_to_concat) > 1
         ), "must have more than one QC to concat"
-        return query_compilers_to_concat[0].concat(
-            other=query_compilers_to_concat[1:],
-            axis=0,
-            join="outer",
+        return (
+            query_compilers_to_concat[0].concat(
+                other=query_compilers_to_concat[1:],
+                axis=0,
+                join="outer",
+            )
+            # Restore the original pandas labels
+            .set_columns(original_columns)
         )
 
     def sample(
@@ -12906,6 +12967,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_removesuffix(self, prefix: str) -> None:
         ErrorMessage.method_not_implemented_error("removesuffix", "Series.str")
 
+    def _str_strip_variant(
+        self, sp_func: Callable, pd_func_name: str, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Remove leading and/or trailing characters depending on sp_func.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left and/or right sides depending on sp_func. Replaces any non-strings in Series with NaNs. Equivalent to str.strip(), str.lstrip(), or str.rstrip() depending on sp_func.
+
+        Parameters
+        ----------
+        sp_func: Callable
+            Snopwark function to use - trim, ltrim, or rtrim.
+        pd_func_name: str
+            Name of pandas string function - strip, lstrip, or rstrip.
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not pandas.isnull(to_strip) and not isinstance(to_strip, str):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas Series.str.{pd_func_name} does not yet support non-str 'to_strip' argument"
+            )
+        if to_strip is None:
+            to_strip = "\t\n\r\f "
+
+        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
+            new_col = sp_func(col(col_name), pandas_lit(to_strip))
+            return self._replace_non_str(col(col_name), new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
     def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading and trailing characters.
@@ -12921,27 +13019,47 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        if not pandas.isnull(to_strip) and not isinstance(to_strip, str):
-            ErrorMessage.not_implemented(
-                "Snowpark pandas doesn't support non-str 'to_strip' argument"
-            )
-        if to_strip is None:
-            to_strip = "\t\n\r\f "
-
-        def output_col(col_name: ColumnOrName) -> SnowparkColumn:
-            new_col = builtin("trim")(col(col_name), pandas_lit(to_strip))
-            return self._replace_non_str(col(col_name), new_col)
-
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
-            output_col
+        return self._str_strip_variant(
+            sp_func=trim, pd_func_name="strip", to_strip=to_strip
         )
-        return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_lstrip(self, to_strip: Union[str, None] = None) -> None:
-        ErrorMessage.method_not_implemented_error("lstrip", "Series.str")
+    def str_lstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
+        """
+        Remove leading characters.
 
-    def str_rstrip(self, to_strip: Union[str, None] = None) -> None:
-        ErrorMessage.method_not_implemented_error("rstrip", "Series.str")
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left side. Replaces any non-strings in Series with NaNs. Equivalent to str.lstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        return self._str_strip_variant(
+            sp_func=ltrim, pd_func_name="lstrip", to_strip=to_strip
+        )
+
+    def str_rstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
+        """
+        Remove trailing characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from right side. Replaces any non-strings in Series with NaNs. Equivalent to str.rstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        return self._str_strip_variant(
+            sp_func=rtrim, pd_func_name="rstrip", to_strip=to_strip
+        )
 
     def str_swapcase(self) -> None:
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")

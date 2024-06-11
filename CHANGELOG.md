@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
+- Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 
 ### Snowpark Local Testing Updates
 
@@ -31,10 +32,12 @@
 - Added support for `Series.str.get`.
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `Series.str.lstrip` and `Series.str.rstrip`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+- Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
@@ -133,7 +136,7 @@
 
 #### New Features
 
-- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas) for more details.
+- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas) for more details.
 
 ### Snowpark Local Testing Updates
 
