@@ -111,7 +111,7 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
         response = ParseDict(response_as_dict["data"], proto.Response())
         return response
     else:
-        raise NotImplementedError("Only inline arrow result decode supported yet.")
+        raise NotImplementedError("Only inline arrow result decode supported at the moment.")
 
 
 class AstBatch:

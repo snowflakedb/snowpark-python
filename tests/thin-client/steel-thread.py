@@ -17,18 +17,21 @@ logging.basicConfig(
 
 logger.info("Creating session")
 
-# Local devvm connection parameters.
-parameters = {
-    "host": "snowflake.dev.local",
-    "port": "8082",
-    "protocol": "http",
-    "account": "SNOWFLAKE",
-    "user": "admin",
-    "password": "test",
-    "warehouse": "TESTWH_SNOWPANDAS",
-    "database": "TESTDB_SNOWPANDAS",
-    "schema": "public",
-}
+# Add a parameters.py file in this directory which defines a variable
+# CONNECTION_PARAMETERS.
+# For example, when using a local devvm this parameters should be:
+# CONNECTION_PARAMETERS = {
+#     "host": "snowflake.dev.local",
+#     "port": "8082",
+#     "protocol": "http",
+#     "account": "SNOWFLAKE",
+#     "user": "admin",
+#     "password": "test",
+#     "warehouse": "TESTWH_SNOWPANDAS",
+#     "database": "TESTDB_SNOWPANDAS",
+#     "schema": "public",
+# }
+from parameters import CONNECTION_PARAMETERS
 
 # SQL setup steps:
 # CREATE OR REPLACE WAREHOUSE TESTWH_SNOWPANDAS;
@@ -38,11 +41,15 @@ parameters = {
 # CREATE OR REPLACE TABLE TEST_TABLE AS SELECT * FROM VALUES (1, 2), (3, 4) AS t(a,b);
 
 
-session = Session.builder.configs(parameters).getOrCreate()
+session = Session.builder.configs(CONNECTION_PARAMETERS).getOrCreate()
 
-# create test table with data before invoking DataFrame API by running above SQL queries.
+# Create test table with data before invoking DataFrame API by running above SQL queries.
 
-# Simple example, reads data and exeutes show() server-side when phase1 is enabled
+# Simple example, reads data and executes show() server-side when phase1 is enabled
 # by setting environment variable SNOWPARK_PHASE_1=true
+
+# TODO: Once column expr PR is in, add filter. This requires to modify above SQL statements to include
+# a VARCHAR column as well.
+
 df = session.table("test_table")
 df.show()
