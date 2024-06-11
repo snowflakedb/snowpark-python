@@ -72,7 +72,7 @@ class Index:
         Notes
         -----
         An Index instance can **only** contain hashable objects.
-        An Index instance *can not* hold numpy float16 dtype.
+        An Index instance *cannot* hold numpy float16 dtype.
 
         Examples
         --------
