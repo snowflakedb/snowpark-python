@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
+from opentelemetry.trace import Status, StatusCode
+
 logger = getLogger(__name__)
 target_class = ["dataframe.py", "dataframe_writer.py"]
 # this parameter make sure no error when open telemetry is not installed
@@ -50,7 +52,11 @@ def open_telemetry_context_manager(func, dataframe):
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
-                yield
+                try:
+                    yield
+                except Exception as e:
+                    cur_span.set_status(Status(StatusCode.ERROR, str(e)))
+                    raise e
 
     else:
         yield
