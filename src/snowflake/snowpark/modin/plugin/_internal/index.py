@@ -234,6 +234,25 @@ class Index:
         self.to_pandas_warning()
         return self.to_pandas().dtype
 
+    @property
+    def T(self, *args: Any, **kwargs: Any) -> Index:
+        """
+        Return the transpose, which is by definition self.
+
+        Parameters
+        ----------
+        *args : Any
+            Optional positional arguments for compatibility with other T APIs.
+        **kwargs : Any
+            Optional keyword arguments for compatibility with other T APIs.
+
+        Returns
+        -------
+        Index
+            This is self
+        """
+        return self
+
     def astype(self, dtype: Any, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
