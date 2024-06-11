@@ -12,14 +12,13 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
-from opentelemetry.trace import Status, StatusCode
-
 logger = getLogger(__name__)
 target_class = ["dataframe.py", "dataframe_writer.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
     from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
 
 except ImportError:
     open_telemetry_found = False
