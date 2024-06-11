@@ -6,6 +6,9 @@
 
 #### Improvements
 
+- Added distributed tracing using open telemetry APIs for stable stored procedure function in `DataFrame`:
+  - _execute_and_get_query_id
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
