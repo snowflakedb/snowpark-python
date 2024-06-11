@@ -7,6 +7,7 @@ import inspect
 import os
 from unittest import mock
 
+import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -50,15 +51,20 @@ api_calls = [
     {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
 ]
 
-resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-trace_provider = TracerProvider(resource=resource)
-dict_exporter = InMemorySpanExporter()
-processor = SimpleSpanProcessor(dict_exporter)
-trace_provider.add_span_processor(processor)
-trace.set_tracer_provider(trace_provider)
+
+@pytest.fixture(scope="module")
+def dict_exporter():
+    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+    trace_provider = TracerProvider(resource=resource)
+    dict_exporter = InMemorySpanExporter()
+    processor = SimpleSpanProcessor(dict_exporter)
+    trace_provider.add_span_processor(processor)
+    trace.set_tracer_provider(trace_provider)
+    yield dict_exporter
+    dict_exporter.shutdown()
 
 
-def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
+def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
     # set up exporter
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
@@ -79,7 +85,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe():
     dict_exporter.clear()
 
 
-def test_open_telemetry_span_from_dataframe_writer():
+def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
