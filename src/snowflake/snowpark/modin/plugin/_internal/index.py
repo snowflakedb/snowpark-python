@@ -136,7 +136,7 @@ class Index:
                 # Examples of this are `astype` and `copy`
                 if isinstance(returned_value, native_pd.Index):
                     returned_value = Index(returned_value, convert_to_lazy=False)
-                # Some methods also return a tuple with an Index, so convert that tuples first item to an index
+                # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
                 # Examples of this are `_get_indexer_strict` and `sort_values`
                 elif isinstance(returned_value, tuple) and isinstance(
                     returned_value[0], native_pd.Index
@@ -314,7 +314,6 @@ class Index:
         """
         WarningMessage.index_to_pandas_warning("dtype")
         return self.to_pandas().dtype
-
 
     @property
     def T(self, *args: Any, **kwargs: Any) -> Index:
