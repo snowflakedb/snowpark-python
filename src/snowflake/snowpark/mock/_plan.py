@@ -5,17 +5,13 @@
 import importlib
 import inspect
 import math
-import os
 import re
-import shutil
 import statistics
-import sys
-import tempfile
 import typing
 import uuid
 from collections.abc import Iterable
 from enum import Enum
-from functools import cached_property, partial
+from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
@@ -44,7 +40,7 @@ from snowflake.snowpark.mock._udf_utils import (
     remove_null_wrapper,
     types_are_compatible,
 )
-from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
@@ -54,8 +50,6 @@ from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
-
-from contextlib import ExitStack
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     EXCEPT,
@@ -89,6 +83,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
+    ColumnSum,
     Expression,
     FunctionExpression,
     InExpression,
@@ -482,78 +477,11 @@ def handle_udf_expression(
     expr_to_alias: Dict[str, str],
     current_row=None,
 ):
-    udf_registry = analyzer.session.udf._registry
+    udf_registry = analyzer.session.udf
     udf_name = exp.udf_name
+    udf = udf_registry.get_udf(udf_name)
 
-    if udf_name not in udf_registry:
-        raise SnowparkLocalTestingException(f"udf {udf_name} does not exist.")
-
-    # Initialize import directory
-    temporary_import_path = tempfile.TemporaryDirectory()
-    last_import_directory = sys._xoptions.get("snowflake_import_directory")
-    sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
-
-    # Save a copy of module cache
-    frozen_sys_module_keys = set(sys.modules.keys())
-    # Save a copy of sys path
-    frozen_sys_path = list(sys.path)
-
-    def cleanup_imports():
-        added_path = set(sys.path) - set(frozen_sys_path)
-        if udf_name in analyzer.session.udf._udf_level_imports:
-            # Remove UDF level imports
-            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-        else:
-            # Remove session level imports
-            for module_path in analyzer.session.udf._session_level_imports:
-                if module_path in added_path:
-                    sys.path.remove(module_path)
-
-        # Clear added entries in sys.modules cache
-        added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
-        for key in added_keys:
-            del sys.modules[key]
-
-        # Cleanup import directory
-        temporary_import_path.cleanup()
-
-        # Restore snowflake_import_directory
-        if last_import_directory is not None:
-            sys._xoptions["snowflake_import_directory"] = last_import_directory
-        else:
-            del sys._xoptions["snowflake_import_directory"]
-
-    with ExitStack() as stack:
-        stack.callback(cleanup_imports)
-
-        # Process imports
-        if udf_name in analyzer.session.udf._udf_level_imports:
-            # Add UDF level imports
-            for module_path in analyzer.session.udf._udf_level_imports[udf_name]:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-        else:
-            # Add session level imports
-            for module_path in analyzer.session.udf._session_level_imports:
-                if module_path not in sys.path:
-                    sys.path.append(module_path)
-                if os.path.isdir(module_path):
-                    shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
-                    )
-                else:
-                    shutil.copy2(module_path, temporary_import_path.name)
-
-        udf = udf_registry[udf_name]
-
+    with ImportContext(udf_registry.get_udf_imports(udf_name)):
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
@@ -1358,11 +1286,15 @@ def execute_mock_plan(
         # (2) A target row is selected to be both updated and deleted
 
         inserted_rows = []
+        insert_clause_specified = (
+            update_clause_specified
+        ) = delete_clause_specified = False
         inserted_row_idx = set()  # source_row_id
         deleted_row_idx = set()
         updated_row_idx = set()
         for clause in source_plan.clauses:
             if isinstance(clause, UpdateMergeExpression):
+                update_clause_specified = True
                 # Select rows to update
                 if clause.condition:
                     condition = calculate_expression(
@@ -1393,6 +1325,7 @@ def execute_mock_plan(
                     updated_row_idx.add(row[ROW_ID])
 
             elif isinstance(clause, DeleteMergeExpression):
+                delete_clause_specified = True
                 # Select rows to delete
                 if clause.condition:
                     condition = calculate_expression(
@@ -1415,6 +1348,7 @@ def execute_mock_plan(
                 target = target[~matched]
 
             elif isinstance(clause, InsertMergeExpression):
+                insert_clause_specified = True
                 # calculate unmatched rows in the source
                 matched = source.apply(tuple, 1).isin(
                     join_result[source.columns].apply(tuple, 1)
@@ -1499,11 +1433,11 @@ def execute_mock_plan(
 
         # Generate metadata result
         res = []
-        if inserted_rows:
+        if insert_clause_specified:
             res.append(len(inserted_row_idx))
-        if updated_row_idx:
+        if update_clause_specified:
             res.append(len(updated_row_idx))
-        if deleted_row_idx:
+        if delete_clause_specified:
             res.append(len(deleted_row_idx))
 
         return [Row(*res)]
@@ -1838,6 +1772,12 @@ def calculate_expression(
                 raise_error=NotImplementedError,
             )
         return new_column
+    elif isinstance(exp, ColumnSum):
+        cols = [
+            calculate_expression(e, input_data, analyzer, expr_to_alias)
+            for e in exp.exprs
+        ]
+        return reduce(ColumnEmulator.add, cols)
     if isinstance(exp, UnaryMinus):
         res = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         return -res

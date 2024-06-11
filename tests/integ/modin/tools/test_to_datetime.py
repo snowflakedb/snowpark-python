@@ -48,6 +48,7 @@ def utc(request):
 
 
 class TestTimeConversionFormats:
+    @pytest.mark.modin_sp_precommit
     @pytest.mark.parametrize("readonly", [True, False])
     @sql_count_checker(query_count=2)
     def test_to_datetime_readonly(self, readonly):

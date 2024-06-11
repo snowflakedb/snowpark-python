@@ -315,6 +315,26 @@ class Index:
         WarningMessage.index_to_pandas_warning("dtype")
         return self.to_pandas().dtype
 
+
+    @property
+    def T(self, *args: Any, **kwargs: Any) -> Index:
+        """
+        Return the transpose, which is by definition self.
+
+        Parameters
+        ----------
+        *args : Any
+            Optional positional arguments for compatibility with other T APIs.
+        **kwargs : Any
+            Optional keyword arguments for compatibility with other T APIs.
+
+        Returns
+        -------
+        Index
+            This is self
+        """
+        return self
+
     @is_lazy_check
     def astype(self, dtype: Any, copy: bool = True) -> Index:
         """

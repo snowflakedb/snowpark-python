@@ -70,6 +70,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     LongType,
     MapType,
+    NullType,
     ShortType,
     StringType,
     StructField,
@@ -2236,6 +2237,15 @@ def test_dropna(session, local_testing_mode):
 
 
 @pytest.mark.localtest
+def test_dropna_large_num_of_columns(session):
+    n = 1000
+    data = [str(i) for i in range(n)]
+    none_data = [None for _ in range(n)]
+    df = session.create_dataframe([data, none_data], schema=data)
+    Utils.check_answer(df.dropna(how="all"), [Row(*data)])
+
+
+@pytest.mark.localtest
 def test_fillna(session, local_testing_mode):
     if not local_testing_mode:  # Enable for local testing after coercion support
         Utils.check_answer(
@@ -3983,3 +3993,28 @@ def test_dataframe_to_local_iterator_isolation(session):
     assert (
         row_counter == ROW_NUMBER
     ), f"Expect {ROW_NUMBER} rows, Got {row_counter} instead"
+
+
+def test_create_empty_dataframe(session):
+    schema = StructType(
+        [
+            StructField("COL1", IntegerType()),
+            StructField("COL2", ByteType()),
+            StructField("COL3", ShortType()),
+            StructField("COL4", LongType()),
+            StructField("COL5", FloatType()),
+            StructField("COL6", DoubleType()),
+            StructField("COL7", DecimalType()),
+            StructField("COL8", BooleanType()),
+            StructField("COL9", BinaryType()),
+            StructField("COL10", VariantType()),
+            StructField("COL11", StringType()),
+            StructField("COL12", DateType()),
+            StructField("COL13", TimestampType()),
+            StructField("COL14", TimeType()),
+            StructField("COL15", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("COL16", MapType()),
+            StructField("COL17", NullType()),
+        ]
+    )
+    assert not session.create_dataframe(data=[], schema=schema).collect()
