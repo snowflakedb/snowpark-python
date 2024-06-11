@@ -17,6 +17,7 @@ logging.basicConfig(
 
 logger.info("Creating session")
 
+# Local devvm connection parameters.
 parameters = {
     "host": "snowflake.dev.local",
     "port": "8082",
@@ -30,18 +31,18 @@ parameters = {
 }
 
 # SQL setup steps:
-# CREATE OR REPLACE WAREHOUSE TESTWH_SNOWPANDAS
-# USE WAREHOUSE TESTWH_SNOWPANDAS
-# CREATE OR REPLACE DATABASE TESTDB_SNOWPANDAS
-# USE DATABASE TESTDB_SNOWPANDAS
+# CREATE OR REPLACE WAREHOUSE TESTWH_SNOWPANDAS;
+# USE WAREHOUSE TESTWH_SNOWPANDAS;
+# CREATE OR REPLACE DATABASE TESTDB_SNOWPANDAS;
+# USE DATABASE TESTDB_SNOWPANDAS;
 # CREATE OR REPLACE TABLE TEST_TABLE AS SELECT * FROM VALUES (1, 2), (3, 4) AS t(a,b);
 
 
 session = Session.builder.configs(parameters).getOrCreate()
 
-# create test table with data before invoking DataFrame API
+# create test table with data before invoking DataFrame API by running above SQL queries.
 
-
+# Simple example, reads data and exeutes show() server-side when phase1 is enabled
+# by setting environment variable SNOWPARK_PHASE_1=true
 df = session.table("test_table")
-# df = df.filter("STR LIKE '%e%'")
 df.show()
