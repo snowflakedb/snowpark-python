@@ -138,7 +138,7 @@ class Index:
                 if isinstance(returned_value, native_pd.Index):
                     returned_value = Index(returned_value, convert_to_lazy=False)
                 # Some methods also return a tuple with an Index, so convert that tuples first item to an index
-                # Examples of this are _get_indexer_strict and sort_values
+                # Examples of this are `_get_indexer_strict` and `sort_values`
                 elif isinstance(returned_value, tuple) and isinstance(
                     returned_value[0], native_pd.Index
                 ):
