@@ -71,7 +71,11 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = trace.get_tracer(f"snow.snowpark.stored_procedure:{class_name}")
+        tracer = (
+            trace.get_tracer(f"snow.snowpark.{class_name.split('.')[0].lower()}")
+            if "." in class_name
+            else class_name
+        )
 
         with tracer.start_as_current_span(name) as cur_span:
             try:
@@ -82,7 +86,7 @@ def open_telemetry_udf_context_manager(func, parameters):
                     if parameters.get("func")
                     else parameters.get("handler")
                 )
-                # if udf_func is not None, meaning it is a function or handler, get handler_name from it, otherwise find
+                # if udf_func is not None, meaning it is a udf function or udf handler class, get handler_name from it, otherwise find
                 # function name or handler name from parameter
                 handler_name = (
                     udf_func.__name__
