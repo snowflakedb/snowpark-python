@@ -17,11 +17,11 @@ def check_is_rolling_window_supported_by_snowflake(
     rolling_kwargs: dict[str, Any]
 ) -> None:
     """
-    Check if execution with snowflake engine is available for the window operation.
+    Check if execution with snowflake engine is available for the rolling window operation.
 
     Parameters
     ----------
-    rolling_kwargs: keyword arguments passed for to rolling. The rolling keywords handled in the
+    rolling_kwargs: keyword arguments passed to rolling. The rolling keywords handled in the
         function contains:
         window: int, timedelta, str, offset, or BaseIndexer subclass. Size of the moving window.
             If an integer, the fixed number of observations used for each window.
