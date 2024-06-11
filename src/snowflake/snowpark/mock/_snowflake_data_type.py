@@ -271,7 +271,10 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
         elif isinstance(t2, (_FractionalType, VariantType, BooleanType)):
             return t2
     elif isinstance(t1, _FractionalType):
-        if isinstance(t2, (_FractionalType, BooleanType, VariantType)):
+        if isinstance(t2, _FractionalType):
+            res = calculate_type(ColumnType(t1, True), ColumnType(t2, True), "+")
+            return res.datatype
+        elif isinstance(t2, (BooleanType, VariantType)):
             return t2
     elif isinstance(t1, BooleanType):
         if isinstance(t2, (StringType, VariantType)):
