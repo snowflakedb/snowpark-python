@@ -24,6 +24,10 @@
 - Fixed a bug that table merge fails when update clause exists but no update takes place.
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
 
+#### Improvements
+
+- Added support for type coercion in the implementation of DataFrame.replace, DataFrame.dropna and the mock function `iff`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
