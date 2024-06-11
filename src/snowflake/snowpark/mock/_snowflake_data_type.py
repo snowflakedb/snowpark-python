@@ -243,6 +243,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
 
 
 def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
+    """Based on result of SELECT system$typeof("RES") FROM (SELECT CASE WHEN (<pred>) THEN <t1> ELSE <t2> END AS "RES")"""
     if t1 == t2:
         return t2
     elif isinstance(t1, NullType):
