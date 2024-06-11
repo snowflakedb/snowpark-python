@@ -8,12 +8,11 @@ import itertools
 import json
 import sys
 import uuid
-from typing import Tuple, Any, Sequence
+from typing import Any, Sequence, Tuple
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from google.protobuf.message import DecodeError
-
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
 # TODO: currently unused.
@@ -23,7 +22,13 @@ def expr_to_dataframe_expr(expr):
     getattr(dfe, variant).CopyFrom(getattr(expr, variant))
     return dfe
 
-def decode_ast_response_from_snowpark(res: dict, session_parameters:Any) -> Any:
+
+def check_response(response):
+    # TODO
+    pass
+
+
+def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any:
     """
     decodes Snowpark REST response to protobuf response
     Args:
@@ -32,26 +37,43 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters:Any) -> Any:
     Returns:
         protobuf object
     """
+
+    # check if response resulted in error code, if so decode
+    data = res["data"]
+
+    if "errorCode" in data.keys():
+        is_internal_error = data["internalError"]
+        error_code = data["errorCode"]
+        sfqid = data["queryId"]
+        error_message = res["message"]
+
+        if is_internal_error:
+            error_message = "INTERNAL ERROR: " + error_message
+
+        raise SnowparkSQLException(error_message, error_code=error_code, sfqid=sfqid)
+
     # data is given as b64 encoded rowset result.
     # perform two step decode:
     # Regular Snowpark python decode, then protobuf decode:
 
-    if res['data']['queryResultFormat'] == 'arrow' and 'rowsetBase64' in res['data'].keys():
+    if data["queryResultFormat"] == "arrow" and "rowsetBase64" in data.keys():
 
-        rowset_b64 = res['data']['rowsetBase64']
+        rowset_b64 = data["rowsetBase64"]
         from snowflake.connector.result_batch import ArrowResultBatch
 
-        total_len: int = res['data'].get("total", 0)
+        total_len: int = data.get("total", 0)
         first_chunk_len = total_len
         from snowflake.connector.arrow_context import ArrowConverterContext
+
         arrow_context = ArrowConverterContext(session_parameters)
 
         from snowflake.connector.cursor import ResultMetadataV2
+
         schema: Sequence[ResultMetadataV2] = [
-            ResultMetadataV2.from_column(col) for col in res['data']["rowtype"]
+            ResultMetadataV2.from_column(col) for col in data["rowtype"]
         ]
 
-        if 'chunks' in res['data']:
+        if "chunks" in data:
             raise NotImplementedError("decoding chunks not yet supported")
 
         first_chunk = ArrowResultBatch.from_data(
@@ -59,12 +81,14 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters:Any) -> Any:
             first_chunk_len,
             arrow_context,
             True,
-            True, # does not matter
+            True,  # does not matter
             schema,
-            True, # does not matter
+            True,  # does not matter
         )
 
-        assert first_chunk.rowcount == 1, 'Result should consist of single row holding protobuf response'
+        assert (
+            first_chunk.rowcount == 1
+        ), "Result should consist of single row holding protobuf response"
 
         dict_result = first_chunk.to_arrow().to_pydict()
 
@@ -73,26 +97,28 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters:Any) -> Any:
 
         response_as_dict = json.loads(response_as_json)
 
-        if response_as_dict['status'] != 200:
-            raise SnowparkClientExceptionMessages.IR_MESSAGE(f"Coprocessor returned status {response_as_dict['status']}")
+        if response_as_dict["status"] != 200:
+            raise SnowparkClientExceptionMessages.IR_MESSAGE(
+                f"Coprocessor returned status {response_as_dict['status']}"
+            )
 
         # Should be also able to load the json directly into a python dict via json.loads(...),
         # however map here to protobuf to make sure contents align with protobuf message.
         from google.protobuf.json_format import ParseDict
-        response = ParseDict(response_as_json['data'], proto.Response())
+
+        response = ParseDict(response_as_dict["data"], proto.Response())
         return response
     else:
         raise NotImplementedError("Only inline arrow result decode supported yet.")
 
 
-
 class AstBatch:
-    def __init__(self, session):
+    def __init__(self, session) -> None:
         self._session = session
         self._id_gen = itertools.count(start=1)
         self._init_batch()
 
-    def assign(self, symbol = None):
+    def assign(self, symbol=None):
         stmt = self._request.body.add()
         # TODO: extended BindingId spec from the branch snowpark-ir.
         stmt.assign.uid = next(self._id_gen)
