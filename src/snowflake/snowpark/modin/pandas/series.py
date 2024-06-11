@@ -121,6 +121,7 @@ class Series(BasePandasDataset):
         copy=False,
         fastpath=False,
         query_compiler=None,
+        ast_stmt=None,
     ) -> None:
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         # Siblings are other dataframes that share the same query compiler. We
@@ -129,6 +130,11 @@ class Series(BasePandasDataset):
 
         # modified:
         # Engine.subscribe(_update_engine)
+
+        if not ast_stmt:
+            ast_stmt = pd.session._ast_batch.assign()
+        self._ast_id = ast_stmt.var_id.bitfield1
+        self._ast_stmt = ast_stmt
 
         if isinstance(data, type(self)):
             query_compiler = data._query_compiler.copy()
@@ -196,7 +202,9 @@ class Series(BasePandasDataset):
         else:
             columns = [name]
         self._update_inplace(
-            new_query_compiler=self._query_compiler.set_columns(columns)
+            new_query_compiler=self._query_compiler.set_columns(
+                columns, ast_stmt=self._ast_stmt
+            )
         )
 
     name = property(_get_name, _set_name)

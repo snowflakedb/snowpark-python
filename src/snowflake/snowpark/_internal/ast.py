@@ -27,18 +27,17 @@ def expr_to_dataframe_expr(expr):
     return dfe
 
 
-# Map from python type to its corresponding IR field. IR fields below all have the 'v' attribute.
+# Map from python type to its corresponding IR entity. The entities below all have the 'v' attribute.
 TYPE_TO_IR_TYPE_NAME = {
     bytes: "binary_val",
     bool: "bool_val",
+    datetime64: "date_val",
+    Decimal: "big_decimal_val",
+    float64: "float_64_val",
     int32: "int_32_val",
     int64: "int_64_val",
-    float64: "float_64_val",
-    Decimal: "big_decimal_val",
     str: "string_val",
-    slice: "slice_val",
     Timestamp: "timestamp_val",
-    datetime64: "date_val",
 }
 
 
@@ -49,7 +48,7 @@ def ast_expr_from_python_val(expr, val):
 
     Parameters
     ----------
-    expr : IR expression object
+    expr : IR entity protobuf builder
     val : Python value that needs to be converted to IR expression.
     """
     if val is None:
@@ -62,12 +61,16 @@ def ast_expr_from_python_val(expr, val):
         if isinstance(val, Callable):
             expr.fn_val.params = signature(val).parameters
             expr.fn_val.body = val
-        elif isinstance(val, Series):
-            # Checking Series before the list-like type since Series are considered to be list-like.
-            expr.series_val.ref = val
-        elif is_list_like(val):
+        if isinstance(val, slice):
+            expr.slice_val.start = val.start
+            expr.slice_val.stop = val.stop
+            expr.slice_val.step = val.step
+        elif not isinstance(val, Series) and is_list_like(val):
+            # Checking that val is not a Series since Series objects are considered list-like.
             expr.list_val.vs = val
-        if isinstance(val, DataFrame):
+        elif isinstance(val, Series):
+            expr.series_val.ref = val
+        elif isinstance(val, DataFrame):
             expr.dataframe_val.ref = val
     else:
         ir_type_name = TYPE_TO_IR_TYPE_NAME[val_type]
