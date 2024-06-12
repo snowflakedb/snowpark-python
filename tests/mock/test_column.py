@@ -13,7 +13,7 @@ def test_casewhen_with_non_zero_row_index(session):
     ).collect() == [Row(A=7)]
 
 
-def test_regexp_with_non_zero_row_index(session):
+def test_like_with_non_zero_row_index(session):
     df = session.create_dataframe([["1", 2], ["3", 4]], schema=["a", "b"])
     assert df.filter(col("b") > 2).select(
         col("a").like("1").alias("res")
