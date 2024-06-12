@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -46,7 +46,7 @@ class LogicalPlan:
         logical plan node. Statistic of current node is included in the final aggregate.
         """
         if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = add_node_complexities(
+            self._cumulative_node_complexity = sum_node_complexities(
                 self.individual_node_complexity,
                 *(node.cumulative_node_complexity for node in self.children),
             )
@@ -150,14 +150,14 @@ class SnowflakeCreateTable(LogicalPlan):
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (query)
         score = {PlanNodeCategory.COLUMN.value: 1}
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score, {PlanNodeCategory.COLUMN.value: len(self.column_names)}
             )
             if self.column_names
             else score
         )
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 *(expr.cumulative_node_complexity for expr in self.clustering_exprs),
             )
@@ -180,7 +180,7 @@ class Limit(LogicalPlan):
     @property
     def individual_node_complexity(self) -> Dict[str, int]:
         # for limit and offset
-        return add_node_complexities(
+        return sum_node_complexities(
             {PlanNodeCategory.LOW_IMPACT.value: 2},
             self.limit_expr.cumulative_node_complexity,
             self.offset_expr.cumulative_node_complexity,

@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
@@ -77,7 +77,7 @@ class SpecifiedWindowFrame(WindowFrame):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # frame_type BETWEEN lower AND upper
-        return add_node_complexities(
+        return sum_node_complexities(
             self.individual_node_complexity,
             self.lower.cumulative_node_complexity,
             self.upper.cumulative_node_complexity,
@@ -105,12 +105,12 @@ class WindowSpecDefinition(Expression):
     def individual_node_complexity(self) -> Dict[str, int]:
         score = {}
         score = (
-            add_node_complexities(score, {PlanNodeCategory.PARTITION_BY.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.PARTITION_BY.value: 1})
             if self.partition_spec
             else score
         )
         score = (
-            add_node_complexities(score, {PlanNodeCategory.ORDER_BY.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.ORDER_BY.value: 1})
             if self.order_spec
             else score
         )
@@ -118,7 +118,7 @@ class WindowSpecDefinition(Expression):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # partition_spec order_by_spec frame_spec
-        return add_node_complexities(
+        return sum_node_complexities(
             self.individual_node_complexity,
             self.frame_spec.cumulative_node_complexity,
             *(expr.cumulative_node_complexity for expr in self.partition_spec),
@@ -143,7 +143,7 @@ class WindowExpression(Expression):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # window_function OVER ( window_spec )
-        return add_node_complexities(
+        return sum_node_complexities(
             self.window_function.cumulative_node_complexity,
             self.window_spec.cumulative_node_complexity,
             self.individual_node_complexity,
@@ -175,14 +175,14 @@ class RankRelatedFunctionExpression(Expression):
         score = {PlanNodeCategory.FUNCTION.value: 1}
         # for offset
         score = (
-            add_node_complexities(score, {PlanNodeCategory.LITERAL.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.LITERAL.value: 1})
             if self.offset
             else score
         )
 
         # for ignore nulls
         score = (
-            add_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
             if self.ignore_nulls
             else score
         )
@@ -190,11 +190,11 @@ class RankRelatedFunctionExpression(Expression):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
-        score = add_node_complexities(
+        score = sum_node_complexities(
             self.individual_node_complexity, self.expr.cumulative_node_complexity
         )
         score = (
-            add_node_complexities(score, self.default.cumulative_node_complexity)
+            sum_node_complexities(score, self.default.cumulative_node_complexity)
             if self.default
             else score
         )

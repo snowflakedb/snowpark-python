@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 
 
@@ -46,9 +46,9 @@ class GroupingSetsExpression(Expression):
         return derive_dependent_columns(*flattened_args)
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
-        return add_node_complexities(
+        return sum_node_complexities(
             *(
-                add_node_complexities(
+                sum_node_complexities(
                     *(expr.cumulative_node_complexity for expr in arg)
                 )
                 for arg in self.args

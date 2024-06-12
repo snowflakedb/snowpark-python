@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -204,18 +204,18 @@ class Join(BinaryNode):
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
         score = {self.plan_node_category.value: 1}
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
-            score = add_node_complexities(
+            score = sum_node_complexities(
                 score,
                 {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)},
             )
         score = (
-            add_node_complexities(score, self.join_condition.cumulative_node_complexity)
+            sum_node_complexities(score, self.join_condition.cumulative_node_complexity)
             if self.join_condition
             else score
         )
 
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score, self.match_condition.cumulative_node_complexity
             )
             if self.match_condition
