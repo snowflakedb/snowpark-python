@@ -2,17 +2,17 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from dataclasses import dataclass
 import os
 import pathlib
-import pytest
 import subprocess
+from dataclasses import dataclass
+
+import pytest
 
 TEST_DIR = pathlib.Path(__file__).parent
 
 DATA_DIR = TEST_DIR / "data"
 
-UNPARSER_SCRIPT = TEST_DIR / "run-unparser.sh"
 
 @dataclass
 class TestCase:
@@ -29,23 +29,27 @@ def parse_file(file):
     try:
         test_case_start = src.index("## TEST CASE\n")
     except ValueError as e:
-        raise ValueError("Required header ## TEST CASE missing in the file: " + file.name)
+        raise ValueError(
+            "Required header ## TEST CASE missing in the file: " + file.name
+        )
 
     try:
         expected_output_start = src.index("## EXPECTED OUTPUT\n")
     except ValueError as e:
-        raise ValueError("Required header ## EXPECTED OUTPUT missing in the file: " + file.name)
-    
-    test_case = "".join(src[test_case_start + 1:expected_output_start])
-    expected_output = "".join(src[expected_output_start + 1:])
+        raise ValueError(
+            "Required header ## EXPECTED OUTPUT missing in the file: " + file.name
+        )
+
+    test_case = "".join(src[test_case_start + 1 : expected_output_start])
+    expected_output = "".join(src[expected_output_start + 1 :])
 
     return TestCase(os.path.basename(file.name), test_case, expected_output)
-   
+
 
 def load_test_cases():
     """
     Loads and parses test files from the data/ subdirectory. The files must be named '*.test'.
-    
+
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
@@ -58,18 +62,28 @@ def idfn(val):
 
 def render(ast_base64: str) -> str:
     """Uses the unparser to render the AST."""
-    assert pytest.unparser_jar, "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
-    res = subprocess.run([
-        UNPARSER_SCRIPT,
-        pytest.unparser_jar,
-        ast_base64,
-        "--lang", "python"
-    ], capture_output=True, text=True)
+    assert (
+        pytest.unparser_jar
+    ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
+    res = subprocess.run(
+        [
+            "java",
+            "-cp",
+            pytest.unparser_jar,
+            "com.snowflake.snowpark.experimental.unparser.UnparserCli",
+            ast_base64,
+        ],
+        capture_output=True,
+        text=True,
+    )
     return res.stdout
 
 
 def run_test(session, test_source):
     source = f"""
+import snowflake.snowpark.functions as functions
+from snowflake.snowpark.functions import col
+
 # Set up mock data.
 mock = session.create_dataframe(
     [
@@ -98,18 +112,23 @@ def test_ast(session, test_case):
     actual = run_test(session, test_case.source)
     if pytest.update_expectations:
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
-            f.writelines([
-                "## TEST CASE\n",
-                test_case.source,
-                "## EXPECTED OUTPUT\n\n",
-                actual.strip(),
-                "\n",
-            ])
+            f.writelines(
+                [
+                    "## TEST CASE\n",
+                    test_case.source,
+                    "## EXPECTED OUTPUT\n\n",
+                    actual.strip(),
+                    "\n",
+                ]
+            )
     else:
         try:
             assert actual.strip() == test_case.expected_output.strip()
         except AssertionError as e:
-            raise AssertionError("If the expectation is incorrect, run pytest --update-expectations:\n\n" + str(e))
+            raise AssertionError(
+                "If the expectation is incorrect, run pytest --update-expectations:\n\n"
+                + str(e)
+            )
 
 
 if __name__ == "__main__":

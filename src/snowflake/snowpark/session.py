@@ -505,7 +505,8 @@ class Session:
         self._runtime_version_from_requirement: str = None
 
         # Initialize the server-side session.
-        self._conn.create_coprocessor()
+        if self._conn.is_phase1_enabled():
+            self._conn.create_coprocessor()
 
         self._ast_batch = AstBatch(self)
 
