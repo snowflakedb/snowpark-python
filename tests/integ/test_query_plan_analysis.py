@@ -129,7 +129,7 @@ def test_join_table_function(session: Session):
         "select 'James' as name, 'address1 address2 address3' as addresses"
     )
     # SelectSQL chooses num active columns as the best estimate
-    assert_df_subtree_query_complexity(df1, {PlanNodeCategory.COLUMN.value: 2})
+    assert_df_subtree_query_complexity(df1, {PlanNodeCategory.COLUMN.value: 1})
 
     split_to_table = table_function("split_to_table")
 
@@ -141,7 +141,7 @@ def test_join_table_function(session: Session):
     assert_df_subtree_query_complexity(
         df2,
         {
-            PlanNodeCategory.COLUMN.value: 9,
+            PlanNodeCategory.COLUMN.value: 8,
             PlanNodeCategory.JOIN.value: 1,
             PlanNodeCategory.FUNCTION.value: 1,
             PlanNodeCategory.LITERAL.value: 1,
@@ -158,7 +158,7 @@ def test_join_table_function(session: Session):
     assert_df_subtree_query_complexity(
         df3,
         {
-            PlanNodeCategory.COLUMN.value: 7,
+            PlanNodeCategory.COLUMN.value: 6,
             PlanNodeCategory.JOIN.value: 1,
             PlanNodeCategory.FUNCTION.value: 1,
             PlanNodeCategory.LITERAL.value: 1,

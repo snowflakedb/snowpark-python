@@ -426,16 +426,8 @@ class SelectSQL(Selectable):
         return self._schema_query
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        if self.pre_actions:
-            # Currently having pre-actions implies we have a non-select query followed
-            # by a SELECT * FROM table(result_scan(query_id)) statement
-            return Counter({PlanNodeCategory.COLUMN.value: 1})
-
-        # no pre-action implies the best stat we have is of # active columns
-        return Counter(
-            {PlanNodeCategory.COLUMN.value: len(self.column_states.active_columns)}
-        )
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.COLUMN
 
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
