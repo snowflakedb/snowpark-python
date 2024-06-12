@@ -5,6 +5,6 @@ df = df.filter("STR LIKE '%e%'")
 
 ## EXPECTED OUTPUT
 
-res1 = session.table('test_table')
+res1 = session.table("test_table")
 
-res2 = res1.filter('STR LIKE '%e%'')
+res2 = res1.filter("STR LIKE '%e%'")
