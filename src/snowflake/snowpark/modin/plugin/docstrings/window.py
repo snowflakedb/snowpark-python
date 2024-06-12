@@ -478,6 +478,34 @@ class Expanding:
     def count():
         pass
 
+    @doc(
+        _window_agg_method_engine_template,
+        win_type="expanding",
+        fname="sum",
+        no=False,
+        args=None,
+        kwargs=None,
+        e=None,
+        ek=None,
+        example=dedent(
+            """\
+        >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
+        >>> df
+             B
+        0  0.0
+        1  1.0
+        2  2.0
+        3  NaN
+        4  4.0
+        >>> df.expanding(2).sum()
+             B
+        0  NaN
+        1  1.0
+        2  3.0
+        3  3.0
+        4  7.0"""
+        ),
+    )
     def sum():
         pass
 

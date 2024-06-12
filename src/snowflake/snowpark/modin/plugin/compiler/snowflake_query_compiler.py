@@ -10837,7 +10837,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 quoted_identifier: iff(
                     count(col(quoted_identifier)).over(window_expr) >= min_periods,
                     get_snowflake_agg_func(agg_func, agg_kwargs)(
-                        col(quoted_identifier)
+                        builtin("zeroifnull")(col(quoted_identifier))
+                        if window_func == "expanding" and agg_func == "sum"
+                        else col(quoted_identifier)
                     ).over(window_expr),
                     pandas_lit(None),
                 )
@@ -10861,8 +10863,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         numeric_only: bool = False,
         engine: Optional[Literal["cython", "numba"]] = None,
         engine_kwargs: Optional[dict[str, bool]] = None,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="sum", class_="Expanding")
+    ) -> "SnowflakeQueryCompiler":
+        WarningMessage.warning_if_engine_args_is_set(
+            "expanding_sum", engine, engine_kwargs
+        )
+        return self._window_agg(
+            window_func="expanding",
+            agg_func="sum",
+            window_kwargs=expanding_kwargs,
+            agg_kwargs=dict(numeric_only=numeric_only),
+        )
 
     def expanding_mean(
         self,
