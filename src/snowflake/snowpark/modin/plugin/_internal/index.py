@@ -33,7 +33,6 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
 class Index:
@@ -1137,6 +1136,8 @@ class Index:
         """
         Helper method to notify users if they are using a method that currently calls to_pandas()
         """
-        WarningMessage.single_warning(
-            "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
-        )
+        # TODO: SNOW-1359041 re-enable it once lazy index representation is ready
+        # WarningMessage.single_warning(
+        #     "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
+        # )
+        pass
