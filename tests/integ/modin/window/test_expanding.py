@@ -111,7 +111,6 @@ def test_expanding_min_periods_negative():
 @pytest.mark.parametrize(
     "agg_func, agg_func_kwargs",
     [
-        ("count", None),
         ("median", None),
         ("corr", None),
         ("cov", None),
@@ -134,7 +133,6 @@ def test_expanding_aggregation_dataframe_unsupported(agg_func, agg_func_kwargs):
 @pytest.mark.parametrize(
     "agg_func, agg_func_kwargs",
     [
-        ("count", None),
         ("median", None),
         ("corr", None),
         ("cov", None),
