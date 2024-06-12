@@ -37,46 +37,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
 class Index:
-    """
-    Immutable sequence used for indexing and alignment.
-
-    The basic object storing axis labels for all pandas objects.
-
-    Parameters
-    ----------
-    data : array-like (1-dimensional)
-    dtype : str, numpy.dtype, or ExtensionDtype, optional
-        Data type for the output Index. If not specified, this will be
-        inferred from `data`.
-        See the :ref:`user guide <basics.dtypes>` for more usages.
-    copy : bool, default False
-        Copy input data.
-    name : object
-        Name to be stored in the index.
-    tupleize_cols : bool (default: True)
-        When True, attempt to create a MultiIndex if possible.
-
-    Notes
-    -----
-    An Index instance can **only** contain hashable objects.
-    An Index instance *can not* hold numpy float16 dtype.
-
-    Examples
-    --------
-    >>> pd.Index([1, 2, 3])
-    Index([1, 2, 3], dtype='int64')
-
-    >>> pd.Index(list('abc'))
-    Index(['a', 'b', 'c'], dtype='object')
-
-    >>> pd.Index([1, 2, 3], dtype="uint8")
-    Index([1, 2, 3], dtype='uint8')
-    """
-
-    # same fields as native pandas index constructor
     def __init__(
         self,
         # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
@@ -85,12 +49,52 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
+        convert_to_lazy: bool = True,
     ) -> None:
+        """
+        Immutable sequence used for indexing and alignment.
+
+        The basic object storing axis labels for all pandas objects.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional)
+        dtype : str, numpy.dtype, or ExtensionDtype, optional
+            Data type for the output Index. If not specified, this will be
+            inferred from `data`.
+            See the :ref:`user guide <basics.dtypes>` for more usages.
+        copy : bool, default False
+            Copy input data.
+        name : object
+            Name to be stored in the index.
+        tupleize_cols : bool (default: True)
+            When True, attempt to create a MultiIndex if possible.
+        convert_to_lazy : bool (default: True)
+            When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
+            We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
+
+        Notes
+        -----
+        An Index instance can **only** contain hashable objects.
+        An Index instance *cannot* hold numpy float16 dtype.
+
+        Examples
+        --------
+        >>> pd.Index([1, 2, 3])
+        Index([1, 2, 3], dtype='int64')
+
+        >>> pd.Index(list('abc'))
+        Index(['a', 'b', 'c'], dtype='object')
+
+        >>> pd.Index([1, 2, 3], dtype="uint8")
+        Index([1, 2, 3], dtype='uint8')
+        """
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
         # TODO: SNOW-1359041: Switch to lazy index implementation
+        self.is_lazy = convert_to_lazy
         if isinstance(data, native_pd.Index):
             self._index = data
         elif isinstance(data, Index):
@@ -105,6 +109,49 @@ class Index:
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
+
+    def is_lazy_check(func: Any) -> Any:
+        """
+        Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
+        """
+
+        def check_lazy(*args: Any, **kwargs: Any) -> Any:
+            func_name = func.__name__
+
+            # If the index is lazy, call the method and return
+            if args[0].is_lazy:
+                returned_value = func(*args, **kwargs)
+                return returned_value
+            else:
+                # If the index is not lazy, get the cached native index and call the function
+                native_index = args[0]._index
+                native_func = getattr(native_index, func_name)
+
+                # If the function is a property, we will get a non-callable, so we just return it
+                # Examples of this are values or dtype
+                if not callable(native_func):
+                    return native_func
+
+                # Remove the first argument in args, because it is `self` and we don't need it
+                args = args[1:]
+                returned_value = native_func(*args, **kwargs)
+
+                # If we return a native Index, we need to convert this to a modin index but keep it locally.
+                # Examples of this are `astype` and `copy`
+                if isinstance(returned_value, native_pd.Index):
+                    returned_value = Index(returned_value, convert_to_lazy=False)
+                # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
+                # Examples of this are `_get_indexer_strict` and `sort_values`
+                elif isinstance(returned_value, tuple) and isinstance(
+                    returned_value[0], native_pd.Index
+                ):
+                    returned_value = (
+                        Index(returned_value[0], convert_to_lazy=False),
+                        returned_value[1],
+                    )
+                return returned_value
+
+        return check_lazy
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -146,6 +193,7 @@ class Index:
         return self._index
 
     @property
+    @is_lazy_check
     def values(self) -> ArrayLike:
         """
         Return an array representing the data in the Index.
@@ -207,6 +255,7 @@ class Index:
         # TODO: SNOW-1458134 implement is_monotonic_decreasing
 
     @property
+    @is_lazy_check
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -241,10 +290,11 @@ class Index:
         True
         """
         # TODO: SNOW-1458131 implement is_unique
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("is_unique")
         return self.to_pandas().is_unique
 
     @property
+    @is_lazy_check
     def has_duplicates(self) -> bool:
         """
         Check if the Index has duplicate values.
@@ -281,7 +331,40 @@ class Index:
         # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
+    @is_lazy_check
+    def unique(self, level: Hashable | None = None) -> Index:
+        """
+        Return unique values in the index.
+
+        Unique values are returned in order of appearance, this does NOT sort.
+
+        Parameters
+        ----------
+        level : int or hashable, optional
+            Only return values from specified level (for MultiIndex).
+            If int, gets the level by integer position, else by level name.
+
+        Returns
+        -------
+        Index
+
+        See Also
+        --------
+        unique : Numpy array of unique values in that column.
+        Series.unique : Return unique values of Series object.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 1, 2, 3, 3])
+        >>> idx.unique()
+        Index([1, 2, 3], dtype='int64')
+        """
+        # TODO: SNOW-1458132 implement unique
+        WarningMessage.index_to_pandas_warning("unique")
+        return Index(self.to_pandas().unique(level=level))
+
     @property
+    @is_lazy_check
     def dtype(self) -> DtypeObj:
         """
         Get the dtype object of the underlying data.
@@ -300,7 +383,7 @@ class Index:
         dtype('int64')
         """
         # TODO: SNOW-1458123 implement dtype
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("dtype")
         return self.to_pandas().dtype
 
     @property
@@ -317,6 +400,45 @@ class Index:
         Return a tuple of the shape of the underlying data.
         """
         # TODO: SNOW-1458118 implement shape
+
+    @is_lazy_check
+    def astype(self, dtype: Any, copy: bool = True) -> Index:
+        """
+        Create an Index with values cast to dtypes.
+
+        The class of a new Index is determined by dtype. When conversion is
+        impossible, a TypeError exception is raised.
+
+        Parameters
+        ----------
+        dtype : numpy dtype or pandas type
+            Note that any signed integer `dtype` is treated as ``'int64'``,
+            and any unsigned integer `dtype` is treated as ``'uint64'``,
+            regardless of the size.
+        copy : bool, default True
+            By default, astype always returns a newly allocated object.
+            If copy is set to False and internal requirements on dtype are
+            satisfied, the original data is used to create a new Index
+            or the original Index is returned.
+
+        Returns
+        -------
+        Index
+            Index with values cast to specified dtype.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx
+        Index([1, 2, 3], dtype='int64')
+        >>> idx.astype('float')
+        Index([1.0, 2.0, 3.0], dtype='float64')
+        """
+        WarningMessage.index_to_pandas_warning("astype")
+        return Index(
+            self.to_pandas().astype(dtype=dtype, copy=copy),
+            convert_to_lazy=self.is_lazy,
+        )
 
     @property
     def name(self) -> Hashable:
@@ -337,7 +459,7 @@ class Index:
         'x'
         """
         # TODO: SNOW-1458122 implement name
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("name")
         return self.to_pandas().name
 
     @name.setter
@@ -345,14 +467,14 @@ class Index:
         """
         Set Index name.
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("name")
         self.to_pandas().name = value
 
     def _get_names(self) -> FrozenList:
         """
         Get names of index
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("_get_names")
         return self.to_pandas()._get_names()
 
     def _set_names(self, values: list) -> None:
@@ -368,11 +490,51 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("_set_names")
         self.to_pandas()._set_names(values)
 
     # TODO: SNOW-1458122 implement names
     names = property(fset=_set_names, fget=_get_names)
+
+    def set_names(
+        self, names: Any, level: Any = None, inplace: bool = False
+    ) -> Self | None:
+        """
+        Set Index name.
+
+        Able to set new names partially and by level.
+
+        Parameters
+        ----------
+        names : label or list of label or dict-like for MultiIndex
+            Name(s) to set.
+
+        level : int, label or list of int or label, optional
+
+        inplace : bool, default False
+            Modifies the object directly, instead of creating a new Index.
+
+        Returns
+        -------
+        Index or None
+            The same type as the caller or None if ``inplace=True``.
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3, 4])
+        >>> idx
+        Index([1, 2, 3, 4], dtype='int64')
+        >>> idx.set_names('quarter')
+        Index([1, 2, 3, 4], dtype='int64', name='quarter')
+        """
+        # TODO: SNOW-1458122 implement set_names
+        WarningMessage.index_to_pandas_warning("set_names")
+        if not inplace:
+            return Index(
+                self.to_pandas().set_names(names, level=level, inplace=inplace),
+                convert_to_lazy=self.is_lazy,
+            )
+        return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
     @property
     def ndim(self) -> int:
@@ -390,6 +552,7 @@ class Index:
         # TODO: SNOW-1458118 implement size
 
     @property
+    @is_lazy_check
     def nlevels(self) -> int:
         """
         Number of levels.
@@ -544,6 +707,7 @@ class Index:
         """
         # TODO: SNOW-1458142 implement argmax
 
+    @is_lazy_check
     def copy(
         self,
         name: Hashable | None = None,
@@ -578,8 +742,10 @@ class Index:
         False
         """
         # TODO: SNOW-1458120 implement copy
-        self.to_pandas_warning()
-        return Index(self.to_pandas().copy(deep=deep, name=name))
+        WarningMessage.index_to_pandas_warning("copy")
+        return Index(
+            self.to_pandas().copy(deep=deep, name=name), convert_to_lazy=self.is_lazy
+        )
 
     @index_not_implemented()
     def delete(self) -> None:
@@ -603,6 +769,7 @@ class Index:
         """
         # TODO: SNOW-1458146 implement delete
 
+    @is_lazy_check
     def drop(
         self,
         labels: Any,
@@ -634,8 +801,11 @@ class Index:
         Index(['b', 'c'], dtype='object')
         """
         # TODO: SNOW-1458146 implement drop
-        self.to_pandas_warning()
-        return Index(self.to_pandas().drop(labels=labels, errors=errors))
+        WarningMessage.index_to_pandas_warning("drop")
+        return Index(
+            self.to_pandas().drop(labels=labels, errors=errors),
+            convert_to_lazy=self.is_lazy,
+        )
 
     @index_not_implemented()
     def drop_duplicates(self) -> None:
@@ -661,6 +831,7 @@ class Index:
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
+    @is_lazy_check
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
         """
         Indicate duplicate index values.
@@ -716,9 +887,10 @@ class Index:
         array([ True, False,  True, False,  True])
         """
         # TODO: SNOW-1458147 implement duplicated
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("duplicated")
         return self.to_pandas().duplicated(keep=keep)
 
+    @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index object are equal.
@@ -779,7 +951,7 @@ class Index:
         True
         """
         # TODO: SNOW-1458148 implement equals
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("equals")
         return self.to_pandas().equals(try_convert_index_to_native(other))
 
     @index_not_implemented()
@@ -1097,30 +1269,6 @@ class Index:
         # TODO: SNOW-1458122 implement rename
 
     @index_not_implemented()
-    def unique(self) -> None:
-        """
-        Return unique values in the index.
-
-        Unique values are returned in order of appearance, this does NOT sort.
-
-        Parameters
-        ----------
-        level : int or hashable, optional
-            Only return values from specified level (for MultiIndex).
-            If int, gets the level by integer position, else by level name.
-
-        Returns
-        -------
-        Index
-
-        See Also
-        --------
-        unique : Numpy array of unique values in that column.
-        Series.unique : Return unique values of Series object.
-        """
-        # TODO: SNOW-1458132 implement unique
-
-    @index_not_implemented()
     def nunique(self) -> None:
         """
         Return number of unique elements in the object.
@@ -1143,6 +1291,7 @@ class Index:
         """
         # TODO: SNOW-1458132 implement nunique
 
+    @is_lazy_check
     def value_counts(
         self,
         normalize: bool = False,
@@ -1214,7 +1363,7 @@ class Index:
         number of half-open bins.
         """
         # TODO: SNOW-1458133 implement value_counts
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("value_counts")
         return self.to_pandas().value_counts(
             normalize=normalize,
             sort=sort,
@@ -1223,44 +1372,75 @@ class Index:
             dropna=dropna,
         )
 
-    def set_names(
-        self, names: Any, level: Any = None, inplace: bool = False
-    ) -> Self | None:
+    @index_not_implemented()
+    def item(self) -> None:
         """
-        Set Index name.
-
-        Able to set new names partially and by level.
-
-        Parameters
-        ----------
-        names : label or list of label or dict-like for MultiIndex
-            Name(s) to set.
-
-        level : int, label or list of int or label, optional
-
-        inplace : bool, default False
-            Modifies the object directly, instead of creating a new Index.
+        Return the first element of the underlying data as a Python scalar.
 
         Returns
         -------
-        Index or None
-            The same type as the caller or None if ``inplace=True``.
+        scalar
+            The first element of Series or Index.
 
-        Examples
-        --------
-        >>> idx = pd.Index([1, 2, 3, 4])
-        >>> idx
-        Index([1, 2, 3, 4], dtype='int64')
-        >>> idx.set_names('quarter')
-        Index([1, 2, 3, 4], dtype='int64', name='quarter')
+        Raises
+        ------
+        ValueError
+            If the data is not length = 1.
         """
-        # TODO: SNOW-1458122 implement set_names
-        self.to_pandas_warning()
-        if not inplace:
-            return Index(
-                self.to_pandas().set_names(names, level=level, inplace=inplace)
-            )
-        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+        # TODO: SNOW-1458117 implement item
+
+    @index_not_implemented()
+    def to_series(self) -> None:
+        """
+        Create a Series with both index and values equal to the index keys.
+
+        Useful with map for returning an indexer based on an index.
+
+        Parameters
+        ----------
+        index : Index, optional
+            Index of resulting Series. If None, defaults to original index.
+        name : str, optional
+            Name of resulting Series. If None, defaults to name of original
+            index.
+
+        Returns
+        -------
+        Series
+            The dtype will be based on the type of the Index values.
+
+        See Also
+        --------
+        Index.to_frame : Convert an Index to a DataFrame.
+        Series.to_frame : Convert Series to DataFrame.
+        """
+        # TODO: SNOW-1458117 implement to_series
+
+    @index_not_implemented()
+    def to_frame(self) -> None:
+        """
+        Create a DataFrame with a column containing the Index.
+
+        Parameters
+        ----------
+        index : bool, default True
+            Set the index of the returned DataFrame as the original Index.
+
+        name : object, defaults to index.name
+            The passed name should substitute for the index name (if it has
+            one).
+
+        Returns
+        -------
+        DataFrame
+            DataFrame containing the original Index data.
+
+        See Also
+        --------
+        Index.to_series : Convert an Index to a Series.
+        Series.to_frame : Convert Series to DataFrame.
+        """
+        # TODO: SNOW-1458117 implement to_frame
 
     @index_not_implemented()
     def fillna(self) -> None:
@@ -1375,112 +1555,7 @@ class Index:
         """
         # TODO: SNOW-1458139 implement hasnans
 
-    def astype(self, dtype: Any, copy: bool = True) -> Index:
-        """
-        Create an Index with values cast to dtypes.
-
-        The class of a new Index is determined by dtype. When conversion is
-        impossible, a TypeError exception is raised.
-
-        Parameters
-        ----------
-        dtype : numpy dtype or pandas type
-            Note that any signed integer `dtype` is treated as ``'int64'``,
-            and any unsigned integer `dtype` is treated as ``'uint64'``,
-            regardless of the size.
-        copy : bool, default True
-            By default, astype always returns a newly allocated object.
-            If copy is set to False and internal requirements on dtype are
-            satisfied, the original data is used to create a new Index
-            or the original Index is returned.
-
-        Returns
-        -------
-        Index
-            Index with values cast to specified dtype.
-
-        Examples
-        --------
-        >>> idx = pd.Index([1, 2, 3])
-        >>> idx
-        Index([1, 2, 3], dtype='int64')
-        >>> idx.astype('float')
-        Index([1.0, 2.0, 3.0], dtype='float64')
-        """
-        # TODO: SNOW-1458125 implement astype
-        self.to_pandas_warning()
-        return Index(self.to_pandas().astype(dtype=dtype, copy=copy))
-
-    @index_not_implemented()
-    def item(self) -> None:
-        """
-        Return the first element of the underlying data as a Python scalar.
-
-        Returns
-        -------
-        scalar
-            The first element of Series or Index.
-
-        Raises
-        ------
-        ValueError
-            If the data is not length = 1.
-        """
-        # TODO: SNOW-1458117 implement item
-
-    @index_not_implemented()
-    def to_series(self) -> None:
-        """
-        Create a Series with both index and values equal to the index keys.
-
-        Useful with map for returning an indexer based on an index.
-
-        Parameters
-        ----------
-        index : Index, optional
-            Index of resulting Series. If None, defaults to original index.
-        name : str, optional
-            Name of resulting Series. If None, defaults to name of original
-            index.
-
-        Returns
-        -------
-        Series
-            The dtype will be based on the type of the Index values.
-
-        See Also
-        --------
-        Index.to_frame : Convert an Index to a DataFrame.
-        Series.to_frame : Convert Series to DataFrame.
-        """
-        # TODO: SNOW-1458117 implement to_series
-
-    @index_not_implemented()
-    def to_frame(self) -> None:
-        """
-        Create a DataFrame with a column containing the Index.
-
-        Parameters
-        ----------
-        index : bool, default True
-            Set the index of the returned DataFrame as the original Index.
-
-        name : object, defaults to index.name
-            The passed name should substitute for the index name (if it has
-            one).
-
-        Returns
-        -------
-        DataFrame
-            DataFrame containing the original Index data.
-
-        See Also
-        --------
-        Index.to_series : Convert an Index to a Series.
-        Series.to_frame : Convert Series to DataFrame.
-        """
-        # TODO: SNOW-1458117 implement to_frame
-
+    @is_lazy_check
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -1512,6 +1587,7 @@ class Index:
 
     to_list = tolist
 
+    @is_lazy_check
     def sort_values(
         self,
         return_indexer: bool = False,
@@ -1570,7 +1646,7 @@ class Index:
         (Index([1000, 100, 10, 1], dtype='int64'), array([3, 1, 0, 2]))
         """
         # TODO: SNOW-1458130 implement sort_values
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("sort_values")
         ret = self.to_pandas().sort_values(
             return_indexer=return_indexer,
             ascending=ascending,
@@ -1578,9 +1654,9 @@ class Index:
             key=key,
         )
         if return_indexer:
-            return Index(ret[0]), ret[1]
+            return Index(ret[0], convert_to_lazy=self.is_lazy), ret[1]
         else:
-            return Index(ret)
+            return Index(ret, convert_to_lazy=self.is_lazy)
 
     @index_not_implemented()
     def append(self) -> None:
@@ -1618,6 +1694,7 @@ class Index:
         """
         # TODO: SNOW-1458150 implement join
 
+    @is_lazy_check
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
         Form the intersection of two Index objects.
@@ -1648,13 +1725,15 @@ class Index:
         Index([3, 4], dtype='int64')
         """
         # TODO: SNOW-1458151 implement intersection
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("intersection")
         return Index(
             self.to_pandas().intersection(
                 other=try_convert_index_to_native(other), sort=sort
-            )
+            ),
+            convert_to_lazy=self.is_lazy,
         )
 
+    @is_lazy_check
     def union(self, other: Any, sort: bool = False) -> Index:
         """
         Form the union of two Index objects.
@@ -1701,11 +1780,13 @@ class Index:
         """
         # TODO: SNOW-1458149 implement union w/o sort
         # TODO: SNOW-1468240 implement union w/ sort
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("union")
         return Index(
-            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort)
+            self.to_pandas().union(other=try_convert_index_to_native(other), sort=sort),
+            convert_to_lazy=self.is_lazy,
         )
 
+    @is_lazy_check
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
@@ -1740,11 +1821,47 @@ class Index:
         Index([2, 1], dtype='int64')
         """
         # TODO: SNOW-1458152 implement difference
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("difference")
         return Index(
-            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort)
+            self.to_pandas().difference(try_convert_index_to_native(other), sort=sort),
+            convert_to_lazy=self.is_lazy,
         )
 
+    @is_lazy_check
+    def get_indexer_for(self, target: Any) -> Any:
+        """
+        Guaranteed return of an indexer even when non-unique.
+
+        This dispatches to get_indexer or get_indexer_non_unique
+        as appropriate.
+
+        Returns
+        -------
+        np.ndarray[np.intp]
+            List of indices.
+
+        Examples
+        --------
+        >>> idx = pd.Index([np.nan, 'var1', np.nan])
+        >>> idx.get_indexer_for([np.nan])
+        array([0, 2])
+        """
+        WarningMessage.index_to_pandas_warning("get_indexer_for")
+        ret = self.to_pandas().get_indexer_for(target=target)
+        # if isinstance(ret, native_pd.Index):
+        #     return Index(ret, convert_to_lazy=self.is_lazy)
+        return ret
+
+    @is_lazy_check
+    def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
+        """
+        Analogue to pandas.Index.get_indexer that raises if any elements are missing.
+        """
+        WarningMessage.index_to_pandas_warning("_get_indexer_strict")
+        tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
+        return Index(tup[0], convert_to_lazy=self.is_lazy), tup[1]
+
+    @is_lazy_check
     def get_level_values(self, level: int | str) -> Index:
         """
         Return an Index of values for requested level.
@@ -1777,8 +1894,10 @@ class Index:
         >>> idx.get_level_values(0)
         Index(['a', 'b', 'c'], dtype='object')
         """
-        self.to_pandas_warning()
-        return Index(self.to_pandas().get_level_values(level=level))
+        WarningMessage.index_to_pandas_warning("get_level_values")
+        return Index(
+            self.to_pandas().get_level_values(level=level), convert_to_lazy=self.is_lazy
+        )
 
     @index_not_implemented()
     def isin(self) -> None:
@@ -1821,6 +1940,7 @@ class Index:
         """
         # TODO: SNOW-1458153 implement isin
 
+    @is_lazy_check
     def slice_indexer(
         self,
         start: Hashable | None = None,
@@ -1862,24 +1982,18 @@ class Index:
         >>> idx.slice_indexer(start='b', end='c')
         slice(1, 3, None)
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("slice_indexer")
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
 
-    def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
-        """
-        Analogue to pandas.Index.get_indexer that raises if any elements are missing.
-        """
-        self.to_pandas_warning()
-        tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
-        return Index(tup[0]), tup[1]
-
     @property
+    @is_lazy_check
     def array(self) -> ExtensionArray:
         """
         return the array of values
         """
         return self.to_pandas().array
 
+    @is_lazy_check
     def _summary(self, name: Any = None) -> str:
         """
         Return a summarized representation.
@@ -1894,21 +2008,25 @@ class Index:
         str
             String with a summarized representation of the index
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("_summary")
         return self.to_pandas()._summary(name=name)
 
+    @is_lazy_check
     def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
         """
         return self.to_pandas().__array__(dtype=dtype)
 
+    @is_lazy_check
     def __repr__(self) -> str:
         """
         Return a string representation for this object.
         """
+        WarningMessage.index_to_pandas_warning("__repr__")
         return self.to_pandas().__repr__()
 
+    @is_lazy_check
     def __iter__(self) -> Iterator:
         """
         Return an iterator of the values.
@@ -1931,9 +2049,10 @@ class Index:
         2
         3
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("__iter__")
         return self.to_pandas().__iter__()
 
+    @is_lazy_check
     def __contains__(self, key: Any) -> bool:
         """
         Return a boolean indicating whether the provided key is in the index.
@@ -1964,16 +2083,18 @@ class Index:
         >>> 6 in idx
         False
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("__contains__")
         return self.to_pandas().__contains__(key=key)
 
+    @is_lazy_check
     def __len__(self) -> int:
         """
         Return the length of the Index as an int.
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("__len__")
         return self.to_pandas().__len__()
 
+    @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
         """
         Override numpy.ndarray's __getitem__ method to work as desired.
@@ -1984,9 +2105,13 @@ class Index:
         If resulting ndim != 1, plain ndarray is returned instead of
         corresponding `Index` subclass.
         """
-        self.to_pandas_warning()
-        return self.to_pandas().__getitem__(key=key)
+        WarningMessage.index_to_pandas_warning("__getitem__")
+        item = self.to_pandas().__getitem__(key=key)
+        if isinstance(item, native_pd.Index):
+            return Index(item, convert_to_lazy=self.is_lazy)
+        return item
 
+    @is_lazy_check
     def __setitem__(self, key: Any, value: Any) -> None:
         """
         Override numpy.ndarray's __setitem__ method to work as desired.
@@ -2019,15 +2144,5 @@ class Index:
         0    AStrSeries
         dtype: object
         """
-        self.to_pandas_warning()
+        WarningMessage.index_to_pandas_warning("str")
         return self.to_pandas().str
-
-    def to_pandas_warning(self) -> None:
-        """
-        Helper method to notify users if they are using a method that currently calls to_pandas()
-        """
-        # TODO: SNOW-1359041 re-enable it once lazy index representation is ready
-        # WarningMessage.single_warning(
-        #     "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
-        # )
-        pass
