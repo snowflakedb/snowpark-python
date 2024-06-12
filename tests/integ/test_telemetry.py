@@ -585,14 +585,11 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
 
     df.collect()
     # API calls don't change after query is executed
-    query_plan_height = 2 if sql_simplifier_enabled else 3
 
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -604,8 +601,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -617,8 +612,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -630,8 +623,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -643,8 +634,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -779,8 +768,6 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -796,8 +783,6 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
         }
     ]
 
