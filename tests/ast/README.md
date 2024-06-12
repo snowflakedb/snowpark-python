@@ -27,7 +27,7 @@ pytest --update-expectations tests/ast
 For these tests to work, the Unparser must be built in the monorepo:
 ```bash
 cd my-monorepo-path
-cd Snowflake/unparser
+cd Snowflake/trunk/Snowpark/unparser
 sbt assembly
 ```
 
