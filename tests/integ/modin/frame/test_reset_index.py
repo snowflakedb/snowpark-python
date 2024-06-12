@@ -372,7 +372,7 @@ def test_reset_index_level_multiindex(native_df_multiindex, level, names, drop):
     )
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_reset_index_level_duplicates(native_df_multiindex):
     # the following behaviors are different from pandas
     # when there are duplicates in level argument

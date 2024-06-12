@@ -405,23 +405,28 @@ class Index:
         >>> idx.name
         'x'
         """
-        WarningMessage.index_to_pandas_warning("name")
-        return self.to_pandas().name
+        if self.names:
+            return self.names[0]
+        return None
 
     @name.setter
     def name(self, value: Hashable) -> None:
         """
         Set Index name.
         """
-        WarningMessage.index_to_pandas_warning("name")
-        self.to_pandas().name = value
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names([value])
+        else:
+            self._index.name = value  # type: ignore
 
     def _get_names(self) -> list[Hashable]:
         """
         Get names of index
         """
-        WarningMessage.index_to_pandas_warning("_get_names")
-        return self.to_pandas()._get_names()
+        if self.is_lazy:
+            return self._query_compiler.get_index_names()
+        else:
+            return self.to_pandas().names
 
     def _set_names(self, values: list) -> None:
         """
@@ -436,8 +441,10 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        WarningMessage.index_to_pandas_warning("_set_names")
-        self.to_pandas()._set_names(values)
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names(values)
+        else:
+            self._index.names = values  # type: ignore
 
     names = property(fset=_set_names, fget=_get_names)
 

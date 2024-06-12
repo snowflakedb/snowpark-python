@@ -8,7 +8,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_memory_usage():
     assert pd.DataFrame([1]).memory_usage()[0] == 0
     assert pd.Series([1]).memory_usage() == 0

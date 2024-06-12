@@ -63,17 +63,12 @@ def test_df_setitem_df_value(key):
         else:
             df[key] = val
 
-    expected_query_count = 3
+    expected_query_count = 1
     expected_join_count = 1
 
-    if isinstance(key, native_pd.Series):
-        if key.dtype == bool:
-            # need to pull key (column index) locally
-            expected_query_count = 1
-        else:
-            expected_query_count += 1
-    if isinstance(key, list) and isinstance(key[0], bool):
-        expected_query_count = 1
+    if isinstance(key, native_pd.Series) and key.dtype != bool:
+        # need to pull key (column index) locally
+        expected_query_count += 1
 
     if all(isinstance(i, bool) for i in key):
         expected_join_count += 1
@@ -106,7 +101,7 @@ def test_df_setitem_df_value_dedup_columns(key, key_type):
         else:
             df[key] = val
 
-    expected_query_count = 3
+    expected_query_count = 1
     expected_join_count = 1
 
     if isinstance(key, native_pd.Series) and key.dtype != bool:
@@ -188,13 +183,13 @@ def test_df_setitem_df_single_value(key, val_index, val_columns):
         else:
             df[key] = val
 
-    with SqlCounter(query_count=3, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, setitem, inplace=True
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_df_setitem_value_df_mismatch_num_col_negative():
     native_df = native_pd.DataFrame(
         [[91, -2, 83, 74], [95, -6, 87, 78], [99, -10, 811, 712], [913, -14, 815, 716]],
@@ -224,7 +219,7 @@ def test_df_setitem_value_df_mismatch_num_col_negative():
 
 
 # matching_item_row_by_label is False here.
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_df_setitem_array_value_duplicate_index():
     # Case: setting an array as a new column (df[col] = arr) where df's index
     # has duplicate values.
@@ -245,7 +240,7 @@ def test_df_setitem_array_value_duplicate_index():
 
 
 # matching_item_row_by_label is False here.
-@sql_count_checker(query_count=6, join_count=8)
+@sql_count_checker(query_count=2, join_count=8)
 def test_df_setitem_array_value():
     # Case: setting an array as a new column (df[col] = arr) copies that data
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
@@ -288,7 +283,7 @@ def test_df_setitem_array_value():
         ),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_setitem_self_df_set_aligned_row_key(native_df):
     item = native_pd.DataFrame(
         [[10, 20, 30], [40, 50, 60], [70, 80, 90]],
@@ -369,8 +364,9 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     elif isinstance(column, native_pd.Index):
         expected_join_count = 4
 
+    # 3 extra queries, 2 for iter and 1 for tolist
     with SqlCounter(
-        query_count=6 if isinstance(column, native_pd.Index) else 3,
+        query_count=4 if isinstance(column, native_pd.Index) else 1,
         join_count=expected_join_count,
     ):
         eval_snowpark_pandas_result(
@@ -395,7 +391,7 @@ def test_df_setitem_single_column_length_mismatch(key, value):
 
     if len(value) == 0:
         # both pandas and Snowpark pandas raise error when value is empty
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=0):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,
@@ -412,7 +408,7 @@ def test_df_setitem_single_column_length_mismatch(key, value):
         with pytest.raises(ValueError):
             setitem_helper(native_df.copy())
         # Snowpark instead will skip extra values or fill in the missing values using the last value
-        with SqlCounter(query_count=3, join_count=2):
+        with SqlCounter(query_count=1, join_count=2):
             setitem_helper(snow_df)
             if len(value) < len(native_df):
                 value = value + [value[-1]] * (len(native_df) - len(value))
@@ -441,7 +437,8 @@ def test_df_setitem_single_column_length_mismatch(key, value):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-@sql_count_checker(query_count=6, join_count=1)
+# 2 extra queries to convert to native pandas when creating the two snowpark pandas dataframes
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_setitem_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch
 ):
@@ -517,7 +514,7 @@ OTHER_DF_3_COLUMNS = native_pd.DataFrame(
         (["b", "a", "c"], OTHER_DF_3_COLUMNS),
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_setitem_full_columns(key, value):
     data = {"a": [1, 2, 3], "b": [6, 5, 4], "c": [7, 8, 8]}
     snow_df = pd.DataFrame(data)
@@ -575,7 +572,7 @@ def test_empty_df_setitem(index, columns):
     def set_col(df):
         df[0] = 1
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -594,7 +591,7 @@ def test_empty_df_setitem(index, columns):
         def set_col(df):
             df["newcol"] = 1
 
-        with SqlCounter(query_count=3):
+        with SqlCounter(query_count=1):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,
@@ -612,25 +609,25 @@ def test_df_setitem_optimized():
     def helper(df):
         df["a"] = 10
 
-    with SqlCounter(query_count=3, join_count=0):
+    with SqlCounter(query_count=1, join_count=0):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
     def helper(df):
         df["a"] = df["b"]
 
-    with SqlCounter(query_count=4, join_count=0):
+    with SqlCounter(query_count=1, join_count=0):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
     def helper(df):
         df[df.a > 0] = df[df.b < 0]
 
-    with SqlCounter(query_count=3, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
     def helper(df):
         df["x"] = df.loc[df.b < 0, "b"]
 
-    with SqlCounter(query_count=5, join_count=3):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
 
@@ -913,7 +910,7 @@ class TestDFSetitemBool2DKey:
 
         eval_snowpark_pandas_result(snow_df, native_df, setitem_helper, inplace=True)
 
-    @sql_count_checker(query_count=3, join_count=2)
+    @sql_count_checker(query_count=1, join_count=2)
     def test_df_setitem_bool_2d_key_df_value_mismatched_index_labels(
         self, df_key_shape_relative_to_self_shape, is_df_key
     ):
@@ -953,7 +950,7 @@ class TestDFSetitemBool2DKey:
         if not is_df_key:
             native_df_key = native_df_key.values
         values = native_pd.DataFrame(
-            -1 * native_df.values, index=pd.Index([100, 101, 102])
+            -1 * native_df.values, index=native_pd.Index([100, 101, 102])
         )
 
         def setitem_helper(df):
@@ -1251,11 +1248,9 @@ def test_df_setitem_slice_item_negative(key, default_index_snowpark_pandas_df):
 def test_df_setitem_2d_array(indexer, item_type):
     from math import prod
 
-    expected_query_count = 3
+    expected_query_count = 1
     if isinstance(indexer, native_pd.Series):
         expected_query_count += 1
-    elif isinstance(indexer, slice):
-        expected_query_count = 1
 
     expected_join_count = (
         3 if isinstance(indexer, slice) and indexer.start is not None else 1
@@ -1533,7 +1528,7 @@ def test_df_setitem_boolean_key(key, columns):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("key_type", [np.array, "dataframe"])
 def test_df_setitem_2D_key_series_value(key_type):
     def make_key(key, key_type, data_type):

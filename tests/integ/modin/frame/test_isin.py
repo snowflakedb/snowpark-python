@@ -141,8 +141,8 @@ def test_isin_with_Series(values, data, columns, index):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        # 4 queries: 1 for the isin, 1 extra query to handle empty dataframe special case, 2 queries for index
-        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=4),
+        # 2 queries: 1 for the isin, 1 extra query to handle empty dataframe special case
+        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=2),
     )
 
 
@@ -196,8 +196,8 @@ def test_isin_with_Dataframe(df, other):
             values = pd.DataFrame(other)
         else:
             values = other
-        #  5 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case, 2 queries for index
-        return _test_isin_with_snowflake_logic(df, values, query_count=5)
+        #  3 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case
+        return _test_isin_with_snowflake_logic(df, values, query_count=3)
 
     eval_snowpark_pandas_result(
         snow_df,
