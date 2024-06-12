@@ -1002,8 +1002,8 @@ class Index:
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
         ret = self.to_pandas().get_indexer_for(target=target)
-        if isinstance(ret, native_pd.Index):
-            return Index(ret, convert_to_lazy=self.is_lazy)
+        # if isinstance(ret, native_pd.Index):
+        #     return Index(ret, convert_to_lazy=self.is_lazy)
         return ret
 
     @is_lazy_check
