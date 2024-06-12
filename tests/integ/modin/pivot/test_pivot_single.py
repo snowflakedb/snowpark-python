@@ -29,6 +29,7 @@ def test_pivot_table_no_index_single_column_single_value(df_data):
     )
 
 
+@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize(
     "aggfunc",
     [

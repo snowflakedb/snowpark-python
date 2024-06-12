@@ -36,6 +36,10 @@ from typing import IO, Any, Callable, Literal
 
 import numpy as np
 import pandas
+from modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
+
+# from . import _update_engine
+from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -69,15 +73,11 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as pd
-from snowflake.snowpark.modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
 from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-
-# from . import _update_engine
-from snowflake.snowpark.modin.pandas.iterator import PartitionIterator
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,

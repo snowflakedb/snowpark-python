@@ -75,7 +75,6 @@ from pandas.util._validators import (
 
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
-    _doc_binary_op,
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
@@ -158,9 +157,6 @@ _DEFAULT_BEHAVIOUR = {
     "__reduce_ex__",
     "_init",
 } | _ATTRS_NO_LOOKUP
-
-
-_doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
 
 @_inherit_docstrings(
@@ -1739,16 +1735,38 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method=method,
         )
 
-    @base_not_implemented()
     def expanding(
         self, min_periods=1, axis=0, method="single"
     ):  # noqa: PR01, RT01, D200
         """
         Provide expanding window calculations.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "expanding",
+        from .window import Expanding
+
+        if axis is not lib.no_default:
+            axis = self._get_axis_number(axis)
+            name = "expanding"
+            if axis == 1:
+                warnings.warn(
+                    f"Support for axis=1 in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + f"Use obj.T.{name}(...) instead",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+            else:
+                warnings.warn(
+                    f"The 'axis' keyword in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + "Call the method without the axis keyword instead.",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+        else:
+            axis = 0
+
+        return Expanding(
+            self,
             min_periods=min_periods,
             axis=axis,
             method=method,
@@ -3822,16 +3840,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.abs()
 
-    @_doc_binary_op(
-        operation="union", bin_op="and", right="other", **_doc_binary_op_kwargs
-    )
     def __and__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__and__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="union", bin_op="rand", right="other", **_doc_binary_op_kwargs
-    )
     def __rand__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__rand__", other, axis=0)
@@ -3919,12 +3931,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.copy(deep=True)
 
-    @_doc_binary_op(
-        operation="equality comparison",
-        bin_op="eq",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __eq__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.eq(other)
@@ -3952,12 +3958,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._default_to_pandas("__finalize__", other, method=method, **kwargs)
 
-    @_doc_binary_op(
-        operation="greater than or equal comparison",
-        bin_op="ge",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __ge__(self, right):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.ge(right)
@@ -4012,12 +4012,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     __hash__ = None
 
-    @_doc_binary_op(
-        operation="greater than comparison",
-        bin_op="gt",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __gt__(self, right):
         return self.gt(right)
 
@@ -4033,12 +4027,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.__constructor__(query_compiler=self._query_compiler.invert())
 
-    @_doc_binary_op(
-        operation="less than or equal comparison",
-        bin_op="le",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __le__(self, right):
         return self.le(right)
 
@@ -4053,12 +4041,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._query_compiler.get_axis_len(axis=0)
 
-    @_doc_binary_op(
-        operation="less than comparison",
-        bin_op="lt",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __lt__(self, right):
         return self.lt(right)
 
@@ -4078,12 +4060,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.dot(other)
 
-    @_doc_binary_op(
-        operation="not equal comparison",
-        bin_op="ne",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __ne__(self, other):
         return self.ne(other)
 
@@ -4117,21 +4093,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     __bool__ = __nonzero__
 
-    @_doc_binary_op(
-        operation="disjunction",
-        bin_op="or",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __or__(self, other):
         return self._binary_op("__or__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="disjunction",
-        bin_op="ror",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __ror__(self, other):
         return self._binary_op("__ror__", other, axis=0)
 
@@ -4159,22 +4123,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return repr(self)
 
-    @_doc_binary_op(
-        operation="exclusive disjunction",
-        bin_op="xor",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __xor__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__xor__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="exclusive disjunction",
-        bin_op="rxor",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __rxor__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__rxor__", other, axis=0)

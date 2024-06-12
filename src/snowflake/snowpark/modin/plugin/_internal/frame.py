@@ -372,9 +372,8 @@ class InternalFrame:
     @property
     def data_columns_index(self) -> "pd.Index":
         """
-        Returns pandas Index object for column index (df.columns).
-        We can't do the same thing for df.index here because it requires pulling
-        the data from snowflake and filing a query to snowflake.
+        Returns Snowpark pandas Index object for column index (df.columns).
+        Note this object will still hold an internal pandas index (i.e., not lazy) to avoid unnecessary pulling data from Snowflake.
         """
         if self.is_multiindex(axis=1):
             return native_pd.MultiIndex.from_tuples(

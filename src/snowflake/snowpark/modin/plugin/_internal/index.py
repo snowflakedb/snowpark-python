@@ -36,43 +36,6 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
 class Index:
-    """
-    Immutable sequence used for indexing and alignment.
-
-    The basic object storing axis labels for all pandas objects.
-
-    Parameters
-    ----------
-    data : array-like (1-dimensional)
-    dtype : str, numpy.dtype, or ExtensionDtype, optional
-        Data type for the output Index. If not specified, this will be
-        inferred from `data`.
-        See the :ref:`user guide <basics.dtypes>` for more usages.
-    copy : bool, default False
-        Copy input data.
-    name : object
-        Name to be stored in the index.
-    tupleize_cols : bool (default: True)
-        When True, attempt to create a MultiIndex if possible.
-
-    Notes
-    -----
-    An Index instance can **only** contain hashable objects.
-    An Index instance *can not* hold numpy float16 dtype.
-
-    Examples
-    --------
-    >>> pd.Index([1, 2, 3])
-    Index([1, 2, 3], dtype='int64')
-
-    >>> pd.Index(list('abc'))
-    Index(['a', 'b', 'c'], dtype='object')
-
-    # Snowpark pandas explicitly casts all int types to int64
-    >>> pd.Index([1, 2, 3], dtype="uint8")
-    Index([1, 2, 3], dtype='int64')
-    """
-
     def __init__(
         self,
         # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
@@ -83,6 +46,44 @@ class Index:
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
     ) -> None:
+        """
+        Immutable sequence used for indexing and alignment.
+
+        The basic object storing axis labels for all pandas objects.
+
+        Parameters
+        ----------
+        data : array-like (1-dimensional)
+        dtype : str, numpy.dtype, or ExtensionDtype, optional
+            Data type for the output Index. If not specified, this will be
+            inferred from `data`.
+            See the :ref:`user guide <basics.dtypes>` for more usages.
+        copy : bool, default False
+            Copy input data.
+        name : object
+            Name to be stored in the index.
+        tupleize_cols : bool (default: True)
+            When True, attempt to create a MultiIndex if possible.
+        convert_to_lazy : bool (default: True)
+            When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
+            We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
+
+        Notes
+        -----
+        An Index instance can **only** contain hashable objects.
+        An Index instance *cannot* hold numpy float16 dtype.
+
+        Examples
+        --------
+        >>> pd.Index([1, 2, 3])
+        Index([1, 2, 3], dtype='int64')
+
+        >>> pd.Index(list('abc'))
+        Index(['a', 'b', 'c'], dtype='object')
+
+        >>> pd.Index([1, 2, 3], dtype="uint8")
+        Index([1, 2, 3], dtype='uint8')
+        """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -115,6 +116,49 @@ class Index:
                 )
                 return
         self._query_compiler = qc
+
+    def is_lazy_check(func: Any) -> Any:
+        """
+        Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
+        """
+
+        def check_lazy(*args: Any, **kwargs: Any) -> Any:
+            func_name = func.__name__
+
+            # If the index is lazy, call the method and return
+            if args[0].is_lazy:
+                returned_value = func(*args, **kwargs)
+                return returned_value
+            else:
+                # If the index is not lazy, get the cached native index and call the function
+                native_index = args[0]._index
+                native_func = getattr(native_index, func_name)
+
+                # If the function is a property, we will get a non-callable, so we just return it
+                # Examples of this are values or dtype
+                if not callable(native_func):
+                    return native_func
+
+                # Remove the first argument in args, because it is `self` and we don't need it
+                args = args[1:]
+                returned_value = native_func(*args, **kwargs)
+
+                # If we return a native Index, we need to convert this to a modin index but keep it locally.
+                # Examples of this are `astype` and `copy`
+                if isinstance(returned_value, native_pd.Index):
+                    returned_value = Index(returned_value, convert_to_lazy=False)
+                # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
+                # Examples of this are `_get_indexer_strict` and `sort_values`
+                elif isinstance(returned_value, tuple) and isinstance(
+                    returned_value[0], native_pd.Index
+                ):
+                    returned_value = (
+                        Index(returned_value[0], convert_to_lazy=False),
+                        returned_value[1],
+                    )
+                return returned_value
+
+        return check_lazy
 
     def is_lazy_check(func: Any) -> Any:
         """
@@ -479,6 +523,7 @@ class Index:
         return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
     @property
+    @is_lazy_check
     def nlevels(self) -> int:
         """
         Number of levels.
@@ -1015,10 +1060,7 @@ class Index:
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
-        ret = self.to_pandas().get_indexer_for(target=target)
-        if isinstance(ret, native_pd.Index):
-            return Index(ret, convert_to_lazy=self.is_lazy)
-        return ret
+        return self.to_pandas().get_indexer_for(target=target)
 
     @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:

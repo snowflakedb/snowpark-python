@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from functools import update_wrapper
 
+from modin.pandas.plotting import Plotting as PlottingClazz
 from modin.pandas.series_utils import DatetimeProperties as DatetimePropertiesClazz
 
 # once we are fully off vendored modin we can make these the
@@ -22,7 +23,6 @@ from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy as DataFrameGroupByClazz,
     SeriesGroupBy as SeriesGroupByClazz,
 )
-from snowflake.snowpark.modin.pandas.plotting import Plotting as PlottingClazz
 from snowflake.snowpark.modin.pandas.resample import Resampler as ResamplerClazz
 
 # Not in current version of Modin

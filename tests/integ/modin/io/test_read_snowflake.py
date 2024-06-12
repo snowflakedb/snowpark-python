@@ -358,15 +358,16 @@ def test_read_snowflake_with_views(
                 ).collect()
                 table_name = view_name
             caplog.clear()
-            with caplog.at_level(logging.DEBUG):
+            with caplog.at_level(logging.WARNING):
                 df = call_read_snowflake(table_name, as_query)
             assert df.columns.tolist() == ["COL1", "S"]
+            materialize_log = f"Data from source table/view '{table_name}' is being copied into a new temporary table"
             if table_type in ["view", "SECURE VIEW", "TEMP VIEW"]:
                 # verify temporary table is materialized for view, secure view and temp view
-                assert "Materialize temporary table" in caplog.text
+                assert materialize_log in caplog.text
             else:
                 # verify no temporary table is materialized for regular table
-                assert not ("Materialize temporary table" in caplog.text)
+                assert not (materialize_log in caplog.text)
         finally:
             if view_name:
                 Utils.drop_view(session, view_name)
