@@ -25,10 +25,10 @@ class AstBatch:
         self._session = session
         self._id_gen = itertools.count(start=1)
         self._init_batch()
-        # TODO: extended version from the branch snowpark-ir.
 
     def assign(self, symbol = None):
         stmt = self._request.body.add()
+        # TODO: extended BindingId spec from the branch snowpark-ir.
         stmt.assign.uid = next(self._id_gen)
         stmt.assign.var_id.bitfield1 = stmt.assign.uid
         stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
@@ -43,14 +43,6 @@ class AstBatch:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
         self._init_batch()
-
-        print(f"encoded {batch}")
-        d1 = base64.b64decode(batch)
-        print(f"{len(d1)} bytes")
-        p = proto.Request()
-        p.ParseFromString(d1)
-        print(f"parsed {p}")
-
         return (str(self._request_id), batch)
 
     def _init_batch(self):
