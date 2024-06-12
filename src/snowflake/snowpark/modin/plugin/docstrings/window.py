@@ -60,10 +60,10 @@ func : function, str, list, or dict
     - list of functions and/or function names, e.g. ``[np.sum, 'mean']``
     - dict of axis labels -> functions, function names or list of such.
 
-*args
+*args : tuple
     Positional arguments to pass to func.
 
-**kwargs
+**kwargs : dict
     Keyword arguments to be passed into func.
 
 Returns
@@ -111,6 +111,59 @@ Examples
 
 
 class Rolling:
+
+    """
+    Compute the rolling count.
+
+    Parameters
+    ----------
+    numeric_only : bool, default False
+        Include only float, int, boolean columns.
+
+    *args : tuple
+        Positional arguments to pass to func.
+
+    **kwargs : dict
+        Keyword arguments to be passed into func.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Computed rolling count of values.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
+    >>> df
+         B
+    0  0.0
+    1  1.0
+    2  2.0
+    3  NaN
+    4  4.0
+    >>> df.rolling(2, min_periods=1).count()
+       B
+    0  1
+    1  2
+    2  2
+    3  1
+    4  1
+    >>> df.rolling(2, min_periods=2).count()
+         B
+    0  NaN
+    1  2.0
+    2  2.0
+    3  1.0
+    4  1.0
+    >>> df.rolling(3, min_periods=1, center=True).count()
+       B
+    0  2
+    1  3
+    2  2
+    3  2
+    4  1
+    """
+
     def count():
         pass
 
@@ -121,12 +174,12 @@ class Rolling:
         no=False,
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         e=None,
@@ -173,12 +226,12 @@ class Rolling:
         fname="mean",
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         no=False,
@@ -228,7 +281,7 @@ class Rolling:
     #     args=None,
     #     kwargs=dedent(
     #         """\
-    #     **kwargs
+    #     **kwargs : dict
     #         Keyword arguments to be passed into func."""
     #     ),
     #     no=False,
@@ -262,12 +315,12 @@ class Rolling:
         fname="var",
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         no=False,
@@ -315,12 +368,12 @@ class Rolling:
         fname="std",
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         no=False,
@@ -368,12 +421,12 @@ class Rolling:
         fname="min",
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         no=False,
@@ -407,12 +460,12 @@ class Rolling:
         fname="max",
         args=dedent(
             """\
-        *args
+        *args : tuple
             Positional arguments to pass to func."""
         ),
         kwargs=dedent(
             """\
-        **kwargs
+        **kwargs : dict
             Keyword arguments to be passed into func."""
         ),
         no=False,

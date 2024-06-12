@@ -223,7 +223,6 @@ def test_rolling_params_unsupported(function):
 @pytest.mark.parametrize(
     "agg_func, agg_func_kwargs",
     [
-        ("count", None),
         ("sem", None),
         ("median", None),
         ("corr", None),

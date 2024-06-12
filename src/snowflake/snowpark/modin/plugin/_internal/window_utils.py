@@ -9,7 +9,7 @@ from typing import Any
 
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
-IMPLEMENTED_ROLLING_AGG_FUNCS = ["sum", "mean", "var", "std", "min", "max"]
+IMPLEMENTED_ROLLING_AGG_FUNCS = ["count", "sum", "mean", "var", "std", "min", "max"]
 IMPLEMENTED_EXPANDING_AGG_FUNCS = ["count", "sum", "mean", "var", "std", "min", "max"]
 
 

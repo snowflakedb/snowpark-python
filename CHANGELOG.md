@@ -34,6 +34,7 @@
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
+- Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count`
 
 #### Bug Fixes
 
