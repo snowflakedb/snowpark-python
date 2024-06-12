@@ -39,11 +39,7 @@ def test_dataframe_groupby_transform(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(
-        query_count=6 + (1 if dropna else 0),
-        join_count=1 + (1 if dropna else 0),
-        udtf_count=1,
-    ):
+    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -93,11 +89,7 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(
-        query_count=6 + (1 if dropna else 0),
-        join_count=1 + (1 if dropna else 0),
-        udtf_count=1,
-    ):
+    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -111,7 +103,7 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
 
 
 @sql_count_checker(
-    query_count=15,
+    query_count=9,
     join_count=4,
     udtf_count=2,
     high_count_expected=True,
@@ -139,7 +131,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 
 @sql_count_checker(
-    query_count=20,
+    query_count=11,
     join_count=10,
     udtf_count=2,
     high_count_expected=True,
@@ -165,7 +157,7 @@ def test_dataframe_groupby_transform_conflicting_labels():
 
 
 @sql_count_checker(
-    query_count=13,
+    query_count=11,
     join_count=5,
     udtf_count=2,
     high_count_expected=True,
