@@ -223,7 +223,7 @@ class TestNamedAggDupColPandasFails:
             result_df.insert(0, "B", b_col)
             result_df = result_df.sort_index()
 
-        with SqlCounter(query_count=5, union_count=2):
+        with SqlCounter(query_count=1, union_count=2):
             assert_snowpark_pandas_equal_to_pandas(
                 snow_df.agg(**kwargs),
                 result_df,
@@ -778,7 +778,7 @@ def test_agg_dict(agg_func, axis):
             if all(not isinstance(value, list) for value in agg_func.values())
             else num_unique_agg_funcs - 1
         )
-    with SqlCounter(query_count=3, union_count=expected_union_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             df, native_df, lambda df: df.agg(agg_func, axis=axis)
         )
@@ -807,9 +807,7 @@ def test_agg_axis_1_with_nan(agg_func, data, skipna):
     df = pd.DataFrame(data)
 
     expected_union_count = 1 if isinstance(agg_func, dict) else 0
-    expected_query_count = 3 if isinstance(agg_func, dict) else 1
-
-    with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             df, native_df, lambda df: df.agg(agg_func, axis=1, skipna=skipna)
         )

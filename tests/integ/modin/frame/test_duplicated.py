@@ -55,7 +55,7 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
         (["A", "B"], native_pd.Series([False, False, False, False, True])),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_duplicated_subset(subset, expected):
     df = pd.DataFrame({"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]})
 
@@ -79,7 +79,7 @@ def test_duplicated_keep(keep, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_duplicated_on_empty_frame():
     # GH 25184
 
@@ -91,7 +91,7 @@ def test_duplicated_on_empty_frame():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@sql_count_checker(query_count=7, join_count=4)
+@sql_count_checker(query_count=5, join_count=4)
 def test_frame_datetime64_duplicated():
     dates = pd.date_range("2010-07-01", end="2010-08-05")
 

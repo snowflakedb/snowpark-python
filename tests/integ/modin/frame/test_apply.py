@@ -668,7 +668,7 @@ def test_dataframe_transform_invalid_types_negative(func):
 @sql_count_checker(
     high_count_expected=True,
     high_count_reason="SNOW-1001470 test multiple apply",
-    query_count=14,
+    query_count=8,
     udtf_count=0,
     udf_count=2,
     join_count=0,
@@ -714,7 +714,7 @@ def test_bug_SNOW_1172448():
         income = row["AMT_INCOME_TOTAL"]
         return (income - median_income) / std_income
 
-    with SqlCounter(query_count=9, join_count=3, udtf_count=1):
+    with SqlCounter(query_count=6, join_count=3, udtf_count=1):
         df["pct_income"] = df.apply(foo, axis=1)
         # trigger computation here.
         ans = len(df[df["pct_income"] > 0.5]) / len(df)
@@ -732,7 +732,7 @@ def test_bug_SNOW_1172448():
     ],
 )
 @sql_count_checker(
-    query_count=20,
+    query_count=18,
     udtf_count=1,
     join_count=3,
     high_count_expected=True,

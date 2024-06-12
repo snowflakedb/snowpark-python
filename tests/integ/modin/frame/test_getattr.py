@@ -19,7 +19,7 @@ from tests.integ.modin.utils import (
 
 @pytest.mark.parametrize(
     "name, expected_query_count",
-    [("a", 2), ("columns", 0), ("index", 1), ("mean", 0)],
+    [("a", 1), ("columns", 0), ("index", 1), ("mean", 0)],
 )
 def test_getattr(name, expected_query_count):
     with SqlCounter(query_count=expected_query_count):
@@ -58,7 +58,7 @@ def test_getattr_negative(name):
         getattr(snow, name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=3)
 def test_attribute_access():
     # any label as string that forms a valid Python identifier according to
     # https://docs.python.org/3/reference/lexical_analysis.html#identifiers
