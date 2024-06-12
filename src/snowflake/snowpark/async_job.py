@@ -1,10 +1,13 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import time
 from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
+
+from snowflake.connector.constants import QueryStatus
+from snowflake.connector.cursor import ASYNC_RETRY_PATTERN, ASYNC_NO_DATA_MAX_RETRY
 
 import snowflake.snowpark
 from snowflake.connector.errors import DatabaseError
@@ -318,7 +321,7 @@ class AsyncJob:
                   type of :meth:`DataFrame.collect`.
                 - "row_iterator": returns an iterator of :class:`Row` objects, which is the same as
                   the return type of :meth:`DataFrame.to_local_iterator`.
-                - "row": returns a ``pandas.DataFrame``, which is the same as the return type of
+                - "pandas": returns a ``pandas.DataFrame``, which is the same as the return type of
                   :meth:`DataFrame.to_pandas`.
                 - "pandas_batches": returns an iterator of ``pandas.DataFrame`` s, which is the same
                   as the return type of :meth:`DataFrame.to_pandas_batches`.
@@ -355,6 +358,25 @@ class AsyncJob:
                 )
 
         if async_result_type == _AsyncResultType.NO_RESULT:
+            # The following section is copied from python connector.
+            # Later we should expose it from python connector and reuse it.
+            retry_pattern_pos = 0
+            while True:
+                status = self._session.connection.get_query_status(self.query_id)
+                if not self._session.connection.is_still_running(status):
+                    break
+                time.sleep(
+                    0.5 * ASYNC_RETRY_PATTERN[retry_pattern_pos]
+                )  # Same wait as JDBC
+                # If we can advance in ASYNC_RETRY_PATTERN then do so
+                if retry_pattern_pos < (len(ASYNC_RETRY_PATTERN) - 1):
+                    retry_pattern_pos += 1
+            if status != QueryStatus.SUCCESS:
+                raise SnowparkSQLException(
+                    "Status of query '{}' is {}, results are unavailable".format(
+                        self.query_id, status.name
+                    )
+                )
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
