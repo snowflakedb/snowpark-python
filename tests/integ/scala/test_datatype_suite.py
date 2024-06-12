@@ -209,7 +209,6 @@ def test_verify_datatypes_reference(session):
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
 
 
-@pytest.mark.localtest
 def test_verify_datatypes_reference2(session):
     d1 = DecimalType(2, 1)
     d2 = DecimalType(2, 1)

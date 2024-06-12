@@ -47,7 +47,6 @@ from snowflake.snowpark.functions import (
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 
-@pytest.mark.localtest
 def test_pivot(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -69,7 +68,6 @@ def test_pivot(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "func,expected",
     [
@@ -189,7 +187,6 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
-@pytest.mark.localtest
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -255,7 +252,6 @@ def test_group_by_pivot_dynamic_subquery(session):
     )
 
 
-@pytest.mark.localtest
 def test_join_on_pivot(session):
     df1 = (
         TestData.monthly_sales(session)
@@ -276,7 +272,6 @@ def test_join_on_pivot(session):
     )
 
 
-@pytest.mark.localtest
 def test_pivot_on_join(session):
     df = session.create_dataframe([[1, "One"], [2, "Two"]]).to_df("empid", "name")
 
@@ -315,7 +310,6 @@ def test_pivot_dynamic_any_with_temp_table_inlined_data(session, local_testing_m
     assert pivot_op_df.count() == 1
 
 
-@pytest.mark.localtest
 def test_pivot_dynamic_any(session):
     Utils.check_answer(
         TestData.monthly_sales(session)
@@ -400,7 +394,6 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
     assert "Pivot subquery must select single column" in str(ex_info.value)
 
 
-@pytest.mark.localtest
 def test_pivot_default_on_none(session, caplog):
     class MonthlySales(NamedTuple):
         empid: int
@@ -442,7 +435,6 @@ def test_pivot_default_on_none(session, caplog):
         assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_agg(session):
     df = (
         session.create_dataframe([[1, "One"], [2, "Two"], [3, "Three"]])
@@ -467,7 +459,6 @@ def test_rel_grouped_dataframe_agg(session):
     ]
 
 
-@pytest.mark.localtest
 def test_group_by(session):
     result = (
         TestData.nurse(session)
@@ -604,7 +595,6 @@ def test_group_by_grouping_sets(session):
     )
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_max(session):
     df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
@@ -623,7 +613,6 @@ def test_rel_grouped_dataframe_max(session):
     assert df1.group_by("key").agg([max("value1"), max("value2")]).collect() == expected
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_avg_mean(session):
     df1 = session.create_dataframe(
         [("a", 1, 11, "b"), ("b", 2, 22, "c"), ("a", 3, 33, "d"), ("b", 4, 44, "e")]
@@ -652,7 +641,6 @@ def test_rel_grouped_dataframe_avg_mean(session):
     )
 
 
-@pytest.mark.localtest
 def test_rel_grouped_dataframe_median(session):
     df1 = session.create_dataframe(
         [
@@ -697,7 +685,6 @@ def test_rel_grouped_dataframe_median(session):
     )
 
 
-@pytest.mark.localtest
 def test_builtin_functions(session):
     df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
@@ -711,7 +698,6 @@ def test_builtin_functions(session):
     ]
 
 
-@pytest.mark.localtest
 def test_non_empty_arg_functions(session):
     func_name = "avg"
     with pytest.raises(ValueError) as ex_info:
@@ -754,7 +740,6 @@ def test_non_empty_arg_functions(session):
     )
 
 
-@pytest.mark.localtest
 def test_null_count(session):
     assert TestData.test_data3(session).group_by("a").agg(
         count(col("b"))
@@ -782,7 +767,6 @@ def test_null_count(session):
     ).collect() == [Row(1, 1, 2)]
 
 
-@pytest.mark.localtest
 def test_distinct(session):
     df = session.create_dataframe(
         [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
@@ -807,7 +791,6 @@ def test_distinct(session):
     assert df.filter(col("i") < 0).distinct().collect() == []
 
 
-@pytest.mark.localtest
 def test_distinct_and_joins(session):
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -837,7 +820,6 @@ def test_distinct_and_joins(session):
     assert res == [Row("one", "one")]
 
 
-@pytest.mark.localtest
 def test_groupBy(session):
     assert TestData.test_data2(session).group_by("a").agg(sum(col("b"))).collect() == [
         Row(1, 3),
@@ -889,7 +871,6 @@ def test_groupBy(session):
     ]
 
 
-@pytest.mark.localtest
 def test_agg_should_be_order_preserving(session):
     df = (
         session.range(2)
@@ -906,7 +887,6 @@ def test_agg_should_be_order_preserving(session):
     assert df.collect() == [Row(0, 0, 1, 0), Row(1, 1, 1, 1)]
 
 
-@pytest.mark.localtest
 def test_count(session):
     assert TestData.test_data2(session).agg(
         [count(col("a")), sum_distinct(col("a"))]
@@ -1051,14 +1031,12 @@ def test_decimal_sum_over_window_should_work(session):
     assert df.select(avg("a").over()).collect() == [Row(2.0), Row(2.0), Row(2.0)]
 
 
-@pytest.mark.localtest
 def test_aggregate_function_in_groupby(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data4(session).group_by(sum(col('"KEY"'))).count().collect()
     assert "is not a valid group by expression" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     assert TestData.test_data2(session).group_by(lit(3), lit(4)).agg(
         [lit(6), lit(7), sum(col("b"))]
@@ -1086,7 +1064,6 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
     ).collect() == [Row(3, 4, 9)]
 
 
-@pytest.mark.localtest
 def test_distinct_and_unions(session: object) -> object:
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -1114,7 +1091,6 @@ def test_distinct_and_unions(session: object) -> object:
     assert res == [Row("one")]
 
 
-@pytest.mark.localtest
 def test_distinct_and_unionall(session):
     lhs = session.create_dataframe([(1, "one", 1.0), (2, "one", 2.0)]).to_df(
         "i", "s", '"i"'
@@ -1197,17 +1173,14 @@ def test_count_if(session):
         session.sql(f"SELECT COUNT_IF(x) FROM {temp_view_name}").collect()
 
 
-@pytest.mark.localtest
 def test_agg_without_groups(session):
     assert TestData.test_data2(session).agg(sum(col("b"))).collect() == [Row(9)]
 
 
-@pytest.mark.localtest
 def test_agg_without_groups_and_functions(session):
     assert TestData.test_data2(session).agg(lit(1)).collect() == [Row(1)]
 
 
-@pytest.mark.localtest
 def test_null_average(session):
     assert TestData.test_data3(session).agg(avg(col("b"))).collect() == [Row(2.0)]
 
@@ -1220,7 +1193,6 @@ def test_null_average(session):
     ).collect() == [Row(2.0, 2.0)]
 
 
-@pytest.mark.localtest
 def test_zero_average(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg(avg(col("a"))).collect() == [Row(None)]
@@ -1230,7 +1202,6 @@ def test_zero_average(session):
     ]
 
 
-@pytest.mark.localtest
 def test_multiple_column_distinct_count(session):
     df1 = session.create_dataframe(
         [
@@ -1289,7 +1260,6 @@ def test_multiple_column_distinct_count(session):
     ).collect() == [Row(2.25)]
 
 
-@pytest.mark.localtest
 def test_zero_count(session):
     empty_table = session.create_dataframe([[]]).to_df(["a"])
     assert empty_table.agg([count(col("a")), sum_distinct(col("a"))]).collect() == [
@@ -1308,19 +1278,16 @@ def test_zero_stddev(session):
     ).collect() == [Row(None, None, None)]
 
 
-@pytest.mark.localtest
 def test_zero_sum(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum(col("a"))]).collect() == [Row(None)]
 
 
-@pytest.mark.localtest
 def test_zero_sum_distinct(session):
     df = session.create_dataframe([[]]).to_df(["a"])
     assert df.agg([sum_distinct(col("a"))]).collect() == [Row(None)]
 
 
-@pytest.mark.localtest
 def test_limit_and_aggregates(session):
     df = session.create_dataframe([("a", 1), ("b", 2), ("c", 1), ("d", 5)]).to_df(
         "id", "value"
@@ -1331,7 +1298,6 @@ def test_limit_and_aggregates(session):
     )
 
 
-@pytest.mark.localtest
 def test_listagg(session):
     df = session.create_dataframe(
         [

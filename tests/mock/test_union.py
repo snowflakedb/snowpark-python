@@ -2,13 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import pytest
 
 from snowflake.snowpark import DataFrame, Row
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_union_basic(session):
     df1: DataFrame = session.create_dataframe(
         [
@@ -79,7 +77,6 @@ def test_union_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_union_by_name(session):
     df1: DataFrame = session.create_dataframe(
         [
