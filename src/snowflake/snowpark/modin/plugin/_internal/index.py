@@ -33,6 +33,7 @@ from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
 class Index:
