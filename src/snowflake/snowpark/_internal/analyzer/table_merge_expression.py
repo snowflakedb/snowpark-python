@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     LogicalPlan,
@@ -28,7 +28,7 @@ class MergeExpression(Expression):
         # WHEN MATCHED [AND condition] THEN DEL
         score = self.individual_node_complexity
         score = (
-            add_node_complexities(score, self.condition.cumulative_node_complexity)
+            sum_node_complexities(score, self.condition.cumulative_node_complexity)
             if self.condition
             else score
         )
@@ -44,10 +44,10 @@ class UpdateMergeExpression(MergeExpression):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
-        score = add_node_complexities(
+        score = sum_node_complexities(
             self.individual_node_complexity,
             *(
-                add_node_complexities(
+                sum_node_complexities(
                     key_expr.cumulative_node_complexity,
                     val_expr.cumulative_node_complexity,
                 )
@@ -55,7 +55,7 @@ class UpdateMergeExpression(MergeExpression):
             ),
         )
         score = (
-            add_node_complexities(score, self.condition.cumulative_node_complexity)
+            sum_node_complexities(score, self.condition.cumulative_node_complexity)
             if self.condition
             else score
         )
@@ -79,13 +79,13 @@ class InsertMergeExpression(MergeExpression):
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
-        score = add_node_complexities(
+        score = sum_node_complexities(
             self.individual_node_complexity,
             *(key.cumulative_node_complexity for key in self.keys),
             *(val.cumulative_node_complexity for val in self.values),
         )
         score = (
-            add_node_complexities(score, self.condition.cumulative_node_complexity)
+            sum_node_complexities(score, self.condition.cumulative_node_complexity)
             if self.condition
             else score
         )
@@ -110,16 +110,16 @@ class TableUpdate(LogicalPlan):
     @property
     def individual_node_complexity(self) -> Dict[str, int]:
         # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
-        score = add_node_complexities(
+        score = sum_node_complexities(
             *(
-                add_node_complexities(
+                sum_node_complexities(
                     k.cumulative_node_complexity, v.cumulative_node_complexity
                 )
                 for k, v in self.assignments.items()
             ),
         )
         score = (
-            add_node_complexities(score, self.condition.cumulative_node_complexity)
+            sum_node_complexities(score, self.condition.cumulative_node_complexity)
             if self.condition
             else score
         )
@@ -163,7 +163,7 @@ class TableMerge(LogicalPlan):
     @property
     def individual_node_complexity(self) -> Dict[str, int]:
         # MERGE INTO table_name USING (source) ON join_expr clauses
-        return add_node_complexities(
+        return sum_node_complexities(
             self.join_expr.cumulative_node_complexity,
             *(clause.cumulative_node_complexity for clause in self.clauses),
         )

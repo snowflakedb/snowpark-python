@@ -37,7 +37,7 @@ class PlanNodeCategory(Enum):
     OTHERS = "others"
 
 
-def add_node_complexities(*node_complexities: Dict[str, int]) -> Dict[str, int]:
+def sum_node_complexities(*node_complexities: Dict[str, int]) -> Dict[str, int]:
     counter_sum = sum(
         (Counter(complexity) for complexity in node_complexities), Counter()
     )

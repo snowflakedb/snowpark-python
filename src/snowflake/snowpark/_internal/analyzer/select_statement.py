@@ -24,7 +24,7 @@ import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
@@ -297,7 +297,7 @@ class Selectable(LogicalPlan, ABC):
     @property
     def cumulative_node_complexity(self) -> Dict[str, int]:
         if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = add_node_complexities(
+            self._cumulative_node_complexity = sum_node_complexities(
                 self.individual_node_complexity,
                 *(node.cumulative_node_complexity for node in self.children_plan_nodes),
             )
@@ -693,7 +693,7 @@ class SelectStatement(Selectable):
         score = {}
         # projection component
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 *(
                     getattr(
@@ -710,7 +710,7 @@ class SelectStatement(Selectable):
 
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 {PlanNodeCategory.FILTER.value: 1},
                 self.where.cumulative_node_complexity,
@@ -721,7 +721,7 @@ class SelectStatement(Selectable):
 
         # order by component - add complexity for each sort expression
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 *(expr.cumulative_node_complexity for expr in self.order_by),
                 {PlanNodeCategory.ORDER_BY.value: 1},
@@ -732,12 +732,12 @@ class SelectStatement(Selectable):
 
         # limit/offset component
         score = (
-            add_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
             if self.limit_
             else score
         )
         score = (
-            add_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+            sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
             if self.offset
             else score
         )

@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
-    add_node_complexities,
+    sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
@@ -39,7 +39,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
             return {}
         score = {PlanNodeCategory.WINDOW.value: 1}
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 *(expr.cumulative_node_complexity for expr in self.partition_spec),
                 {PlanNodeCategory.PARTITION_BY.value: 1},
@@ -48,7 +48,7 @@ class TableFunctionPartitionSpecDefinition(Expression):
             else score
         )
         score = (
-            add_node_complexities(
+            sum_node_complexities(
                 score,
                 *(expr.cumulative_node_complexity for expr in self.order_spec),
                 {PlanNodeCategory.ORDER_BY.value: 1},
@@ -90,7 +90,7 @@ class FlattenFunction(TableFunctionExpression):
         self.mode = mode
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
-        return add_node_complexities(
+        return sum_node_complexities(
             self.individual_node_complexity, self.input.cumulative_node_complexity
         )
 
@@ -106,12 +106,12 @@ class PosArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
-        score = add_node_complexities(
+        score = sum_node_complexities(
             *(arg.cumulative_node_complexity for arg in self.args),
             self.individual_node_complexity,
         )
         score = (
-            add_node_complexities(score, self.partition_spec.cumulative_node_complexity)
+            sum_node_complexities(score, self.partition_spec.cumulative_node_complexity)
             if self.partition_spec
             else score
         )
@@ -129,12 +129,12 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         self.args = args
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
-        score = add_node_complexities(
+        score = sum_node_complexities(
             *(arg.cumulative_node_complexity for arg in self.args.values()),
             self.individual_node_complexity,
         )
         score = (
-            add_node_complexities(score, self.partition_spec.cumulative_node_complexity)
+            sum_node_complexities(score, self.partition_spec.cumulative_node_complexity)
             if self.partition_spec
             else score
         )
@@ -148,16 +148,16 @@ class GeneratorTableFunction(TableFunctionExpression):
         self.operators = operators
 
     def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
-        score = add_node_complexities(
+        score = sum_node_complexities(
             *(arg.cumulative_node_complexity for arg in self.args.values()),
             self.individual_node_complexity,
         )
         score = (
-            add_node_complexities(score, self.partition_spec.cumulative_node_complexity)
+            sum_node_complexities(score, self.partition_spec.cumulative_node_complexity)
             if self.partition_spec
             else score
         )
-        score = add_node_complexities(
+        score = sum_node_complexities(
             score, {PlanNodeCategory.COLUMN.value: len(self.operators)}
         )
         return score
@@ -191,7 +191,7 @@ class TableFunctionJoin(LogicalPlan):
     @property
     def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT left_cols, right_cols FROM child as left_alias JOIN table(func(...)) as right_alias
-        return add_node_complexities(
+        return sum_node_complexities(
             {
                 PlanNodeCategory.COLUMN.value: len(self.left_cols)
                 + len(self.right_cols),
@@ -212,7 +212,7 @@ class Lateral(LogicalPlan):
     @property
     def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT * FROM (child), LATERAL table_func_expression
-        return add_node_complexities(
+        return sum_node_complexities(
             {PlanNodeCategory.COLUMN.value: 1},
             self.table_function.cumulative_node_complexity,
         )
