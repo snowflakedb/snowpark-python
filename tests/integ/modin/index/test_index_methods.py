@@ -88,6 +88,7 @@ def test_index_union():
     )
 
 
+@sql_count_checker(query_count=0)
 def test_index_difference():
     idx1 = pd.Index([2, 1, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
@@ -95,6 +96,7 @@ def test_index_difference():
     assert_index_equal(diff, pd.Index([1, 2], dtype="int64"))
 
 
+@sql_count_checker(query_count=0)
 def test_index_intersection():
     idx1 = pd.Index([2, 1, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
