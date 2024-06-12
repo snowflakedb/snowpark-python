@@ -10,8 +10,8 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ScalarSubquery,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    Counter,
     PlanNodeCategory,
+    add_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
@@ -38,16 +38,14 @@ class Sample(UnaryNode):
         self.seed = seed
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT * FROM (child) SAMPLE (probability) -- if probability is provided
         # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
-        return Counter(
-            {
-                PlanNodeCategory.SAMPLE.value: 1,
-                PlanNodeCategory.LITERAL.value: 1,
-                PlanNodeCategory.COLUMN.value: 1,
-            }
-        )
+        return {
+            PlanNodeCategory.SAMPLE.value: 1,
+            PlanNodeCategory.LITERAL.value: 1,
+            PlanNodeCategory.COLUMN.value: 1,
+        }
 
 
 class Sort(UnaryNode):
@@ -56,10 +54,11 @@ class Sort(UnaryNode):
         self.order = order
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # child ORDER BY COMMA.join(order)
-        return Counter({PlanNodeCategory.ORDER_BY.value: 1}) + sum(
-            (col.cumulative_node_complexity for col in self.order), Counter()
+        return add_node_complexities(
+            {PlanNodeCategory.ORDER_BY.value: 1},
+            *(col.cumulative_node_complexity for col in self.order),
         )
 
 
@@ -75,30 +74,32 @@ class Aggregate(UnaryNode):
         self.aggregate_expressions = aggregate_expressions
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
-        stat = Counter()
+    def individual_node_complexity(self) -> Dict[str, int]:
         if self.grouping_expressions:
             # GROUP BY grouping_exprs
-            stat += Counter({PlanNodeCategory.GROUP_BY.value: 1}) + sum(
-                (expr.cumulative_node_complexity for expr in self.grouping_expressions),
-                Counter(),
+            score = add_node_complexities(
+                {PlanNodeCategory.GROUP_BY.value: 1},
+                *(
+                    expr.cumulative_node_complexity
+                    for expr in self.grouping_expressions
+                ),
             )
         else:
             # LIMIT 1
-            stat += Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+            score = {PlanNodeCategory.LOW_IMPACT.value: 1}
 
-        stat += sum(
-            (
+        score = add_node_complexities(
+            score,
+            *(
                 getattr(
                     expr,
                     "cumulative_node_complexity",
-                    Counter({PlanNodeCategory.COLUMN.value: 1}),
+                    {PlanNodeCategory.COLUMN.value: 1},
                 )  # type: ignore
                 for expr in self.aggregate_expressions
             ),
-            Counter(),
         )
-        return stat
+        return score
 
 
 class Pivot(UnaryNode):
@@ -119,39 +120,41 @@ class Pivot(UnaryNode):
         self.default_on_null = default_on_null
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
-        stat = Counter()
-        # child stat adjustment if grouping cols
+    def individual_node_complexity(self) -> Dict[str, int]:
+        score = {}
+        # child score adjustment if grouping cols
         if self.grouping_columns and self.aggregates and self.aggregates[0].children:
             # for additional projecting cols when grouping cols is not empty
-            stat += sum(
-                (col.cumulative_node_complexity for col in self.grouping_columns),
-                Counter(),
+            score = add_node_complexities(
+                self.pivot_column.cumulative_node_complexity,
+                self.aggregates[0].children[0].cumulative_node_complexity,
+                *(col.cumulative_node_complexity for col in self.grouping_columns),
             )
-            stat += self.pivot_column.cumulative_node_complexity
-            stat += self.aggregates[0].children[0].cumulative_node_complexity
 
         # pivot col
         if isinstance(self.pivot_values, ScalarSubquery):
-            stat += self.pivot_values.cumulative_node_complexity
+            score = add_node_complexities(
+                score, self.pivot_values.cumulative_node_complexity
+            )
         elif isinstance(self.pivot_values, List):
-            stat += sum(
-                (val.cumulative_node_complexity for val in self.pivot_values), Counter()
+            score = add_node_complexities(
+                score, *(val.cumulative_node_complexity for val in self.pivot_values)
             )
         else:
             # if pivot values is None, then we add OTHERS for ANY
-            stat += Counter({PlanNodeCategory.LOW_IMPACT.value: 1})
+            score = add_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
 
-        # aggregate stat
-        stat += sum(
-            (expr.cumulative_node_complexity for expr in self.aggregates), Counter()
+        # aggregate score
+        score = add_node_complexities(
+            score,
+            *(expr.cumulative_node_complexity for expr in self.aggregates),
         )
 
         # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
-        stat += Counter(
-            {PlanNodeCategory.COLUMN.value: 2, PlanNodeCategory.PIVOT.value: 1}
+        score = add_node_complexities(
+            score, {PlanNodeCategory.COLUMN.value: 2, PlanNodeCategory.PIVOT.value: 1}
         )
-        return stat
+        return score
 
 
 class Unpivot(UnaryNode):
@@ -168,15 +171,12 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
-        stat = Counter(
-            {PlanNodeCategory.UNPIVOT.value: 1, PlanNodeCategory.COLUMN.value: 3}
+        return add_node_complexities(
+            {PlanNodeCategory.UNPIVOT.value: 1, PlanNodeCategory.COLUMN.value: 3},
+            *(expr.cumulative_node_complexity for expr in self.column_list),
         )
-        stat += sum(
-            (expr.cumulative_node_complexity for expr in self.column_list), Counter()
-        )
-        return stat
 
 
 class Rename(UnaryNode):
@@ -189,14 +189,12 @@ class Rename(UnaryNode):
         self.column_map = column_map
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT * RENAME (before AS after, ...) FROM child
-        return Counter(
-            {
-                PlanNodeCategory.COLUMN.value: 1 + 2 * len(self.column_map),
-                PlanNodeCategory.LOW_IMPACT.value: 1 + len(self.column_map),
-            }
-        )
+        return {
+            PlanNodeCategory.COLUMN.value: 1 + 2 * len(self.column_map),
+            PlanNodeCategory.LOW_IMPACT.value: 1 + len(self.column_map),
+        }
 
 
 class Filter(UnaryNode):
@@ -205,11 +203,11 @@ class Filter(UnaryNode):
         self.condition = condition
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # child WHERE condition
-        return (
-            Counter({PlanNodeCategory.FILTER.value: 1})
-            + self.condition.cumulative_node_complexity
+        return add_node_complexities(
+            {PlanNodeCategory.FILTER.value: 1},
+            self.condition.cumulative_node_complexity,
         )
 
 
@@ -219,20 +217,19 @@ class Project(UnaryNode):
         self.project_list = project_list
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         if not self.project_list:
-            return Counter({PlanNodeCategory.COLUMN.value: 1})
+            return {PlanNodeCategory.COLUMN.value: 1}
 
-        return sum(
-            (
+        return add_node_complexities(
+            *(
                 getattr(
                     col,
                     "cumulative_node_complexity",
-                    Counter({PlanNodeCategory.COLUMN.value: 1}),
+                    {PlanNodeCategory.COLUMN.value: 1},
                 )  # type: ignore
                 for col in self.project_list
             ),
-            Counter(),
         )
 
 

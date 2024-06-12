@@ -2,12 +2,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    Counter,
     PlanNodeCategory,
+    add_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -196,21 +196,29 @@ class Join(BinaryNode):
         return self.join_type.sql
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.JOIN
+
+    @property
+    def individual_node_complexity(self) -> Dict[str, int]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        stat = Counter({PlanNodeCategory.JOIN.value: 1})
+        score = {self.plan_node_category.value: 1}
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
-            stat += Counter(
-                {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)}
+            score = add_node_complexities(
+                score,
+                {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)},
             )
-        stat += (
-            self.join_condition.cumulative_node_complexity
+        score = (
+            add_node_complexities(score, self.join_condition.cumulative_node_complexity)
             if self.join_condition
-            else Counter()
+            else score
         )
-        stat += (
-            self.match_condition.cumulative_node_complexity
+
+        score = (
+            add_node_complexities(
+                score, self.match_condition.cumulative_node_complexity
+            )
             if self.match_condition
-            else Counter()
+            else score
         )
-        return stat
+        return score

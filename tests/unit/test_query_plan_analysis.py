@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from collections import Counter
 from unittest import mock
 
 import pytest
@@ -13,11 +12,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     UNION,
     UNION_ALL,
 )
-from snowflake.snowpark._internal.analyzer.expression import (
-    Attribute,
-    Expression,
-    NamedExpression,
-)
+from snowflake.snowpark._internal.analyzer.expression import Expression, NamedExpression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
@@ -35,7 +30,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
-from snowflake.snowpark.types import IntegerType
 
 
 @pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
@@ -91,7 +85,7 @@ def test_assign_custom_cumulative_node_complexity(
     assert nodes[5].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
     assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
 
-    nodes[1].cumulative_node_complexity = Counter({PlanNodeCategory.COLUMN.value: 1})
+    nodes[1].cumulative_node_complexity = {PlanNodeCategory.COLUMN.value: 1}
 
     # assert that only value that is reset is changed
     assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 7}
@@ -110,22 +104,8 @@ def test_select_sql_individual_node_complexity(mock_session, mock_analyzer):
     )
     assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
 
-    def mocked_get_result_attributes(sql):
-        return [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
-
-    def mocked_analyze(
-        attr: Attribute, df_aliased_col_name_to_real_col_name, parse_local_name
-    ):
-        return attr.name
-
-    with mock.patch.object(
-        mock_session, "_get_result_attributes", side_effect=mocked_get_result_attributes
-    ):
-        with mock.patch.object(mock_analyzer, "analyze", side_effect=mocked_analyze):
-            plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
-            assert plan_node.individual_node_complexity == {
-                PlanNodeCategory.COLUMN.value: 2
-            }
+    plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
 
 
 def test_select_snowflake_plan_individual_node_complexity(

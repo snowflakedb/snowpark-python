@@ -3,11 +3,13 @@
 #
 
 
+from typing import Dict
+
 import pytest
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    Counter,
     PlanNodeCategory,
+    add_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -51,11 +53,11 @@ def sample_table(session):
     Utils.drop_table(session, table_name)
 
 
-def get_cumulative_node_complexity(df: DataFrame) -> Counter[str]:
+def get_cumulative_node_complexity(df: DataFrame) -> Dict[str, int]:
     return df._plan.cumulative_node_complexity
 
 
-def assert_df_subtree_query_complexity(df: DataFrame, estimate: Counter[str]):
+def assert_df_subtree_query_complexity(df: DataFrame, estimate: Dict[str, int]):
     assert (
         get_cumulative_node_complexity(df) == estimate
     ), f"query = {df.queries['queries'][-1]}"
@@ -113,13 +115,13 @@ def test_generator_table_function(session: Session):
     # adds SELECT * from () ORDER BY seq ASC NULLS FIRST
     assert_df_subtree_query_complexity(
         df2,
-        get_cumulative_node_complexity(df1)
-        + Counter(
+        add_node_complexities(
+            get_cumulative_node_complexity(df1),
             {
                 PlanNodeCategory.ORDER_BY.value: 1,
                 PlanNodeCategory.COLUMN.value: 1,
                 PlanNodeCategory.OTHERS.value: 1,
-            }
+            },
         ),
     )
 
@@ -258,18 +260,16 @@ def test_window_function(session: Session):
         # SELECT avg("VALUE") OVER (PARTITION BY "VALUE"  ORDER BY "KEY" ASC NULLS FIRST  ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING  ) AS "WINDOW1" FROM table_name
         assert_df_subtree_query_complexity(
             df1,
-            Counter(
-                {
-                    PlanNodeCategory.PARTITION_BY.value: 1,
-                    PlanNodeCategory.ORDER_BY.value: 1,
-                    PlanNodeCategory.WINDOW.value: 1,
-                    PlanNodeCategory.FUNCTION.value: 1,
-                    PlanNodeCategory.COLUMN.value: 5,
-                    PlanNodeCategory.LITERAL.value: 1,
-                    PlanNodeCategory.LOW_IMPACT.value: 2,
-                    PlanNodeCategory.OTHERS.value: 1,
-                }
-            ),
+            {
+                PlanNodeCategory.PARTITION_BY.value: 1,
+                PlanNodeCategory.ORDER_BY.value: 1,
+                PlanNodeCategory.WINDOW.value: 1,
+                PlanNodeCategory.FUNCTION.value: 1,
+                PlanNodeCategory.COLUMN.value: 5,
+                PlanNodeCategory.LITERAL.value: 1,
+                PlanNodeCategory.LOW_IMPACT.value: 2,
+                PlanNodeCategory.OTHERS.value: 1,
+            },
         )
 
         # SELECT avg("VALUE") OVER (  ORDER BY "KEY" DESC NULLS LAST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS "WINDOW2" FROM (
@@ -277,8 +277,8 @@ def test_window_function(session: Session):
         df2 = df1.select(avg("value").over(window2).as_("window2"))
         assert_df_subtree_query_complexity(
             df2,
-            get_cumulative_node_complexity(df1)
-            + Counter(
+            add_node_complexities(
+                get_cumulative_node_complexity(df1),
                 {
                     PlanNodeCategory.ORDER_BY.value: 1,
                     PlanNodeCategory.WINDOW.value: 1,
@@ -286,7 +286,7 @@ def test_window_function(session: Session):
                     PlanNodeCategory.COLUMN.value: 3,
                     PlanNodeCategory.LOW_IMPACT.value: 3,
                     PlanNodeCategory.OTHERS.value: 1,
-                }
+                },
             ),
         )
     finally:
@@ -321,9 +321,9 @@ def test_join_statement(session: Session, sample_table: str):
     # SELECT  *  FROM ((ch1) AS SNOWPARK_LEFT INNER JOIN ( ch2) AS SNOWPARK_RIGHT ON (("l_k7b8_A" = "r_e09m_A") AND ("l_k7b8_B" = "r_e09m_B")))
     assert_df_subtree_query_complexity(
         df4,
-        get_cumulative_node_complexity(df3)
-        + Counter(
-            {PlanNodeCategory.COLUMN.value: 4, PlanNodeCategory.LOW_IMPACT.value: 3}
+        add_node_complexities(
+            get_cumulative_node_complexity(df3),
+            {PlanNodeCategory.COLUMN.value: 4, PlanNodeCategory.LOW_IMPACT.value: 3},
         ),
     )
 
@@ -331,8 +331,9 @@ def test_join_statement(session: Session, sample_table: str):
     # SELECT  *  FROM ( (ch1) AS SNOWPARK_LEFT INNER JOIN (ch2) AS SNOWPARK_RIGHT USING (a, b))
     assert_df_subtree_query_complexity(
         df5,
-        get_cumulative_node_complexity(df3)
-        + Counter({PlanNodeCategory.COLUMN.value: 2}),
+        add_node_complexities(
+            get_cumulative_node_complexity(df3), {PlanNodeCategory.COLUMN.value: 2}
+        ),
     )
 
 
@@ -453,13 +454,13 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df4 = df3.sort(col("b").asc())
     assert_df_subtree_query_complexity(
         df4,
-        get_cumulative_node_complexity(df3)
-        + Counter(
+        add_node_complexities(
+            get_cumulative_node_complexity(df3),
             {
                 PlanNodeCategory.COLUMN.value: 1,
                 PlanNodeCategory.ORDER_BY.value: 1,
                 PlanNodeCategory.OTHERS.value: 1,
-            }
+            },
         ),
     )
 
@@ -467,8 +468,10 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df5 = df4.sort(col("c").desc())
     assert_df_subtree_query_complexity(
         df5,
-        get_cumulative_node_complexity(df4)
-        + Counter({PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.OTHERS.value: 1}),
+        add_node_complexities(
+            get_cumulative_node_complexity(df4),
+            {PlanNodeCategory.COLUMN.value: 1, PlanNodeCategory.OTHERS.value: 1},
+        ),
     )
 
     # add filter
@@ -476,14 +479,14 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df6 = df5.filter(col("b") > 2)
     assert_df_subtree_query_complexity(
         df6,
-        get_cumulative_node_complexity(df5)
-        + Counter(
+        add_node_complexities(
+            get_cumulative_node_complexity(df5),
             {
                 PlanNodeCategory.FILTER.value: 1,
                 PlanNodeCategory.COLUMN.value: 1,
                 PlanNodeCategory.LITERAL.value: 1,
                 PlanNodeCategory.LOW_IMPACT.value: 1,
-            }
+            },
         ),
     )
 
@@ -491,13 +494,13 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df7 = df6.filter(col("c") > 3)
     assert_df_subtree_query_complexity(
         df7,
-        get_cumulative_node_complexity(df6)
-        + Counter(
+        add_node_complexities(
+            get_cumulative_node_complexity(df6),
             {
                 PlanNodeCategory.COLUMN.value: 1,
                 PlanNodeCategory.LITERAL.value: 1,
                 PlanNodeCategory.LOW_IMPACT.value: 2,
-            }
+            },
         ),
     )
 
@@ -505,9 +508,9 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df8 = df3.union_all(df4).union_all(df5)
     assert_df_subtree_query_complexity(
         df8,
-        sum(
-            (get_cumulative_node_complexity(df) for df in [df3, df4, df5]),
-            Counter({PlanNodeCategory.SET_OPERATION.value: 2}),
+        add_node_complexities(
+            *(get_cumulative_node_complexity(df) for df in [df3, df4, df5]),
+            {PlanNodeCategory.SET_OPERATION.value: 2},
         ),
     )
 
@@ -515,9 +518,9 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df9 = df8.union_all(df6).union_all(df7)
     assert_df_subtree_query_complexity(
         df9,
-        sum(
-            (get_cumulative_node_complexity(df) for df in [df6, df7, df8]),
-            Counter({PlanNodeCategory.SET_OPERATION.value: 2}),
+        add_node_complexities(
+            *(get_cumulative_node_complexity(df) for df in [df6, df7, df8]),
+            {PlanNodeCategory.SET_OPERATION.value: 2},
         ),
     )
 
@@ -525,14 +528,16 @@ def test_select_statement_with_multiple_operations(session: Session, sample_tabl
     df10 = df9.limit(2)
     assert_df_subtree_query_complexity(
         df10,
-        get_cumulative_node_complexity(df9)
-        + Counter({PlanNodeCategory.LOW_IMPACT.value: 1}),
+        add_node_complexities(
+            get_cumulative_node_complexity(df9), {PlanNodeCategory.LOW_IMPACT.value: 1}
+        ),
     )
 
     # for offset
     df11 = df9.limit(3, offset=1)
     assert_df_subtree_query_complexity(
         df11,
-        get_cumulative_node_complexity(df9)
-        + Counter({PlanNodeCategory.LOW_IMPACT.value: 2}),
+        add_node_complexities(
+            get_cumulative_node_complexity(df9), {PlanNodeCategory.LOW_IMPACT.value: 2}
+        ),
     )

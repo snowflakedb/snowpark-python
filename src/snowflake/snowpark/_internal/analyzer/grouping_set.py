@@ -2,15 +2,15 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, List, Optional
+from typing import AbstractSet, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    Counter,
     PlanNodeCategory,
+    add_node_complexities,
 )
 
 
@@ -45,10 +45,12 @@ class GroupingSetsExpression(Expression):
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
 
-    def calculate_cumulative_node_complexity(self) -> Counter[str]:
-        return sum(
-            (
-                sum((expr.cumulative_node_complexity for expr in arg), Counter())
+    def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
+        return add_node_complexities(
+            *(
+                add_node_complexities(
+                    *(expr.cumulative_node_complexity for expr in arg)
+                )
                 for arg in self.args
             ),
             self.individual_node_complexity,
