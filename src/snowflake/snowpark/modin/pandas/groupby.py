@@ -736,8 +736,30 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
 
     def size(self):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="size", class_="GroupBy")
+        if self._axis == 1:
+            return DataFrameGroupBy(
+                self._df.T.iloc[:, [0]],
+                self._by,
+                0,
+                drop=self._drop,
+                idx_name=self._idx_name,
+                **self._kwargs,
+            ).size()
+        result = self._wrap_aggregation(
+            type(self._query_compiler).groupby_size,
+            numeric_only=False,
+        )
+        if not isinstance(result, Series):
+            result = result.squeeze(axis=1)
+        if not self._kwargs.get("as_index") and not isinstance(result, Series):
+            result = (
+                result.rename(columns={MODIN_UNNAMED_SERIES_LABEL: "index"})
+                if MODIN_UNNAMED_SERIES_LABEL in result.columns
+                else result
+            )
+        elif isinstance(self._df, Series):
+            result.name = self._df.name
+        return result
 
     def sum(
         self,
