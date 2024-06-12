@@ -10541,8 +10541,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         numeric_only: bool = False,
         *args: Any,
         **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="count", class_="Rolling")
+    ) -> "SnowflakeQueryCompiler":
+        return self._window_agg(
+            window_func="rolling",
+            agg_func="count",
+            window_kwargs=rolling_kwargs,
+            agg_kwargs=dict(numeric_only=numeric_only),
+        )
 
     def rolling_sum(
         self,
@@ -10837,7 +10842,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 quoted_identifier: iff(
                     count(col(row_position_quoted_identifier)).over(window_expr)
                     >= min_periods
-                    if window_func == "expanding" and agg_func == "count"
+                    if agg_func == "count"
                     else count(col(quoted_identifier)).over(window_expr) >= min_periods,
                     get_snowflake_agg_func(agg_func, agg_kwargs)(
                         builtin("zeroifnull")(col(quoted_identifier))
