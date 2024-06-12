@@ -1489,7 +1489,7 @@ def test_df_loc_set_for_empty_dataframe_negative(index, key, value):
     [
         native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["A", "B", "C"]),
         # To prevent dtype mismatch error, we cast the empty index (default int dtype) to object
-        native_pd.DataFrame(index=pd.Index([], dtype=object)),
+        native_pd.DataFrame(index=native_pd.Index([], dtype=object)),
     ],
 )
 def test_df_loc_set_row_col_with_non_matching_scalar_key(
