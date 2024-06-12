@@ -871,7 +871,7 @@ def get_valid_col_positions_from_col_labels(
                     )
                 )
             )
-            col_loc = col_loc.index
+            col_loc = pd.Index(col_loc, convert_to_lazy=False)
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
