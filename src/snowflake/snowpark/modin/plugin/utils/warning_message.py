@@ -61,6 +61,14 @@ class WarningMessage:
         cls.single_warning(message)
 
     @classmethod
+    def index_to_pandas_warning(cls, func_name: str) -> None:
+        # TODO: SNOW-1359041 re-enable it once lazy index representation is ready
+        # cls.single_warning(
+        #     f"The index method {func_name} currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
+        # )
+        pass
+
+    @classmethod
     def warning_if_engine_args_is_set(
         cls,
         operation: str,
