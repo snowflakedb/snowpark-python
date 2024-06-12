@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
@@ -24,8 +24,8 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "col9_int_missing",
         "col10_mixed_missing",
         ["col1_grp", "col2_int64"],
-        ["col6_mixed", "col7_bool", "col3_int_identical"]
-    ]
+        ["col6_mixed", "col7_bool", "col3_int_identical"],
+    ],
 )
 @pytest.mark.parametrize("as_index", [True, False])
 def test_groupby_size(by, as_index):

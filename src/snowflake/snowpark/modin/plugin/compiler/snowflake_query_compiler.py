@@ -3642,14 +3642,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def groupby_size(
         self,
-        by,
-        axis,
-        groupby_kwargs,
-        agg_args,
-        agg_kwargs,
-        drop=False,
-        **kwargs
-    ):
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with size.
         With a dataframe created with following:
@@ -3695,17 +3695,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             by = [by]
         # We reset index twice to ensure we perform the count aggregation on the row
         # positions (which cannot be null).
-        result = self.reset_index(drop=True).reset_index(
-            drop=False, names=MODIN_UNNAMED_SERIES_LABEL
-        ).take_2d_labels(
-            slice(None), [MODIN_UNNAMED_SERIES_LABEL] + by
-        ).groupby_agg(
-            by,
-            "count",
-            axis,
-            groupby_kwargs,
-            (),
-            {},
+        result = (
+            self.reset_index(drop=True)
+            .reset_index(drop=False, names=MODIN_UNNAMED_SERIES_LABEL)
+            .take_2d_labels(slice(None), [MODIN_UNNAMED_SERIES_LABEL] + by)
+            .groupby_agg(
+                by,
+                "count",
+                axis,
+                groupby_kwargs,
+                (),
+                {},
+            )
         )
         if not groupby_kwargs.get("as_index", True):
             return result.rename(columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "size"})
