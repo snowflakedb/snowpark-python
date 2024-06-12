@@ -6,7 +6,6 @@ import modin.pandas as pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import is_scalar
 from tests.integ.modin.pivot.pivot_utils import pivot_table_test_helper
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 
@@ -25,10 +24,7 @@ def test_pivot_table_single_with_dropna_options(
         pytest.xfail(
             reason="SNOW-1435365 - pandas computes values differently than us: https://github.com/pandas-dev/pandas/issues/58722."
         )
-    with SqlCounter(
-        query_count=3 if is_scalar(columns) and index else 1,
-        join_count=expected_join_count,
-    ):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data_with_nulls,
             {

@@ -223,6 +223,7 @@ def test_pivot_table_with_sum_and_count_null_and_empty_values_matching_behavior_
     )
 
 
+# One extra query to convert to native pandas in dataframe constructor when creating snow_df
 @sql_count_checker(query_count=6, join_count=1)
 def test_pivot_on_inline_data_using_temp_table():
     # Create a large dataframe of inlined data that will spill to a temporary table.

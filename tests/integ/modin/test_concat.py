@@ -59,7 +59,7 @@ def zero_rows_df():
 
 @pytest.fixture(scope="function")
 def zero_columns_df():
-    return pd.DataFrame(index=Index([1, 2]))
+    return pd.DataFrame(index=pd.Index([1, 2]))
 
 
 @pytest.fixture(scope="function")
@@ -121,7 +121,7 @@ def _concat_operation(objs, native_objs=None, **kwargs):
 
 def test_concat_basic(df1, df2, join, sort, axis, ignore_index):
     expected_join_count = 1 if axis == 1 else 0
-    with SqlCounter(query_count=6, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -145,7 +145,7 @@ def test_concat_no_items_negative():
 
 def test_concat_exclude_none(df1, df2, axis):
     expected_join_count = 2 if axis == 1 else 0
-    with SqlCounter(query_count=6 if axis == 0 else 2, join_count=expected_join_count):
+    with SqlCounter(query_count=2, join_count=expected_join_count):
         # Verify that none objects are simply ignored.
         pieces = [df1, None, df2, None]
         result = pd.concat(pieces, axis=axis)
@@ -170,7 +170,7 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
     expected_join_count_with_duplicates = 2 if axis == 1 else 0
 
     # Series and Dataframes
-    with SqlCounter(query_count=3 if axis == 1 else 5, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -178,7 +178,7 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
         )
 
     # All dataframes
-    with SqlCounter(query_count=3 if axis == 1 else 5, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -186,10 +186,7 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
         )
 
     # All dataframes with duplicates
-    with SqlCounter(
-        query_count=4 if axis == 1 else 8,
-        join_count=expected_join_count_with_duplicates,
-    ):
+    with SqlCounter(query_count=4, join_count=expected_join_count_with_duplicates):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -197,7 +194,7 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
         )
 
     # All series
-    with SqlCounter(query_count=3 if axis == 1 else 5, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -205,10 +202,7 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
         )
 
     # All series with duplicates
-    with SqlCounter(
-        query_count=4 if axis == 1 else 8,
-        join_count=expected_join_count_with_duplicates,
-    ):
+    with SqlCounter(query_count=4, join_count=expected_join_count_with_duplicates):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -250,7 +244,7 @@ def test_concat_series_names_axis1(series1, series2, name1, name2, expected_colu
         ("foo", "foo", "foo"),
     ],
 )
-@sql_count_checker(query_count=5, union_count=1)
+@sql_count_checker(query_count=3, union_count=1)
 def test_concat_series_names_axis0(series1, series2, name1, name2, expected_name):
     series1 = series1.rename(name1)
     series2 = series2.rename(name2)
@@ -281,22 +275,21 @@ def test_concat_iterables(df1, df2, axis):
     expected = native_pd.concat([df1.to_pandas(), df2.to_pandas()], axis=axis)
 
     expected_join_count = 1 if axis == 1 else 0
-    expected_query_count = 3 if axis == 0 else 1
 
     # list
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat([df1, df2], axis=axis), expected)
 
     # tuple
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat((df1, df2), axis=axis), expected)
 
     # generator
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat((df for df in (df1, df2)), axis=axis), expected)
 
     # deque
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat(deque((df1, df2)), axis=axis), expected)
 
     # custom iterator
@@ -315,7 +308,7 @@ def test_concat_iterables(df1, df2, axis):
             else:
                 raise StopIteration
 
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat(CustomIterator1([df1, df2]), axis=axis), expected)
 
     # customer iterator with generator
@@ -324,7 +317,7 @@ def test_concat_iterables(df1, df2, axis):
             yield df1
             yield df2
 
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(pd.concat(CustomIterator2(), axis=axis), expected)
 
 
@@ -450,7 +443,7 @@ def test_concat_multiindex_row_labels_axis0(
     df2 = df_single_col.copy()
     df2.index = index2
 
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         res_index = pd.concat([df1, df2], axis=0).to_pandas().index
         assert isinstance(res_index, MultiIndex) == isinstance(
             expected_index, MultiIndex
@@ -556,7 +549,7 @@ def test_concat_multiindex_row_labels_axis1_negative(index1, index2, df_single_c
         (_multiindex([(1, 2)]), _multiindex([(1, 2, 3)]), _index([(1, 2), (1, 2, 3)])),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_concat_multiindex_columns_axis0(
     columns1, columns2, df_single_col, expected_cols
 ):
@@ -572,7 +565,7 @@ def test_concat_multiindex_columns_axis0(
 def test_concat_index_with_nulls(df1, df2):
     df1.set_index([[None, "a", None]])
     df2.set_index([[4, 5, None, 1]])
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result("pd", "native_pd", _concat_operation([df1, df2]))
 
 
@@ -589,9 +582,7 @@ def test_concat_index_with_nulls(df1, df2):
 )
 def test_concat_with_keys(df1, df2, series1, keys, axis):
     expected_join_count = 2 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(
-        query_count=8 if len(keys) > 1 else 4, join_count=expected_join_count
-    ):
+    with SqlCounter(query_count=4, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -611,9 +602,7 @@ def test_concat_with_keys(df1, df2, series1, keys, axis):
 )
 def test_concat_same_frame_with_keys(df1, keys, axis):
     expected_join_count = 1 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(
-        query_count=5 if len(keys) > 1 else 3, join_count=expected_join_count
-    ):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd", "native_pd", _concat_operation([df1, df1], keys=keys, axis=axis)
         )
@@ -667,8 +656,10 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
+    # One extra query to convert index to native pandas when creating df
     with SqlCounter(query_count=0 if name1 is None or axis == 1 else 4, join_count=0):
         df1 = df1.rename_axis(name1, axis=axis)
+    # One extra query to convert index to native pandas when creating df
     with SqlCounter(query_count=0 if name2 is None or axis == 1 else 4, join_count=0):
         df2 = df2.rename_axis(name2, axis=axis)
 
@@ -682,7 +673,8 @@ def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
             expected_join_count += 1
         if name1 is not None and name2 is not None:
             expected_join_count += 1
-    with SqlCounter(query_count=5, join_count=expected_join_count):
+    # One extra query to convert index to native pandas when creating df
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
@@ -690,7 +682,7 @@ def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
         )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_concat_with_keys_and_extra_names_negative(df1, df2, axis):
     eval_snowpark_pandas_result(
         "pd",
@@ -718,7 +710,7 @@ def test_concat_empty_keys_negative(df1, df2, axis):
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 def test_concat_dict(df1, df2, dict_keys, axis):
     expected_join_count = 1 if axis == 1 else 0
-    with SqlCounter(query_count=5, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         objs = {dict_keys[0]: df1, dict_keys[1]: df2}
         native_objs = {dict_keys[0]: df1.to_pandas(), dict_keys[1]: df2.to_pandas()}
         eval_snowpark_pandas_result(
@@ -730,7 +722,7 @@ def test_concat_dict(df1, df2, dict_keys, axis):
 @pytest.mark.parametrize("keys", [["x", "y"], ["y", "x"], ["x"], ["y"]])
 def test_concat_dict_with_keys(df1, df2, dict_keys, keys, axis):
     expected_join_count = 1 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(query_count=5, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         objs = {dict_keys[0]: df1, dict_keys[1]: df2}
         native_objs = {dict_keys[0]: df1.to_pandas(), dict_keys[1]: df2.to_pandas()}
         eval_snowpark_pandas_result(
@@ -880,7 +872,7 @@ def test_concat_verify_integrity_axis1_with_keys():
         (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (2, 2)])),
     ],
 )
-@sql_count_checker(query_count=7, union_count=3)
+@sql_count_checker(query_count=5, union_count=3)
 def test_concat_verify_integrity_axis0(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -893,7 +885,7 @@ def test_concat_verify_integrity_axis0(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=7, union_count=3)
+@sql_count_checker(query_count=5, union_count=3)
 def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     # Even though original frames have duplicate columns, after adding keys to column
     # labels duplicates are resolved, hence no error.
@@ -910,7 +902,7 @@ def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=5, union_count=1)
+@sql_count_checker(query_count=3, union_count=1)
 def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
     # Even though original frames have duplicate columns, ignore_index=True will
     # replace original index values with values 0 to n-1, hence no error.
@@ -931,7 +923,7 @@ def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
         ([1, 1], [2, 3]),
     ],
 )
-@sql_count_checker(query_count=7, union_count=3)
+@sql_count_checker(query_count=5, union_count=3)
 def test_concat_verify_integrity_axis0_negative(index1, index2):
     df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
     df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
@@ -945,7 +937,7 @@ def test_concat_verify_integrity_axis0_negative(index1, index2):
     )
 
 
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=3, union_count=3)
 def test_concat_verify_integrity_axis0_large_overlap_negative():
     df = pd.DataFrame(data=list(range(100)))
     msg = "Indexes have overlapping values. Few of them are: .* Please run "
@@ -967,14 +959,14 @@ def test_concat_sorted_frames():
     df2 = pd.DataFrame({"B": [3, 5, 6]})
     df3 = pd.DataFrame({"A": [2, 1, 7], "B": [3, 5, 4]})
     objs = [df1, df2, df3]
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=4):
         eval_snowpark_pandas_result("pd", "native_pd", _concat_operation(objs))
     objs = [
         df1.sort_values(by="A"),
         df2.sort_values(by="B"),
         df3.sort_values(by=["B", "A"]),
     ]
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=4):
         eval_snowpark_pandas_result("pd", "native_pd", _concat_operation(objs))
 
 
@@ -1007,7 +999,7 @@ def test_concat_sorted_frames():
         ),  # duplicate in frame2
     ],
 )
-@sql_count_checker(query_count=4, union_count=1)
+@sql_count_checker(query_count=2, union_count=1)
 def test_concat_duplicate_columns(
     df1, df2, columns1, columns2, expected_rows, expected_cols
 ):
@@ -1019,7 +1011,7 @@ def test_concat_duplicate_columns(
 
 @pytest.mark.parametrize("value1", [4, 1.5, True, "c", (1, 2), {"a": 1}])
 @pytest.mark.parametrize("value2", [4, 1.5, True, "c", (1, 2), {"a": 1}])
-@sql_count_checker(query_count=5, union_count=1)
+@sql_count_checker(query_count=3, union_count=1)
 def test_concat_type_mismatch(value1, value2):
     df1 = pd.DataFrame({"A": [value1]})
     df2 = pd.DataFrame({"A": [value2]})
@@ -1043,7 +1035,7 @@ def test_concat_type_mismatch(value1, value2):
         ),
     ],
 )
-@sql_count_checker(query_count=7, union_count=1)
+@sql_count_checker(query_count=5, union_count=1)
 def test_concat_none_index_name(index1, index2):
     df1 = pd.DataFrame([11], columns=["A"], index=index1)
     df2 = pd.DataFrame([22], columns=["B"], index=index2)
@@ -1055,7 +1047,7 @@ def test_concat_none_index_name(index1, index2):
     )
 
 
-@sql_count_checker(query_count=7, union_count=1)
+@sql_count_checker(query_count=5, union_count=1)
 def test_concat_from_file(resources_path):
     test_files = TestFiles(resources_path)
     df1 = pd.read_csv(test_files.test_concat_file1_csv)

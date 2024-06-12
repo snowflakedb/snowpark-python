@@ -244,9 +244,12 @@ def test_column_index_names(pandas_label):
 
 
 @pytest.mark.parametrize("name", [None, *VALID_PANDAS_LABELS])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_pandas_column_index_names(name):
-    df = pd.DataFrame(data=[[1] * 2, [2] * 2], columns=pd.Index([1, 2], name=name))
+    df = pd.DataFrame(
+        data=[[1] * 2, [2] * 2],
+        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+    )
     assert df.columns.names == [name]
     pdf = df.to_pandas()
     assert pdf.columns.names == [name]
