@@ -939,7 +939,9 @@ def get_valid_col_positions_from_col_labels(
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
         col_loc = pd.Index(
-            [label for label in col_loc if label in columns], dtype=object
+            [label for label in col_loc if label in columns],
+            dtype=object,
+            convert_to_lazy=False,
         )
 
         # `Index._get_indexer_strict` returns position index from label index

@@ -799,8 +799,6 @@ class _LocIndexer(_LocationIndexerBase):
         pandas.DataFrame.loc
         """
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
-        # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
-        key = frontend_utils.try_convert_index_to_native(key)
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         row_loc = self._try_partial_string_indexing(row_loc)
         squeeze_row, squeeze_col = self._should_squeeze(
@@ -868,9 +866,6 @@ class _LocIndexer(_LocationIndexerBase):
         See Also:
         DataFrame.loc
         """
-        # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
-        key = frontend_utils.try_convert_index_to_native(key)
-
         # TODO: SNOW-1063352: Modin upgrade - modin.pandas.indexing._LocIndexer
         row_loc, col_loc = self._parse_row_and_column_locators(key)
 
@@ -1048,8 +1043,6 @@ class _iLocIndexer(_LocationIndexerBase):
             DataFrame, Series, or scalar.
         """
         # TODO: SNOW-1063355: Modin upgrade - modin.pandas.indexing._iLocIndexer
-        # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
-        key = frontend_utils.try_convert_index_to_native(key)
         row_loc, col_loc = self._parse_get_row_and_column_locators(key)
         squeeze_row = self._should_squeeze(locator=row_loc, axis=0)
         squeeze_col = self._should_squeeze(locator=col_loc, axis=1)
@@ -1166,9 +1159,6 @@ class _iLocIndexer(_LocationIndexerBase):
         item : modin.pandas.DataFrame, modin.pandas.Series, scalar or list like of similar
             Value that should be assigned to located dataset.
         """
-        # TODO: SNOW-1464334: Investigate High Query Counts for loc and iloc with lazy index
-        key = frontend_utils.try_convert_index_to_native(key)
-
         # TODO: SNOW-1063355: Modin upgrade - modin.pandas.indexing._iLocIndexer
         row_loc, col_loc = self._parse_set_row_and_column_locators(key)
 
