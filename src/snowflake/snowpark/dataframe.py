@@ -85,6 +85,11 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast_utils import (
+    fill_src_position,
+    get_symbol,
+    setattr_if_not_none,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -518,6 +523,9 @@ class DataFrame:
         """
         self._session = session
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if ast_stmt is not None:
+            setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
+
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -1065,13 +1073,14 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        col_expr_ast = proto.SpColumnExpr()
+        col_expr_ast = proto.Expr()
+        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        fill_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
-            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
-            return Column(Star(self._output))
+            col_expr_ast.sp_dataframe_col.col_name = "*"
+            return Column(Star(self._output), ast=col_expr_ast)
         else:
             resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
             col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
             return Column(resolved_name, ast=col_expr_ast)
 
@@ -1134,8 +1143,13 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         # TODO: remove the None guard below once we generate the correct AST.
-        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id if self._ast_id is not None else 666
-        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = (
+            self._ast_id if self._ast_id is not None else 666
+        )
+        ast.sp_dataframe_select__columns.variadic = len(cols) > 1 or not isinstance(
+            cols[0], (list, tuple, set)
+        )
+        fill_src_position(ast.sp_dataframe_select__columns.src)
 
         names = []
         table_func = None
@@ -1350,6 +1364,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         ast.sp_dataframe_filter.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        fill_src_position(ast.sp_dataframe_filter.src)
         if isinstance(expr, Column):
             pass  # TODO
         elif isinstance(expr, str):
