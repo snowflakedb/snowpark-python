@@ -18,14 +18,10 @@ class WindowFunction(Enum):
     Attributes:
         EXPANDING (str): Represents the expanding window.
         ROLLING (str): Represents the rolling window.
-        WEIGHTED (str): Represents the weighted window.
-        EXPONENTIAL (str): Represents the exponential weighted window.
     """
 
     EXPANDING = "expanding"
     ROLLING = "rolling"
-    WEIGHTED = "weighted"
-    EXPONENTIAL = "exponential"
 
 
 def check_and_raise_error_rolling_window_supported_by_snowflake(
