@@ -39,8 +39,8 @@ def open_telemetry_context_manager(func, dataframe):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = (
-            trace.get_tracer(f"snow.snowpark.{class_name.split('.')[0].lower()}")
+        tracer = trace.get_tracer(
+            f"snow.snowpark.{class_name.split('.')[0].lower()}"
             if "." in class_name
             else class_name
         )
@@ -71,12 +71,11 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = (
-            trace.get_tracer(f"snow.snowpark.{class_name.split('.')[0].lower()}")
+        tracer = trace.get_tracer(
+            f"snow.snowpark.{class_name.split('.')[0].lower()}"
             if "." in class_name
             else class_name
         )
-
         with tracer.start_as_current_span(name) as cur_span:
             try:
                 # first try to get func if it is udf, then try to get handler if it is udtf/udaf, if still None, means it is
