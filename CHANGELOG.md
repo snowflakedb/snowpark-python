@@ -6,6 +6,10 @@
 
 #### Improvements
 
+#### New Features
+
+- Added support for `to_boolean` function.
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
@@ -23,6 +27,10 @@
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
 - Fixed a bug that table merge fails when update clause exists but no update takes place.
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
+
+#### Improvements
+
+- Added support for type coercion in the implementation of DataFrame.replace, DataFrame.dropna and the mock function `iff`.
 
 ### Snowpark pandas API Updates
 
