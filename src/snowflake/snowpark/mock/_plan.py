@@ -35,8 +35,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     UnboundedPreceding,
     WindowExpression,
 )
-from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
 from snowflake.snowpark.mock._udf_utils import coerce_variant_input, remove_null_wrapper
+from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
 from snowflake.snowpark.mock._window_utils import (
     EntireWindowIndexer,
     RowFrameIndexer,
