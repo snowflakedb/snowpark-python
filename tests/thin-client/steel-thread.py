@@ -5,6 +5,8 @@
 
 import logging
 
+from parameters import CONNECTION_PARAMETERS
+
 from snowflake.snowpark import Session
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,6 @@ logger.info("Creating session")
 #     "database": "TESTDB_SNOWPANDAS",
 #     "schema": "public",
 # }
-from parameters import CONNECTION_PARAMETERS
 
 # SQL setup steps:
 # CREATE OR REPLACE WAREHOUSE TESTWH_SNOWPANDAS;
