@@ -14,7 +14,6 @@ from pandas.core.indexing import IndexingError
 from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.modin.sql_counter import (
     SqlCounter,
@@ -22,7 +21,7 @@ from tests.integ.modin.sql_counter import (
     generate_sql_count_report,
     is_sql_counter_called,
 )
-from tests.utils import Utils
+from tests.utils import Utils, running_on_public_ci
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
@@ -45,6 +44,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -52,6 +52,17 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")

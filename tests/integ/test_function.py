@@ -132,6 +132,7 @@ from snowflake.snowpark.functions import (
     struct,
     substring,
     substring_index,
+    sum as sum_,
     to_array,
     to_binary,
     to_char,
@@ -2164,3 +2165,11 @@ def test_to_decimal(session, local_testing_mode):
     # Test when input value is not supported
     with pytest.raises(SnowparkSQLException):
         df.select([to_decimal(df.float_col, 38, 0)]).collect()
+
+
+def test_negative_function_call(session):
+    df = session.create_dataframe(["a", "b"], schema=["a"])
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.select(sum_(col("a"))).collect()
+        assert "is not recognized" in str(ex_info)

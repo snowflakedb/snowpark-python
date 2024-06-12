@@ -8,9 +8,13 @@ from textwrap import dedent
 
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.base import _doc_binary_op_kwargs
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
+
+_doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
+
 
 _shared_doc_kwargs = {
     "axes": "index, columns",
@@ -45,7 +49,7 @@ axis : int or str, optional
 }
 
 
-class DataFrame:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class DataFrame:
     """
     Snowpark pandas representation of ``pandas.DataFrame`` with a lazily-evaluated relational dataset.
 

@@ -6,6 +6,11 @@
 
 #### Improvements
 
+#### Bug Fixes
+
+- Fixed a bug where python stored procedure with table return type fails when run in a task.
+- Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
+
 ### Snowpark Local Testing Updates
 
 #### New Features
@@ -15,16 +20,24 @@
 #### Bug Fixes
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
+- Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
+- Fixed a bug that table merge fails when update clause exists but no update takes place.
+- Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added partial support for `DataFrame.pct_change` and `Series.pct_change` without the `freq` and `limit` parameters.
+- Added support for `Series.str.get`.
+- Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
+- Added support for `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `Series.str.lstrip` and `Series.str.rstrip`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
+- Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 
 #### Improvements
 
@@ -121,7 +134,7 @@
 
 #### New Features
 
-- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/LIMITEDACCESS/snowpark-pandas) for more details.
+- Start of Public Preview of Snowpark pandas API. Refer to the [Snowpark pandas API Docs](https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas) for more details.
 
 ### Snowpark Local Testing Updates
 

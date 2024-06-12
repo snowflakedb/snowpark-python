@@ -338,12 +338,11 @@ def mock_to_date(
     """
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
-    def convert_date(row):
+    def convert_date(data, _fmt):
         try:
-            _fmt = fmt[row.name]
-            data = row[0]
             auto_detect = _fmt is None or _fmt.lower() == "auto"
             date_format, _ = convert_snowflake_datetime_format(
                 _fmt, default_format="%Y-%m-%d"
@@ -399,7 +398,7 @@ def mock_to_date(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    res = column.to_frame().apply(convert_date, axis=1)
+    res = column.combine(fmt, convert_date)
     res.sf_type = ColumnType(DateType(), column.sf_type.nullable)
     return res
 
@@ -907,12 +906,10 @@ def mock_to_char(
     """
     source_datatype = column.sf_type.datatype
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    if not isinstance(fmt, ColumnEmulator):
+        fmt = ColumnEmulator([fmt] * len(column), index=column.index)
 
-    def convert_char(row):
-        _fmt = fmt[row.name]
-        data = row[0]
-
+    def convert_char(data, _fmt):
         if isinstance(source_datatype, _NumericType):
             if _fmt:
                 # SNOW-1372863 to support https://docs.snowflake.com/en/sql-reference/sql-format-models
@@ -1026,8 +1023,7 @@ def mock_to_char(
                 raise_error=NotImplementedError,
             )
 
-    # row index information is needed to retrieve format information in another pd series, thus calling to_frame here
-    res = column.to_frame().apply(convert_char, axis=1)
+    res = column.combine(fmt, convert_char)
     res.sf_type = ColumnType(StringType(), column.sf_type.nullable)
     return res
 

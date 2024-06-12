@@ -107,7 +107,46 @@ class StringMethods:
         pass
 
     def get():
-        pass
+        """
+        Extract element from each component at specified position or with specified key.
+
+        Extract element from lists, tuples, dict, or strings in each element in the Series/Index.
+
+        Parameters
+        ----------
+        i : int
+            Position or key of element to extract.
+
+        Returns
+        -------
+        Series or Index
+
+        Examples
+        --------
+        >>> s = pd.Series(["String",
+        ...            (1, 2, 3),
+        ...            ["a", "b", "c"],
+        ...            123,
+        ...            -456,
+        ...            {1: "Hello", "2": "World"}])
+        >>> s.str.get(1)
+        0       t
+        1    None
+        2    None
+        3    None
+        4    None
+        5    None
+        dtype: object
+
+        >>> s.str.get(-1)
+        0       g
+        1    None
+        2    None
+        3    None
+        4    None
+        5    None
+        dtype: object
+        """
 
     def join():
         pass
@@ -663,10 +702,96 @@ class StringMethods:
         # TODO: SNOW-1432420 fix bug in docstring.
 
     def rstrip():
-        pass
+        """
+        Remove trailing characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from right side. Replaces any non-strings in Series with NaNs. Equivalent to str.rstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        Series or Index of object
+
+        See also
+        --------
+        Series.str.strip
+            Remove leading and trailing characters in Series/Index.
+        Series.str.lstrip
+            Remove leading characters in Series/Index.
+        Series.str.rstrip
+            Remove trailing characters in Series/Index.
+
+        Examples
+        --------
+        >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
+        >>> s  # doctest: +NORMALIZE_WHITESPACE
+        0    1. Ant.
+        1    2. Bee!\\n
+        2    3. Cat?\\t
+        3         None
+        4           10
+        5         True
+        dtype: object
+
+        >>> s.str.rstrip('.!? \\n\\t')
+        0    1. Ant
+        1    2. Bee
+        2    3. Cat
+        3      None
+        4      None
+        5      None
+        dtype: object
+        """
 
     def lstrip():
-        pass
+        """
+        Remove leading characters.
+
+        Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left side. Replaces any non-strings in Series with NaNs. Equivalent to str.lstrip().
+
+        Parameters
+        ----------
+        to_strip : str or None, default None
+            Specifying the set of characters to be removed. All combinations of this set of characters will be stripped. If None then whitespaces are removed.
+
+        Returns
+        -------
+        Series or Index of object
+
+        See also
+        --------
+        Series.str.strip
+            Remove leading and trailing characters in Series/Index.
+        Series.str.lstrip
+            Remove leading characters in Series/Index.
+        Series.str.rstrip
+            Remove trailing characters in Series/Index.
+
+        Examples
+        --------
+        >>> s = pd.Series(['1. Ant.  ', '2. Bee!\\n', '3. Cat?\\t', np.nan, 10, True])
+        >>> s  # doctest: +NORMALIZE_WHITESPACE
+        0    1. Ant.
+        1    2. Bee!\\n
+        2    3. Cat?\\t
+        3         None
+        4           10
+        5         True
+        dtype: object
+
+        >>> s.str.lstrip('123.')  # doctest: +NORMALIZE_WHITESPACE
+        0    Ant.
+        1    Bee!\\n
+        2    Cat?\\t
+        3      None
+        4      None
+        5      None
+        dtype: object
+        """
 
     def partition():
         pass
@@ -1082,6 +1207,38 @@ class CombinedDatetimelikeProperties:
 
     @property
     def dayofweek():
+        """
+        The day of the week with Monday=0, Sunday=6.
+
+        Return the day of the week. It is assumed the week starts on Monday,
+        which is denoted by 0, and ends on Sunday, which is denoted by 6.
+
+        Examples
+        --------
+        >>> s = pd.date_range('2016-12-31', '2017-01-08', freq='D')
+        >>> s
+        0   2016-12-31
+        1   2017-01-01
+        2   2017-01-02
+        3   2017-01-03
+        4   2017-01-04
+        5   2017-01-05
+        6   2017-01-06
+        7   2017-01-07
+        8   2017-01-08
+        dtype: datetime64[ns]
+        >>> s.dt.dayofweek
+        0    5
+        1    6
+        2    0
+        3    1
+        4    2
+        5    3
+        6    4
+        7    5
+        8    6
+        dtype: int64
+        """
         pass
 
     @property
@@ -1090,6 +1247,21 @@ class CombinedDatetimelikeProperties:
 
     @property
     def dayofyear():
+        """
+        The ordinal day of the year.
+
+        Examples
+        --------
+        >>> s = pd.to_datetime(["1/1/2020", "2/1/2020"])
+        >>> s
+        0   2020-01-01
+        1   2020-02-01
+        dtype: datetime64[ns]
+        >>> s.dt.dayofyear
+        0     1
+        1    32
+        dtype: int16
+        """
         pass
 
     @property
