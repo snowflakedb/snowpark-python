@@ -3640,6 +3640,77 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    def groupby_size(
+        self,
+        by,
+        axis,
+        groupby_kwargs,
+        agg_args,
+        agg_kwargs,
+        drop=False,
+        **kwargs
+    ):
+        """
+        compute groupby with size.
+        With a dataframe created with following:
+        import pandas as pd
+
+        data = [[1,2,3], [1, 5, 6], [2, 5, 8], [2, 6, 9]]
+
+        df = pd.DataFrame(data, columns=["a", "b", "c"], index = ["tuna", "salmon", "catfish", "goldfish"])
+
+        df
+
+                  a  b  c
+
+        tuna      1  2  3
+        salmon    1  5  6
+        catfish   2  5  8
+        goldfish  2  6  9
+
+        df.groupby("a").size()
+
+        a
+        1    2
+        2    2
+        dtype: int64
+
+
+        Args:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns).
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_size`.
+            agg_kwargs: dict
+                The aggregation keyword args, unused in `groupby_size`.
+            drop: bool
+                Drop the `by` column, unused in `groupby_size`.
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_size()
+        """
+        if not is_list_like(by):
+            by = [by]
+        # We reset index twice to ensure we perform the count aggregation on the row
+        # positions (which cannot be null).
+        result = self.reset_index(drop=True).reset_index(
+            drop=False, names=MODIN_UNNAMED_SERIES_LABEL
+        ).take_2d_labels(
+            slice(None), [MODIN_UNNAMED_SERIES_LABEL] + by
+        ).groupby_agg(
+            by,
+            "count",
+            axis,
+            groupby_kwargs,
+            (),
+            {},
+        )
+        if not groupby_kwargs.get("as_index", True):
+            return result.rename(columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "size"})
+        return result
+
     def groupby_groups(
         self,
         by: Any,
