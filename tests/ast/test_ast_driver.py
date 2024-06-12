@@ -25,7 +25,7 @@ class TestCase:
 
 def parse_file(file):
     """Parses a test case file."""
-    with open(file, encoding="utf-8") as f:
+    with open(file, "r", encoding="utf-8") as f:
         src = f.readlines()
 
     try:
@@ -77,6 +77,9 @@ def render(ast_base64: str) -> str:
 
 def run_test(session, test_source):
     source = f"""
+import snowflake.snowpark.functions as functions
+from snowflake.snowpark.functions import col
+
 # Set up mock data.
 mock = session.create_dataframe(
     [

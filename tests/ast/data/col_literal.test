@@ -1,7 +1,7 @@
 ## TEST CASE
+
 import datetime
 import decimal
-from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import *
 
 df = session.table("test_table")

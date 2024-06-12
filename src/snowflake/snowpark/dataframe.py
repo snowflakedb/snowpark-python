@@ -86,9 +86,9 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    setattr_if_not_none,
-    get_symbol,
     fill_src_position,
+    get_symbol,
+    setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager

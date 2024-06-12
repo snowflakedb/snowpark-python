@@ -64,7 +64,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryMinus,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.ast_utils import infer_const_ast, setattr_if_not_none
+from snowflake.snowpark._internal.ast_utils import fill_const_ast, setattr_if_not_none
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -431,7 +431,7 @@ class Column:
     def __hash__(self):
         return hash(self._expression)
 
-    # TODO: Implement AST generation for in_ / isin (relies on MultipleExpression and ScalarSubquery)
+    # TODO: SNOW-1474906
     def in_(
         self,
         *vals: Union[
@@ -552,6 +552,16 @@ class Column:
         return self._bin_op_rimpl("bit_xor", BitwiseXor, other)
 
     def _unary_op_impl(self, property: str, operator: UnaryExpression, attr: str = "col") -> "Column":
+        """Unary operation implementation for Columns with automatic AST logging
+
+        Args:
+            property (str): IR entity representing the unary operation in the Column AST
+            operator (UnaryExpression): Snowpark unary operator to buidl the Expression instance
+            attr (str, optional): Field of the IR entity representing this Column instance, or self. Defaults to "col".
+
+        Returns:
+            Column: new column instance with AST representing new operation over this Column instance, self.
+        """
         ast = Column._create_ast(
             property=property,
             copy_messages={attr: self._ast},
@@ -605,13 +615,13 @@ class Column:
                 property="sp_column_try_cast",
                 copy_messages={"col": self._ast},
             )
-            to.fill_ast(ast.sp_column_try_cast.to)
+            to._fill_ast(ast.sp_column_try_cast.to)
         else:
             ast = Column._create_ast(
                 property="sp_column_cast",
                 copy_messages={"col": self._ast},
             )
-            to.fill_ast(ast.sp_column_cast.to)
+            to._fill_ast(ast.sp_column_cast.to)
 
         return Column(Cast(self._expression, to, try_), ast=ast)
 
@@ -993,7 +1003,7 @@ class Column:
         if isinstance(value, cls):
             return ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-            infer_const_ast(value, ast)
+            fill_const_ast(value, ast)
         elif isinstance(value, Expression):
             pass    # TODO: clean up hack
         else:
