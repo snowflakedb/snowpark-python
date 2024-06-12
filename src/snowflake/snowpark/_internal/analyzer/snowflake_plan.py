@@ -21,7 +21,9 @@ from typing import (
     Union,
 )
 
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import Counter
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    add_node_complexities,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
@@ -233,7 +235,7 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self._cumulative_node_complexity: Optional[Counter[str]] = None
+        self._cumulative_node_complexity: Optional[Dict[str, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -353,22 +355,22 @@ class SnowflakePlan(LogicalPlan):
         return len(find_duplicate_subtrees(self))
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         if self.source_plan:
             return self.source_plan.individual_node_complexity
-        return Counter()
+        return {}
 
     @property
-    def cumulative_node_complexity(self) -> Counter[str]:
+    def cumulative_node_complexity(self) -> Dict[str, int]:
         if self._cumulative_node_complexity is None:
-            stat = self.individual_node_complexity
-            for node in self.children_plan_nodes:
-                stat += node.cumulative_node_complexity
-            self._cumulative_node_complexity = stat
+            self._cumulative_node_complexity = add_node_complexities(
+                self.individual_node_complexity,
+                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
+            )
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Counter[str]):
+    def cumulative_node_complexity(self, value: Dict[str, int]):
         self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from typing import AbstractSet, Dict, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    Counter,
     PlanNodeCategory,
 )
 from snowflake.snowpark.types import DataType
@@ -103,6 +102,6 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def individual_node_complexity(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Dict[str, int]:
         # this is a wrapper around child
-        return Counter()
+        return {}

@@ -2,21 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
+from collections import Counter
 from enum import Enum
-
-# collections.Counter does not pass type checker. Changes with appropriate type hints were made in 3.9+
-if sys.version_info < (3, 9):
-    import collections
-    import typing
-
-    KT = typing.TypeVar("KT")
-
-    class Counter(collections.Counter, typing.Counter[KT]):
-        pass
-
-else:
-    from collections import Counter  # noqa
+from typing import Dict
 
 
 class PlanNodeCategory(Enum):
@@ -47,3 +35,10 @@ class PlanNodeCategory(Enum):
     IN = "in"
     LOW_IMPACT = "low_impact"
     OTHERS = "others"
+
+
+def add_node_complexities(*node_complexities: Dict[str, int]) -> Dict[str, int]:
+    counter_sum = sum(
+        (Counter(complexity) for complexity in node_complexities), Counter()
+    )
+    return dict(counter_sum)
