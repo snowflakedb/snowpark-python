@@ -12,7 +12,7 @@ df = df.select(col("A").name("test"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table('test_table')
+res1 = session.table("test_table")
 
 res2 = res1.select(col("A").as_("TEST"))
 

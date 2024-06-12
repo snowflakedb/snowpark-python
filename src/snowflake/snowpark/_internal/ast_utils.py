@@ -53,19 +53,36 @@ def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
     
     elif isinstance(obj, datetime.datetime):
         if obj.tzinfo is not None:
-            ast.python_timestamp_val.tz.value = obj.tzname()
-        ast.python_timestamp_val.v = obj.astimezone(datetime.timezone.utc).timestamp()
+            ast.python_timestamp_val.tz.offset_seconds = int(obj.tzinfo.utcoffset(obj).total_seconds())
+            setattr_if_not_none(ast.python_timestamp_val.tz.name, "value", obj.tzinfo.tzname(obj))
+        else:
+            obj = obj.astimezone(datetime.timezone.utc)
+        
+        ast.python_timestamp_val.year = obj.year
+        ast.python_timestamp_val.month = obj.month
+        ast.python_timestamp_val.day = obj.day
+        ast.python_timestamp_val.hour = obj.hour
+        ast.python_timestamp_val.minute = obj.minute
+        ast.python_timestamp_val.second = obj.second
+        ast.python_timestamp_val.microsecond = obj.microsecond
 
     elif isinstance(obj, datetime.date):
-        datetime_val = datetime.datetime(obj.year, obj.month, obj.day)
-        ast.date_val.v = int(datetime_val.timestamp())
+        ast.python_date_val.year = obj.year
+        ast.python_date_val.month = obj.month
+        ast.python_date_val.day = obj.day
 
     elif isinstance(obj, datetime.time):
-        if obj.tzinfo is not None:
-            ast.python_time_val.tz.value = obj.tzname()
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
-        datetime_val = datetime_val.astimezone(datetime.timezone.utc).replace(1970, 1, 1)
-        ast.python_time_val.v = datetime_val.timestamp()
+        if obj.tzinfo is not None:
+            ast.python_time_val.tz.offset_seconds = int(obj.tzinfo.utcoffset(datetime_val).total_seconds())
+            setattr_if_not_none(ast.python_time_val.tz.name, "value", obj.tzinfo.tzname(datetime_val))
+        else:
+            obj = datetime_val.astimezone(datetime.timezone.utc)
+        
+        ast.python_time_val.hour = obj.hour
+        ast.python_time_val.minute = obj.minute
+        ast.python_time_val.second = obj.second
+        ast.python_time_val.microsecond = obj.microsecond
 
     elif isinstance(obj, dict):
         for key, value in obj.items():
@@ -132,7 +149,7 @@ def fill_src_position(ast: proto.SrcPosition) -> None:
     ast.file = curr_frame.filename
     ast.start_line = curr_frame.lineno
     
-    if sys.version_info[1] >= 11:
+    if sys.version_info >= (3, 11):
         code_context = curr_frame.positions
         setattr_if_not_none(ast, "start_line", code_context.lineno)
         setattr_if_not_none(ast, "end_line", code_context.end_lineno)
