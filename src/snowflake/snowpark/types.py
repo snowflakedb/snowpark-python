@@ -399,7 +399,7 @@ class ColumnIdentifier:
         result = remove_quote.search(string)
         return string[1:-1] if result else string
 
-    def fill_ast(self, ast: proto.SpColumnIdentifier) -> None:
+    def _fill_ast(self, ast: proto.SpColumnIdentifier) -> None:
         ast.name = self.quoted_name
 
 
@@ -435,8 +435,8 @@ class StructField:
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
-    def fill_ast(self, ast: proto.SpStructField) -> None:
-        self.column_identifier.fill_ast(ast.column_identifier)
+    def _fill_ast(self, ast: proto.SpStructField) -> None:
+        self.column_identifier._fill_ast(ast.column_identifier)
         self.datatype._fill_ast(ast.data_type)
         ast.nullable = self.nullable
 
@@ -514,7 +514,7 @@ class StructType(DataType):
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
         for field in self.fields:
-            field.fill_ast(ast.sp_struct_type.fields.add())
+            field._fill_ast(ast.sp_struct_type.fields.add())
 
 
 class VariantType(DataType):

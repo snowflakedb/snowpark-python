@@ -231,6 +231,10 @@ class Column:
 
     # NOTE: For now assume Expression instances can be safely ignored when building AST
     #       Expression logic can be eliminated entirely once phase 0 is integrated
+    #       Currently a breaking example can be created using the Column.isin method as it does not build the AST.
+    #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator 
+    #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently 
+    #       don't fill if the only argument provided in the Column constructor is 'expr1' of type Expression)
     def __init__(
         self,
         expr1: Union[str, Expression],
@@ -252,6 +256,9 @@ class Column:
                     quote_name(expr2), df_alias=expr1
                 )
 
+            # Alias field should be from the parameter provided to DataFrame.alias(self, name: str)
+            # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
+            # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
             if self._ast is None:
                 if expr2 == "*":
                     self._ast = Column._create_ast(
@@ -560,7 +567,7 @@ class Column:
 
         Args:
             property (str): IR entity representing the unary operation in the Column AST
-            operator (UnaryExpression): Snowpark unary operator to buidl the Expression instance
+            operator (UnaryExpression): Snowpark unary operator to build the Expression instance
             attr (str, optional): Field of the IR entity representing this Column instance, or self. Defaults to "col".
 
         Returns:

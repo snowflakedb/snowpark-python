@@ -29,24 +29,31 @@ def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
         fill_src_position(ast.null_val.src)
 
     elif isinstance(obj, bool):
+        fill_src_position(ast.bool_val.src)
         ast.bool_val.v = obj
 
     elif isinstance(obj, int):
+        fill_src_position(ast.int64_val.src)
         ast.int64_val.v = obj
 
     elif isinstance(obj, float):
+        fill_src_position(ast.float64_val.src)
         ast.float64_val.v = obj
 
     elif isinstance(obj, str):
+        fill_src_position(ast.string_val.src)
         ast.string_val.v = obj
 
     elif isinstance(obj, bytes):
+        fill_src_position(ast.binary_val.src)
         ast.binary_val.v = obj
 
     elif isinstance(obj, bytearray):
+        fill_src_position(ast.binary_val.src)
         ast.binary_val.v = bytes(obj)
 
     elif isinstance(obj, decimal.Decimal):
+        fill_src_position(ast.big_decimal_val.src)
         dec_tuple = obj.as_tuple()
         unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
@@ -58,6 +65,7 @@ def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
         ast.big_decimal_val.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
+        fill_src_position(ast.python_timestamp_val.src)
         if obj.tzinfo is not None:
             ast.python_timestamp_val.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(obj).total_seconds()
@@ -77,11 +85,13 @@ def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
         ast.python_timestamp_val.microsecond = obj.microsecond
 
     elif isinstance(obj, datetime.date):
+        fill_src_position(ast.python_date_val.src)
         ast.python_date_val.year = obj.year
         ast.python_date_val.month = obj.month
         ast.python_date_val.day = obj.day
 
     elif isinstance(obj, datetime.time):
+        fill_src_position(ast.python_time_val.src)
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
         if obj.tzinfo is not None:
             ast.python_time_val.tz.offset_seconds = int(
@@ -99,21 +109,24 @@ def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
         ast.python_time_val.microsecond = obj.microsecond
 
     elif isinstance(obj, dict):
+        fill_src_position(ast.seq_map_val.src)
         for key, value in obj.items():
             kv_tuple_ast = ast.seq_map_val.kvs.add()
             fill_const_ast(key, kv_tuple_ast.vs.add())
             fill_const_ast(value, kv_tuple_ast.vs.add())
 
     elif isinstance(obj, list):
+        fill_src_position(ast.list_val.src)
         for v in obj:
             fill_const_ast(v, ast.list_val.vs.add())
 
     elif isinstance(obj, tuple):
+        fill_src_position(ast.tuple_val.src)
         for v in obj:
             fill_const_ast(v, ast.tuple_val.vs.add())
 
     else:
-        raise TypeError("not supported type: %s" % type(obj))
+        raise NotImplementedError("not supported type: %s" % type(obj))
 
 
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
@@ -133,7 +146,7 @@ def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
     return curr_frame
 
 
-# TODO: Instead of regexp, grab assign statments using Python ast library
+# TODO: SNOW-1476291
 def get_symbol() -> Optional[str]:
     """Using the code context from a FrameInfo object, and applies a regexp to match the
     symbol left of the "=" sign in the assignment expression

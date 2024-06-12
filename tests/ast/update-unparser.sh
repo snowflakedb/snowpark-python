@@ -1,32 +1,40 @@
 #!/usr/bin/env bash
 # This helper script builds the Unparser JAR in the devvm or cloud ws and copies it over to ~/.snowflake
-# Provide the SSH Host as the only required argument.
+# If not pulling from the devvm, please provide the SSH Host as an argument.
 # For cloud workspaces this will be your Cloud workspace ID (check ~/.local/share/sfcli/ssh_config)
 # For the DevVM, you need to configure the SSH devvm host according to
 # https://snowflakecomputing.atlassian.net/wiki/spaces/EN/pages/3019015180/DevVM+Troubleshooting#Symptom:-Need-to-ssh-into-the-certified-DevVM
 # I.e., add the following lines to ~/.ssh/config
 # Host devvm
 #	  HostName sdp-devvm-<ldap user>
+# Example usage from the repo root to pull from the devvm
+#   ./tests/ast/update-unparser.sh
+# Exmaple usage from within this script's directory to pull from a cloud workspace
+#   ./update-unparser.sh <workspace_id>
 
+# Check for args
+HOST="devvm"
 if [ -z "$1" ]
   then
-    echo "No SSH Host provided, exiting."
-    exit 1
+    echo "No SSH Host provided, defaulting to \"devvm\""
+elif [ -n "$1" ]
+  then
+    echo "Using SSH Host \"$1\""
+    HOST=$1
 fi
-
 set -euxo pipefail
 
 # Step 0: Fetch remote home
-REMOTE_HOME=$(ssh $1 "bash -c 'echo \$HOME'")
+REMOTE_HOME=$(ssh $HOST "bash -c 'echo \$HOME'")
 UNPARSER_DIR="Snowflake/trunk/Snowpark/unparser"
 JAR_HOME="$REMOTE_HOME/$UNPARSER_DIR/target/scala-2.13/unparser-assembly-0.1.jar"
 
 # Step 1: Build the Unparser JAR using sbt if it does not exist
-ssh $1 "bash -c 'cd Snowflake/trunk/Snowpark/unparser;sbt assembly'" || true
+ssh $HOST "bash -c 'cd Snowflake/trunk/Snowpark/unparser;sbt assembly'" || true
 
 # Step 2: Copy file to local
 mkdir -p ~/.snowflake
-scp $1:$JAR_HOME ~/.snowflake
+scp $HOST:$JAR_HOME ~/.snowflake
 
 # Step 3: Instruct user to export SNOWPARK_UNPARSER_JAR to be used in test cases
  echo "To use the pulled Snowpark Unparser JAR please set the environment variable"
