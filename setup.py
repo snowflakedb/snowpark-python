@@ -13,11 +13,12 @@ SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
-CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
+# Use HEAD of server-side-snowpark branch in connector.
+CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@server-side-snowpark#egg=snowflake-connector-python"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
-    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "protobuf",
@@ -31,7 +32,7 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
 
 PANDAS_REQUIREMENTS = [
-    f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    f"{CONNECTOR_DEPENDENCY}[pandas]",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -114,7 +115,7 @@ setup(
         "pandas": PANDAS_REQUIREMENTS,
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
-            f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
+            f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
         ],
         "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [
