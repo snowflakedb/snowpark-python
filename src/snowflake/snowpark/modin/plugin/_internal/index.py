@@ -389,13 +389,6 @@ class Index:
 
     @property
     @index_not_implemented()
-    def inferred_type(self) -> None:
-        """
-        Return a string of the type inferred from the values.
-        """
-
-    @property
-    @index_not_implemented()
     def shape(self) -> None:
         """
         Return a tuple of the shape of the underlying data.
