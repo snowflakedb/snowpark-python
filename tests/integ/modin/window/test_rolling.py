@@ -210,6 +210,7 @@ def test_rolling_window_unsupported():
         lambda df: df.rolling(2, axis=1).sum(),
         lambda df: df.rolling(2, closed="left").sum(),
         lambda df: df.rolling(2, step=2).sum(),
+        lambda df: df.rolling(0, min_periods=0).sum(),
     ],
 )
 @sql_count_checker(query_count=0)
