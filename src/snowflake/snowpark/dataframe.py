@@ -1074,9 +1074,7 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
-        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
-            self._ast_id
-        )
+        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
         fill_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"

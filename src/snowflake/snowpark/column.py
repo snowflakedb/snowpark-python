@@ -244,7 +244,7 @@ class Column:
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
                 )
-            
+
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
             else:
@@ -535,7 +535,9 @@ class Column:
             copy_messages={"col": self._ast},
             fill_expr_asts={"lower_bound": lower_bound, "upper_bound": upper_bound},
         )
-        ret = (Column._to_expr(lower_bound) <= self) & (self <= Column._to_expr(upper_bound))
+        ret = (Column._to_expr(lower_bound) <= self) & (
+            self <= Column._to_expr(upper_bound)
+        )
         ret._ast = ast
         return ret
 
@@ -551,7 +553,9 @@ class Column:
         """Bitwise xor."""
         return self._bin_op_rimpl("bit_xor", BitwiseXor, other)
 
-    def _unary_op_impl(self, property: str, operator: UnaryExpression, attr: str = "col") -> "Column":
+    def _unary_op_impl(
+        self, property: str, operator: UnaryExpression, attr: str = "col"
+    ) -> "Column":
         """Unary operation implementation for Columns with automatic AST logging
 
         Args:
@@ -1005,7 +1009,7 @@ class Column:
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             fill_const_ast(value, ast)
         elif isinstance(value, Expression):
-            pass    # TODO: clean up hack
+            pass  # TODO: clean this up
         else:
             raise TypeError(
                 f"{type(value)} is not a valid type for Column or literal AST."
