@@ -85,38 +85,89 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
+        self.is_lazy = convert_to_lazy
+        if self.is_lazy:
+            self.set_query_compiler(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+        else:
+            self.set_local_index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+
+    def set_query_compiler(
+        self,
+        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        data: ArrayLike | Any = None,
+        dtype: str | np.dtype | ExtensionDtype | None = None,
+        copy: bool = False,
+        name: object = None,
+        tupleize_cols: bool = True,
+    ) -> None:
+        """
+        Helper method to find and save query compiler when index should be lazy
+        """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
-        self.is_lazy = convert_to_lazy
         if isinstance(data, (DataFrame, Series, Index)):
             qc = data._query_compiler
         elif isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
-            if self.is_lazy:
-                qc = DataFrame(
-                    native_pd.Index(
-                        data=data,
-                        dtype=dtype,
-                        copy=copy,
-                        name=name,
-                        tupleize_cols=tupleize_cols,
-                    ).to_frame()
-                )._query_compiler
-            else:
-                self._index = native_pd.Index(
+            qc = DataFrame(
+                native_pd.Index(
                     data=data,
                     dtype=dtype,
                     copy=copy,
                     name=name,
                     tupleize_cols=tupleize_cols,
-                )
-                return
+                ).to_frame()
+            )._query_compiler
         self._query_compiler = qc
+
+    def set_local_index(
+        self,
+        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        data: ArrayLike | Any = None,
+        dtype: str | np.dtype | ExtensionDtype | None = None,
+        copy: bool = False,
+        name: object = None,
+        tupleize_cols: bool = True,
+    ) -> None:
+        """
+        Helper method to find and save local index when index should not be lazy
+        """
+        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+        from snowflake.snowpark.modin.pandas.series import Series
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        if isinstance(data, (DataFrame, Series, Index)):
+            index = data._query_compiler._modin_frame.index_columns_pandas_index
+        elif isinstance(data, SnowflakeQueryCompiler):
+            index = data._modin_frame.index_columns_pandas_index
+        else:
+            index = native_pd.Index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+        self._index = index
 
     def is_lazy_check(func: Any) -> Any:
         """
