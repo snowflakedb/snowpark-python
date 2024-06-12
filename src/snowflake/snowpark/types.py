@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
 
@@ -41,12 +42,26 @@ class DataType:
     def is_primitive(self):
         return True
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        """Populates the provided SpDataType instance's fields with the values corresponding to this DataType's instance
+
+        Args:
+            ast (proto.SpDataType): A provided (previously created) instance of an SpDataType IR entity
+
+        Raises:
+            ValueError: If corresponding SpDataType IR entity is not available, raise an error
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} has not implemented this method to fill the SpDataType IR entity correctly"
+        )
+
 
 # Data types
 class NullType(DataType):
     """Represents a null type."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_null_type = True
 
 
 class _AtomicType(DataType):
@@ -57,19 +72,22 @@ class _AtomicType(DataType):
 class BinaryType(_AtomicType):
     """Binary data type. This maps to the BINARY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_binary_type = True
 
 
 class BooleanType(_AtomicType):
     """Boolean data type. This maps to the BOOLEAN data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_boolean_type = True
 
 
 class DateType(_AtomicType):
     """Date data type. This maps to the DATE data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_date_type = True
 
 
 class StringType(_AtomicType):
@@ -116,6 +134,11 @@ class StringType(_AtomicType):
             return StringType().__hash__()
         return super().__hash__()
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_string_type.length.SetInParent()
+        if self.length is not None:
+            ast.sp_string_type.length.value = self.length
+
 
 class _NumericType(_AtomicType):
     pass
@@ -148,11 +171,22 @@ class TimestampType(_AtomicType):
         tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
         return f"TimestampType({tzinfo})"
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.tz.value == "default":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_default = True
+        elif self.tz.value == "ntz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ntz = True
+        elif self.tz.value == "ltz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ltz = True
+        elif self.tz.value == "tz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_tz = True
+
 
 class TimeType(_AtomicType):
     """Time data type. This maps to the TIME data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_time_type = True
 
 
 # Numeric types
@@ -167,37 +201,43 @@ class _FractionalType(_NumericType):
 class ByteType(_IntegralType):
     """Byte data type. This maps to the TINYINT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_byte_type = True
 
 
 class ShortType(_IntegralType):
     """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_short_type = True
 
 
 class IntegerType(_IntegralType):
     """Integer data type. This maps to the INT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_integer_type = True
 
 
 class LongType(_IntegralType):
     """Long integer data type. This maps to the BIGINT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_long_type = True
 
 
 class FloatType(_FractionalType):
     """Float data type. This maps to the FLOAT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_float_type = True
 
 
 class DoubleType(_FractionalType):
     """Double data type. This maps to the DOUBLE data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_double_type = True
 
 
 class DecimalType(_FractionalType):
@@ -212,6 +252,10 @@ class DecimalType(_FractionalType):
 
     def __repr__(self) -> str:
         return f"DecimalType({self.precision}, {self.scale})"
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_decimal_type.precision = self.precision
+        ast.sp_decimal_type.scale = self.scale
 
 
 class ArrayType(DataType):
@@ -228,6 +272,10 @@ class ArrayType(DataType):
 
     def is_primitive(self):
         return False
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_array_type.structured = self.structured
+        self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
 class MapType(DataType):
@@ -249,6 +297,11 @@ class MapType(DataType):
     def is_primitive(self):
         return False
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_map_type.structured = self.structured
+        self.key_type._fill_ast(ast.sp_map_type.key_ty)
+        self.value_type._fill_ast(ast.sp_map_type.value_ty)
+
 
 class VectorType(DataType):
     """Vector data type. This maps to the VECTOR data type in Snowflake."""
@@ -258,7 +311,7 @@ class VectorType(DataType):
         element_type: Union[Type[int], Type[float], "int", "float"],
         dimension: int,
     ) -> None:
-        if isinstance(element_type, str):
+        if isinstance(element_type, str) and element_type in ("int", "float"):
             self.element_type = element_type
         elif element_type == int:
             self.element_type = "int"
@@ -275,6 +328,14 @@ class VectorType(DataType):
 
     def is_primitive(self):
         return False
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.element_type == "int":
+            ast.sp_vector_type.ty.sp_integer_type = True
+        elif self.element_type == "float":
+            ast.sp_vector_type.ty.sp_float_type = True
+
+        ast.sp_vector_type.dimension = self.dimension
 
 
 class ColumnIdentifier:
@@ -338,6 +399,9 @@ class ColumnIdentifier:
         result = remove_quote.search(string)
         return string[1:-1] if result else string
 
+    def _fill_ast(self, ast: proto.SpColumnIdentifier) -> None:
+        ast.name = self.quoted_name
+
 
 class StructField:
     """Represents the content of :class:`StructField`."""
@@ -370,6 +434,11 @@ class StructField:
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def _fill_ast(self, ast: proto.SpStructField) -> None:
+        self.column_identifier._fill_ast(ast.column_identifier)
+        self.datatype._fill_ast(ast.data_type)
+        ast.nullable = self.nullable
 
 
 class StructType(DataType):
@@ -442,6 +511,11 @@ class StructType(DataType):
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_struct_type.structured = self.structured
+        for field in self.fields:
+            field._fill_ast(ast.sp_struct_type.fields.add())
+
 
 class VariantType(DataType):
     """Variant data type. This maps to the VARIANT data type in Snowflake."""
@@ -449,17 +523,22 @@ class VariantType(DataType):
     def is_primitive(self):
         return False
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_variant_type = True
+
 
 class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_geography_type = True
 
 
 class GeometryType(DataType):
     """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_geometry_type = True
 
 
 class _PandasType(DataType):

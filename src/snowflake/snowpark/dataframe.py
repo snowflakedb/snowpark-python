@@ -85,6 +85,15 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast import (
+    check_response,
+    decode_ast_response_from_snowpark,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    fill_src_position,
+    get_symbol,
+    setattr_if_not_none,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -518,6 +527,9 @@ class DataFrame:
         """
         self._session = session
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if ast_stmt is not None:
+            setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
+
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -1065,13 +1077,14 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
-        col_expr_ast = proto.SpColumnExpr()
+        col_expr_ast = proto.Expr()
+        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        fill_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
-            # TODO: Need an SpDataframeColSql entity? or find entity for SpDataframeColStar equivalent
-            return Column(Star(self._output))
+            col_expr_ast.sp_dataframe_col.col_name = "*"
+            return Column(Star(self._output), ast=col_expr_ast)
         else:
             resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
             col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
             return Column(resolved_name, ast=col_expr_ast)
 
@@ -1134,8 +1147,13 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         # TODO: remove the None guard below once we generate the correct AST.
-        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = self._ast_id if self._ast_id is not None else 666
-        ast.sp_dataframe_select__columns.variadic = (len(cols) > 1 or not isinstance(cols[0], (list, tuple, set)))
+        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = (
+            self._ast_id if self._ast_id is not None else 666
+        )
+        ast.sp_dataframe_select__columns.variadic = len(cols) > 1 or not isinstance(
+            cols[0], (list, tuple, set)
+        )
+        fill_src_position(ast.sp_dataframe_select__columns.src)
 
         names = []
         table_func = None
@@ -1350,12 +1368,13 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr
         ast.sp_dataframe_filter.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        fill_src_position(ast.sp_dataframe_filter.src)
         if isinstance(expr, Column):
             pass  # TODO
         elif isinstance(expr, str):
             ast.sp_dataframe_filter.condition.sp_column_sql_expr.sql = expr
         else:
-            assert False, f"Unexpected type of {expr}: {type(expr)}"
+            raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
 
         if self._select_statement:
             return self._with_plan(
@@ -3328,96 +3347,108 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        # TODO: A little hack to prevent infinite recursion.
-        if not "snowpark_coprocessor" in query:
-            # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
-            repr = self._session._ast_batch.assign()
-            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
-            self._session._ast_batch.eval(repr)
+        # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+        repr = self._session._ast_batch.assign()
+        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        self._session._ast_batch.eval(repr)
 
-            print(f"Original: {self._plan.queries}")
-            print(f"AST: {self._session._ast_batch._request}")
-
+        if self._session._conn.is_phase1_enabled():
             ast = self._session._ast_batch.flush()
-            # TODO: Phase 0: prepend this as comment; Phase 1: invoke REST API.
-            # preview_sql = f"select system$snowpark_coprocessor('{ast}')"
-            # print(f'Base 64: {preview_sql}')
-            # self._session.sql(preview_sql).show()
             res = self._session._conn.ast_query(ast)
-            print(f"AST response: {res}")
 
-        if is_sql_select_statement(query):
-            result, meta = self._session._conn.get_result_and_metadata(
-                self.limit(n)._plan, **kwargs
+            _logger.debug(f"AST response: {res}")
+
+            # In Phase 1, the code to format the result set to a string
+            # is run on the server, retrieve simply the result here.
+            response = decode_ast_response_from_snowpark(
+                res, self._session._conn._conn._session_parameters
             )
+
+            check_response(response)
+
+            return response.body[0].eval_ok.data.string_val.v
         else:
-            res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, **kwargs
-            )
-            result = res[:n]
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-        # The query has been executed
-        col_count = len(meta)
-        col_width = []
-        header = []
-        for field in meta:
-            name = field.name
-            col_width.append(len(name))
-            header.append(name)
-
-        body = []
-        for row in result:
-            lines = []
-            for i, v in enumerate(row):
-                texts = str(v).split("\n") if v is not None else ["NULL"]
-                for t in texts:
-                    col_width[i] = max(len(t), col_width[i])
-                    col_width[i] = min(max_width, col_width[i])
-                lines.append(texts)
-
-            # max line number in this row
-            line_count = max(len(li) for li in lines)
-            res = []
-            for line_number in range(line_count):
-                new_line = []
-                for colIndex in range(len(lines)):
-                    n = (
-                        lines[colIndex][line_number]
-                        if len(lines[colIndex]) > line_number
-                        else ""
-                    )
-                    new_line.append(n)
-                res.append(new_line)
-            body.extend(res)
-
-        # Add 2 more spaces in each column
-        col_width = [w + 2 for w in col_width]
-
-        total_width = sum(col_width) + col_count + 1
-        line = "-" * total_width + "\n"
-
-        def row_to_string(row: List[str]) -> str:
-            tokens = []
-            if row:
-                for segment, size in zip(row, col_width):
-                    if len(segment) > max_width:
-                        # if truncated, add ... to the end
-                        formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
-                    else:
-                        formatted = segment.ljust(size, " ")
-                    tokens.append(formatted)
+            # Phase 0 code where string gets formatted.
+            if is_sql_select_statement(query):
+                result, meta = self._session._conn.get_result_and_metadata(
+                    self.limit(n)._plan, **kwargs
+                )
             else:
-                tokens = [" " * size for size in col_width]
-            return f"|{'|'.join(tok for tok in tokens)}|\n"
+                res, meta = self._session._conn.get_result_and_metadata(
+                    self._plan, **kwargs
+                )
+                result = res[:n]
 
-        return (
-            line
-            + row_to_string(header)
-            + line
-            # `body` of an empty df is empty
-            + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
-            + line
-        )
+            # The query has been executed
+            col_count = len(meta)
+            col_width = []
+            header = []
+            for field in meta:
+                name = field.name
+                col_width.append(len(name))
+                header.append(name)
+
+            body = []
+            for row in result:
+                lines = []
+                for i, v in enumerate(row):
+                    texts = str(v).split("\n") if v is not None else ["NULL"]
+                    for t in texts:
+                        col_width[i] = max(len(t), col_width[i])
+                        col_width[i] = min(max_width, col_width[i])
+                    lines.append(texts)
+
+                # max line number in this row
+                line_count = max(len(li) for li in lines)
+                res = []
+                for line_number in range(line_count):
+                    new_line = []
+                    for colIndex in range(len(lines)):
+                        n = (
+                            lines[colIndex][line_number]
+                            if len(lines[colIndex]) > line_number
+                            else ""
+                        )
+                        new_line.append(n)
+                    res.append(new_line)
+                body.extend(res)
+
+            # Add 2 more spaces in each column
+            col_width = [w + 2 for w in col_width]
+
+            total_width = sum(col_width) + col_count + 1
+            line = "-" * total_width + "\n"
+
+            def row_to_string(row: List[str]) -> str:
+                tokens = []
+                if row:
+                    for segment, size in zip(row, col_width):
+                        if len(segment) > max_width:
+                            # if truncated, add ... to the end
+                            formatted = (segment[: max_width - 3] + "...").ljust(
+                                size, " "
+                            )
+                        else:
+                            formatted = segment.ljust(size, " ")
+                        tokens.append(formatted)
+                else:
+                    tokens = [" " * size for size in col_width]
+                return f"|{'|'.join(tok for tok in tokens)}|\n"
+
+            return (
+                line
+                + row_to_string(header)
+                + line
+                # `body` of an empty df is empty
+                + (
+                    "".join(row_to_string(b) for b in body)
+                    if body
+                    else row_to_string([])
+                )
+                + line
+            )
 
     @df_collect_api_telemetry
     def create_or_replace_view(

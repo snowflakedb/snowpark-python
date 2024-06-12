@@ -3,13 +3,15 @@
 #
 
 import os
+
 import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
 
+
 def default_unparser_path():
-    explicit = os.getenv('SNOWPARK_UNPARSER_JAR')
+    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
     default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
     return explicit or default_default
 
