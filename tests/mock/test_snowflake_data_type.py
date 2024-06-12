@@ -4,7 +4,11 @@
 
 import pytest
 
-from snowflake.snowpark.mock._snowflake_data_type import coerce_t1_into_t2
+from snowflake.snowpark.mock._snowflake_data_type import (
+    ColumnType,
+    coerce_t1_into_t2,
+    get_coerce_result_type,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -405,16 +409,27 @@ def test_coerce_t1_into_t2_decimals(p1, p2, expected):
 def test_coerce_t1_into_t2_semi_structured():
     m1 = MapType(StringType(), StringType())
     m2 = MapType(StringType(), IntegerType())
+    structured_m = MapType(StringType(), StringType())
     mv = MapType(VariantType(), VariantType())
 
     assert coerce_t1_into_t2(m1, m1) == m1
     assert coerce_t1_into_t2(m2, m2) == m2
+    assert coerce_t1_into_t2(m1, structured_m) == structured_m
     assert coerce_t1_into_t2(m1, m2) == mv
 
     a1 = ArrayType(StringType())
     a2 = ArrayType(IntegerType())
+    structured_a = ArrayType(StringType(), structured=True)
     av = ArrayType(VariantType())
 
     assert coerce_t1_into_t2(a1, a1) == a1
+    assert coerce_t1_into_t2(a1, structured_a) == structured_a
     assert coerce_t1_into_t2(a2, a2) == a2
     assert coerce_t1_into_t2(a1, a2) == av
+
+
+def test_get_coerce_result_type_neg():
+    # Incompatible types will not have a coerce result
+    c1 = ColumnType(BinaryType(), True)
+    c2 = ColumnType(BooleanType(), True)
+    assert get_coerce_result_type(c1, c2) is None

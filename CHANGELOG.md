@@ -6,6 +6,10 @@
 
 #### Improvements
 
+#### New Features
+
+- Added support for `to_boolean` function.
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
