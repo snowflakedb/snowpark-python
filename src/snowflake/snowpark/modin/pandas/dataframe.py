@@ -2347,15 +2347,15 @@ class DataFrame(BasePandasDataset):
         len_columns = self._query_compiler.get_axis_len(1)
         if axis == 1 and len_columns == 1:
             return Series(query_compiler=self._query_compiler)
-        # get_axis_len(0) results in a sql query to count number of rows in current
-        # dataframe. We should only compute len_index if axis is 0 or None.
-        len_index = len(self)
-        if axis is None and (len_columns == 1 or len_index == 1):
-            return Series(query_compiler=self._query_compiler).squeeze()
-        if axis == 0 and len_index == 1:
-            return Series(query_compiler=self.T._query_compiler)
-        else:
-            return self.copy()
+        if axis in [0, None]:
+            # get_axis_len(0) results in a sql query to count number of rows in current
+            # dataframe. We should only compute len_index if axis is 0 or None.
+            len_index = len(self)
+            if axis is None and (len_columns == 1 or len_index == 1):
+                return Series(query_compiler=self._query_compiler).squeeze()
+            if axis == 0 and len_index == 1:
+                return Series(query_compiler=self.T._query_compiler)
+        return self.copy()
 
     @dataframe_not_implemented()
     def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
