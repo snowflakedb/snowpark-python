@@ -1212,6 +1212,9 @@ class SeriesGroupBy(DataFrameGroupBy):
             name="is_monotonic_increasing", class_="GroupBy"
         )
 
+    def size(self):
+        return super().size().rename(self._df.columns[-1])
+
     def aggregate(
         self,
         func: Optional[AggFuncType] = None,
