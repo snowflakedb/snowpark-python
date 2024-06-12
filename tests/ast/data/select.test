@@ -1,10 +1,12 @@
 ## TEST CASE
 
 df = session.table("test_table")
-df = df.filter("STR LIKE '%e%'")
+
+df = df.select("STR", col("A"))
+
 
 ## EXPECTED OUTPUT
 
 res1 = session.table("test_table")
 
-res2 = res1.filter("STR LIKE '%e%'")
+res2 = res1.select(col("STR"), col("A"))
