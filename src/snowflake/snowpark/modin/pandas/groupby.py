@@ -736,15 +736,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
 
     def size(self):
-        if self._axis == 1:
-            return DataFrameGroupBy(
-                self._df.T.iloc[:, [0]],
-                self._by,
-                0,
-                drop=self._drop,
-                idx_name=self._idx_name,
-                **self._kwargs,
-            ).size()
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         result = self._wrap_aggregation(
             type(self._query_compiler).groupby_size,
             numeric_only=False,
