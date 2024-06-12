@@ -103,6 +103,6 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # this is a wrapper around child
         return Counter()

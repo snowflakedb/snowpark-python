@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import cached_property
 from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -76,13 +75,12 @@ class SpecifiedWindowFrame(WindowFrame):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # frame_type BETWEEN lower AND upper
         return (
-            self.individual_complexity_stat
-            + self.lower.cumulative_complexity_stat
-            + self.upper.cumulative_complexity_stat
+            self.individual_node_complexity
+            + self.lower.cumulative_node_complexity
+            + self.upper.cumulative_node_complexity
         )
 
 
@@ -104,7 +102,7 @@ class WindowSpecDefinition(Expression):
         )
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         stat = Counter()
         stat += (
             Counter({PlanNodeCategory.PARTITION_BY.value: 1})
@@ -118,19 +116,18 @@ class WindowSpecDefinition(Expression):
         )
         return stat
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # partition_spec order_by_spec frame_spec
         return (
-            self.individual_complexity_stat
+            self.individual_node_complexity
             + sum(
-                (expr.cumulative_complexity_stat for expr in self.partition_spec),
+                (expr.cumulative_node_complexity for expr in self.partition_spec),
                 Counter(),
             )
             + sum(
-                (expr.cumulative_complexity_stat for expr in self.order_spec), Counter()
+                (expr.cumulative_node_complexity for expr in self.order_spec), Counter()
             )
-            + self.frame_spec.cumulative_complexity_stat
+            + self.frame_spec.cumulative_node_complexity
         )
 
 
@@ -149,13 +146,12 @@ class WindowExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.WINDOW
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # window_function OVER ( window_spec )
         return (
-            self.window_function.cumulative_complexity_stat
-            + self.window_spec.cumulative_complexity_stat
-            + self.individual_complexity_stat
+            self.window_function.cumulative_node_complexity
+            + self.window_spec.cumulative_node_complexity
+            + self.individual_node_complexity
         )
 
 
@@ -179,7 +175,7 @@ class RankRelatedFunctionExpression(Expression):
         return derive_dependent_columns(self.expr, self.default)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # for func_name
         stat = Counter({PlanNodeCategory.FUNCTION.value: 1})
         # for offset
@@ -194,11 +190,10 @@ class RankRelatedFunctionExpression(Expression):
         )
         return stat
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
-        stat = self.individual_complexity_stat + self.expr.cumulative_complexity_stat
-        stat += self.default.cumulative_complexity_stat if self.default else Counter()
+        stat = self.individual_node_complexity + self.expr.cumulative_node_complexity
+        stat += self.default.cumulative_node_complexity if self.default else Counter()
         return stat
 
 

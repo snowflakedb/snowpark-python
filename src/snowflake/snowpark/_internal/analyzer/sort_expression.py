@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import cached_property
 from typing import AbstractSet, Optional, Type
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -58,6 +57,5 @@ class SortOrder(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.child.cumulative_complexity_stat + self.individual_complexity_stat
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        return self.child.cumulative_node_complexity + self.individual_node_complexity

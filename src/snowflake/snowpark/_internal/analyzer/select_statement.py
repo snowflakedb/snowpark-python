@@ -203,7 +203,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
-        self._cumulative_complexity_stat: Optional[Counter[str]] = None
+        self._cumulative_node_complexity: Optional[Counter[str]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -295,17 +295,17 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        if self._cumulative_complexity_stat is None:
-            stat = self.individual_complexity_stat
+    def cumulative_node_complexity(self) -> Counter[str]:
+        if self._cumulative_node_complexity is None:
+            stat = self.individual_node_complexity
             for node in self.children_plan_nodes:
-                stat += node.cumulative_complexity_stat
-            self._cumulative_complexity_stat = stat
-        return self._cumulative_complexity_stat
+                stat += node.cumulative_node_complexity
+            self._cumulative_node_complexity = stat
+        return self._cumulative_node_complexity
 
-    @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Counter[str]):
-        self._cumulative_complexity_stat = value
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Counter[str]):
+        self._cumulative_node_complexity = value
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
@@ -492,8 +492,8 @@ class SelectSnowflakePlan(Selectable):
         return self._query_params
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return self.snowflake_plan.individual_complexity_stat
+    def individual_node_complexity(self) -> Counter[str]:
+        return self.snowflake_plan.individual_node_complexity
 
 
 class SelectStatement(Selectable):
@@ -689,7 +689,7 @@ class SelectStatement(Selectable):
         return [self.from_]
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         stat = Counter()
         # projection component
         stat += (
@@ -697,7 +697,7 @@ class SelectStatement(Selectable):
                 (
                     getattr(
                         expr,
-                        "cumulative_complexity_stat",
+                        "cumulative_node_complexity",
                         Counter({PlanNodeCategory.COLUMN.value: 1}),
                     )  # type: ignore
                     for expr in self.projection
@@ -711,7 +711,7 @@ class SelectStatement(Selectable):
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
         stat += (
             Counter({PlanNodeCategory.FILTER.value: 1})
-            + self.where.cumulative_complexity_stat
+            + self.where.cumulative_node_complexity
             if self.where
             else Counter()
         )
@@ -719,7 +719,7 @@ class SelectStatement(Selectable):
         # order by component - add complexity for each sort expression
         stat += (
             sum(
-                (expr.cumulative_complexity_stat for expr in self.order_by),
+                (expr.cumulative_node_complexity for expr in self.order_by),
                 Counter({PlanNodeCategory.ORDER_BY.value: 1}),
             )
             if self.order_by
@@ -1042,8 +1042,8 @@ class SelectTableFunction(Selectable):
         return self.snowflake_plan.queries[-1].params
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
-        return self.snowflake_plan.individual_complexity_stat
+    def individual_node_complexity(self) -> Counter[str]:
+        return self.snowflake_plan.individual_node_complexity
 
 
 class SetOperand:
@@ -1125,7 +1125,7 @@ class SetStatement(Selectable):
         return self._nodes
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # we add #set_operands - 1 additional operators in sql query
         return Counter(
             {PlanNodeCategory.SET_OPERATION.value: len(self.set_operands) - 1}

@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import cached_property
 from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
@@ -25,12 +24,11 @@ class MergeExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN DEL
-        stat = self.individual_complexity_stat
+        stat = self.individual_node_complexity
         stat += (
-            self.condition.cumulative_complexity_stat if self.condition else Counter()
+            self.condition.cumulative_node_complexity if self.condition else Counter()
         )
         return stat
 
@@ -42,17 +40,16 @@ class UpdateMergeExpression(MergeExpression):
         super().__init__(condition)
         self.assignments = assignments
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
-        stat = self.individual_complexity_stat
+        stat = self.individual_node_complexity
         stat += (
-            self.condition.cumulative_complexity_stat if self.condition else Counter()
+            self.condition.cumulative_node_complexity if self.condition else Counter()
         )
         stat += sum(
             (
-                key_expr.cumulative_complexity_stat
-                + val_expr.cumulative_complexity_stat
+                key_expr.cumulative_node_complexity
+                + val_expr.cumulative_node_complexity
                 for key_expr, val_expr in self.assignments.items()
             ),
             Counter(),
@@ -75,15 +72,14 @@ class InsertMergeExpression(MergeExpression):
         self.keys = keys
         self.values = values
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
-        stat = self.individual_complexity_stat
+        stat = self.individual_node_complexity
         stat += (
-            self.condition.cumulative_complexity_stat if self.condition else Counter()
+            self.condition.cumulative_node_complexity if self.condition else Counter()
         )
-        stat += sum((key.cumulative_complexity_stat for key in self.keys), Counter())
-        stat += sum((val.cumulative_complexity_stat for val in self.values), Counter())
+        stat += sum((key.cumulative_node_complexity for key in self.keys), Counter())
+        stat += sum((val.cumulative_node_complexity for val in self.values), Counter())
         return stat
 
 
@@ -103,17 +99,17 @@ class TableUpdate(LogicalPlan):
         self.children = [source_data] if source_data else []
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
         stat = sum(
             (
-                k.cumulative_complexity_stat + v.cumulative_complexity_stat
+                k.cumulative_node_complexity + v.cumulative_node_complexity
                 for k, v in self.assignments.items()
             ),
             Counter(),
         )
         stat += (
-            self.condition.cumulative_complexity_stat if self.condition else Counter()
+            self.condition.cumulative_node_complexity if self.condition else Counter()
         )
         return stat
 
@@ -132,10 +128,10 @@ class TableDelete(LogicalPlan):
         self.children = [source_data] if source_data else []
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # DELETE FROM table_name [USING source_data] [WHERE condition]
         return (
-            self.condition.cumulative_complexity_stat if self.condition else Counter()
+            self.condition.cumulative_node_complexity if self.condition else Counter()
         )
 
 
@@ -155,8 +151,8 @@ class TableMerge(LogicalPlan):
         self.children = [source] if source else []
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # MERGE INTO table_name USING (source) ON join_expr clauses
-        return self.join_expr.cumulative_complexity_stat + sum(
-            (clause.cumulative_complexity_stat for clause in self.clauses), Counter()
+        return self.join_expr.cumulative_node_complexity + sum(
+            (clause.cumulative_node_complexity for clause in self.clauses), Counter()
         )

@@ -196,7 +196,7 @@ class Join(BinaryNode):
         return self.join_type.sql
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
         stat = Counter({PlanNodeCategory.JOIN.value: 1})
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
@@ -204,12 +204,12 @@ class Join(BinaryNode):
                 {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)}
             )
         stat += (
-            self.join_condition.cumulative_complexity_stat
+            self.join_condition.cumulative_node_complexity
             if self.join_condition
             else Counter()
         )
         stat += (
-            self.match_condition.cumulative_complexity_stat
+            self.match_condition.cumulative_node_complexity
             if self.match_condition
             else Counter()
         )
