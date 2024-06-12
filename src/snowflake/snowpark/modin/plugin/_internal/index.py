@@ -32,6 +32,7 @@ from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.indexes.frozen import FrozenList
 
+from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -174,11 +175,12 @@ class Index:
         try:
             return object.__getattribute__(self, key)
         except AttributeError as err:
-            native_index = native_pd.Index([])
-            if hasattr(native_index, key):
-                raise ErrorMessage.not_implemented(
-                    f"Index.{key} is not yet implemented"
-                )
+            if key not in _ATTRS_NO_LOOKUP:
+                native_index = native_pd.Index([])
+                if hasattr(native_index, key):
+                    raise ErrorMessage.not_implemented(
+                        f"Index.{key} is not yet implemented"
+                    )
             raise err
 
     def to_pandas(self) -> native_pd.Index:
