@@ -81,8 +81,9 @@ class Index:
         >>> pd.Index(list('abc'))
         Index(['a', 'b', 'c'], dtype='object')
 
+        # Snowpark pandas casts all int types to int64 by default
         >>> pd.Index([1, 2, 3], dtype="uint8")
-        Index([1, 2, 3], dtype='uint8')
+        Index([1, 2, 3], dtype='int64')
         """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
