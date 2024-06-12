@@ -8,13 +8,12 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.window_utils import (
-    IMPLEMENTED_EXPANDING_AGG_FUNCS,
-)
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_EXPANDING_AGG_FUNCS)
+agg_func = pytest.mark.parametrize(
+    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max"]
+)
 min_periods = pytest.mark.parametrize("min_periods", [None, 0, 1, 2, 10])
 
 

@@ -306,8 +306,9 @@ from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
 )
 from snowflake.snowpark.modin.plugin._internal.window_utils import (
-    check_is_expanding_window_supported_by_snowflake,
-    check_is_rolling_window_supported_by_snowflake,
+    WindowFunction,
+    check_and_raise_error_expanding_window_supported_by_snowflake,
+    check_and_raise_error_rolling_window_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._typing import (
     DropKeep,
@@ -10543,7 +10544,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="count",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10563,7 +10564,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_sum", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="sum",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10583,7 +10584,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_mean", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="mean",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10615,7 +10616,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_var", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="var",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
@@ -10636,7 +10637,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_var", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="std",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
@@ -10656,7 +10657,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_min", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="min",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10676,7 +10677,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_max", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="rolling",
+            window_func=WindowFunction.ROLLING,
             agg_func="max",
             window_kwargs=rolling_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10783,7 +10784,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _window_agg(
         self,
-        window_func: Literal["rolling", "expanding"],
+        window_func: WindowFunction,
         agg_func: AggFuncType,
         window_kwargs: dict[str, Any],
         agg_kwargs: dict[str, Any],
@@ -10811,10 +10812,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # Throw NotImplementedError if any parameter is unsupported
-        if window_func == "rolling":
-            check_is_rolling_window_supported_by_snowflake(window_kwargs)
-        else:
-            check_is_expanding_window_supported_by_snowflake(window_kwargs)
+        if window_func == WindowFunction.ROLLING:
+            check_and_raise_error_rolling_window_supported_by_snowflake(window_kwargs)
+        elif window_func == WindowFunction.EXPANDING:
+            check_and_raise_error_expanding_window_supported_by_snowflake(window_kwargs)
 
         frame = query_compiler._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
@@ -10823,7 +10824,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             rows_between_start = -(window // 2)  # type: ignore
             rows_between_end = (window - 1) // 2  # type: ignore
         else:
-            if window_func == "rolling":
+            if window_func == WindowFunction.ROLLING:
                 # 1 - window is equivalent to window - 1 PRECEDING
                 rows_between_start = 1 - window  # type: ignore
             else:
@@ -10839,14 +10840,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Perform Aggregation over the window_expr
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             {
+                # If aggregation is count use count on row_position_quoted_identifier
+                # to include NULL values for min_periods comparison
                 quoted_identifier: iff(
                     count(col(row_position_quoted_identifier)).over(window_expr)
                     >= min_periods
                     if agg_func == "count"
                     else count(col(quoted_identifier)).over(window_expr) >= min_periods,
                     get_snowflake_agg_func(agg_func, agg_kwargs)(
+                        # Expanding is cumulative so replace NULL with 0 for sum aggregation
                         builtin("zeroifnull")(col(quoted_identifier))
-                        if window_func == "expanding" and agg_func == "sum"
+                        if window_func == WindowFunction.EXPANDING and agg_func == "sum"
                         else col(quoted_identifier)
                     ).over(window_expr),
                     pandas_lit(None),
@@ -10863,7 +10867,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         numeric_only: bool = False,
     ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="count",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10881,7 +10885,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "expanding_sum", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="sum",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10899,7 +10903,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "expanding_mean", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="mean",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10928,7 +10932,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_var", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="var",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
@@ -10947,7 +10951,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "rolling_std", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="std",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
@@ -10965,7 +10969,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "expanding_min", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="min",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),
@@ -10983,7 +10987,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "expanding_max", engine, engine_kwargs
         )
         return self._window_agg(
-            window_func="expanding",
+            window_func=WindowFunction.EXPANDING,
             agg_func="max",
             window_kwargs=expanding_kwargs,
             agg_kwargs=dict(numeric_only=numeric_only),

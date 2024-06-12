@@ -5,19 +5,35 @@
 # This file contains utils functions used by the groupby functionalities.
 #
 #
+from enum import Enum
 from typing import Any
 
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
-IMPLEMENTED_ROLLING_AGG_FUNCS = ["count", "sum", "mean", "var", "std", "min", "max"]
-IMPLEMENTED_EXPANDING_AGG_FUNCS = ["count", "sum", "mean", "var", "std", "min", "max"]
+
+class WindowFunction(Enum):
+    """
+    Type of window function.
+
+    Attributes:
+        EXPANDING (str): Represents the expanding window.
+        ROLLING (str): Represents the rolling window.
+        WEIGHTED (str): Represents the weighted window.
+        EXPONENTIAL (str): Represents the exponential weighted window.
+    """
+
+    EXPANDING = "expanding"
+    ROLLING = "rolling"
+    WEIGHTED = "weighted"
+    EXPONENTIAL = "exponential"
 
 
-def check_is_rolling_window_supported_by_snowflake(
+def check_and_raise_error_rolling_window_supported_by_snowflake(
     rolling_kwargs: dict[str, Any]
 ) -> None:
     """
     Check if execution with snowflake engine is available for the rolling window operation.
+    If not, raise NotImplementedError.
 
     Parameters
     ----------
@@ -55,11 +71,6 @@ def check_is_rolling_window_supported_by_snowflake(
             Evaluate the window at every step result, equivalent to slicing as [::step]. window must be an integer. Using a step argument other than None or 1 will produce a result with a different shape than the input.
         method: str {‘single’, ‘table’}, default ‘single’
             **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
-
-    Returns
-    -------
-    bool
-        Whether operations can be executed with snowflake sql engine.
     """
     # Snowflake pandas implementation only supports integer window_size, min_periods >= 1, and center on axis = 0
     window = rolling_kwargs.get("window")
@@ -102,11 +113,12 @@ def check_is_rolling_window_supported_by_snowflake(
         )  # pragma: no cover
 
 
-def check_is_expanding_window_supported_by_snowflake(
+def check_and_raise_error_expanding_window_supported_by_snowflake(
     expanding_kwargs: dict[str, Any]
 ) -> None:
     """
     Check if execution with snowflake engine is available for the expanding window operation.
+    If not, raise NotImplementedError.
 
     Parameters
     ----------
@@ -120,11 +132,6 @@ def check_is_expanding_window_supported_by_snowflake(
             For Series this parameter is unused and defaults to 0.
         method: str {‘single’, ‘table’}, default ‘single’
             **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
-
-    Returns
-    -------
-    bool
-        Whether operations can be executed with snowflake sql engine.
     """
 
     axis = expanding_kwargs.get("axis", 0)
