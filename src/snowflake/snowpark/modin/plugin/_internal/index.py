@@ -160,49 +160,6 @@ class Index:
 
         return check_lazy
 
-    def is_lazy_check(func: Any) -> Any:
-        """
-        Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
-        """
-
-        def check_lazy(*args: Any, **kwargs: Any) -> Any:
-            func_name = func.__name__
-
-            # If the index is lazy, call the method and return
-            if args[0].is_lazy:
-                returned_value = func(*args, **kwargs)
-                return returned_value
-            else:
-                # If the index is not lazy, get the cached native index and call the function
-                native_index = args[0]._index
-                native_func = getattr(native_index, func_name)
-
-                # If the function is a property, we will get a non-callable, so we just return it
-                # Examples of this are values or dtype
-                if not callable(native_func):
-                    return native_func
-
-                # Remove the first argument in args, because it is `self` and we don't need it
-                args = args[1:]
-                returned_value = native_func(*args, **kwargs)
-
-                # If we return a native Index, we need to convert this to a modin index but keep it locally.
-                # Examples of this are `astype` and `copy`
-                if isinstance(returned_value, native_pd.Index):
-                    returned_value = Index(returned_value, convert_to_lazy=False)
-                # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
-                # Examples of this are `_get_indexer_strict` and `sort_values`
-                elif isinstance(returned_value, tuple) and isinstance(
-                    returned_value[0], native_pd.Index
-                ):
-                    returned_value = (
-                        Index(returned_value[0], convert_to_lazy=False),
-                        returned_value[1],
-                    )
-                return returned_value
-
-        return check_lazy
-
     def to_pandas(self) -> native_pd.Index:
         """
         Convert Snowpark pandas Index to pandas Index
