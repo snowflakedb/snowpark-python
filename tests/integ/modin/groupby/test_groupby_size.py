@@ -17,7 +17,6 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "col2_int64",
         "col3_int_identical",
         "col4_int32",
-        "col5_int16",
         "col6_mixed",
         "col7_bool",
         "col8_bool_missing",
@@ -74,6 +73,14 @@ def test_groupby_size(by, as_index):
             snowpark_pandas_df,
             pandas_df,
             lambda df: df.groupby(by, as_index=as_index).size(),
+        )
+
+    # DataFrame with __getitem__
+    with SqlCounter(query_count=1 if as_index else 2):
+        eval_snowpark_pandas_result(
+            snowpark_pandas_df,
+            pandas_df,
+            lambda df: df.groupby(by, as_index=as_index)["col5_int16"].size(),
         )
 
 
