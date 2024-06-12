@@ -31,7 +31,7 @@ class AstBatch:
         # TODO: extended BindingId spec from the branch snowpark-ir.
         stmt.assign.uid = next(self._id_gen)
         stmt.assign.var_id.bitfield1 = stmt.assign.uid
-        stmt.assign.symbol = symbol if isinstance(symbol, str) else ""
+        stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
         return stmt.assign
 
     def eval(self, target):

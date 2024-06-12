@@ -1,0 +1,21 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col
+
+df = session.table("test_table")
+
+df = df.select(col("A").asc())
+
+df = df.select(col("A").asc_nulls_first())
+
+df = df.select(col("A").asc_nulls_last())
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.select(col("A").asc())
+
+res3 = res2.select(col("A").asc_nulls_first())
+
+res4 = res3.select(col("A").asc_nulls_last())

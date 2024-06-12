@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.select(col("A").desc())
+
+df = df.select(col("A").desc_nulls_first())
+
+df = df.select(col("A").desc_nulls_last())
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.select(col("A").desc())
+
+res3 = res2.select(col("A").desc_nulls_first())
+
+res4 = res3.select(col("A").desc_nulls_last())

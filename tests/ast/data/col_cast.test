@@ -1,0 +1,118 @@
+## TEST CASE
+
+from snowflake.snowpark.types import *
+
+df = session.table("test_table")
+
+df = df.select(col("A").cast("null"))
+
+df = df.select(col("A").cast("binary"))
+
+df = df.select(col("A").cast("boolean"))
+
+df = df.select(col("A").cast("date"))
+
+df = df.select(col("A").cast("string"))
+
+df = df.select(col("A").cast("byte"))
+
+df = df.select(col("A").cast("short"))
+
+df = df.select(col("A").cast("integer"))
+
+df = df.select(col("A").cast("long"))
+
+df = df.select(col("A").cast("float"))
+
+df = df.select(col("A").cast("double"))
+
+df = df.select(col("A").cast("timestamp"))
+
+df = df.select(col("A").cast("time"))
+
+df = df.select(col("A").cast("array"))
+
+df = df.select(col("A").cast("map"))
+
+df = df.select(col("A").cast(VectorType(float, 42)))
+
+df = df.select(col("A").cast("struct"))
+
+df = df.select(col("A").cast("variant"))
+
+df = df.select(col("A").cast("geography"))
+
+df = df.select(col("A").cast("geometry"))
+
+df = df.select(col("A").cast("int"))
+
+df = df.select(col("A").cast("smallint"))
+
+df = df.select(col("A").cast("byteint"))
+
+df = df.select(col("A").cast("bigint"))
+
+df = df.select(col("A").cast("number"))
+
+df = df.select(col("A").cast("numeric"))
+
+df = df.select(col("A").cast("object"))
+
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.select(col("A").cast(NullType()))
+
+res3 = res2.select(col("A").cast(BinaryType()))
+
+res4 = res3.select(col("A").cast(BooleanType()))
+
+res5 = res4.select(col("A").cast(DateType()))
+
+res6 = res5.select(col("A").cast(StringType()))
+
+res7 = res6.select(col("A").cast(ByteType()))
+
+res8 = res7.select(col("A").cast(ShortType()))
+
+res9 = res8.select(col("A").cast(IntegerType()))
+
+res10 = res9.select(col("A").cast(LongType()))
+
+res11 = res10.select(col("A").cast(FloatType()))
+
+res12 = res11.select(col("A").cast(DoubleType()))
+
+res13 = res12.select(col("A").cast(TimestampType()))
+
+res14 = res13.select(col("A").cast(TimeType()))
+
+res15 = res14.select(col("A").cast(ArrayType(StringType(), structured=False)))
+
+res16 = res15.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
+
+res17 = res16.select(col("A").cast(VectorType(FloatType(), 42)))
+
+res18 = res17.select(col("A").cast(StructType([], structured=False)))
+
+res19 = res18.select(col("A").cast(VariantType()))
+
+res20 = res19.select(col("A").cast(GeographyType()))
+
+res21 = res20.select(col("A").cast(GeometryType()))
+
+res22 = res21.select(col("A").cast(IntegerType()))
+
+res23 = res22.select(col("A").cast(ShortType()))
+
+res24 = res23.select(col("A").cast(ByteType()))
+
+res25 = res24.select(col("A").cast(LongType()))
+
+res26 = res25.select(col("A").cast(DecimalType(38, 0)))
+
+res27 = res26.select(col("A").cast(DecimalType(38, 0)))
+
+res28 = res27.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
