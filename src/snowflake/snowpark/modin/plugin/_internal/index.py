@@ -38,34 +38,6 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     index_not_implemented,
 )
 
-INDEX_METHODS_NOT_IMPLEMENTED = [
-    "nbytes",
-    "memory_usage",
-    "factorize",
-    "is_",
-    "is_categorical",
-    "repeat",
-    "where",
-    "take",
-    "putmask",
-    "droplevel",
-    "map",
-    "ravel",
-    "view",
-    "argsort",
-    "searchsorted",
-    "shift",
-    "symmetric_difference",
-    "asof",
-    "asof_locs",
-    "get_indexer",
-    "get_indexer_for",
-    "get_indexer_non_unique",
-    "get_loc",
-    "get_slice_bound",
-    "slice_locs",
-]
-
 
 class Index:
     """
@@ -152,11 +124,11 @@ class Index:
         This method also helps raise NotImplementedError for APIs out
         of current scope that are not implemented.
         """
-        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         try:
             return object.__getattribute__(self, key)
         except AttributeError as err:
-            if key in INDEX_METHODS_NOT_IMPLEMENTED:
+            native_index = native_pd.Index([])
+            if hasattr(native_index, key):
                 raise ErrorMessage.not_implemented(
                     f"Index.{key} is not yet implemented"
                 )
@@ -332,6 +304,7 @@ class Index:
         return self.to_pandas().dtype
 
     @property
+    @index_not_implemented()
     def inferred_type(self) -> None:
         """
         Return a string of the type inferred from the values.
