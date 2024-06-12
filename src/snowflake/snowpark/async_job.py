@@ -370,12 +370,6 @@ class AsyncJob:
                 # If we can advance in ASYNC_RETRY_PATTERN then do so
                 if retry_pattern_pos < (len(ASYNC_RETRY_PATTERN) - 1):
                     retry_pattern_pos += 1
-            if status != QueryStatus.SUCCESS:
-                raise SnowparkSQLException(
-                    "Status of query '{}' is {}, results are unavailable".format(
-                        self.query_id, status.name
-                    )
-                )
             result = None
         elif async_result_type == _AsyncResultType.PANDAS:
             result = self._session._conn._to_data_or_iter(
