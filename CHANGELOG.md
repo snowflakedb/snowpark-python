@@ -41,6 +41,7 @@
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
+- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 
 #### Bug Fixes
 

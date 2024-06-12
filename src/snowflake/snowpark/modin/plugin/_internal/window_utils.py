@@ -10,6 +10,7 @@ from typing import Any
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 IMPLEMENTED_ROLLING_AGG_FUNCS = ["sum", "mean", "var", "std", "min", "max"]
+IMPLEMENTED_EXPANDING_AGG_FUNCS = ["mean", "var", "std", "min", "max"]
 
 
 def check_is_rolling_window_supported_by_snowflake(
@@ -53,8 +54,7 @@ def check_is_rolling_window_supported_by_snowflake(
         step: int, default None
             Evaluate the window at every step result, equivalent to slicing as [::step]. window must be an integer. Using a step argument other than None or 1 will produce a result with a different shape than the input.
         method: str {‘single’, ‘table’}, default ‘single’
-            Execute the rolling operation per single column or row ('single') or over the entire object ('table').
-            This argument is only implemented when specifying engine='numba' in the method call.
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
 
     Returns
     -------
@@ -69,7 +69,6 @@ def check_is_rolling_window_supported_by_snowflake(
     axis = rolling_kwargs.get("axis", 0)
     closed = rolling_kwargs.get("closed")
     step = rolling_kwargs.get("step")
-    # Method is only used for the numba engine, so no need to check the param/raise a warning to the user.
 
     # Raise not implemented error for unsupported params
     if not isinstance(window, int):
@@ -100,4 +99,38 @@ def check_is_rolling_window_supported_by_snowflake(
     if step:
         ErrorMessage.method_not_implemented_error(
             name="step", class_="Rolling"
+        )  # pragma: no cover
+
+
+def check_is_expanding_window_supported_by_snowflake(
+    expanding_kwargs: dict[str, Any]
+) -> None:
+    """
+    Check if execution with snowflake engine is available for the expanding window operation.
+
+    Parameters
+    ----------
+    expanding_kwargs: keyword arguments passed to expanding. The expanding keywords handled in the
+        function contains:
+        min_periods: int, default 1.
+            Minimum number of observations in window required to have a value; otherwise, result is np.nan.
+        axis: int or str, default 0
+            If 0 or 'index', roll across the rows.
+            If 1 or 'columns', roll across the columns.
+            For Series this parameter is unused and defaults to 0.
+        method: str {‘single’, ‘table’}, default ‘single’
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
+
+    Returns
+    -------
+    bool
+        Whether operations can be executed with snowflake sql engine.
+    """
+
+    axis = expanding_kwargs.get("axis", 0)
+
+    if axis not in (0, "index"):
+        # Note that this is deprecated since pandas 2.1.0
+        ErrorMessage.method_not_implemented_error(
+            name="axis = 1", class_="Expanding"
         )  # pragma: no cover
