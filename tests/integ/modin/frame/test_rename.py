@@ -104,7 +104,8 @@ class TestRename:
             assert_index_equal(renamed.index, native_pd.Index(["A", "B", "foo", "bar"]))
 
         # index with name
-        with SqlCounter(query_count=2, join_count=1):
+        # Two extra queries, one for converting to native pandas in renamer Dataframe constructor, one to get the name
+        with SqlCounter(query_count=4, join_count=2):
             index = Index(["foo", "bar"], name="name")
             renamer = DataFrame(data, index=index)
             renamed = renamer.rename(index={"foo": "bar", "bar": "foo"})
@@ -201,7 +202,7 @@ class TestRename:
         with pytest.raises(NotImplementedError):
             df.rename(index={"foo1": "foo3", "bar2": "bar3"}, level=0)
 
-    @sql_count_checker(query_count=4)
+    @sql_count_checker(query_count=2)
     def test_rename_nocopy(self, snow_float_frame):
         renamed = snow_float_frame.rename(columns={"C": "foo"}, copy=False)
         # copy=False is ignored in Snowpark pandas
@@ -210,7 +211,7 @@ class TestRename:
             snow_float_frame["C"].to_pandas()._values,
         )
 
-    @sql_count_checker(query_count=2)
+    @sql_count_checker(query_count=0)
     def test_rename_inplace(self, snow_float_frame):
         snow_float_frame.rename(columns={"C": "foo"})
         assert "C" in snow_float_frame

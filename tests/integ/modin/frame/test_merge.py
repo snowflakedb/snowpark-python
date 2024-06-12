@@ -23,9 +23,7 @@ from tests.integ.modin.utils import (
 
 @pytest.fixture
 def empty_df():
-    return pd.DataFrame(
-        columns=["A", "B"], dtype="int64", index=native_pd.Index([], name="i")
-    )
+    return pd.DataFrame(columns=["A", "B"], dtype="int64", index=pd.Index([], name="i"))
 
 
 @pytest.fixture
@@ -37,7 +35,7 @@ def left_df():
             "left_c": [1.0, 2.0, 3.0, 4.0, np.NaN],
             "left_d": [None, "d", "a", "c", "b"],
         },
-        index=native_pd.Index([0, 1, 3, 2, 4], name="left_i"),
+        index=pd.Index([0, 1, 3, 2, 4], name="left_i"),
     )
 
 
@@ -66,7 +64,7 @@ def right_df():
             "right_c": [2.0, 1.0, 4.0, 0.0, np.NaN],
             "right_d": ["c", "d", "a", "b", None],
         },
-        index=native_pd.Index([8, 4, 2, 9, 1], name="right_i"),
+        index=pd.Index([8, 4, 2, 9, 1], name="right_i"),
     )
 
 
@@ -924,6 +922,7 @@ def test_merge_outer_with_nan(dtype):
     _verify_merge(right, left, "outer", on="key")
 
 
+# Two extra queries to convert to native index for dataframe constructor when creating left and right
 @sql_count_checker(query_count=5, join_count=1)
 def test_merge_different_index_names():
     left = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="c"))
