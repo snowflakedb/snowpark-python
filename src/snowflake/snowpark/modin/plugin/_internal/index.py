@@ -26,7 +26,6 @@ from __future__ import annotations
 from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
-import pandas
 import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
@@ -38,7 +37,6 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 INDEX_METHODS_NOT_IMPLEMENTED = [
     "nbytes",
@@ -419,6 +417,13 @@ class Index:
         # TODO: SNOW-1458118 implement size
 
     @property
+    def nlevels(self) -> int:
+        """
+        Number of levels.
+        """
+        return 1
+
+    @property
     @index_not_implemented()
     def empty(self) -> None:
         """
@@ -427,20 +432,23 @@ class Index:
         # TODO: SNOW-1458118 implement empty
 
     @property
-    @index_not_implemented()
-    def T(self) -> Index:
+    def T(self, *args: Any, **kwargs: Any) -> Index:
         """
         Return the transpose, which is by definition self.
-        """
-        # TODO: SNOW-1458140 implement T
-        return self
 
-    @property
-    def nlevels(self) -> int:
+        Parameters
+        ----------
+        *args : Any
+            Optional positional arguments for compatibility with other T APIs.
+        **kwargs : Any
+            Optional keyword arguments for compatibility with other T APIs.
+
+        Returns
+        -------
+        Index
+            This is self
         """
-        Number of levels.
-        """
-        return 1
+        return self
 
     @index_not_implemented()
     def all(self) -> None:
@@ -2045,6 +2053,8 @@ class Index:
         """
         Helper method to notify users if they are using a method that currently calls to_pandas()
         """
-        WarningMessage.single_warning(
-            "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
-        )
+        # TODO: SNOW-1359041 re-enable it once lazy index representation is ready
+        # WarningMessage.single_warning(
+        #     "This method currently calls to_pandas() and materializes data. In future updates, this method will be lazily evaluated"
+        # )
+        pass

@@ -176,7 +176,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.nbytes(),
     lambda idx: idx.size(),
     lambda idx: idx.empty(),
-    lambda idx: idx.T(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.all(),
     lambda idx: idx.any(),
