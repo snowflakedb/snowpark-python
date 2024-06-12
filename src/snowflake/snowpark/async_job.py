@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 from snowflake.connector.constants import QueryStatus
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN, ASYNC_NO_DATA_MAX_RETRY
+from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 
 import snowflake.snowpark
 from snowflake.connector.errors import DatabaseError
