@@ -27,35 +27,35 @@ else:
 class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
-        self._cumulative_complexity_stat: Optional[Counter[str]] = None
+        self._cumulative_node_complexity: Optional[Counter[str]] = None
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.OTHERS
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         """Returns the individual contribution of the logical plan node towards the
         overall compilation complexity of the generated sql.
         """
         return Counter({self.plan_node_category.value: 1})
 
     @property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def cumulative_node_complexity(self) -> Counter[str]:
         """Returns the aggregate sum complexity statistic from the subtree rooted at this
         logical plan node. Statistic of current node is included in the final aggregate.
         """
-        if self._cumulative_complexity_stat is None:
-            stat = self.individual_complexity_stat
+        if self._cumulative_node_complexity is None:
+            stat = self.individual_node_complexity
             for node in self.children:
-                stat += node.cumulative_complexity_stat
+                stat += node.cumulative_node_complexity
 
-            self._cumulative_complexity_stat = stat
-        return self._cumulative_complexity_stat
+            self._cumulative_node_complexity = stat
+        return self._cumulative_node_complexity
 
-    @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Counter[str]):
-        self._cumulative_complexity_stat = value
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Counter[str]):
+        self._cumulative_node_complexity = value
 
 
 class LeafNode(LogicalPlan):
@@ -73,7 +73,7 @@ class Range(LeafNode):
         self.num_slices = num_slices
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
         return Counter(
             {
@@ -92,7 +92,7 @@ class UnresolvedRelation(LeafNode):
         self.name = name
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # SELECT * FROM name
         return Counter({PlanNodeCategory.COLUMN.value: 1})
 
@@ -110,7 +110,7 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
         # TODO: use ARRAY_BIND_THRESHOLD
         return Counter(
@@ -151,7 +151,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.comment = comment
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (query)
         stat = Counter({PlanNodeCategory.COLUMN.value: 1})
         stat += (
@@ -161,7 +161,7 @@ class SnowflakeCreateTable(LogicalPlan):
         )
         stat += (
             sum(
-                (expr.cumulative_complexity_stat for expr in self.clustering_exprs),
+                (expr.cumulative_node_complexity for expr in self.clustering_exprs),
                 Counter(),
             )
             if self.clustering_exprs
@@ -181,12 +181,12 @@ class Limit(LogicalPlan):
         self.children.append(child)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         # for limit and offset
         return (
             Counter({PlanNodeCategory.LOW_IMPACT.value: 2})
-            + self.limit_expr.cumulative_complexity_stat
-            + self.offset_expr.cumulative_complexity_stat
+            + self.limit_expr.cumulative_node_complexity
+            + self.offset_expr.cumulative_node_complexity
         )
 
 

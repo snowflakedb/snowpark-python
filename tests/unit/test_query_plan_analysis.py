@@ -39,7 +39,7 @@ from snowflake.snowpark.types import IntegerType
 
 
 @pytest.mark.parametrize("node_type", [LogicalPlan, SnowflakePlan, Selectable])
-def test_assign_custom_cumulative_complexity_stat(
+def test_assign_custom_cumulative_node_complexity(
     mock_session, mock_analyzer, mock_query, node_type
 ):
     def get_node_for_type(node_type):
@@ -83,32 +83,32 @@ def test_assign_custom_cumulative_complexity_stat(
     set_children(nodes[5], node_type, [])
     set_children(nodes[6], node_type, [])
 
-    assert nodes[0].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 7}
-    assert nodes[1].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 5}
-    assert nodes[2].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[3].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[4].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 2}
-    assert nodes[5].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[6].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 7}
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 5}
+    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[3].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[4].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 2}
+    assert nodes[5].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
 
-    nodes[1].cumulative_complexity_stat = Counter({PlanNodeCategory.COLUMN.value: 1})
+    nodes[1].cumulative_node_complexity = Counter({PlanNodeCategory.COLUMN.value: 1})
 
     # assert that only value that is reset is changed
-    assert nodes[0].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 7}
-    assert nodes[1].cumulative_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
-    assert nodes[2].cumulative_complexity_stat == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 7}
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
+    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
 
 
-def test_selectable_entity_individual_complexity_stat(mock_analyzer):
+def test_selectable_entity_individual_node_complexity(mock_analyzer):
     plan_node = SelectableEntity(entity_name="dummy entity", analyzer=mock_analyzer)
-    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
 
 
-def test_select_sql_individual_complexity_stat(mock_session, mock_analyzer):
+def test_select_sql_individual_node_complexity(mock_session, mock_analyzer):
     plan_node = SelectSQL(
         "non-select statement", convert_to_select=True, analyzer=mock_analyzer
     )
-    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 1}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
 
     def mocked_get_result_attributes(sql):
         return [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
@@ -123,12 +123,12 @@ def test_select_sql_individual_complexity_stat(mock_session, mock_analyzer):
     ):
         with mock.patch.object(mock_analyzer, "analyze", side_effect=mocked_analyze):
             plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
-            assert plan_node.individual_complexity_stat == {
+            assert plan_node.individual_node_complexity == {
                 PlanNodeCategory.COLUMN.value: 2
             }
 
 
-def test_select_snowflake_plan_individual_complexity_stat(
+def test_select_snowflake_plan_individual_node_complexity(
     mock_session, mock_analyzer, mock_query
 ):
     source_plan = Project([NamedExpression(), NamedExpression()], LogicalPlan())
@@ -136,7 +136,7 @@ def test_select_snowflake_plan_individual_complexity_stat(
         [mock_query], "", source_plan=source_plan, session=mock_session
     )
     plan_node = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
-    assert plan_node.individual_complexity_stat == {PlanNodeCategory.COLUMN.value: 2}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 2}
 
 
 @pytest.mark.parametrize(
@@ -158,7 +158,7 @@ def test_select_snowflake_plan_individual_complexity_stat(
         ("offset", 2, {PlanNodeCategory.LOW_IMPACT.value: 1}),
     ],
 )
-def test_select_statement_individual_complexity_stat(
+def test_select_statement_individual_node_complexity(
     mock_analyzer, attribute, value, expected_stat
 ):
     from_ = mock.create_autospec(Selectable)
@@ -169,10 +169,10 @@ def test_select_statement_individual_complexity_stat(
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
     setattr(plan_node, attribute, value)
-    assert plan_node.individual_complexity_stat == expected_stat
+    assert plan_node.individual_node_complexity == expected_stat
 
 
-def test_select_table_function_individual_complexity_stat(
+def test_select_table_function_individual_node_complexity(
     mock_analyzer, mock_session, mock_query
 ):
     func_expr = mock.create_autospec(TableFunctionExpression)
@@ -186,13 +186,13 @@ def test_select_table_function_individual_complexity_stat(
 
     with mock.patch.object(mock_analyzer, "resolve", side_effect=mocked_resolve):
         plan_node = SelectTableFunction(func_expr, analyzer=mock_analyzer)
-        assert plan_node.individual_complexity_stat == {
+        assert plan_node.individual_node_complexity == {
             PlanNodeCategory.COLUMN.value: 2
         }
 
 
 @pytest.mark.parametrize("set_operator", [UNION, UNION_ALL, INTERSECT, EXCEPT])
-def test_set_statement_individual_complexity_stat(mock_analyzer, set_operator):
+def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
     mock_selectable = mock.create_autospec(Selectable)
     mock_selectable.pre_actions = None
     mock_selectable.post_actions = None
@@ -204,6 +204,6 @@ def test_set_statement_individual_complexity_stat(mock_analyzer, set_operator):
     ]
     plan_node = SetStatement(*set_operands, analyzer=mock_analyzer)
 
-    assert plan_node.individual_complexity_stat == {
+    assert plan_node.individual_node_complexity == {
         PlanNodeCategory.SET_OPERATION.value: 1
     }

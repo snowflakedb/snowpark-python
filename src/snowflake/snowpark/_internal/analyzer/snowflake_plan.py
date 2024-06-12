@@ -233,7 +233,7 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self._cumulative_complexity_stat: Optional[Counter[str]] = None
+        self._cumulative_node_complexity: Optional[Counter[str]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -353,23 +353,23 @@ class SnowflakePlan(LogicalPlan):
         return len(find_duplicate_subtrees(self))
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         if self.source_plan:
-            return self.source_plan.individual_complexity_stat
+            return self.source_plan.individual_node_complexity
         return Counter()
 
     @property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        if self._cumulative_complexity_stat is None:
-            stat = self.individual_complexity_stat
+    def cumulative_node_complexity(self) -> Counter[str]:
+        if self._cumulative_node_complexity is None:
+            stat = self.individual_node_complexity
             for node in self.children_plan_nodes:
-                stat += node.cumulative_complexity_stat
-            self._cumulative_complexity_stat = stat
-        return self._cumulative_complexity_stat
+                stat += node.cumulative_node_complexity
+            self._cumulative_node_complexity = stat
+        return self._cumulative_node_complexity
 
-    @cumulative_complexity_stat.setter
-    def cumulative_complexity_stat(self, value: Counter[str]):
-        self._cumulative_complexity_stat = value
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Counter[str]):
+        self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:

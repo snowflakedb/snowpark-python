@@ -4,7 +4,6 @@
 
 import copy
 import uuid
-from functools import cached_property
 from typing import TYPE_CHECKING, AbstractSet, Any, List, Optional, Tuple
 
 import snowflake.snowpark._internal.utils
@@ -63,6 +62,7 @@ class Expression:
         self.nullable = True
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
+        self._cumulative_node_complexity: Optional[Counter] = None
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.
@@ -85,30 +85,41 @@ class Expression:
         )
         return f"{self.pretty_name}({children_sql})"
 
+    def __str__(self) -> str:
+        return self.pretty_name
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.OTHERS
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         """Returns the individual contribution of the expression node towards the overall
         compilation complexity of the generated sql.
         """
         return Counter({self.plan_node_category.value: 1})
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self):
+        children = self.children or []
+        return sum(
+            (child.cumulative_node_complexity for child in children),
+            self.individual_node_complexity,
+        )
+
+    @property
+    def cumulative_node_complexity(self) -> Counter[str]:
         """Returns the aggregate sum complexity statistic from the subtree rooted at this
         expression node. Statistic of current node is included in the final aggregate.
         """
-        children = self.children or []
-        return sum(
-            (child.cumulative_complexity_stat for child in children),
-            self.individual_complexity_stat,
-        )
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = (
+                self.calculate_cumulative_node_complexity()
+            )
+        return self._cumulative_node_complexity
 
-    def __str__(self) -> str:
-        return self.pretty_name
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Counter[str]):
+        self._cumulative_node_complexity = value
 
 
 class NamedExpression:
@@ -135,9 +146,8 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.plan.cumulative_complexity_stat
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        return self.plan.cumulative_node_complexity
 
 
 class MultipleExpression(Expression):
@@ -148,10 +158,9 @@ class MultipleExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return sum(
-            (expr.cumulative_complexity_stat for expr in self.expressions),
+            (expr.cumulative_node_complexity for expr in self.expressions),
             Counter(),
         )
 
@@ -169,13 +178,12 @@ class InExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.IN
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return (
-            self.columns.cumulative_complexity_stat
-            + self.individual_complexity_stat
+            self.columns.cumulative_node_complexity
+            + self.individual_node_complexity
             + sum(
-                (expr.cumulative_complexity_stat for expr in self.values),
+                (expr.cumulative_node_complexity for expr in self.values),
                 Counter(),
             )
         )
@@ -225,16 +233,15 @@ class Star(Expression):
         return derive_dependent_columns(*self.expressions)
 
     @property
-    def individual_complexity_stat(self) -> Counter[str]:
+    def individual_node_complexity(self) -> Counter[str]:
         if self.expressions:
             return Counter()
         # if there are no expressions, we assign column value = 1 to Star
         return Counter({PlanNodeCategory.COLUMN.value: 1})
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.individual_complexity_stat + sum(
-            (child.individual_complexity_stat for child in self.expressions),
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        return self.individual_node_complexity + sum(
+            (child.individual_node_complexity for child in self.expressions),
             Counter(),
         )
 
@@ -370,12 +377,11 @@ class Like(Expression):
         # expr LIKE pattern
         return PlanNodeCategory.LOW_IMPACT
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return (
-            self.expr.cumulative_complexity_stat
-            + self.pattern.cumulative_complexity_stat
-            + self.individual_complexity_stat
+            self.expr.cumulative_node_complexity
+            + self.pattern.cumulative_node_complexity
+            + self.individual_node_complexity
         )
 
 
@@ -393,12 +399,11 @@ class RegExp(Expression):
         # expr REG_EXP pattern
         return PlanNodeCategory.LOW_IMPACT
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return (
-            self.expr.cumulative_complexity_stat
-            + self.pattern.cumulative_complexity_stat
-            + self.individual_complexity_stat
+            self.expr.cumulative_node_complexity
+            + self.pattern.cumulative_node_complexity
+            + self.individual_node_complexity
         )
 
 
@@ -416,9 +421,8 @@ class Collate(Expression):
         # expr COLLATE collate_spec
         return PlanNodeCategory.LOW_IMPACT
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        return self.expr.cumulative_node_complexity + self.individual_node_complexity
 
 
 class SubfieldString(Expression):
@@ -435,10 +439,9 @@ class SubfieldString(Expression):
         # the literal corresponds to the contribution from self.field
         return PlanNodeCategory.LITERAL
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # self.expr ( self.field )
-        return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
+        return self.expr.cumulative_node_complexity + self.individual_node_complexity
 
 
 class SubfieldInt(Expression):
@@ -455,10 +458,9 @@ class SubfieldInt(Expression):
         # the literal corresponds to the contribution from self.field
         return PlanNodeCategory.LITERAL
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         # self.expr ( self.field )
-        return self.expr.cumulative_complexity_stat + self.individual_complexity_stat
+        return self.expr.cumulative_node_complexity + self.individual_node_complexity
 
 
 class FunctionExpression(Expression):
@@ -512,15 +514,14 @@ class WithinGroup(Expression):
         # expr WITHIN GROUP (ORDER BY cols)
         return PlanNodeCategory.ORDER_BY
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return (
             sum(
-                (col.cumulative_complexity_stat for col in self.order_by_cols),
+                (col.cumulative_node_complexity for col in self.order_by_cols),
                 Counter(),
             )
-            + self.individual_complexity_stat
-            + self.expr.cumulative_complexity_stat
+            + self.individual_node_complexity
+            + self.expr.cumulative_node_complexity
         )
 
 
@@ -546,17 +547,16 @@ class CaseWhen(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.CASE_WHEN
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        stat = self.individual_complexity_stat + sum(
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        stat = self.individual_node_complexity + sum(
             (
-                condition.cumulative_complexity_stat + value.cumulative_complexity_stat
+                condition.cumulative_node_complexity + value.cumulative_node_complexity
                 for condition, value in self.branches
             ),
             Counter(),
         )
         stat += (
-            self.else_value.cumulative_complexity_stat if self.else_value else Counter()
+            self.else_value.cumulative_node_complexity if self.else_value else Counter()
         )
         return stat
 
@@ -584,11 +584,10 @@ class SnowflakeUDF(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return sum(
-            (expr.cumulative_complexity_stat for expr in self.children),
-            self.individual_complexity_stat,
+            (expr.cumulative_node_complexity for expr in self.children),
+            self.individual_node_complexity,
         )
 
 
@@ -606,6 +605,5 @@ class ListAgg(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
-        return self.col.cumulative_complexity_stat + self.individual_complexity_stat
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
+        return self.col.cumulative_node_complexity + self.individual_node_complexity

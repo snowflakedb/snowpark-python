@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import cached_property
 from typing import AbstractSet, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -46,14 +45,13 @@ class GroupingSetsExpression(Expression):
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
 
-    @cached_property
-    def cumulative_complexity_stat(self) -> Counter[str]:
+    def calculate_cumulative_node_complexity(self) -> Counter[str]:
         return sum(
             (
-                sum((expr.cumulative_complexity_stat for expr in arg), Counter())
+                sum((expr.cumulative_node_complexity for expr in arg), Counter())
                 for arg in self.args
             ),
-            self.individual_complexity_stat,
+            self.individual_node_complexity,
         )
 
     @property
