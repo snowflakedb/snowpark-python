@@ -121,7 +121,7 @@ class Rolling(metaclass=TelemetryMeta):
     ) -> None:
         # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
         # Raise ValueError when invalid parameter values/combinations
-        if (isinstance(window, int) and window <= 0) or window is None:
+        if (isinstance(window, int) and window < 0) or window is None:
             raise ValueError("window must be an integer 0 or greater")
         if not isinstance(center, bool):
             raise ValueError("center must be a boolean")
@@ -471,6 +471,11 @@ class Expanding(metaclass=TelemetryMeta):
         method: str = "single",
     ) -> None:
         # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        if min_periods is not None and not isinstance(min_periods, int):
+            raise ValueError("min_periods must be an integer")
+        if isinstance(min_periods, int) and min_periods < 0:
+            raise ValueError("min_periods must be >= 0")
+
         self._dataframe = dataframe
         self._query_compiler = dataframe._query_compiler
         self.expanding_kwargs = {

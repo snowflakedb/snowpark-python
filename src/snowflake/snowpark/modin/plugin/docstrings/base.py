@@ -1053,6 +1053,18 @@ class BasePandasDataset:
     def expanding():
         """
         Provide expanding window calculations.
+        Currently, ``axis = 1`` is not supported.
+
+        Parameters
+        ----------
+        min_periods: int, default 1.
+            Minimum number of observations in window required to have a value; otherwise, result is np.nan.
+        axis: int or str, default 0
+            If 0 or 'index', roll across the rows.
+            If 1 or 'columns', roll across the columns.
+            For Series this parameter is unused and defaults to 0.
+        method: str {‘single’, ‘table’}, default ‘single’
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def ffill():
@@ -2558,8 +2570,7 @@ class BasePandasDataset:
         step: int, default None
             Evaluate the window at every step result, equivalent to slicing as [::step]. window must be an integer. Using a step argument other than None or 1 will produce a result with a different shape than the input.
         method: str {‘single’, ‘table’}, default ‘single’
-            Execute the rolling operation per single column or row ('single') or over the entire object ('table').
-            This argument is only implemented when specifying engine='numba' in the method call.
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def round():
