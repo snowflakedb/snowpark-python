@@ -113,7 +113,7 @@ class Index:
         tupleize_cols: bool = True,
     ) -> None:
         """
-        Helper method to find and save query compiler when index should be lazy
+        Helper method to create and save query compiler when index should be lazy
         """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
@@ -147,7 +147,7 @@ class Index:
         tupleize_cols: bool = True,
     ) -> None:
         """
-        Helper method to find and save local index when index should not be lazy
+        Helper method to create and save local index when index should not be lazy
         """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
@@ -1070,7 +1070,7 @@ class Index:
 
         Examples
         --------
-        # Snowpark pandas converts nan's to none
+        # Snowpark pandas converts NaN to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
         >>> idx.get_indexer_for([np.nan])
         array([0, 2])

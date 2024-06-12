@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
@@ -101,43 +101,39 @@ def test_get_dummies_pandas(prefix_sep):
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C", "D"])
+@sql_count_checker(query_count=1)
 def test_get_dummies_pandas_no_row_pos_col(sort_column):
-    with SqlCounter(query_count=2 if sort_column == "D" else 1):
-        data = {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
-        if sort_column == "D":
-            data["D"] = [1, 2, 3]
-            pandas_df = native_pd.DataFrame(data).sort_values("D", ascending=False)[
-                ["A", "B", "C"]
-            ]
-            snow_df = pd.DataFrame(data).sort_values("D", ascending=False)[
-                ["A", "B", "C"]
-            ]
-        else:
-            pandas_df = native_pd.DataFrame(data).sort_values(
-                sort_column, ascending=False
-            )
-            snow_df = pd.DataFrame(data).sort_values(sort_column, ascending=False)
+    data = {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
+    if sort_column == "D":
+        data["D"] = [1, 2, 3]
+        pandas_df = native_pd.DataFrame(data).sort_values("D", ascending=False)[
+            ["A", "B", "C"]
+        ]
+        snow_df = pd.DataFrame(data).sort_values("D", ascending=False)[["A", "B", "C"]]
+    else:
+        pandas_df = native_pd.DataFrame(data).sort_values(sort_column, ascending=False)
+        snow_df = pd.DataFrame(data).sort_values(sort_column, ascending=False)
 
-        assert (
-            snow_df._query_compiler._modin_frame.row_position_snowflake_quoted_identifier
-            is None
-        )
+    assert (
+        snow_df._query_compiler._modin_frame.row_position_snowflake_quoted_identifier
+        is None
+    )
 
-        pandas_get_dummies = native_pd.get_dummies(
-            pandas_df,
-            prefix=["col1", "col2"],
-            prefix_sep="/",
-        )
+    pandas_get_dummies = native_pd.get_dummies(
+        pandas_df,
+        prefix=["col1", "col2"],
+        prefix_sep="/",
+    )
 
-        snow_get_dummies = pd.get_dummies(
-            snow_df,
-            prefix=["col1", "col2"],
-            prefix_sep="/",
-        )
+    snow_get_dummies = pd.get_dummies(
+        snow_df,
+        prefix=["col1", "col2"],
+        prefix_sep="/",
+    )
 
-        assert_snowpark_pandas_equal_to_pandas(
-            snow_get_dummies, pandas_get_dummies, check_dtype=False
-        )
+    assert_snowpark_pandas_equal_to_pandas(
+        snow_get_dummies, pandas_get_dummies, check_dtype=False
+    )
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C"])
