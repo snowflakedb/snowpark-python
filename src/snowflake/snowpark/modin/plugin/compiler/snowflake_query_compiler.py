@@ -3700,10 +3700,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not is_list_like(by):
             by = [by]
-
         positions_col_name = "__TEMP_POS_NAME__"
         # We reset index twice to ensure we perform the count aggregation on the row
-        # positions (which cannot be null).
+        # positions (which cannot be null). We name the column a unique new name to
+        # avoid collisions. We rename them to their final names at the end.
         result = (
             self.reset_index(drop=True)
             .reset_index(drop=False, names=positions_col_name)
