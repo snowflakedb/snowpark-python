@@ -10,77 +10,88 @@ from typing import Any, List, Optional
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
-NoneType = type(None)
-PYTHON_TO_AST_CONST_MAPPINGS = {
-    NoneType: "null_val",
-    bool: "bool_val",
-    int: "int64_val",
-    float: "float64_val",
-    str: "string_val",
-    bytearray: "binary_val",
-    bytes: "binary_val",
-    decimal.Decimal: "big_decimal_val",
-    datetime.date: "date_val",
-    datetime.time: "python_time_val",
-    datetime.datetime: "python_timestamp_val",
-}
-def infer_const_ast(obj: Any, ast: proto.Expr) -> None:
-    """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance"""
+def fill_const_ast(obj: Any, ast: proto.Expr) -> None:
+    """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
+
+    Args:
+        obj (Any): Expected to be any acceptable Python literal or constant value
+        ast (proto.Expr): A previously created Expr() IR entity to be filled.
+
+    Raises:
+        TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
+    """
+
     if obj is None:
         fill_src_position(ast.null_val.src)
-        return
+
+    elif isinstance(obj, bool):
+        ast.bool_val.v = obj
+
+    elif isinstance(obj, int):
+        ast.int64_val.v = obj
+
+    elif isinstance(obj, float):
+        ast.float64_val.v = obj
+
+    elif isinstance(obj, str):
+        ast.string_val.v = obj
+
+    elif isinstance(obj, bytes):
+        ast.binary_val.v = obj
         
-    const_variant = PYTHON_TO_AST_CONST_MAPPINGS.get(type(obj))
-    if isinstance(obj, decimal.Decimal):
+    elif isinstance(obj, bytearray):
+        ast.binary_val.v = bytes(obj)
+    
+    elif isinstance(obj, decimal.Decimal):
         dec_tuple = obj.as_tuple()
         unscaled_val = reduce(lambda val, digit: val*10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
             unscaled_val *= -1
         req_bytes = (unscaled_val.bit_length() + 7) // 8
-        getattr(ast, const_variant).unscaled_value = unscaled_val.to_bytes(req_bytes, 'big', signed=True)
-        getattr(ast, const_variant).scale = dec_tuple.exponent
+        ast.big_decimal_val.unscaled_value = unscaled_val.to_bytes(req_bytes, 'big', signed=True)
+        ast.big_decimal_val.scale = dec_tuple.exponent
     
     elif isinstance(obj, datetime.datetime):
         if obj.tzinfo is not None:
-            getattr(ast, const_variant).tz.value = obj.tzname()
-        getattr(ast, const_variant).v = obj.astimezone(datetime.timezone.utc).timestamp()
+            ast.python_timestamp_val.tz.value = obj.tzname()
+        ast.python_timestamp_val.v = obj.astimezone(datetime.timezone.utc).timestamp()
 
     elif isinstance(obj, datetime.date):
         datetime_val = datetime.datetime(obj.year, obj.month, obj.day)
-        getattr(ast, const_variant).v = int(datetime_val.timestamp())
+        ast.date_val.v = int(datetime_val.timestamp())
 
     elif isinstance(obj, datetime.time):
         if obj.tzinfo is not None:
-            getattr(ast, const_variant).tz.value = obj.tzname()
+            ast.python_time_val.tz.value = obj.tzname()
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
         datetime_val = datetime_val.astimezone(datetime.timezone.utc).replace(1970, 1, 1)
-        getattr(ast, const_variant).v = datetime_val.timestamp()
+        ast.python_time_val.v = datetime_val.timestamp()
 
-    elif isinstance(obj, bytearray):
-        getattr(ast, const_variant).v = bytes(obj)
-
-    elif const_variant is not None:
-        getattr(ast, const_variant).v = obj
-    
     elif isinstance(obj, dict):
         for key, value in obj.items():
             kv_tuple_ast = ast.seq_map_val.kvs.add()
-            infer_const_ast(key, kv_tuple_ast.vs.add())
-            infer_const_ast(value, kv_tuple_ast.vs.add())
+            fill_const_ast(key, kv_tuple_ast.vs.add())
+            fill_const_ast(value, kv_tuple_ast.vs.add())
     
     elif isinstance(obj, list):
         for v in obj:
-            infer_const_ast(v, ast.list_val.vs.add())
+            fill_const_ast(v, ast.list_val.vs.add())
     
     elif isinstance(obj, tuple):
         for v in obj:
-            infer_const_ast(v, ast.tuple_val.vs.add())
+            fill_const_ast(v, ast.tuple_val.vs.add())
     
     else:
         raise TypeError("not supported type: %s" % type(obj))
 
 
-def get_non_snowpark_stack_frame() -> inspect.FrameInfo:
+def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
+    """Searches up through the call stack using inspect library to find the first stack frame 
+    of a caller within a file which does not lie within the Snowpark library itself.
+
+    Returns:
+        inspect.FrameInfo: The FrameInfo object of the lowest caller outside of the Snowpark repo.
+    """
     idx = 0
     call_stack = inspect.stack()
     curr_frame = call_stack[idx]
@@ -92,18 +103,31 @@ def get_non_snowpark_stack_frame() -> inspect.FrameInfo:
 
 
 # TODO: Instead of regexp, grab assign statments using Python ast library
-RE_SYMBOL_NAME = re.compile(r'^\s*([a-zA-Z_]\w*)\s*=.*$', re.DOTALL)
 def get_symbol() -> Optional[str]:
-    code = get_non_snowpark_stack_frame().code_context
+    """Using the code context from a FrameInfo object, and applies a regexp to match the
+    symbol left of the "=" sign in the assignment expression
+
+    Returns:
+        Optional[str]: None if symbol name could not be matched using the regexp, symbol otherwise.
+    """
+    re_symbol_name = re.compile(r'^\s*([a-zA-Z_]\w*)\s*=.*$', re.DOTALL)
+    code = get_first_non_snowpark_stack_frame().code_context
     if code is not None:
         for line in code:
-            match = RE_SYMBOL_NAME.fullmatch(line)
+            match = re_symbol_name.fullmatch(line)
             if match is not None:
                 return match.group(1)
 
 
 def fill_src_position(ast: proto.SrcPosition) -> None:
-    curr_frame = get_non_snowpark_stack_frame()
+    """Uses the method to retrieve the first non snowpark stack frame, and fills the SrcPosition IR entity
+    with the filename, and lineno which can be retrieved. In Python 3.11 and up the end line and column
+    offsets can also be retrieved from the FrameInfo.positions field.
+
+    Args:
+        ast (proto.SrcPosition): A previously created SrcPosition IR entity to be filled.
+    """
+    curr_frame = get_first_non_snowpark_stack_frame()
 
     ast.file = curr_frame.filename
     ast.start_line = curr_frame.lineno
