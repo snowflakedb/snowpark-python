@@ -3691,14 +3691,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: The result of groupby_size()
         """
+        level = groupby_kwargs.get("level", None)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.size does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
         if not is_list_like(by):
             by = [by]
+
+        positions_col_name = "__TEMP_POS_NAME__"
         # We reset index twice to ensure we perform the count aggregation on the row
         # positions (which cannot be null).
         result = (
             self.reset_index(drop=True)
-            .reset_index(drop=False, names=MODIN_UNNAMED_SERIES_LABEL)
-            .take_2d_labels(slice(None), [MODIN_UNNAMED_SERIES_LABEL] + by)
+            .reset_index(drop=False, names=positions_col_name)
+            .take_2d_labels(slice(None), [positions_col_name] + by)
             .groupby_agg(
                 by,
                 "count",
@@ -3709,8 +3718,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
         if not groupby_kwargs.get("as_index", True):
-            return result.rename(columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "size"})
-        return result
+            return result.rename(columns_renamer={positions_col_name: "size"})
+        else:
+            return result.rename(
+                columns_renamer={positions_col_name: MODIN_UNNAMED_SERIES_LABEL}
+            )
 
     def groupby_groups(
         self,

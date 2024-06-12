@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
@@ -75,3 +75,10 @@ def test_groupby_size(by, as_index):
             pandas_df,
             lambda df: df.groupby(by, as_index=as_index).size(),
         )
+
+
+@sql_count_checker(query_count=0)
+def test_error_checking():
+    s = pd.Series(list("abc") * 4)
+    with pytest.raises(NotImplementedError):
+        s.groupby(s).size()
