@@ -752,7 +752,7 @@ def test_groupby_with_none_label(basic_snowpark_pandas_df, by) -> None:
 @pytest.mark.parametrize(
     "grp_func", [lambda grp: grp.max(), lambda grp: grp.sum(), lambda grp: grp.mean()]
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_groupby_with_series(basic_snowpark_pandas_df, grp_func):
     pandas_df = basic_snowpark_pandas_df.to_pandas()
 

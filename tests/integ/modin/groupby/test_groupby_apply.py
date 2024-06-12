@@ -156,8 +156,6 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 
 QUERY_COUNT_WITHOUT_TRANSFORM_CHECK = 5
 QUERY_COUNT_WITH_TRANSFORM_CHECK = 6
-QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX = 7
-QUERY_COUNT_WITH_TRANSFORM_CHECK_INDEX = 8
 JOIN_COUNT = 1
 UDTF_COUNT = 1
 
@@ -968,7 +966,7 @@ class TestFuncReturnsSeries:
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX,
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -1083,7 +1081,8 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK_INDEX
+            # one additional query for converting index to native pandas in dataframe constructor
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
             if not group_keys
             and func
             in (
@@ -1092,7 +1091,7 @@ class TestSeriesGroupBy:
                 series_transform_returns_frame,
                 series_transform_returns_series,
             )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK_INDEX,
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
