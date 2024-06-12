@@ -475,6 +475,39 @@ class Rolling:
 
 
 class Expanding:
+
+    """
+    Compute the expanding count.
+
+    Parameters
+    ----------
+    numeric_only : bool, default False
+        Include only float, int, boolean columns.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Computed expanding count of values.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({'B': [0, 1, 2, np.nan, 4]})
+    >>> df
+         B
+    0  0.0
+    1  1.0
+    2  2.0
+    3  NaN
+    4  4.0
+    >>> df.expanding(2).count()
+         B
+    0  NaN
+    1  2.0
+    2  3.0
+    3  3.0
+    4  4.0
+    """
+
     def count():
         pass
 

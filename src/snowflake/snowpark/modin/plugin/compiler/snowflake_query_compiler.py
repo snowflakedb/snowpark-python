@@ -10835,7 +10835,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             {
                 quoted_identifier: iff(
-                    count(col(quoted_identifier)).over(window_expr) >= min_periods,
+                    count(col(row_position_quoted_identifier)).over(window_expr)
+                    >= min_periods
+                    if window_func == "expanding" and agg_func == "count"
+                    else count(col(quoted_identifier)).over(window_expr) >= min_periods,
                     get_snowflake_agg_func(agg_func, agg_kwargs)(
                         builtin("zeroifnull")(col(quoted_identifier))
                         if window_func == "expanding" and agg_func == "sum"
@@ -10853,8 +10856,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="count", class_="Expanding")
+    ) -> "SnowflakeQueryCompiler":
+        return self._window_agg(
+            window_func="expanding",
+            agg_func="count",
+            window_kwargs=expanding_kwargs,
+            agg_kwargs=dict(numeric_only=numeric_only),
+        )
 
     def expanding_sum(
         self,
