@@ -3963,3 +3963,112 @@ def test_create_empty_dataframe(session):
         ]
     )
     assert not session.create_dataframe(data=[], schema=schema).collect()
+
+
+def test_dataframe_dataframe_in(session):
+    df = session.table("test_in")
+    df.show()
+
+    # session.sql("alter session set OPTIMIZER_ENABLE_CONSTANT_IN_LIST_V2 = ENABLE")
+    # session.sql("alter session set OPTIMIZER_CONSTANT_IN_LIST_V2_MAX_DEDUPE_SIZE = 100")
+
+    import random
+
+    rand_list = []
+    n = 100000
+    for i in range(n):
+        rand_list.append(random.randint(100, 1000))
+
+    # df2 = session.create_dataframe(rand_list)
+    # df.filter(df['col_index'].in_(df2)).show(n=1000)
+
+    df.filter(df['col_index'].in_(rand_list)).show(10000)
+
+
+def test_dataframe_flattern_loop(session):
+    from snowflake.snowpark import Session, DataFrame, Column
+    from snowflake.snowpark.functions import col, lit, when
+
+    from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+    session = Session.builder.config("connection_name", "migrations1").getOrCreate()
+
+    def are_the_same(c1, c2):
+        if c1._expression.sql == c2._expression.sql and c1._expression.value == c2._expression.value:
+            return True
+        else:
+            return False
+
+    outnum = 1
+    a = session.table(f'mm{outnum}')
+    # a = session.table(f'snowpark_testdb.public.mm{outnum}')
+
+    a = a.withColumn('ewmonths', lit(''))
+    num = 3
+    maximumMonths = 30
+
+    for k in range(num):
+        for i in range(maximumMonths):
+            a = a.withColumn(f'm{k + 1}n{i + 1}', lit(0))
+            a = a.withColumn(f'm{k + 1}x{i + 1}', lit(0))
+            a = a.withColumn(f'ic{k + 1}', when(col(f'ic{k + 1}').is_null(), lit(0)).otherwise(col(f'ic{k + 1}')))
+
+    with open("query.sql", "w") as f:
+        sql = a.queries['queries'][0]
+        f.write(sql)
+
+    from unittest.mock import patch
+
+    names = []
+    columns = []
+    column_dict = {}
+
+    def my_side_effect(col_name, col_value):
+        new_col_name = col_name
+        if col_name in names:
+            new_col_name = "__" + generate_random_alphanumeric(6) + "__" + col_name
+            column_dict[col_name] = new_col_name
+        names.append(new_col_name)
+        columns.append(col_value)
+        return a
+
+
+
+    def col_effect(*args):
+        from snowflake.snowpark import Column
+        if col_name in column_dict:
+            return Column(column_dict[col_name])
+        else:
+            return Column(col_name)
+
+    def new_col(name1: str, name2: str = None) -> Column:
+        if name2 is None:
+            if name1 in column_dict:
+                return Column(column_dict[name1])
+            else:
+                return Column(name1)
+        else:
+            return Column(name1, name2)
+
+
+    a = session.table(f'mm{outnum}')
+    # a = session.table(f'snowpark_testdb.public.mm{outnum}')
+
+    a = a.withColumn('ewmonths', lit(''))
+
+    with patch.object(DataFrame, 'withColumn', side_effect=my_side_effect) as input:
+        for k in range(num):
+            for i in range(maximumMonths):
+                a = a.withColumn(f'm{k + 1}n{i + 1}', lit(0))
+                a = a.withColumn(f'm{k + 1}x{i + 1}', lit(0))
+                a = a.withColumn(f'ic{k + 1}', when(col(f'ic{k + 1}').is_null(), lit(0)).otherwise(col(f'ic{k + 1}')))
+
+    result = a.with_columns(names, columns)
+
+    result.show()
+
+    with open("query.result.sql", "w") as f:
+        sql = result.queries['queries'][0]
+        f.write(sql)
+        # session.sql(sql).collect()
+
+    print("Done")
