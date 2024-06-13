@@ -14,6 +14,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
 @sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.modin_sp_precommit
 def test_pivot_table_single_index_single_column_multiple_values(df_data):
     pivot_table_test_helper(
         df_data,

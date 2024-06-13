@@ -2211,7 +2211,7 @@ class DataFrame:
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
 
         See Also:
-            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
+            - Usage notes for asof join: https://docs.snowflake.com/sql-reference/constructs/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col

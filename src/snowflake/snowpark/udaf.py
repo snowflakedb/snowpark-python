@@ -111,7 +111,7 @@ class UserDefinedAggregateFunction:
 class UDAFRegistration:
     """
     Provides methods to register lambdas and functions as UDAFs in the Snowflake database.
-    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/en/LIMITEDACCESS/python-aggregate-functions>`__.
+    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/developer-guide/udf/python/udf-python-aggregate-functions>`__.
 
     :attr:`session.udaf <snowflake.snowpark.Session.udaf>` returns an object of this class.
     You can use this object to register UDAFs that you plan to use in the current session or
