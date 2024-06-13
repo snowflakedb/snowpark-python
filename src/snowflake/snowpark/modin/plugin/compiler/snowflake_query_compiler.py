@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import typing
+import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, Literal, Optional, Union, get_args
@@ -3700,7 +3701,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not is_list_like(by):
             by = [by]
-        positions_col_name = "__TEMP_POS_NAME__"
+        positions_col_name = f"__TEMP_POS_NAME_{uuid.uuid4().hex[-6:]}__"
         # We reset index twice to ensure we perform the count aggregation on the row
         # positions (which cannot be null). We name the column a unique new name to
         # avoid collisions. We rename them to their final names at the end.
