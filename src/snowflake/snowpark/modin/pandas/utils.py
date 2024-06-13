@@ -812,8 +812,6 @@ def ensure_index(
         return index_like
 
     if isinstance(index_like, pd.Series):
-        if copy:
-            index_like = index_like.copy()
         return pd.Index(index_like.values)
 
     if isinstance(index_like, list):

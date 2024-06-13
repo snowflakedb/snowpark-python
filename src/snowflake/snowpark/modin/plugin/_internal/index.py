@@ -116,14 +116,11 @@ class Index:
         Helper method to find and save query compiler when index should be lazy
         """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
-        if isinstance(data, (DataFrame, Series, Index)):
-            qc = data._query_compiler
-        elif isinstance(data, SnowflakeQueryCompiler):
+        if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
             qc = DataFrame(
@@ -149,15 +146,11 @@ class Index:
         """
         Helper method to create and save local index when index should not be lazy
         """
-        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
-        if isinstance(data, (DataFrame, Series, Index)):
-            index = data._query_compiler._modin_frame.index_columns_pandas_index
-        elif isinstance(data, SnowflakeQueryCompiler):
+        if isinstance(data, SnowflakeQueryCompiler):
             index = data._modin_frame.index_columns_pandas_index
         else:
             index = native_pd.Index(
