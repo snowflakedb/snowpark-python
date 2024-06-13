@@ -6,10 +6,15 @@
 
 #### Improvements
 
+#### New Features
+
+- Added support for `to_boolean` function.
+
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
+- Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
 
 ### Snowpark Local Testing Updates
 
@@ -24,6 +29,10 @@
 - Fixed a bug that table merge fails when update clause exists but no update takes place.
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has inconsecutive row index.
 
+#### Improvements
+
+- Added support for type coercion in the implementation of DataFrame.replace, DataFrame.dropna and the mock function `iff`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -34,11 +43,14 @@
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
 - Added support for `DataFrameGroupby.size` and `SeriesGroupby.size`.
+- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
+- Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
+- Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
 
 #### Improvements
 
