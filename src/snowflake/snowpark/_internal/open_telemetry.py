@@ -137,11 +137,10 @@ def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
     target_index = -1
     for i, frame in enumerate(frame_info):
         file_name = os.path.basename(frame.filename)
+        target_index = i + decorator_number + 1
         if file_name in target_class:
             if file_name in registration_class:
-                target_index = i + decorator_number + 1
                 continue
-            target_index = i + decorator_number + 1
             break
     frame = frame_info[target_index]
     return frame.filename, frame.lineno
