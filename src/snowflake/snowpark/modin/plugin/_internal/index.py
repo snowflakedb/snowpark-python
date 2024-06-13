@@ -487,7 +487,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("_set_names")
         self.to_pandas()._set_names(values)
 
-    # TODO: SNOW-1458122 implement names
     names = property(fset=_set_names, fget=_get_names)
 
     def set_names(
