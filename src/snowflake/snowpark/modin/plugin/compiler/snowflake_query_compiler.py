@@ -13752,7 +13752,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Characters in the <sourceAlphabet> string are mapped to the corresponding entry in <targetAlphabet>.
         # If <sourceAlphabet> is longer than <targetAlphabet>, then the trailing characters of <sourceAlphabet>
         # are removed from the input string.
-        not_none_pairs = {}
+        #
+        # Because TRANSLATE only supports 1-to-1 character mappings, any entries with multi-character
+        # values must be handled by REPLACE instead. 1-character keys are always invalid.
+        single_char_pairs = {}
+        multi_char_pairs = {}
         none_keys = set()
         for key, value in table.items():
             # Treat integers as unicode codepoints
@@ -13761,21 +13765,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if isinstance(value, int):
                 value = chr(value)
             if len(key) != 1:
+                # Mimic error from str.maketrans
                 raise ValueError(
-                    f"Invalid mapping key '{key}'. Keys in str.translate mappings must be unicode ordinals or 1-codepoint strings."
+                    f"Invalid mapping key '{key}'. String keys in translate table must be of length 1."
                 )
-            if value is not None and len(value) != 1:
+            if value is not None and len(value) > 1:
                 raise ValueError(
                     f"Invalid mapping value '{value}' for key '{key}'. Snowpark pandas currently only "
                     "supports unicode ordinals or 1-codepoint strings as values in str.translate mappings. "
                     "Consider using Series.str.replace to replace multiple characters."
                 )
-            if value is None:
+            if value is None or len(value) == 0:
                 none_keys.add(key)
+            elif len(value) > 1:
+                multi_char_pairs[key] = value
             else:
-                not_none_pairs[key] = value
-        source_alphabet = "".join(not_none_pairs.keys()) + "".join(none_keys)
-        target_alphabet = "".join(not_none_pairs.values())
+                single_char_pairs[key] = value
+        source_alphabet = "".join(single_char_pairs.keys()) + "".join(none_keys)
+        target_alphabet = "".join(single_char_pairs.values())
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_data_columns(
                 lambda col_name: translate(
