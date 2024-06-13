@@ -12,7 +12,6 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     approx_percentile_combine,
-    array_agg,
     avg,
     col,
     count,
@@ -550,19 +549,6 @@ def test_register_new_methods(session, local_testing_mode):
 
     assert origin_df.select(stddev("n")).collect() == [Row(123)]
 
-    # array_agg
-    with pytest.raises(NotImplementedError):
-        origin_df.select(array_agg("n", False)).collect()
-
-    # instead of kwargs, positional argument also works
-    @snowpark_mock_functions.patch(array_agg)
-    def mock_mock_array_agg(column: ColumnEmulator, is_distinct):
-        assert is_distinct is True
-        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(array_agg("n", True)).collect() == [Row(123)]
-
     # grouping
     with pytest.raises(NotImplementedError):
         origin_df.select(grouping("m", col("n"))).collect()
@@ -670,8 +656,9 @@ def test_agg(session, local_testing_mode):
     if not local_testing_mode:
         pytest.skip("mock implementation does not apply to live code")
 
-    snowpark_mock_functions._unregister_func_implementation("stddev")
-    snowpark_mock_functions._unregister_func_implementation("stddev_pop")
+    registry = snowpark_mock_functions.MockedFunctionRegistry.get_or_create()
+    registry.unregister("stddev")
+    registry.unregister("stddev_pop")
 
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()
