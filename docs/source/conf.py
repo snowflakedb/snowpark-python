@@ -101,29 +101,24 @@ from sphinx.ext.autodoc import (  # isort:skip
 )
 from sphinx.ext.autosummary import Autosummary  # isort:skip
 
-class AccessorLevelDocumenter(Documenter):
+
+class ModinAccessorLevelDocumenter(Documenter):
     """
-    Specialized Documenter subclass for objects on accessor level (methods,
-    attributes).
+    Performs name resolution for modin Accessor classes like Series.str and Series.dt.
     """
 
-    # This is the simple straightforward version
-    # modname is None, base the last elements (eg 'hour')
-    # and path the part before (eg 'Series.dt')
-    # def resolve_name(self, modname, parents, path, base):
-    #     modname = 'pandas'
-    #     mod_cls = path.rstrip('.')
-    #     mod_cls = mod_cls.split('.')
-    #
-    #     return modname, mod_cls + [base]
     def resolve_name(self, modname, parents, path, base):
         if modname is None:
-            modname = "modin.pandas"
-            parents = ["series_utils", "StringMethods"]
+            if path == "Series.str.":
+                modname = "modin.pandas"
+                parents = ["series_utils", "StringMethods"]
+            elif path == "Series.dt.":
+                modname = "modin.pandas"
+                parents = ["series_utils", "DatetimeProperties"]
         return modname, parents + [base]
 
 
-class ModinAccessorMethodDocumenter(AccessorLevelDocumenter, MethodDocumenter):
+class ModinAccessorMethodDocumenter(ModinAccessorLevelDocumenter, MethodDocumenter):
     objtype = "modinaccessormethod"
     directivetype = "method"
 
@@ -131,30 +126,90 @@ class ModinAccessorMethodDocumenter(AccessorLevelDocumenter, MethodDocumenter):
     priority = 0.6
 
 
+class ModinAccessorAttributeDocumenter(ModinAccessorLevelDocumenter, MethodDocumenter):
+    objtype = "modinaccessorattribute"
+    directivetype = "attribute"
+
+    # lower than AttributeDocumenter (1) so this is not chosen for normal attributes
+    priority = 0.6
+
+    def format_signature(self) -> str:
+        # Avoids this warning:
+        # WARNING: Failed to get a method signature for modin.pandas.series_utils.DatetimeProperties.date: <property object at 0x130c33c20> is not a callable object
+        return ""
+
+
 class ModinAutosummary(Autosummary):
+    """
+    Overrides the default autosummary directive to properly resolve and display modin accessor
+    methods like Series.str.replace.
+    """
+
     def get_items(self, names):
-        if any("Series.str." in name for name in names):
-            names = [name.replace("Series.str.", "series_utils.StringMethods.") for name in names]
+        if self.env.ref_context.get("py:module") == "modin.pandas":
+            # Within rst files, we will specify paths as `Series.str.replace`, `Series.dt.date`, etc.
+            # for readability.
+            # Even though we want the displayed names to contain `Series.str` instead of `StringMethods`,
+            # we need to replace them with their canonical import paths in order for Autosummary.get_items
+            # to correctly import them.
+            names = list(
+                map(
+                    lambda name:
+                    # The trailing . is important here so we don't replace the path for the `str` property
+                    # of the pd.Series class by mistake.
+                    name.replace("Series.str.", "series_utils.StringMethods.").replace(
+                        "Series.dt.", "series_utils.DatetimeProperties."
+                    ),
+                    names,
+                )
+            )
+
+        # Suppress warnings about stub files not being found
+        items = Autosummary.get_items(self, names)
 
         def process_modin_accessors(args):
             display_name, sig, summary, real_name = args
-            if "series_utils.StringMethods" in display_name:
-                display_name = display_name.replace("series_utils.StringMethods", "Series.str")
+            if self.env.ref_context.get("py:module") == "modin.pandas":
+                # Before calling Autosummary.get_items, we replaced `Series.str`/`Series.dt` with
+                # the canonical path from which to import these methods (`modin.pandas.series_utils.StringMethods`
+                # and `modin.pandas.series_utils.DatetimeProperties`) in order for Autosummary to
+                # be able to import the correct classes. These paths are then passed here as the
+                # parsed `display_name` value. However, we still want to render the name as
+                # `Series.str` or `Series.dt`, so we re-replace those values here.
+                # We also need to replace `real_name` to ensure the hyperlinks from the Series page
+                # use the correct heading.
+                display_name = display_name.replace(
+                    "series_utils.StringMethods.",
+                    "Series.str.",
+                ).replace(
+                    "series_utils.DatetimeProperties.",
+                    "Series.dt.",
+                )
+                real_name = real_name.replace(
+                    "series_utils.StringMethods.",
+                    "Series.str.",
+                ).replace(
+                    "series_utils.DatetimeProperties.",
+                    "Series.dt.",
+                )
             return display_name, sig, summary, real_name
 
-        return list(map(process_modin_accessors, Autosummary.get_items(self, names)))
+        return list(map(process_modin_accessors, items))
 
 
 def setup(app):
     # Like pandas, we need to do some pre-processing for accessor methods/properties like
     # pd.Series.str.replace and pd.Series.dt.date in order to resolve the parent class correctly.
     # https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L792
-    # app.add_autodocumenter(AccessorDocumenter)
-    # app.add_autodocumenter(AccessorAttributeDocumenter)
     app.add_autodocumenter(ModinAccessorMethodDocumenter)
-    # app.add_autodocumenter(AccessorCallableDocumenter)
+    app.add_autodocumenter(ModinAccessorAttributeDocumenter)
     app.add_directive("autosummary", ModinAutosummary)
-    ...
+
+
+# We overwrite the existing "autosummary" directive in order to properly resolve names for modin
+# accessor classes. We cannot simply declare an alternative directive like "automodinsummary" to use
+# in rst files because their children would not be picked up by the autosummary-generate flag.
+suppress_warnings = ["app.add_directive"]
 
 
 # Construct URL to the corresponding section in the snowpark-python repo

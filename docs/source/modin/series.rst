@@ -224,6 +224,9 @@ Series
     Series.dt
 
 
+.. Series.str and Series.dt are imported from upstream modin.pandas, so we need to swap
+.. the current module here.
+
 .. currentmodule:: modin.pandas
 .. rubric:: String accessor methods
 
@@ -243,7 +246,8 @@ Series
 
 .. autosummary::
     :toctree: pandas_api/
+    :template: autosummary/modin_accessor_attribute.rst
 
-    .. Series.dt.date
-    .. Series.dt.time
+    Series.dt.date
+    Series.dt.time
 
