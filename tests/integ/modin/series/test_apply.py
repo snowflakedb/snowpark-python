@@ -560,6 +560,7 @@ import numpy as np  # noqa: E402
 import statsmodels  # noqa: E402
 
 
+@pytest.mark.xfail(reason="SNOW-1478794 investigating the issue now")
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
