@@ -414,3 +414,12 @@ class ListAgg(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.col)
+
+
+class ColumnSum(Expression):
+    def __init__(self, exprs: List[Expression]) -> None:
+        super().__init__()
+        self.exprs = exprs
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.exprs)

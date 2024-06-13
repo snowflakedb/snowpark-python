@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import call_udf, col, lit
+from snowflake.snowpark.mock._udf import MockUDFRegistration
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
@@ -86,3 +87,14 @@ def test_registering_sproc_with_qualified_identifier(session):
     session.use_database("test_identifier_database")
     with pytest.raises(SnowparkSQLException):
         assert session.call("increment_by_one", 5) == 6
+
+
+def test_get_udf_negative(session):
+    reg = MockUDFRegistration(session)
+    with pytest.raises(SnowparkLocalTestingException):
+        reg.get_udf("does_not_exist")
+
+
+def test_get_udf_imports_negative(session):
+    reg = MockUDFRegistration(session)
+    assert reg.get_udf_imports("does_not_exist") == set()
