@@ -640,9 +640,9 @@ class StringMethods:
         --------
         >>> ser = pd.Series(["horse", "eagle", "donkey"])
         >>> ser.str.match("e")
-        0   False
-        1   True
-        2   False
+        0    False
+        1     True
+        2    False
         dtype: bool
         """
 
