@@ -514,9 +514,7 @@ class Index:
         >>> idx.name
         'x'
         """
-        # TODO: SNOW-1458122 implement name
-        WarningMessage.index_to_pandas_warning("name")
-        return self.to_pandas().name
+        return self.names[0] if self.names else None
 
     @name.setter
     def name(self, value: Hashable) -> None:
