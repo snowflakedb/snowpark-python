@@ -1311,14 +1311,23 @@ def test_df_iloc_get_non_numeric_key_negative(
 
     if isinstance(key, native_pd.Index):
         key = pd.Index(key)
-    # General case fails with TypeError.
-    error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    with pytest.raises(IndexError, match=error_msg):
-        _ = (
-            default_index_snowpark_pandas_df.iloc[key]
-            if axis == "row"
-            else default_index_snowpark_pandas_df.iloc[:, key]
-        )
+    # 2 extra queries for repr, 2 extra queries for dtypes
+    # 1 extra query to convert index to series if row case
+    with SqlCounter(
+        query_count=5
+        if isinstance(key, pd.Index) and axis == "row"
+        else 4
+        if isinstance(key, pd.Index)
+        else 0
+    ):
+        # General case fails with TypeError.
+        error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
+        with pytest.raises(IndexError, match=error_msg):
+            _ = (
+                default_index_snowpark_pandas_df.iloc[key]
+                if axis == "row"
+                else default_index_snowpark_pandas_df.iloc[:, key]
+            )
 
 
 @sql_count_checker(query_count=0)

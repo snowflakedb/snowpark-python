@@ -259,20 +259,20 @@ def test_variant_apply(session):
     ]
 
     # convert first back and check types
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         assert (
             snow_df["col"].to_pandas().apply(lambda x: str(type(x))).tolist()
             == expected_types
         )
 
     # then, apply UDF and check results
-    with SqlCounter(query_count=5, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         assert (
             snow_df["col"].apply(lambda x: str(type(x))).to_pandas().tolist()
             == expected_types
         )
 
-    with SqlCounter(query_count=5, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         assert snow_df["col"].apply(str).to_pandas().tolist() == [
             "None",
             "1",
@@ -628,7 +628,7 @@ def test_3rd_party_package_mix_and_match(udf_packages, session_packages):
     assert len(ans) == 3
 
 
-@sql_count_checker(query_count=9, udf_count=1)
+@sql_count_checker(query_count=7, udf_count=1)
 def test_SNOW_1344784_udf_decorator():
     # tests udf decorator with no packages specified
 
