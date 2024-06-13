@@ -76,7 +76,6 @@ def test_partition_by_order_by_rows_between(session, local_testing_mode):
     )
 
 
-@pytest.mark.localtest
 def test_range_between(session):
     df = session.create_dataframe(["non_numeric"]).to_df("value")
     window = Window.order_by("value")
@@ -158,7 +157,6 @@ def test_window_function_inside_where_and_having_clauses(session):
     assert "outside of SELECT, QUALIFY, and ORDER BY clauses" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_reuse_window_partition_by(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
@@ -171,7 +169,6 @@ def test_reuse_window_partition_by(session):
     )
 
 
-@pytest.mark.localtest
 def test_reuse_window_order_by(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "1"), (2, "2")]).to_df(
         "key", "value"
@@ -216,7 +213,6 @@ def test_rank_functions_in_unspecific_window(session):
     )
 
 
-@pytest.mark.localtest
 def test_empty_over_spec(session):
     df = session.create_dataframe([("a", 1), ("a", 1), ("a", 2), ("b", 2)]).to_df(
         "key", "value"
@@ -246,7 +242,6 @@ def test_empty_over_spec(session):
     )
 
 
-@pytest.mark.localtest
 def test_null_inputs(session):
     df = session.create_dataframe(
         [("a", 1), ("a", 1), ("a", 2), ("a", 2), ("b", 4), ("b", 3), ("b", 2)]
@@ -269,7 +264,6 @@ def test_null_inputs(session):
     )
 
 
-@pytest.mark.localtest
 def test_window_function_should_fail_if_order_by_clause_is_not_specified(session):
     df = session.create_dataframe([(1, "1"), (2, "2"), (1, "2"), (2, "2")]).to_df(
         "key", "value"
@@ -407,7 +401,6 @@ def test_covar_samp_var_samp_stddev_samp_functions_in_specific_window(session):
     )
 
 
-@pytest.mark.localtest
 def test_aggregation_function_on_invalid_column(session):
     df = session.create_dataframe([(1, "1")]).to_df("key", "value")
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -465,7 +458,6 @@ def test_skewness_and_kurtosis_functions_in_window(session):
     )
 
 
-@pytest.mark.localtest
 def test_window_functions_in_multiple_selects(session):
     df = session.create_dataframe(
         [("S1", "P1", 100), ("S1", "P1", 700), ("S2", "P1", 200), ("S2", "P2", 300)]
