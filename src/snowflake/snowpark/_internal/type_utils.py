@@ -162,11 +162,16 @@ def convert_metadata_to_sp_type(
             metadata.precision or 0,
             metadata.scale or 0,
             metadata.internal_size or 0,
+            specify_text_len=False,
         )
 
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int, internal_size: int
+    column_type_name: str,
+    precision: int,
+    scale: int,
+    internal_size: int,
+    specify_text_len: bool = True,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -184,11 +189,13 @@ def convert_sf_to_sp_type(
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "TEXT":
-        if internal_size > 0:
-            return StringType(internal_size)
-        elif internal_size == 0:
+        # TODO: comment
+        if internal_size < 0:
+            raise ValueError("Negative value is not a valid input for StringType")
+        elif not specify_text_len or internal_size == 0:
             return StringType()
-        raise ValueError("Negative value is not a valid input for StringType")
+        else:
+            return StringType(internal_size)
     if column_type_name == "TIME":
         return TimeType()
     if column_type_name == "TIMESTAMP":
