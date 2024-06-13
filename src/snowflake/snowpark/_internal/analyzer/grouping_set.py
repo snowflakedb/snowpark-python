@@ -45,7 +45,7 @@ class GroupingSetsExpression(Expression):
         flattened_args = [exp for sublist in self.args for exp in sublist]
         return derive_dependent_columns(*flattened_args)
 
-    def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
+    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
             *(
                 sum_node_complexities(

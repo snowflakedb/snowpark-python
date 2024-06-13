@@ -200,25 +200,27 @@ class Join(BinaryNode):
         return PlanNodeCategory.JOIN
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        score = {self.plan_node_category.value: 1}
+        complexity = {self.plan_node_category: 1}
         if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
-            score = sum_node_complexities(
-                score,
-                {PlanNodeCategory.COLUMN.value: len(self.join_type.using_columns)},
+            complexity = sum_node_complexities(
+                complexity,
+                {PlanNodeCategory.COLUMN: len(self.join_type.using_columns)},
             )
-        score = (
-            sum_node_complexities(score, self.join_condition.cumulative_node_complexity)
+        complexity = (
+            sum_node_complexities(
+                complexity, self.join_condition.cumulative_node_complexity
+            )
             if self.join_condition
-            else score
+            else complexity
         )
 
-        score = (
+        complexity = (
             sum_node_complexities(
-                score, self.match_condition.cumulative_node_complexity
+                complexity, self.match_condition.cumulative_node_complexity
             )
             if self.match_condition
-            else score
+            else complexity
         )
-        return score
+        return complexity

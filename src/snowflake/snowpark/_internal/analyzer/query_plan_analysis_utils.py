@@ -36,8 +36,15 @@ class PlanNodeCategory(Enum):
     LOW_IMPACT = "low_impact"
     OTHERS = "others"
 
+    def __repr__(self):
+        return self.value
 
-def sum_node_complexities(*node_complexities: Dict[str, int]) -> Dict[str, int]:
+
+def sum_node_complexities(
+    *node_complexities: Dict[PlanNodeCategory, int]
+) -> Dict[PlanNodeCategory, int]:
+    """This is a helper function to sum complexity values from all complexity dictionaries. A node
+    complexity is a dictionary of node category to node count mapping"""
     counter_sum = sum(
         (Counter(complexity) for complexity in node_complexities), Counter()
     )

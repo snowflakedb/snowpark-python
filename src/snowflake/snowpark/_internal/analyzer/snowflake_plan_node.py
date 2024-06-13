@@ -27,21 +27,21 @@ else:
 class LogicalPlan:
     def __init__(self) -> None:
         self.children = []
-        self._cumulative_node_complexity: Optional[Dict[str, int]] = None
+        self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.OTHERS
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         """Returns the individual contribution of the logical plan node towards the
         overall compilation complexity of the generated sql.
         """
-        return {self.plan_node_category.value: 1}
+        return {self.plan_node_category: 1}
 
     @property
-    def cumulative_node_complexity(self) -> Dict[str, int]:
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         """Returns the aggregate sum complexity statistic from the subtree rooted at this
         logical plan node. Statistic of current node is included in the final aggregate.
         """
@@ -53,7 +53,7 @@ class LogicalPlan:
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[str, int]):
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
 
@@ -72,14 +72,14 @@ class Range(LeafNode):
         self.num_slices = num_slices
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT ( ROW_NUMBER()  OVER ( ORDER BY  SEQ8() ) -  1 ) * (step) + (start) AS id FROM ( TABLE (GENERATOR(ROWCOUNT => count)))
         return {
-            PlanNodeCategory.WINDOW.value: 1,
-            PlanNodeCategory.ORDER_BY.value: 1,
-            PlanNodeCategory.LITERAL.value: 3,  # step, start, count
-            PlanNodeCategory.COLUMN.value: 1,  # id column
-            PlanNodeCategory.LOW_IMPACT.value: 2,  # ROW_NUMBER, GENERATOR
+            PlanNodeCategory.WINDOW: 1,
+            PlanNodeCategory.ORDER_BY: 1,
+            PlanNodeCategory.LITERAL: 3,  # step, start, count
+            PlanNodeCategory.COLUMN: 1,  # id column
+            PlanNodeCategory.LOW_IMPACT: 2,  # ROW_NUMBER, GENERATOR
         }
 
 
@@ -89,9 +89,9 @@ class UnresolvedRelation(LeafNode):
         self.name = name
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
-        return {PlanNodeCategory.COLUMN.value: 1}
+        return {PlanNodeCategory.COLUMN: 1}
 
 
 class SnowflakeValues(LeafNode):
@@ -107,12 +107,12 @@ class SnowflakeValues(LeafNode):
         self.schema_query = schema_query
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # select $1, ..., $m FROM VALUES (r11, r12, ..., r1m), (rn1, ...., rnm)
         # TODO: use ARRAY_BIND_THRESHOLD
         return {
-            PlanNodeCategory.COLUMN.value: len(self.output),
-            PlanNodeCategory.LITERAL.value: len(self.data) * len(self.output),
+            PlanNodeCategory.COLUMN: len(self.output),
+            PlanNodeCategory.LITERAL: len(self.data) * len(self.output),
         }
 
 
@@ -146,25 +146,25 @@ class SnowflakeCreateTable(LogicalPlan):
         self.comment = comment
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (query)
-        score = {PlanNodeCategory.COLUMN.value: 1}
-        score = (
+        complexity = {PlanNodeCategory.COLUMN: 1}
+        complexity = (
             sum_node_complexities(
-                score, {PlanNodeCategory.COLUMN.value: len(self.column_names)}
+                complexity, {PlanNodeCategory.COLUMN: len(self.column_names)}
             )
             if self.column_names
-            else score
+            else complexity
         )
-        score = (
+        complexity = (
             sum_node_complexities(
-                score,
+                complexity,
                 *(expr.cumulative_node_complexity for expr in self.clustering_exprs),
             )
             if self.clustering_exprs
-            else score
+            else complexity
         )
-        return score
+        return complexity
 
 
 class Limit(LogicalPlan):
@@ -178,10 +178,10 @@ class Limit(LogicalPlan):
         self.children.append(child)
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # for limit and offset
         return sum_node_complexities(
-            {PlanNodeCategory.LOW_IMPACT.value: 2},
+            {PlanNodeCategory.LOW_IMPACT: 2},
             self.limit_expr.cumulative_node_complexity,
             self.offset_expr.cumulative_node_complexity,
         )

@@ -203,7 +203,7 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
-        self._cumulative_node_complexity: Optional[Dict[str, int]] = None
+        self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "Selectable") -> bool:
         if self._id is not None and other._id is not None:
@@ -295,7 +295,7 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.num_duplicate_nodes
 
     @property
-    def cumulative_node_complexity(self) -> Dict[str, int]:
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = sum_node_complexities(
                 self.individual_node_complexity,
@@ -304,7 +304,7 @@ class Selectable(LogicalPlan, ABC):
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[str, int]):
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
     @property
@@ -492,7 +492,7 @@ class SelectSnowflakePlan(Selectable):
         return self._query_params
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
 
@@ -689,59 +689,59 @@ class SelectStatement(Selectable):
         return [self.from_]
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
-        score = {}
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        complexity = {}
         # projection component
-        score = (
+        complexity = (
             sum_node_complexities(
-                score,
+                complexity,
                 *(
                     getattr(
                         expr,
                         "cumulative_node_complexity",
-                        {PlanNodeCategory.COLUMN.value: 1},
+                        {PlanNodeCategory.COLUMN: 1},
                     )  # type: ignore
                     for expr in self.projection
                 ),
             )
             if self.projection
-            else score
+            else complexity
         )
 
         # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
-        score = (
+        complexity = (
             sum_node_complexities(
-                score,
-                {PlanNodeCategory.FILTER.value: 1},
+                complexity,
+                {PlanNodeCategory.FILTER: 1},
                 self.where.cumulative_node_complexity,
             )
             if self.where
-            else score
+            else complexity
         )
 
         # order by component - add complexity for each sort expression
-        score = (
+        complexity = (
             sum_node_complexities(
-                score,
+                complexity,
                 *(expr.cumulative_node_complexity for expr in self.order_by),
-                {PlanNodeCategory.ORDER_BY.value: 1},
+                {PlanNodeCategory.ORDER_BY: 1},
             )
             if self.order_by
-            else score
+            else complexity
         )
 
         # limit/offset component
-        score = (
-            sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
             if self.limit_
-            else score
+            else complexity
         )
-        score = (
-            sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
             if self.offset
-            else score
+            else complexity
         )
-        return score
+        return complexity
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1046,7 +1046,7 @@ class SelectTableFunction(Selectable):
         return self.snowflake_plan.queries[-1].params
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
 
@@ -1129,9 +1129,9 @@ class SetStatement(Selectable):
         return self._nodes
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
-        return {PlanNodeCategory.SET_OPERATION.value: len(self.set_operands) - 1}
+        return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
 
 class DeriveColumnDependencyError(Exception):

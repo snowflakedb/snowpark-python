@@ -38,13 +38,13 @@ class Sample(UnaryNode):
         self.seed = seed
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM (child) SAMPLE (probability) -- if probability is provided
         # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
         return {
-            PlanNodeCategory.SAMPLE.value: 1,
-            PlanNodeCategory.LITERAL.value: 1,
-            PlanNodeCategory.COLUMN.value: 1,
+            PlanNodeCategory.SAMPLE: 1,
+            PlanNodeCategory.LITERAL: 1,
+            PlanNodeCategory.COLUMN: 1,
         }
 
 
@@ -54,10 +54,10 @@ class Sort(UnaryNode):
         self.order = order
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # child ORDER BY COMMA.join(order)
         return sum_node_complexities(
-            {PlanNodeCategory.ORDER_BY.value: 1},
+            {PlanNodeCategory.ORDER_BY: 1},
             *(col.cumulative_node_complexity for col in self.order),
         )
 
@@ -74,11 +74,11 @@ class Aggregate(UnaryNode):
         self.aggregate_expressions = aggregate_expressions
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self.grouping_expressions:
             # GROUP BY grouping_exprs
-            score = sum_node_complexities(
-                {PlanNodeCategory.GROUP_BY.value: 1},
+            complexity = sum_node_complexities(
+                {PlanNodeCategory.GROUP_BY: 1},
                 *(
                     expr.cumulative_node_complexity
                     for expr in self.grouping_expressions
@@ -86,20 +86,20 @@ class Aggregate(UnaryNode):
             )
         else:
             # LIMIT 1
-            score = {PlanNodeCategory.LOW_IMPACT.value: 1}
+            complexity = {PlanNodeCategory.LOW_IMPACT: 1}
 
-        score = sum_node_complexities(
-            score,
+        complexity = sum_node_complexities(
+            complexity,
             *(
                 getattr(
                     expr,
                     "cumulative_node_complexity",
-                    {PlanNodeCategory.COLUMN.value: 1},
+                    {PlanNodeCategory.COLUMN: 1},
                 )  # type: ignore
                 for expr in self.aggregate_expressions
             ),
         )
-        return score
+        return complexity
 
 
 class Pivot(UnaryNode):
@@ -120,12 +120,12 @@ class Pivot(UnaryNode):
         self.default_on_null = default_on_null
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
-        score = {}
-        # child score adjustment if grouping cols
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        complexity = {}
+        # child complexity adjustment if grouping cols
         if self.grouping_columns and self.aggregates and self.aggregates[0].children:
             # for additional projecting cols when grouping cols is not empty
-            score = sum_node_complexities(
+            complexity = sum_node_complexities(
                 self.pivot_column.cumulative_node_complexity,
                 self.aggregates[0].children[0].cumulative_node_complexity,
                 *(col.cumulative_node_complexity for col in self.grouping_columns),
@@ -133,28 +133,31 @@ class Pivot(UnaryNode):
 
         # pivot col
         if isinstance(self.pivot_values, ScalarSubquery):
-            score = sum_node_complexities(
-                score, self.pivot_values.cumulative_node_complexity
+            complexity = sum_node_complexities(
+                complexity, self.pivot_values.cumulative_node_complexity
             )
         elif isinstance(self.pivot_values, List):
-            score = sum_node_complexities(
-                score, *(val.cumulative_node_complexity for val in self.pivot_values)
+            complexity = sum_node_complexities(
+                complexity,
+                *(val.cumulative_node_complexity for val in self.pivot_values),
             )
         else:
             # if pivot values is None, then we add OTHERS for ANY
-            score = sum_node_complexities(score, {PlanNodeCategory.LOW_IMPACT.value: 1})
+            complexity = sum_node_complexities(
+                complexity, {PlanNodeCategory.LOW_IMPACT: 1}
+            )
 
-        # aggregate score
-        score = sum_node_complexities(
-            score,
+        # aggregate complexity
+        complexity = sum_node_complexities(
+            complexity,
             *(expr.cumulative_node_complexity for expr in self.aggregates),
         )
 
         # SELECT * FROM (child) PIVOT (aggregate FOR pivot_col in values)
-        score = sum_node_complexities(
-            score, {PlanNodeCategory.COLUMN.value: 2, PlanNodeCategory.PIVOT.value: 1}
+        complexity = sum_node_complexities(
+            complexity, {PlanNodeCategory.COLUMN: 2, PlanNodeCategory.PIVOT: 1}
         )
-        return score
+        return complexity
 
 
 class Unpivot(UnaryNode):
@@ -171,10 +174,10 @@ class Unpivot(UnaryNode):
         self.column_list = column_list
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM (child) UNPIVOT (value_column FOR name_column IN (COMMA.join(column_list)))
         return sum_node_complexities(
-            {PlanNodeCategory.UNPIVOT.value: 1, PlanNodeCategory.COLUMN.value: 3},
+            {PlanNodeCategory.UNPIVOT: 1, PlanNodeCategory.COLUMN: 3},
             *(expr.cumulative_node_complexity for expr in self.column_list),
         )
 
@@ -189,11 +192,11 @@ class Rename(UnaryNode):
         self.column_map = column_map
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * RENAME (before AS after, ...) FROM child
         return {
-            PlanNodeCategory.COLUMN.value: 1 + 2 * len(self.column_map),
-            PlanNodeCategory.LOW_IMPACT.value: 1 + len(self.column_map),
+            PlanNodeCategory.COLUMN: 1 + len(self.column_map),
+            PlanNodeCategory.LOW_IMPACT: 1 + len(self.column_map),
         }
 
 
@@ -203,10 +206,10 @@ class Filter(UnaryNode):
         self.condition = condition
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # child WHERE condition
         return sum_node_complexities(
-            {PlanNodeCategory.FILTER.value: 1},
+            {PlanNodeCategory.FILTER: 1},
             self.condition.cumulative_node_complexity,
         )
 
@@ -217,16 +220,16 @@ class Project(UnaryNode):
         self.project_list = project_list
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if not self.project_list:
-            return {PlanNodeCategory.COLUMN.value: 1}
+            return {PlanNodeCategory.COLUMN: 1}
 
         return sum_node_complexities(
             *(
                 getattr(
                     col,
                     "cumulative_node_complexity",
-                    {PlanNodeCategory.COLUMN.value: 1},
+                    {PlanNodeCategory.COLUMN: 1},
                 )  # type: ignore
                 for col in self.project_list
             ),
