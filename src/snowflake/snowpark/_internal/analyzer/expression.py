@@ -102,7 +102,9 @@ class Expression:
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         """Returns the aggregate sum complexity statistic from the subtree rooted at this
-        expression node. Statistic of current node is included in the final aggregate.
+        expression node. It is computed by adding all expression attributes of current nodes
+        and cumulative complexity of all children nodes. To correctly maintain this statistic,
+        override individual_node_complexity method for the derived Expression class.
         """
         if self._cumulative_node_complexity is None:
             children = self.children or []
