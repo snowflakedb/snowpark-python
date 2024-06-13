@@ -41,12 +41,15 @@
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
+- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
+- Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `Series.str.match`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
+- Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
 
 #### Improvements
 
