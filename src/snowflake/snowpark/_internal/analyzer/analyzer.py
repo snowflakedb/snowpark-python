@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     case_when_expression,
     cast_expression,
     collate_expression,
+    column_sum,
     delete_merge_statement,
     empty_values_statement,
     flatten_expression,
@@ -55,6 +56,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
     Collate,
+    ColumnSum,
     Expression,
     FunctionExpression,
     InExpression,
@@ -518,6 +520,16 @@ class Analyzer:
                 ),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
+            )
+
+        if isinstance(expr, ColumnSum):
+            return column_sum(
+                [
+                    self.analyze(
+                        col, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
+                    for col in expr.exprs
+                ]
             )
 
         if isinstance(expr, RankRelatedFunctionExpression):

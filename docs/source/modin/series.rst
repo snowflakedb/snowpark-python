@@ -133,6 +133,7 @@ Series
     Series.mean
     Series.median
     Series.min
+    Series.pct_change
     Series.quantile
     Series.rank
     Series.skew

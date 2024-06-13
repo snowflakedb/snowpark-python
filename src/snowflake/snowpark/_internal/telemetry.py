@@ -157,10 +157,6 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
-            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
-            api_calls[0][
-                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan.num_duplicate_nodes
             api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()

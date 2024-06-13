@@ -613,3 +613,18 @@ class ListAgg(Expression):
         return sum_node_complexities(
             {self.plan_node_category: 1}, self.col.cumulative_node_complexity
         )
+
+
+class ColumnSum(Expression):
+    def __init__(self, exprs: List[Expression]) -> None:
+        super().__init__()
+        self.exprs = exprs
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.exprs)
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        return sum_node_complexities(
+            *(expr.cumulative_node_complexity for expr in self.exprs)
+        )
