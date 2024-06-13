@@ -1074,7 +1074,7 @@ class Index:
 
         Examples
         --------
-        # Snowpark pandas converts NaN to None
+        # Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
         >>> idx.get_indexer_for([np.nan])
         array([0, 2])
