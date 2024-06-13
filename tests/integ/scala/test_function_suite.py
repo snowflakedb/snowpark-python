@@ -4502,6 +4502,17 @@ def test_iff(session, local_testing_mode):
             sort=False,
         )
 
+    # Expressions have incompatible type
+    with pytest.raises(SnowparkSQLException):
+        df = (
+            session.create_dataframe(
+                [(True, datetime.now())],
+                schema=["a", "b"],
+            )
+            .select(iff(col("a") == col("b"), col("a"), col("b")))
+            .collect()
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
