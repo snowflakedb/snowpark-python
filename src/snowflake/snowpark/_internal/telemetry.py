@@ -161,9 +161,10 @@ def df_collect_api_telemetry(func):
             api_calls[0][
                 TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
-            api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = dict(
-                plan.cumulative_node_complexity
-            )
+            api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+                key.value: value
+                for key, value in plan.cumulative_node_complexity.items()
+            }
         except Exception:
             pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(

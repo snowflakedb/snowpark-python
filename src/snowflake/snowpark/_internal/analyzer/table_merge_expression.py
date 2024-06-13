@@ -24,9 +24,10 @@ class MergeExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # WHEN MATCHED [AND condition] THEN DEL
-        complexity = self.individual_node_complexity
+        complexity = {self.plan_node_category: 1}
         complexity = (
             sum_node_complexities(complexity, self.condition.cumulative_node_complexity)
             if self.condition
@@ -42,10 +43,11 @@ class UpdateMergeExpression(MergeExpression):
         super().__init__(condition)
         self.assignments = assignments
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
         complexity = sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             *(
                 sum_node_complexities(
                     key_expr.cumulative_node_complexity,
@@ -77,10 +79,11 @@ class InsertMergeExpression(MergeExpression):
         self.keys = keys
         self.values = values
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
         complexity = sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             *(key.cumulative_node_complexity for key in self.keys),
             *(val.cumulative_node_complexity for val in self.values),
         )

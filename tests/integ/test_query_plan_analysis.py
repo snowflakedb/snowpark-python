@@ -91,7 +91,7 @@ def test_range_statement(session: Session):
         {
             PlanNodeCategory.COLUMN: 1,
             PlanNodeCategory.LITERAL: 3,
-            PlanNodeCategory.LOW_IMPACT: 2,
+            PlanNodeCategory.FUNCTION: 3,
             PlanNodeCategory.ORDER_BY: 1,
             PlanNodeCategory.WINDOW: 1,
         },

@@ -99,21 +99,16 @@ class Expression:
         """
         return {self.plan_node_category: 1}
 
-    def calculate_cumulative_node_complexity(self):
-        children = self.children or []
-        return sum_node_complexities(
-            self.individual_node_complexity,
-            *(child.cumulative_node_complexity for child in children),
-        )
-
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         """Returns the aggregate sum complexity statistic from the subtree rooted at this
         expression node. Statistic of current node is included in the final aggregate.
         """
         if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = (
-                self.calculate_cumulative_node_complexity()
+            children = self.children or []
+            self._cumulative_node_complexity = sum_node_complexities(
+                self.individual_node_complexity,
+                *(child.cumulative_node_complexity for child in children),
             )
         return self._cumulative_node_complexity
 
@@ -146,7 +141,8 @@ class ScalarSubquery(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return COLUMN_DEPENDENCY_DOLLAR
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.plan.cumulative_node_complexity
 
 
@@ -158,7 +154,8 @@ class MultipleExpression(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.expressions)
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
             *(expr.cumulative_node_complexity for expr in self.expressions),
         )
@@ -177,9 +174,10 @@ class InExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.IN
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             self.columns.cumulative_node_complexity,
             *(expr.cumulative_node_complexity for expr in self.values),
         )
@@ -230,15 +228,11 @@ class Star(Expression):
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self.expressions:
-            return {}
-        # if there are no expressions, we assign column value = 1 to Star
-        return {PlanNodeCategory.COLUMN: 1}
+        complexity = {} if self.expressions else {PlanNodeCategory.COLUMN: 1}
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity,
-            *(child.individual_node_complexity for child in self.expressions),
+            complexity,
+            *(expr.cumulative_node_complexity for expr in self.expressions),
         )
 
 
@@ -373,9 +367,10 @@ class Like(Expression):
         # expr LIKE pattern
         return PlanNodeCategory.LOW_IMPACT
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             self.expr.cumulative_node_complexity,
             self.pattern.cumulative_node_complexity,
         )
@@ -395,9 +390,10 @@ class RegExp(Expression):
         # expr REG_EXP pattern
         return PlanNodeCategory.LOW_IMPACT
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             self.expr.cumulative_node_complexity,
             self.pattern.cumulative_node_complexity,
         )
@@ -417,9 +413,10 @@ class Collate(Expression):
         # expr COLLATE collate_spec
         return PlanNodeCategory.LOW_IMPACT
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.expr.cumulative_node_complexity, self.individual_node_complexity
+            {self.plan_node_category: 1}, self.expr.cumulative_node_complexity
         )
 
 
@@ -437,10 +434,11 @@ class SubfieldString(Expression):
         # the literal corresponds to the contribution from self.field
         return PlanNodeCategory.LITERAL
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # self.expr ( self.field )
         return sum_node_complexities(
-            self.expr.cumulative_node_complexity, self.individual_node_complexity
+            {self.plan_node_category: 1}, self.expr.cumulative_node_complexity
         )
 
 
@@ -458,10 +456,11 @@ class SubfieldInt(Expression):
         # the literal corresponds to the contribution from self.field
         return PlanNodeCategory.LITERAL
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # self.expr ( self.field )
         return sum_node_complexities(
-            self.expr.cumulative_node_complexity, self.individual_node_complexity
+            {self.plan_node_category: 1}, self.expr.cumulative_node_complexity
         )
 
 
@@ -516,9 +515,10 @@ class WithinGroup(Expression):
         # expr WITHIN GROUP (ORDER BY cols)
         return PlanNodeCategory.ORDER_BY
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             self.expr.cumulative_node_complexity,
             *(col.cumulative_node_complexity for col in self.order_by_cols),
         )
@@ -546,9 +546,10 @@ class CaseWhen(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.CASE_WHEN
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         complexity = sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             *(
                 sum_node_complexities(
                     condition.cumulative_node_complexity,
@@ -590,12 +591,6 @@ class SnowflakeUDF(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        return sum_node_complexities(
-            self.individual_node_complexity,
-            *(expr.cumulative_node_complexity for expr in self.children),
-        )
-
 
 class ListAgg(Expression):
     def __init__(self, col: Expression, delimiter: str, is_distinct: bool) -> None:
@@ -611,7 +606,8 @@ class ListAgg(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.col.cumulative_node_complexity, self.individual_node_complexity
+            {self.plan_node_category: 1}, self.col.cumulative_node_complexity
         )

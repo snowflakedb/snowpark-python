@@ -34,7 +34,8 @@ class TableFunctionPartitionSpecDefinition(Expression):
         self.partition_spec = partition_spec
         self.order_spec = order_spec
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if not self.over:
             return {}
         complexity = {PlanNodeCategory.WINDOW: 1}
@@ -89,9 +90,10 @@ class FlattenFunction(TableFunctionExpression):
         self.recursive = recursive
         self.mode = mode
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
-            self.individual_node_complexity, self.input.cumulative_node_complexity
+            {self.plan_node_category: 1}, self.input.cumulative_node_complexity
         )
 
 
@@ -105,10 +107,11 @@ class PosArgumentsTableFunction(TableFunctionExpression):
         super().__init__(func_name, partition_spec)
         self.args = args
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         complexity = sum_node_complexities(
+            {self.plan_node_category: 1},
             *(arg.cumulative_node_complexity for arg in self.args),
-            self.individual_node_complexity,
         )
         complexity = (
             sum_node_complexities(
@@ -130,10 +133,11 @@ class NamedArgumentsTableFunction(TableFunctionExpression):
         super().__init__(func_name, partition_spec)
         self.args = args
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         complexity = sum_node_complexities(
+            {self.plan_node_category: 1},
             *(arg.cumulative_node_complexity for arg in self.args.values()),
-            self.individual_node_complexity,
         )
         complexity = (
             sum_node_complexities(
@@ -151,10 +155,11 @@ class GeneratorTableFunction(TableFunctionExpression):
         self.args = args
         self.operators = operators
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         complexity = sum_node_complexities(
+            {self.plan_node_category: 1},
             *(arg.cumulative_node_complexity for arg in self.args.values()),
-            self.individual_node_complexity,
         )
         complexity = (
             sum_node_complexities(

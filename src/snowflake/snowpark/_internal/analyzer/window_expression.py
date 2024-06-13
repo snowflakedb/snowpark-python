@@ -75,10 +75,11 @@ class SpecifiedWindowFrame(WindowFrame):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.LOW_IMPACT
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # frame_type BETWEEN lower AND upper
         return sum_node_complexities(
-            self.individual_node_complexity,
+            {self.plan_node_category: 1},
             self.lower.cumulative_node_complexity,
             self.upper.cumulative_node_complexity,
         )
@@ -103,27 +104,27 @@ class WindowSpecDefinition(Expression):
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        complexity = {}
+        # partition_spec order_by_spec frame_spec
+        complexity = self.frame_spec.cumulative_node_complexity
         complexity = (
-            sum_node_complexities(complexity, {PlanNodeCategory.PARTITION_BY: 1})
+            sum_node_complexities(
+                complexity,
+                {PlanNodeCategory.PARTITION_BY: 1},
+                *(expr.cumulative_node_complexity for expr in self.partition_spec),
+            )
             if self.partition_spec
             else complexity
         )
         complexity = (
-            sum_node_complexities(complexity, {PlanNodeCategory.ORDER_BY: 1})
+            sum_node_complexities(
+                complexity,
+                {PlanNodeCategory.ORDER_BY: 1},
+                *(expr.cumulative_node_complexity for expr in self.order_spec),
+            )
             if self.order_spec
             else complexity
         )
         return complexity
-
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # partition_spec order_by_spec frame_spec
-        return sum_node_complexities(
-            self.individual_node_complexity,
-            self.frame_spec.cumulative_node_complexity,
-            *(expr.cumulative_node_complexity for expr in self.partition_spec),
-            *(expr.cumulative_node_complexity for expr in self.order_spec),
-        )
 
 
 class WindowExpression(Expression):
@@ -141,12 +142,13 @@ class WindowExpression(Expression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.WINDOW
 
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # window_function OVER ( window_spec )
         return sum_node_complexities(
+            {self.plan_node_category: 1},
             self.window_function.cumulative_node_complexity,
             self.window_spec.cumulative_node_complexity,
-            self.individual_node_complexity,
         )
 
 
@@ -186,12 +188,9 @@ class RankRelatedFunctionExpression(Expression):
             if self.ignore_nulls
             else complexity
         )
-        return complexity
-
-    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # func_name (expr [, offset] [, default]) [IGNORE NULLS]
         complexity = sum_node_complexities(
-            self.individual_node_complexity, self.expr.cumulative_node_complexity
+            complexity, self.expr.cumulative_node_complexity
         )
         complexity = (
             sum_node_complexities(complexity, self.default.cumulative_node_complexity)
