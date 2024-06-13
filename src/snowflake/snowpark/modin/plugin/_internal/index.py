@@ -1576,7 +1576,7 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        # TODO: SNOW-1458117 implement to_list
+        # TODO: SNOW-1458117 implement tolist
         return self.to_pandas().tolist()
 
     to_list = tolist
