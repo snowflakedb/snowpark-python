@@ -648,7 +648,10 @@ class MockServerConnection:
             values = []
             for j, attr in enumerate(attrs):
                 value = res.iloc[i, j]
-                if isinstance(attr.datatype.datatype, DecimalType):
+                if (
+                    isinstance(attr.datatype.datatype, DecimalType)
+                    and value is not None
+                ):
                     value = Decimal(
                         "{0:.{1}f}".format(value, attr.datatype.datatype.scale)
                     )
