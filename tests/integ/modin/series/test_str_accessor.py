@@ -271,7 +271,7 @@ def test_str_match_invlaid_na(na):
     snow_ser = pd.Series(native_ser)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas doesn't support non-bool 'na' argument",
+        match="Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument",
     ):
         snow_ser.str.match(pat="xyz", na=na)
 

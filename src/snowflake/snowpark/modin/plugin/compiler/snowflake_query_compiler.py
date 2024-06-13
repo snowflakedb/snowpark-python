@@ -12260,7 +12260,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not native_pd.isna(na) and not isinstance(na, bool):
             ErrorMessage.not_implemented(
-                "Snowpark pandas doesn't support non-bool 'na' argument"
+                "Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument"
             )
 
         pat = f"({pat})(.|\n)*"
