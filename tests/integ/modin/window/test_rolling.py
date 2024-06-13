@@ -8,13 +8,12 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.window_utils import (
-    IMPLEMENTED_ROLLING_AGG_FUNCS,
-)
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_ROLLING_AGG_FUNCS)
+agg_func = pytest.mark.parametrize(
+    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max"]
+)
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [1, 2])
 center = pytest.mark.parametrize("center", [True, False])
@@ -211,6 +210,7 @@ def test_rolling_window_unsupported():
         lambda df: df.rolling(2, axis=1).sum(),
         lambda df: df.rolling(2, closed="left").sum(),
         lambda df: df.rolling(2, step=2).sum(),
+        lambda df: df.rolling(0, min_periods=0).sum(),
     ],
 )
 @sql_count_checker(query_count=0)
@@ -223,7 +223,6 @@ def test_rolling_params_unsupported(function):
 @pytest.mark.parametrize(
     "agg_func, agg_func_kwargs",
     [
-        ("count", None),
         ("sem", None),
         ("median", None),
         ("corr", None),
