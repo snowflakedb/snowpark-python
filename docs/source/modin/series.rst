@@ -195,6 +195,8 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.nlargest
+    Series.smallest
     Series.squeeze
 
 .. rubric:: Combining / comparing / joining / merging

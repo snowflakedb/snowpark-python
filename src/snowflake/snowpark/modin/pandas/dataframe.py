@@ -1775,7 +1775,6 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("ne", other, axis=axis, level=level)
 
-    @dataframe_not_implemented()
     def nlargest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in descending order.
@@ -1785,7 +1784,6 @@ class DataFrame(BasePandasDataset):
             query_compiler=self._query_compiler.nlargest(n, columns, keep)
         )
 
-    @dataframe_not_implemented()
     def nsmallest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in ascending order.
