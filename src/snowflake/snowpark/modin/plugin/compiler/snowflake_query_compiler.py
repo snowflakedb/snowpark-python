@@ -1499,8 +1499,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @property
     def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
-        Get index. If multi-index, the method eagerly pulls the values from Snowflake because index requires the values to be
-        filled and returns a pandas multi index. If not multi-index, create a modin index and pass it self
+        Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values to be
+        filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass it self
 
         Returns:
             The index (row labels) of the DataFrame.

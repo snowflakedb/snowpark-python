@@ -322,10 +322,8 @@ def test_set_index_pass_arrays_duplicate(obj_type1, obj_type2, drop, append, nat
 
     query_count = 4
     # one extra query per modin index to create the series and set index
-    if obj_type1 == native_pd.Index and obj_type2 == native_pd.Index:
-        query_count = 6
-    elif obj_type1 == native_pd.Index or obj_type2 == native_pd.Index:
-        query_count = 5
+    query_count += 1 if obj_type1 == native_pd.Index else 0
+    query_count += 1 if obj_type2 == native_pd.Index else 0
     with SqlCounter(query_count=query_count, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
