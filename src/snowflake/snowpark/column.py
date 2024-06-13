@@ -993,6 +993,7 @@ class Column:
         ast = proto.Expr()
         if property is not None:
             prop_ast = getattr(ast, property)
+            fill_src_position(prop_ast.src)
             for attr, value in assign_fields.items():
                 setattr_if_not_none(prop_ast, attr, value)
             for attr, value in assign_opt_fields.items():
