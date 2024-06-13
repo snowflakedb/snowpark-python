@@ -90,6 +90,72 @@ html_show_sourcelink = False  # Hide "view page source" link
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
 
+# Add custom Documenter classes to pre-process accessor classes like pd.Series.str, pd.Series.dt
+# See implementation from pandas:
+# https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L484-L485
+import sphinx  # isort:skip
+from sphinx.ext.autodoc import (  # isort:skip
+    AttributeDocumenter,
+    Documenter,
+    MethodDocumenter,
+)
+from sphinx.ext.autosummary import Autosummary  # isort:skip
+
+class AccessorLevelDocumenter(Documenter):
+    """
+    Specialized Documenter subclass for objects on accessor level (methods,
+    attributes).
+    """
+
+    # This is the simple straightforward version
+    # modname is None, base the last elements (eg 'hour')
+    # and path the part before (eg 'Series.dt')
+    # def resolve_name(self, modname, parents, path, base):
+    #     modname = 'pandas'
+    #     mod_cls = path.rstrip('.')
+    #     mod_cls = mod_cls.split('.')
+    #
+    #     return modname, mod_cls + [base]
+    def resolve_name(self, modname, parents, path, base):
+        if modname is None:
+            modname = "modin.pandas"
+            parents = ["series_utils", "StringMethods"]
+        return modname, parents + [base]
+
+
+class ModinAccessorMethodDocumenter(AccessorLevelDocumenter, MethodDocumenter):
+    objtype = "modinaccessormethod"
+    directivetype = "method"
+
+    # lower than MethodDocumenter (1) so this is not chosen for normal methods
+    priority = 0.6
+
+
+class ModinAutosummary(Autosummary):
+    def get_items(self, names):
+        if any("Series.str." in name for name in names):
+            names = [name.replace("Series.str.", "series_utils.StringMethods.") for name in names]
+
+        def process_modin_accessors(args):
+            display_name, sig, summary, real_name = args
+            if "series_utils.StringMethods" in display_name:
+                display_name = display_name.replace("series_utils.StringMethods", "Series.str")
+            return display_name, sig, summary, real_name
+
+        return list(map(process_modin_accessors, Autosummary.get_items(self, names)))
+
+
+def setup(app):
+    # Like pandas, we need to do some pre-processing for accessor methods/properties like
+    # pd.Series.str.replace and pd.Series.dt.date in order to resolve the parent class correctly.
+    # https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L792
+    # app.add_autodocumenter(AccessorDocumenter)
+    # app.add_autodocumenter(AccessorAttributeDocumenter)
+    app.add_autodocumenter(ModinAccessorMethodDocumenter)
+    # app.add_autodocumenter(AccessorCallableDocumenter)
+    app.add_directive("autosummary", ModinAutosummary)
+    ...
+
 
 # Construct URL to the corresponding section in the snowpark-python repo
 def linkcode_resolve(domain, info):
