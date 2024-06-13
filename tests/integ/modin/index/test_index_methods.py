@@ -35,13 +35,12 @@ def test_index_copy(native_index):
     assert_index_equal(snow_index, snow_index2)
 
 
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+@sql_count_checker(query_count=2)
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[1:])
 def test_index_drop(native_index):
     snow_index = pd.Index(native_index)
-    if not native_index.empty:
-        with SqlCounter(query_count=2):
-            labels = [native_index[0]]
-            assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
+    labels = [native_index[0]]
+    assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
