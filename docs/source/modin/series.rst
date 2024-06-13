@@ -223,5 +223,27 @@ Series
     Series.str
     Series.dt
 
-.. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
-.. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. currentmodule:: modin.pandas
+.. rubric:: String accessor methods
+
+:doc:`All supported Series str APIs <supported/series_str_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_method.rst
+
+    Series.str.replace
+    Series.str.split
+
+
+.. rubric:: Datetime accessor methods
+
+:doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    .. Series.dt.date
+    .. Series.dt.time
+
