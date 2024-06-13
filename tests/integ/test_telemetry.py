@@ -595,7 +595,8 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
-                "low_impact": 5,
+                "low_impact": 3,
+                "function": 3,
                 "column": 3,
                 "literal": 5,
                 "window": 1,
@@ -616,7 +617,8 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
-                "low_impact": 5,
+                "low_impact": 3,
+                "function": 3,
                 "column": 3,
                 "literal": 5,
                 "window": 1,
@@ -637,7 +639,8 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
-                "low_impact": 5,
+                "low_impact": 3,
+                "function": 3,
                 "column": 3,
                 "literal": 5,
                 "window": 1,
@@ -658,7 +661,8 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
-                "low_impact": 5,
+                "low_impact": 3,
+                "function": 3,
                 "column": 3,
                 "literal": 5,
                 "window": 1,
@@ -679,7 +683,8 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
-                "low_impact": 5,
+                "low_impact": 3,
+                "function": 3,
                 "column": 3,
                 "literal": 5,
                 "window": 1,
