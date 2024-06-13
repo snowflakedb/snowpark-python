@@ -85,7 +85,7 @@ class Index:
         >>> pd.Index(list('abc'))
         Index(['a', 'b', 'c'], dtype='object')
 
-        # Snowpark pandas casts all int types to int64 by default
+        # # Snowpark pandas only supports signed integers so cast to uint won't work
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """

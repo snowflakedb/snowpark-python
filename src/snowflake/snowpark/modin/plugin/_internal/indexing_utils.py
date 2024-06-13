@@ -941,6 +941,7 @@ def get_valid_col_positions_from_col_labels(
         col_loc = pd.Index(
             [label for label in col_loc if label in columns],
             dtype=object,
+            # we do not convert to lazy because we are using this index as columns
             convert_to_lazy=False,
         )
 
