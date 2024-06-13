@@ -77,35 +77,35 @@ def test_assign_custom_cumulative_node_complexity(
     set_children(nodes[5], node_type, [])
     set_children(nodes[6], node_type, [])
 
-    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 7}
-    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 5}
-    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[3].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[4].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 2}
-    assert nodes[5].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
-    assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 7}
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 5}
+    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
+    assert nodes[3].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
+    assert nodes[4].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 2}
+    assert nodes[5].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
+    assert nodes[6].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
-    nodes[1].cumulative_node_complexity = {PlanNodeCategory.COLUMN.value: 1}
+    nodes[1].cumulative_node_complexity = {PlanNodeCategory.COLUMN: 1}
 
     # assert that only value that is reset is changed
-    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 7}
-    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
-    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS.value: 1}
+    assert nodes[0].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 7}
+    assert nodes[1].cumulative_node_complexity == {PlanNodeCategory.COLUMN: 1}
+    assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
 
 def test_selectable_entity_individual_node_complexity(mock_analyzer):
     plan_node = SelectableEntity(entity_name="dummy entity", analyzer=mock_analyzer)
-    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
 
-def test_select_sql_individual_node_complexity(mock_session, mock_analyzer):
+def test_select_sql_individual_node_complexity(mock_analyzer):
     plan_node = SelectSQL(
         "non-select statement", convert_to_select=True, analyzer=mock_analyzer
     )
-    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
     plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
-    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 1}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
 
 def test_select_snowflake_plan_individual_node_complexity(
@@ -116,26 +116,26 @@ def test_select_snowflake_plan_individual_node_complexity(
         [mock_query], "", source_plan=source_plan, session=mock_session
     )
     plan_node = SelectSnowflakePlan(snowflake_plan, analyzer=mock_analyzer)
-    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN.value: 2}
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 2}
 
 
 @pytest.mark.parametrize(
     "attribute,value,expected_stat",
     [
-        ("projection", [NamedExpression()], {PlanNodeCategory.COLUMN.value: 1}),
-        ("projection", [Expression()], {PlanNodeCategory.OTHERS.value: 1}),
+        ("projection", [NamedExpression()], {PlanNodeCategory.COLUMN: 1}),
+        ("projection", [Expression()], {PlanNodeCategory.OTHERS: 1}),
         (
             "order_by",
             [Expression()],
-            {PlanNodeCategory.OTHERS.value: 1, PlanNodeCategory.ORDER_BY.value: 1},
+            {PlanNodeCategory.OTHERS: 1, PlanNodeCategory.ORDER_BY: 1},
         ),
         (
             "where",
             Expression(),
-            {PlanNodeCategory.OTHERS.value: 1, PlanNodeCategory.FILTER.value: 1},
+            {PlanNodeCategory.OTHERS: 1, PlanNodeCategory.FILTER: 1},
         ),
-        ("limit_", 10, {PlanNodeCategory.LOW_IMPACT.value: 1}),
-        ("offset", 2, {PlanNodeCategory.LOW_IMPACT.value: 1}),
+        ("limit_", 10, {PlanNodeCategory.LOW_IMPACT: 1}),
+        ("offset", 2, {PlanNodeCategory.LOW_IMPACT: 1}),
     ],
 )
 def test_select_statement_individual_node_complexity(
@@ -166,9 +166,7 @@ def test_select_table_function_individual_node_complexity(
 
     with mock.patch.object(mock_analyzer, "resolve", side_effect=mocked_resolve):
         plan_node = SelectTableFunction(func_expr, analyzer=mock_analyzer)
-        assert plan_node.individual_node_complexity == {
-            PlanNodeCategory.COLUMN.value: 2
-        }
+        assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 2}
 
 
 @pytest.mark.parametrize("set_operator", [UNION, UNION_ALL, INTERSECT, EXCEPT])
@@ -184,6 +182,4 @@ def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
     ]
     plan_node = SetStatement(*set_operands, analyzer=mock_analyzer)
 
-    assert plan_node.individual_node_complexity == {
-        PlanNodeCategory.SET_OPERATION.value: 1
-    }
+    assert plan_node.individual_node_complexity == {PlanNodeCategory.SET_OPERATION: 1}

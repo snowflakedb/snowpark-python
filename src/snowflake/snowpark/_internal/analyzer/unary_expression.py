@@ -88,9 +88,9 @@ class Alias(UnaryExpression, NamedExpression):
         return f"{self.child} {self.sql_operator} {self.name}"
 
     @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        # child AS name
-        return PlanNodeCategory.COLUMN
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # do not add additional complexity for alias
+        return {}
 
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
@@ -102,6 +102,6 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
         self.name = child.sql
 
     @property
-    def individual_node_complexity(self) -> Dict[str, int]:
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # this is a wrapper around child
         return {}

@@ -9,6 +9,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
     sum_node_complexities,
 )
 
@@ -59,7 +60,7 @@ class SortOrder(Expression):
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
 
-    def calculate_cumulative_node_complexity(self) -> Dict[str, int]:
+    def calculate_cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return sum_node_complexities(
             self.child.cumulative_node_complexity, self.individual_node_complexity
         )
