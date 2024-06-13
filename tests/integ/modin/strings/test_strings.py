@@ -632,7 +632,7 @@ def test_get_with_dict_label(key, expected_result):
             # - "head shaking vertically" = 1F642 + 200D + 2195 + FE0F
             # - "mending heart" = 2764 + FE0F + 200D + 1FA79
             # - "health worker" = 1F91D1 + 200D + 2605 + FE0F
-            ["😶‍🌫️", "❤️‍🔥", "🧑‍⚖️"],
+            ["🙂‍↔️", "❤️‍🔥", "🧑‍⚖️"],
             {
                 0x2194: 0x2195,
                 0x1F525: 0x1FA79,

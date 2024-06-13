@@ -981,7 +981,7 @@ class StringMethods:
         --------
         >>> ser = pd.Series(["El niño", "Françoise"])
         >>> mytable = str.maketrans({'ñ': 'n', 'ç': 'c'})
-        >>> ser.str.translate(mytable)
+        >>> ser.str.translate(mytable)  # doctest: +NORMALIZE_WHITESPACE
         0   El nino
         1   Francoise
         dtype: object
