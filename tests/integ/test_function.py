@@ -135,6 +135,7 @@ from snowflake.snowpark.functions import (
     sum as sum_,
     to_array,
     to_binary,
+    to_boolean,
     to_char,
     to_date,
     to_decimal,
@@ -160,6 +161,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     DoubleType,
     FloatType,
+    IntegerType,
     MapType,
     StringType,
     StructField,
@@ -480,6 +482,47 @@ def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
+
+
+def test_cast_variant_type(session):
+    df = session.create_dataframe([[True, 1]], schema=["a", "b"])
+    Utils.check_answer(
+        df.select(cast(df["a"], "variant"), cast(df["b"], "variant")),
+        [Row("true", "1")],
+    )
+
+
+def test_to_boolean(session):
+    df = session.create_dataframe(
+        [[True, 1, "yes", True], [False, 0, "no", False]],
+        schema=StructType(
+            [
+                StructField("b", BooleanType()),
+                StructField("n", IntegerType()),
+                StructField("s", StringType()),
+                StructField("v", VariantType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df.select(*[to_boolean(col) for col in df.columns]),
+        [Row(True, True, True, True), Row(False, False, False, False)],
+        sort=False,
+    )
+
+    # Invalid coercion type
+    with pytest.raises(SnowparkSQLException):
+        df = session.create_dataframe(
+            [
+                [datetime.datetime.now()],
+            ],
+            schema=StructType(
+                [
+                    StructField("t", TimestampType()),
+                ]
+            ),
+        )
+        df.select(to_boolean("t")).collect()
 
 
 @pytest.mark.localtest

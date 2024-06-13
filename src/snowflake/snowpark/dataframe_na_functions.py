@@ -10,6 +10,7 @@ from logging import getLogger
 from typing import Dict, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.expression import ColumnSum
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import (
@@ -18,6 +19,7 @@ from snowflake.snowpark._internal.type_utils import (
     python_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
     DataType,
@@ -192,7 +194,7 @@ class DataFrameNaFunctions:
                 for field in self._df.schema.fields
             }
             normalized_col_name_set = {quote_name(col_name) for col_name in subset}
-            col_counter = None
+            is_na_columns = []
             for normalized_col_name in normalized_col_name_set:
                 if normalized_col_name not in df_col_type_dict:
                     raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
@@ -207,10 +209,8 @@ class DataFrameNaFunctions:
                 else:
                     # iff(col is null, 0, 1)
                     is_na = iff(col.is_null(), 0, 1)
-                if col_counter is not None:
-                    col_counter += is_na
-                else:
-                    col_counter = is_na
+                is_na_columns.append(is_na)
+            col_counter = Column(ColumnSum([c._expression for c in is_na_columns]))
             new_df = self._df.where(col_counter >= thresh)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df

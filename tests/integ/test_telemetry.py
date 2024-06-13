@@ -585,14 +585,11 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
 
     df.collect()
     # API calls don't change after query is executed
-    query_plan_height = 2 if sql_simplifier_enabled else 3
 
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
                 "low_impact": 3,
@@ -613,8 +610,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
                 "low_impact": 3,
@@ -635,8 +630,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
                 "low_impact": 3,
@@ -657,8 +650,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
                 "low_impact": 3,
@@ -679,8 +670,6 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {
                 "filter": 1,
                 "low_impact": 3,
@@ -824,8 +813,6 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {"group_by": 1, "column": 6, "literal": 48},
         },
         {
@@ -842,8 +829,6 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
             "query_plan_complexity": {"group_by": 1, "column": 6, "literal": 48},
         }
     ]
