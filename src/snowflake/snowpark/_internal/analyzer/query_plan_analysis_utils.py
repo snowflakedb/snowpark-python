@@ -36,8 +36,8 @@ class PlanNodeCategory(Enum):
     LOW_IMPACT = "low_impact"
     OTHERS = "others"
 
-    def __repr__(self):
-        return self.value
+    def __repr__(self) -> str:
+        return self.name
 
 
 def sum_node_complexities(

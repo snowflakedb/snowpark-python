@@ -79,7 +79,7 @@ class Range(LeafNode):
             PlanNodeCategory.ORDER_BY: 1,
             PlanNodeCategory.LITERAL: 3,  # step, start, count
             PlanNodeCategory.COLUMN: 1,  # id column
-            PlanNodeCategory.LOW_IMPACT: 2,  # ROW_NUMBER, GENERATOR
+            PlanNodeCategory.FUNCTION: 3,  # ROW_NUMBER, SEQ, GENERATOR
         }
 
 
