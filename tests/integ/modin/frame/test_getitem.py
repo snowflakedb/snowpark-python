@@ -190,13 +190,13 @@ def test_df_getitem_with_none_nan_columns():
     # an Index with dtype=object will keep them as separate values. If dtype=object is not explicitly specified
     # (either in the columns of the DF constructor or in the indexing key), then None is implicitly coerced
     # to nan.
-    key = pd.Index([None, np.nan], dtype=object)
+    key = native_pd.Index([None, np.nan], dtype=object)
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df[try_convert_index_to_native(key)],
+        lambda df: df[key],
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="Cannot mask with non-boolean array containing NA / NaN values",
@@ -216,15 +216,13 @@ def test_df_getitem_with_none_nan_columns():
 def test_df_getitem_with_labels_two_columns_with_index(key):
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
-    if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
 
     def helper(df):
         ans_df = df[key]
         # because columns is returned as an index object, and the missing value mapping is not 100% pandas,
         # cast here to_pandas with columns' index object type to compare and explicitly convert
         # Na to None to allow comparison
-        columns = pd.Index(
+        columns = native_pd.Index(
             [None if isna(val) else val for val in ans_df.columns.values], "object"
         )
         if isinstance(ans_df, (pd.Series, pd.DataFrame)):

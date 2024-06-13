@@ -811,6 +811,11 @@ def ensure_index(
             index_like = index_like.copy()
         return index_like
 
+    if isinstance(index_like, pd.Series):
+        if copy:
+            index_like = index_like.copy()
+        return pd.Index(index_like.values)
+
     if isinstance(index_like, list):
         # if we have a non-empty list that is multi dimensional, convert this to a multi-index and return
         if len(index_like) and lib.is_all_arraylike(index_like):

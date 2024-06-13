@@ -2847,7 +2847,7 @@ def test_df_loc_set_item_df_single_value(key, val_index, val_columns):
             else:
                 df.loc[:, ["A"]] = val
 
-    with SqlCounter(query_count=3, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(native_df), native_df, setitem, inplace=True
         )

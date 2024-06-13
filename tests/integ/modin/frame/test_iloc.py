@@ -715,23 +715,22 @@ def test_df_iloc_get_key_bool(
 
         return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
 
-    query_count = 2 if (key_type == "series" and axis == "col") else 1
-    if "index" in key_type:
-        if axis == "col":
-            # 2 extra queries for dtype and 1 for name
-            query_count = 4
-        elif key_type == "index":
-            # 2 extra queries for dtype, 1 for name and 1 for series init
-            query_count = 5
-        else:
-            # same as elif case, but one more query for name
-            query_count = 6
+    # Two extra queries for index dtype and one extra query for index conversion to series to set item
+    query_count = (
+        4
+        if "index" in key_type
+        else 2
+        if (key_type == "series" and axis == "col")
+        else 1
+    )
     expected_join_count = 0
     if axis == "row":
         if key == [] and key_type in ["list", "ndarray"]:
             expected_join_count = 2
         else:
             expected_join_count = 1
+    else:
+        expected_join_count = 0
 
     # test df with default index
     with SqlCounter(query_count=query_count, join_count=expected_join_count):
@@ -958,17 +957,14 @@ def test_df_iloc_get_key_numeric(
 
         return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
 
-    query_count = 2 if (key_type == "series" and axis == "col") else 1
-    if "index" in key_type:
-        if axis == "col":
-            # 2 extra queries for dtype and 1 for name
-            query_count = 4
-        elif key_type == "index":
-            # 2 extra queries for dtype, 1 for name and 1 for series init
-            query_count = 5
-        else:
-            # same as elif case, but one more query for name
-            query_count = 6
+    # Two extra queries for index dtype and one extra query for index conversion to series to set item
+    query_count = (
+        4
+        if "index" in key_type
+        else 2
+        if (key_type == "series" and axis == "col")
+        else 1
+    )
     join_count = 2 if axis == "row" else 0
 
     # test df with default index
@@ -1317,20 +1313,12 @@ def test_df_iloc_get_non_numeric_key_negative(
         key = pd.Index(key)
     # General case fails with TypeError.
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    qc = 0
-    if isinstance(key, pd.Index):
-        # one query for repr in the error, 2 for dtype, one for name and one for series init
-        qc = 5
-        if axis == "col":
-            # less queries in the column case, we don't need name or series init
-            qc = 3
-    with SqlCounter(query_count=qc):
-        with pytest.raises(IndexError, match=error_msg):
-            _ = (
-                default_index_snowpark_pandas_df.iloc[key]
-                if axis == "row"
-                else default_index_snowpark_pandas_df.iloc[:, key]
-            )
+    with pytest.raises(IndexError, match=error_msg):
+        _ = (
+            default_index_snowpark_pandas_df.iloc[key]
+            if axis == "row"
+            else default_index_snowpark_pandas_df.iloc[:, key]
+        )
 
 
 @sql_count_checker(query_count=0)

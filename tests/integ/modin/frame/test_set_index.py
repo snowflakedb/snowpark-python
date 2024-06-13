@@ -80,8 +80,8 @@ def test_set_index_multiindex_columns(snow_df):
     )
 
 
-# Two extra queries to create the series to set index, one for index name and one to convert to native pandas
-@sql_count_checker(query_count=4)
+# One extra query to convert to native pandas to create series to set index
+@sql_count_checker(query_count=3)
 def test_set_index_negative(snow_df, native_df):
     index = pd.Index([1, 2])
     native_index = native_pd.Index([1, 2])
@@ -353,8 +353,8 @@ def test_set_index_pass_multiindex(drop, append, native_df):
 @pytest.mark.parametrize(
     "keys, expected_query_count",
     [
-        (["a"], 3),
-        ([[1, 6, 6]], 5),
+        (["a"], 5),
+        ([[1, 6, 6]], 7),
     ],
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):

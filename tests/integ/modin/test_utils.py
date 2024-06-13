@@ -55,7 +55,6 @@ INDEX_DATA = [
 
 
 @pytest.mark.parametrize("data", INDEX_DATA)
-@sql_count_checker(query_count=0)
 def test_assert_index_equal(data):
     if isinstance(data[0], list):
         a = pd.MultiIndex.from_arrays(data)
@@ -65,15 +64,15 @@ def test_assert_index_equal(data):
         a = pd.Index(data)
         b = pd.Index(data)
         c = pd.Index([-1, 2, 3])
-    assert_index_equal(a, b)
-    with pytest.raises(AssertionError):
-        assert_index_equal(a, c)
-    with pytest.raises(AssertionError):
-        assert_index_equal(b, c)
+    with SqlCounter(query_count=0 if isinstance(data[0], list) else 6):
+        assert_index_equal(a, b)
+        with pytest.raises(AssertionError):
+            assert_index_equal(a, c)
+        with pytest.raises(AssertionError):
+            assert_index_equal(b, c)
 
 
 @pytest.mark.parametrize("data", INDEX_DATA)
-@sql_count_checker(query_count=0)
 def test_try_convert_to_native_index(data):
 
     # we only convert a snowpark pandas index to a native pandas index
@@ -86,9 +85,10 @@ def test_try_convert_to_native_index(data):
     else:
         index = pd.Index(data)
         index2 = pd.Index(data)
-    index = try_convert_index_to_native(index)
-    assert isinstance(index, native_pd.Index)
-    assert_index_equal(index, index2)
+    with SqlCounter(query_count=0 if isinstance(data[0], list) else 2):
+        index = try_convert_index_to_native(index)
+        assert isinstance(index, native_pd.Index)
+        assert_index_equal(index, index2)
 
 
 def ensure_index_test_helper(data, qc):
@@ -102,9 +102,7 @@ def ensure_index_test_helper(data, qc):
         # this case would also apply if the given data was a multiindex
         elif isinstance(data[0], tuple):
             assert isinstance(new_data, pd.MultiIndex)
-            assert_index_equal(
-                new_data, pd.MultiIndex.from_arrays(data.values.to_numpy())
-            )
+            assert_index_equal(new_data, pd.MultiIndex.from_tuples(data))
         # otherwise, ensure_index should convert to a pd.Index
         else:
             assert isinstance(new_data, pd.Index)
@@ -121,22 +119,23 @@ def ensure_index_test_helper(data, qc):
         native_pd.Index([1, 2, 3]),
         native_pd.Index(["a", "b", "c"]),
         native_pd.Series([1, 2, 3]),
-        [[1, 2, 3], ["a", "b", "c"]],
+        native_pd.MultiIndex.from_arrays([[1, 2, 3], ["a", "b", "c"]]),
     ],
 )
 def test_ensure_index(data):
-    qc = 0
+    qc = 1
     if isinstance(data, native_pd.MultiIndex):
-        data = data
+        qc = 0
     elif isinstance(data, native_pd.Index):
         # test on native_pd.Index
-        ensure_index_test_helper(data, 0)
+        ensure_index_test_helper(data, 1)
         # convert to pd.Index to test on pd.Index later
         data = pd.Index(data)
+        qc = 5
     elif isinstance(data, native_pd.Series):
         # test on native_pd.Series
-        ensure_index_test_helper(data, 0)
+        ensure_index_test_helper(data, 1)
         # convert to pd.Series to test on pd.Series later
         data = pd.Series(data)
-        qc = 6
+        qc = 7
     ensure_index_test_helper(data, qc)

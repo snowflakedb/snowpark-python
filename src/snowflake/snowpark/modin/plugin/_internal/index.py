@@ -113,7 +113,7 @@ class Index:
         tupleize_cols: bool = True,
     ) -> None:
         """
-        Helper method to create and save query compiler when index should be lazy
+        Helper method to find and save query compiler when index should be lazy
         """
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.pandas.series import Series
@@ -193,6 +193,9 @@ class Index:
 
                 # Remove the first argument in args, because it is `self` and we don't need it
                 args = args[1:]
+                args = tuple(try_convert_index_to_native(a) for a in args)
+                for k, v in kwargs.items():
+                    kwargs[k] = try_convert_index_to_native(v)
                 returned_value = native_func(*args, **kwargs)
 
                 # If we return a native Index, we need to convert this to a modin index but keep it locally.
@@ -435,6 +438,7 @@ class Index:
         WarningMessage.index_to_pandas_warning("astype")
         return Index(
             self.to_pandas().astype(dtype=dtype, copy=copy),
+            dtype=dtype,
             convert_to_lazy=self.is_lazy,
         )
 
