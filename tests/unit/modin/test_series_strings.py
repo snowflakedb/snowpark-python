@@ -56,7 +56,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.rindex("abc", start=1), "rindex"),
         (lambda s: s.str.swapcase(), "swapcase"),
         (lambda s: s.str.normalize("NFC"), "normalize"),
-        (lambda s: s.str.translate(str.maketrans("a", "b")), "translate"),
         (lambda s: s.str.isalnum(), "isalnum"),
         (lambda s: s.str.isalpha(), "isalpha"),
         (lambda s: s.str.isnumeric(), "isnumeric"),

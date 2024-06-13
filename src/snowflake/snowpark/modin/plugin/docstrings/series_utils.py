@@ -960,7 +960,67 @@ class StringMethods:
         pass
 
     def translate():
-        pass
+        """
+        Map all characters in the string through the given mapping table.
+
+        Equivalent to standard :meth:`str.translate`.
+
+        Parameters
+        ----------
+        table : dict
+            Table is a mapping of Unicode ordinals to Unicode ordinals, strings, or
+            None. Unmapped characters are left untouched.
+            Characters mapped to None are deleted. :meth:`str.maketrans` is a
+            helper function for making translation tables.
+
+        Returns
+        -------
+        Series
+
+        Examples
+        --------
+        >>> ser = pd.Series(["El niño", "Françoise"])
+        >>> mytable = str.maketrans({'ñ': 'n', 'ç': 'c'})
+        >>> ser.str.translate(mytable)
+        0   El nino
+        1   Francoise
+        dtype: object
+
+        Notes
+        -----
+        Snowpark pandas internally uses the Snowflake SQL `TRANSLATE` function to implement this
+        operation. Since this function uses strings instead of unicode codepoints, it will accept
+        mappings containing string keys that would be invalid in pandas.
+
+        Works in Snowpark pandas without `str.maketrans`:
+
+        >>> pd.Series("aaa").str.translate({"a": "A"})  # doctest: +SKIP
+        0    AAA
+        dtype: object
+        >>> pd.Series("aaa").str.translate(str.maketrans({"a": "A"}))  # doctest: +SKIP
+        0    AAA
+        dtype: object
+
+        Fails silently in vanilla pandas without `str.maketrans`:
+
+        >>> import pandas  # doctest: +SKIP
+        >>> pandas.Series("aaa").str.translate({"a": "A"})  # doctest: +SKIP
+        0    aaa
+        dtype: object
+        >>> pandas.Series("aaa").str.translate(str.maketrans({"a": "A"}))  # doctest: +SKIP
+        0    AAA
+        dtype: object
+
+        Furthermore, all string keys and values must be one unicode codepoint in length. Vanilla
+        pandas silently skips entries where the keys or values are more than one codepoint, whereas
+        Snowpark pandas raises a ValueError.
+
+        Snowpark pandas behavior:
+        >>> pd.Series("aaa").str.translate({"a": "aa"})  # doctest: +SKIP
+        Traceback (most recent call last):
+          ...
+        ValueError:
+        """
 
     def isalnum():
         pass
