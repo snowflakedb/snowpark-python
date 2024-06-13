@@ -50,6 +50,7 @@
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
+- Fixes a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 
 #### Improvements
 
