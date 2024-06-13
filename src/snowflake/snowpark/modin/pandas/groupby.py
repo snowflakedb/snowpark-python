@@ -124,6 +124,31 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         }
         self._kwargs.update(kwargs)
 
+    def _override(self, **kwargs):
+        """
+        Override groupby parameters.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Parameters to override.
+
+        Returns
+        -------
+        DataFrameGroupBy
+            A groupby object with new parameters.
+        """
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        new_kw = dict(
+            df=self._df,
+            by=self._by,
+            axis=self._axis,
+            idx_name=self._idx_name,
+            **self._kwargs,
+        )
+        new_kw.update(kwargs)
+        return type(self)(**new_kw)
+
     def __getattr__(self, key):
         """
         Alter regular attribute access, looks up the name in the columns.
@@ -725,7 +750,15 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     def get_group(self, name, obj=None):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="get_group", class_="GroupBy")
+        work_object = self._override(
+            df=obj if obj is not None else self._df, as_index=True
+        )
+
+        return work_object._wrap_aggregation(
+            qc_method=type(work_object._query_compiler).groupby_get_group,
+            numeric_only=False,
+            agg_kwargs=dict(name=name),
+        )
 
     def __len__(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -1243,6 +1276,11 @@ class SeriesGroupBy(DataFrameGroupBy):
             # https://github.com/modin-project/modin/issues/7097
             return dataframe_result.squeeze(axis=1).rename(self._df.columns[-1])
         return dataframe_result
+
+    def get_group(self, name, obj=None):
+        ErrorMessage.method_not_implemented_error(
+            name="get_group", class_="SeriesGroupBy"
+        )
 
 
 def validate_groupby_args(
