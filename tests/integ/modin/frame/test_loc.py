@@ -140,14 +140,7 @@ ITEM_TYPE_LIST_CONVERSION = [
 def test_df_loc_get_tuple_key(
     row, col, str_index_snowpark_pandas_df, str_index_native_df
 ):
-    with SqlCounter(
-        query_count=2
-        if is_scalar(row)
-        or isinstance(row, tuple)
-        or is_scalar(col)
-        or isinstance(col, tuple)
-        else 1
-    ):
+    with SqlCounter(query_count=2 if is_scalar(row) or isinstance(row, tuple) else 1):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
@@ -185,7 +178,7 @@ def test_df_loc_get_callable_key(
 def test_df_loc_get_col_non_boolean_key(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
-    with SqlCounter(query_count=2 if is_scalar(key) or isinstance(key, tuple) else 1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
