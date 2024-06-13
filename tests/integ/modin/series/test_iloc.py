@@ -197,7 +197,9 @@ def test_series_iloc_get_key_bool(
         return _ser.iloc[_key]
 
     expected_join_count = 1
-    expected_query_count = 2 if "index" in key_type else 1
+
+    # 2 extra queries for dtype, 1 for converting to series
+    expected_query_count = 4 if "index" in key_type else 1
     if key == [] and key_type in ["list", "ndarray"]:
         expected_join_count += 1
 
@@ -286,7 +288,9 @@ def test_series_iloc_get_key_numeric(
             pass
         # Index objects have dtype object when empty
         return
-    query_count = 2 if "index" in key_type else 1
+
+    # 2 extra queries for dtype, 1 for converting to series
+    query_count = 4 if "index" in key_type else 1
 
     default_index_int_series = pd.Series(default_index_native_int_series)
     # test ser with default index
@@ -478,7 +482,8 @@ def test_series_iloc_get_non_numeric_key_negative(key, default_index_native_int_
         key = pd.Index(key)
     snowpark_index_int_series = pd.Series(default_index_native_int_series)
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    with SqlCounter(query_count=1 if isinstance(key, pd.Index) else 0):
+    # 2 extra queries for repr and 2 for dtype
+    with SqlCounter(query_count=4 if isinstance(key, pd.Index) else 0):
         with pytest.raises(IndexError, match=error_msg):
             _ = snowpark_index_int_series.iloc[key]
 

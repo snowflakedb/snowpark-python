@@ -197,7 +197,7 @@ def test_series_loc_get_basic(series, key):
         assert pd.Series(series).loc[key] == series.loc[key]
 
 
-@sql_count_checker(query_count=3, join_count=0)
+@sql_count_checker(query_count=1, join_count=0)
 def test_series_loc_get_all_rows():
     data = [1, 2, 3]
     columns = ["A"]
