@@ -64,8 +64,8 @@ def test_drop_duplicates(subset, keep, ignore_index):
     query_count = 1
     join_count = 2
     if ignore_index is True:
-        # One extra query to get the name, one extra query to convert to native pandas in series constructor
-        query_count += 4
+        # One extra query to convert index to native pandas in series constructor
+        query_count += 3
         join_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(

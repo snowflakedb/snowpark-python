@@ -966,7 +966,8 @@ class TestFuncReturnsSeries:
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
