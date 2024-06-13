@@ -72,7 +72,7 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
                 assert snowpark_pandas_df.columns.tolist() == expected_data_cols
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     snowpark_df = session.sql(
         f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
