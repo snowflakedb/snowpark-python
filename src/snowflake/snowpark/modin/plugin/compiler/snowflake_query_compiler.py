@@ -12324,8 +12324,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_match(
         self, pat: str, case: bool = True, flags: int = 0, na: object = None
-    ) -> None:
-        ErrorMessage.method_not_implemented_error("match", "Series.str")
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Determine if each string starts with a match of a regular expression.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence.
+        case : bool, default True
+            If True, case sensitive.
+        flags : int, default 0 (no flags)
+            Regex module flags, e.g. re.IGNORECASE.
+        na : scalar, optional
+            Fill value for missing values. The default depends on dtype of the array. For object-dtype, numpy.nan is used. For StringDtype, pandas.NA is used.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not native_pd.isna(na) and not isinstance(na, bool):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument"
+            )
+
+        pat = f"({pat})(.|\n)*"
+        if flags & re.IGNORECASE > 0:
+            case = False
+        if flags & re.IGNORECASE == 0 and not case:
+            flags = flags | re.IGNORECASE
+        params = self._get_regex_params(flags)
+
+        def output_col(col_name: ColumnOrName, pat: str, na: object) -> SnowparkColumn:
+            new_col = builtin("rlike")(
+                col(col_name), pandas_lit(pat), pandas_lit(params)
+            )
+            new_col = (
+                new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            )
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            lambda col_name: output_col(col_name, pat, na)
+        )
+
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_extract(self, pat: str, flags: int = 0, expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("extract", "Series.str")

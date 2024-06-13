@@ -238,6 +238,44 @@ def test_str___getitem___string_key():
         snow_ser.str["a"]
 
 
+@pytest.mark.parametrize(
+    "pat",
+    [
+        "",
+        "xyz",
+        "uvw",
+        "%_.*?|&^$",
+        r"x.[za]",
+        r"(.?:abc|xyz)[^abcxyz]",
+        r"a|b|c",
+    ],
+)
+@pytest.mark.parametrize("case", [True, False])
+@pytest.mark.parametrize("flags", [0, re.IGNORECASE])
+@pytest.mark.parametrize("na", [None, np.nan, native_pd.NA, True, False])
+@sql_count_checker(query_count=1)
+def test_str_match(pat, case, flags, na):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.match(pat, case=case, flags=flags, na=na),
+    )
+
+
+@pytest.mark.parametrize("na", [1, "klm", datetime.date(2019, 12, 4), [True]])
+@sql_count_checker(query_count=0)
+def test_str_match_invlaid_na(na):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument",
+    ):
+        snow_ser.str.match(pat="xyz", na=na)
+
+
 @pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
 @pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
 @pytest.mark.parametrize("step", [None, -100, -2, -1, 1, 2, 100])
