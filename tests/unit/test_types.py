@@ -744,6 +744,10 @@ def test_convert_sf_to_sp_type_internal_size():
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 31
 
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 1, specify_text_len=False)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length is None
+
     with pytest.raises(
         ValueError, match="Negative value is not a valid input for StringType"
     ):
