@@ -592,7 +592,9 @@ def test_get_with_dict_label(key, expected_result):
         (
             # Mapping with mixed str, unicode code points, and Nones
             ["aaaaa", "fjkdsajk", "cjghgjqk", "yubikey"],
-            str.maketrans({ord("a"): "A", ord("f"): None, "y": "z", "k": None}),
+            str.maketrans(
+                {ord("a"): "A", ord("f"): None, "y": "z", "k": None, ord("j"): ""}
+            ),
         ),
         (
             # Mapping with special characters
@@ -683,7 +685,7 @@ def test_translate_invalid_mappings(table):
     # native pandas silently treats all of these cases as no-ops. However, since Snowflake SQL uses
     # strings as mappings instead of a dict construct, passing these arguments to the equivalent
     # SQL argument would either cause an inscrutable error or unexpected changes to the output series.
-    native_ser, snow_ser = *create_test_series(data)
+    snow_ser, native_ser = create_test_series(data)
     native_ser.str.translate(table)
     with pytest.raises(ValueError):
         snow_ser.str.translate(table)

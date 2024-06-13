@@ -992,34 +992,41 @@ class StringMethods:
         operation. Since this function uses strings instead of unicode codepoints, it will accept
         mappings containing string keys that would be invalid in pandas.
 
-        Works in Snowpark pandas without `str.maketrans`:
+        The following example fails silently in vanilla pandas without `str.maketrans`:
 
-        >>> pd.Series("aaa").str.translate({"a": "A"})  # doctest: +SKIP
-        0    AAA
-        dtype: object
-        >>> pd.Series("aaa").str.translate(str.maketrans({"a": "A"}))  # doctest: +SKIP
-        0    AAA
-        dtype: object
-
-        Fails silently in vanilla pandas without `str.maketrans`:
-
-        >>> import pandas  # doctest: +SKIP
-        >>> pandas.Series("aaa").str.translate({"a": "A"})  # doctest: +SKIP
+        >>> import pandas
+        >>> pandas.Series("aaa").str.translate({"a": "A"})
         0    aaa
         dtype: object
-        >>> pandas.Series("aaa").str.translate(str.maketrans({"a": "A"}))  # doctest: +SKIP
+        >>> pandas.Series("aaa").str.translate(str.maketrans({"a": "A"}))
         0    AAA
         dtype: object
 
-        Furthermore, all string keys and values must be one unicode codepoint in length. Vanilla
-        pandas silently skips entries where the keys or values are more than one codepoint, whereas
-        Snowpark pandas raises a ValueError.
+        The same code works in Snowpark pandas without `str.maketrans`:
 
-        Snowpark pandas behavior:
-        >>> pd.Series("aaa").str.translate({"a": "aa"})  # doctest: +SKIP
-        Traceback (most recent call last):
-          ...
-        ValueError:
+        >>> pd.Series("aaa").str.translate({"a": "A"})
+        0    AAA
+        dtype: object
+        >>> pd.Series("aaa").str.translate(str.maketrans({"a": "A"}))
+        0    AAA
+        dtype: object
+
+        Furthermore, due to restrictions in the underlying SQL, Snowpark pandas requires all string
+        values must to be one unicode codepoint in length. To create replacements of multiple
+        characters, chain calls to `Series.str.replace` as needed.
+
+        Vanilla pandas code:
+
+        >>> import pandas
+        >>> pandas.Series("ab").str.translate(str.maketrans({"a": "A", "b": "BBB"}))
+        0    ABBB
+        dtype: object
+
+        Snowpark pandas equivalent:
+
+        >>> pd.Series("ab").str.translate({"a": "A"}).str.replace("b", "BBB")
+        0    ABBB
+        dtype: object
         """
 
     def isalnum():
