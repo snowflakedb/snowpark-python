@@ -776,10 +776,13 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
         s.loc[_row_key] = _item
 
     query_count = 1
+    # 6 extra queries: sum of two cases below
     if item_type.startswith("index") and key_type.startswith("index"):
         query_count = 7
+    # 4 extra queries: 1 query to convert item index to pandas in loc_set_helper, 2 for iter, and 1 for to_list
     elif item_type.startswith("index"):
         query_count = 5
+    # 2 extra queries: 1 query to convert key index to pandas in loc_set_helper and 1 to convert to series to setitem
     elif key_type.startswith("index"):
         query_count = 3
     with SqlCounter(query_count=query_count, join_count=expected_join_count):

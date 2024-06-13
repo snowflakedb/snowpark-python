@@ -21,6 +21,7 @@ NATIVE_INDEX_TEST_DATA = [
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_astype(native_index):
+    # TODO: SNOW-1480906: Investigate astype failure for int to object conversion
     snow_index = pd.Index(native_index)
     snow_index = snow_index.astype("object")
     assert repr(snow_index) == repr(native_index)
