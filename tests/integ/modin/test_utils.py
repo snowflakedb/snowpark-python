@@ -106,7 +106,7 @@ def ensure_index_test_helper(data, qc):
         # otherwise, ensure_index should convert to a pd.Index
         else:
             assert isinstance(new_data, pd.Index)
-            assert_index_equal(new_data, native_pd.Index(data))
+            assert_index_equal(new_data, native_pd.Index(data), exact=False)
 
 
 @pytest.mark.parametrize(

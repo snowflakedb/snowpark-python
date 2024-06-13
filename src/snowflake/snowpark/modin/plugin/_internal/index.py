@@ -38,7 +38,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 class Index:
     def __init__(
         self,
-        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
         data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
@@ -105,7 +105,7 @@ class Index:
 
     def set_query_compiler(
         self,
-        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
         data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
@@ -139,7 +139,7 @@ class Index:
 
     def set_local_index(
         self,
-        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
         data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
