@@ -9,6 +9,12 @@
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+
 ## 1.19.0 (TBD)
 
 ### Snowpark Python API Updates
