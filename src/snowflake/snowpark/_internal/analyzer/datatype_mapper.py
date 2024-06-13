@@ -92,9 +92,13 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         )
 
     if isinstance(datatype, _IntegralType):
-        return f"{value} :: INT"
+        if isinstance(value, int):
+            return f"{value}"
+        return f"{value}::INT"
 
     if isinstance(datatype, BooleanType):
+        if isinstance(value, bool):
+            return f"{value}"
         return f"{value} :: BOOLEAN"
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
@@ -105,7 +109,7 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         elif math.isinf(value) and value < 0:
             cast_value = "'-INF'"
         else:
-            cast_value = f"'{value}'"
+            return f"{value}"
         return f"{cast_value} :: FLOAT"
 
     if isinstance(value, Decimal) and isinstance(datatype, DecimalType):

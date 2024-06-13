@@ -3969,15 +3969,15 @@ def test_dataframe_dataframe_in(session):
     df = session.table("test_in")
     df.show()
 
-    # session.sql("alter session set OPTIMIZER_ENABLE_CONSTANT_IN_LIST_V2 = ENABLE")
-    # session.sql("alter session set OPTIMIZER_CONSTANT_IN_LIST_V2_MAX_DEDUPE_SIZE = 100")
+    session.sql("alter session set OPTIMIZER_ENABLE_CONSTANT_IN_LIST_V2 = ENABLE")
+    session.sql("alter session set OPTIMIZER_CONSTANT_IN_LIST_V2_MAX_DEDUPE_SIZE = 100")
 
     import random
 
     rand_list = []
-    n = 100000
+    n = 80000
     for i in range(n):
-        rand_list.append(random.randint(100, 1000))
+        rand_list.append(random.randint(100, 50000))
 
     # df2 = session.create_dataframe(rand_list)
     # df.filter(df['col_index'].in_(df2)).show(n=1000)
