@@ -252,7 +252,7 @@ class Index:
         """
         if self.is_lazy:
             return self._query_compiler._modin_frame.index_columns_pandas_index
-        return self._index  # type: ignore
+        return self._index
 
     @property
     @is_lazy_check
@@ -524,7 +524,7 @@ class Index:
         if self.is_lazy:
             self._query_compiler = self._query_compiler.set_index_names([value])
         else:
-            self._index.name = value  # type: ignore
+            self._index.name = value
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -551,7 +551,7 @@ class Index:
         if self.is_lazy:
             self._query_compiler = self._query_compiler.set_index_names(values)
         else:
-            self._index.names = values  # type: ignore
+            self._index.names = values
 
     names = property(fset=_set_names, fget=_get_names)
 
