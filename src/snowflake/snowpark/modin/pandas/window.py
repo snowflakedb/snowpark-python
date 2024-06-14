@@ -30,6 +30,7 @@ from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 # add these two lines to enable doc tests to run
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
     doc_replace_dataframe_with_link,
@@ -121,7 +122,7 @@ class Rolling(metaclass=TelemetryMeta):
     ) -> None:
         # TODO: SNOW-1063358: Modin upgrade - modin.pandas.window.Rolling
         # Raise ValueError when invalid parameter values/combinations
-        if (isinstance(window, int) and window <= 0) or window is None:
+        if (isinstance(window, int) and window < 0) or window is None:
             raise ValueError("window must be an integer 0 or greater")
         if not isinstance(center, bool):
             raise ValueError("center must be a boolean")
@@ -150,6 +151,12 @@ class Rolling(metaclass=TelemetryMeta):
             "method": method,
         }
         self.axis = axis
+        if method != "single":
+            WarningMessage.ignored_argument(
+                operation="Rolling",
+                argument="method",
+                message="Snowpark pandas API executes on Snowflake. Ignoring engine related arguments to select a different execution engine.",
+            )
 
     def _call_qc_method(self, method_name, *args, **kwargs):
         """
@@ -471,6 +478,11 @@ class Expanding(metaclass=TelemetryMeta):
         method: str = "single",
     ) -> None:
         # TODO: SNOW-1063366: Modin upgrade - modin.pandas.window.Expanding
+        if min_periods is not None and not isinstance(min_periods, int):
+            raise ValueError("min_periods must be an integer")
+        if isinstance(min_periods, int) and min_periods < 0:
+            raise ValueError("min_periods must be >= 0")
+
         self._dataframe = dataframe
         self._query_compiler = dataframe._query_compiler
         self.expanding_kwargs = {
@@ -479,6 +491,12 @@ class Expanding(metaclass=TelemetryMeta):
             "method": method,
         }
         self.axis = axis
+        if method != "single":
+            WarningMessage.ignored_argument(
+                operation="Expanding",
+                argument="method",
+                message="Snowpark pandas API executes on Snowflake. Ignoring engine related arguments to select a different execution engine.",
+            )
 
     def count(
         self,
