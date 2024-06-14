@@ -457,6 +457,14 @@ class Index:
         -------
         tuple
             A tuple representing the shape of self
+
+        Examples
+        --------
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx
+        Index([1, 2, 3], dtype='int64')
+        >>> idx.shape
+        (3,)
         """
         return (len(self),)
 
@@ -615,6 +623,14 @@ class Index:
         -------
         int
             The number of elements in self
+
+        Examples
+        -------
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx
+        Index([1, 2, 3], dtype='int64')
+        >>> idx.size
+        3
         """
         return len(self)
 
@@ -635,6 +651,20 @@ class Index:
         -------
         bool
             True if the index has no elements, False otherwise.
+
+        Examples
+        -------
+        >>> idx = pd.Index([1, 2, 3])
+        >>> idx
+        Index([1, 2, 3], dtype='int64')
+        >>> idx.empty
+        False
+
+        >>> idx = pd.Index([], dtype='int64')
+        >>> idx
+        Index([], dtype='int64')
+        >>> idx.empty
+        True
         """
         return self.size == 0
 
