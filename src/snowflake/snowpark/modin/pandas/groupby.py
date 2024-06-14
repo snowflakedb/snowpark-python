@@ -1205,6 +1205,7 @@ class SeriesGroupBy(DataFrameGroupBy):
         )
 
     def size(self):
+        # TODO: Remove this once SNOW-1478924 is fixed
         return super().size().rename(self._df.columns[-1])
 
     def aggregate(
