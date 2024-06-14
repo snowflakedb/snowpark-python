@@ -11,6 +11,8 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, assert_series_equal
 
+data = {"col1": [1, 2, 3], "col2": [3, 4, 5], "col3": [5, 6, 7]}
+
 NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([], dtype="object"),
     native_pd.Index([1, 2, 3]),
@@ -54,9 +56,7 @@ def test_index_equals(native_index):
         new_index = snow_index.copy()
         assert snow_index.equals(new_index)
 
-    native_df = native_pd.DataFrame(
-        data={"col1": [1, 2, 3], "col2": [3, 4, 5], "col3": [5, 6, 7]}
-    )
+    native_df = native_pd.DataFrame(data=data)
     snow_df = pd.DataFrame(native_df)
 
     with SqlCounter(query_count=4):
@@ -141,3 +141,48 @@ def test_slice_indexer():
 def test_index_summary(native_index):
     snow_index = pd.Index(native_index)
     assert snow_index._summary() == native_index._summary()
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+def test_index_size(native_index):
+    snow_index = pd.Index(native_index)
+    assert snow_index.size == native_index.size
+
+
+@sql_count_checker(query_count=1)
+def test_df_index_size():
+    native_df = pd.DataFrame(data=data)
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.index.size == native_df.index.size
+    assert snow_df.columns.size == native_df.columns.size
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+def test_index_empty(native_index):
+    snow_index = pd.Index(native_index)
+    assert snow_index.empty == native_index.empty
+
+
+@sql_count_checker(query_count=1)
+def test_df_index_empty():
+    native_df = pd.DataFrame(data=data)
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.index.empty == native_df.index.empty
+    assert snow_df.columns.empty == native_df.columns.empty
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+def test_index_shape(native_index):
+    snow_index = pd.Index(native_index)
+    assert snow_index.shape == native_index.shape
+
+
+@sql_count_checker(query_count=1)
+def test_df_index_shape():
+    native_df = pd.DataFrame(data=data)
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.index.shape == native_df.index.shape
+    assert snow_df.columns.shape == native_df.columns.shape
