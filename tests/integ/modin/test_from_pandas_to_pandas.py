@@ -246,7 +246,10 @@ def test_column_index_names(pandas_label):
 @pytest.mark.parametrize("name", [None, *VALID_PANDAS_LABELS])
 @sql_count_checker(query_count=1)
 def test_to_pandas_column_index_names(name):
-    df = pd.DataFrame(data=[[1] * 2, [2] * 2], columns=pd.Index([1, 2], name=name))
+    df = pd.DataFrame(
+        data=[[1] * 2, [2] * 2],
+        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+    )
     assert df.columns.names == [name]
     pdf = df.to_pandas()
     assert pdf.columns.names == [name]
@@ -476,7 +479,7 @@ def test_from_to_pandas_datetime64_multi_timezone_current_behavior(session, time
         session.sql("alter session unset timezone").collect()
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_from_pandas_duplicate_labels():
     # Duplicate data labels
     native_df = native_pd.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
@@ -575,12 +578,12 @@ def test_series_to_pandas():
 def test_single_row_frame_to_series_to_pandas():
     # create a Snowpark pandas with single row
     native_df = native_pd.DataFrame(
-        {"A": [0], "B": [1], "C": [2]}, index=pd.Index(["value"], name="index")
+        {"A": [0], "B": [1], "C": [2]}, index=native_pd.Index(["value"], name="index")
     )
     snow_df = pd.DataFrame(native_df)
     snow_series = pd.Series(query_compiler=snow_df._query_compiler)
     expected_series = native_df.squeeze()
-    assert_series_equal(snow_series.to_pandas(), expected_series, check_dtype=False)
+    assert_series_equal(snow_series, expected_series, check_dtype=False)
 
 
 @sql_count_checker(query_count=3)
