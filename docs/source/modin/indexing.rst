@@ -2,7 +2,7 @@
 Index
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.plugin.index
+.. currentmodule:: snowflake.snowpark.modin.pandas
 .. rubric:: :doc:`All supported Index APIs <supported/index_supported>`
 
 .. rubric:: Constructor
@@ -24,16 +24,13 @@ Index
     Index.has_duplicates
     Index.hasnans
     Index.dtype
-    Index.inferred_type
     Index.shape
     Index.name
     Index.names
-    Index.nbytes
     Index.ndim
     Index.size
     Index.empty
     Index.T
-    Index.memory_usage
     Index.nlevels
 
 .. rubric:: Snowflake Specific
@@ -58,12 +55,9 @@ Index
     Index.drop_duplicates
     Index.duplicated
     Index.equals
-    Index.factorize
     Index.identical
     Index.insert
-    Index.is_
     Index.is_boolean
-    Index.is_categorical
     Index.is_floating
     Index.is_integer
     Index.is_interval
@@ -73,10 +67,6 @@ Index
     Index.max
     Index.reindex
     Index.rename
-    Index.repeat
-    Index.where
-    Index.take
-    Index.putmask
     Index.unique
     Index.nunique
     Index.value_counts
@@ -89,7 +79,6 @@ Index
     :toctree: pandas_api/
 
     Index.set_names
-    Index.droplevel
 
 .. rubric:: Missing values
 
@@ -109,29 +98,17 @@ Index
 
     Index.astype
     Index.item
-    Index.map
-    Index.ravel
     Index.to_list
     Index.tolist
     Index.to_series
     Index.to_frame
-    Index.view
 
 .. rubric:: Sorting
 
 .. autosummary::
     :toctree: pandas_api/
 
-    Index.argsort
-    Index.searchsorted
     Index.sort_values
-
-.. rubric:: Time-specific operations
-
-.. autosummary::
-    :toctree: pandas_api/
-
-    Index.shift
 
 .. rubric:: Combining / joining / set operations
 
@@ -143,22 +120,14 @@ Index
     Index.intersection
     Index.union
     Index.difference
-    Index.symmetric_difference
 
 .. rubric:: Selecting
 
 .. autosummary::
     :toctree: pandas_api/
 
-    Index.asof
-    Index.asof_locs
-    Index.get_indexer
     Index.get_indexer_for
-    Index.get_indexer_non_unique
     Index.get_level_values
-    Index.get_loc
-    Index.get_slice_bound
     Index.isin
     Index.slice_indexer
-    Index.slice_locs
 
