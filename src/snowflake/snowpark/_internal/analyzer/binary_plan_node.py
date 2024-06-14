@@ -2,13 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-    sum_node_complexities,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 
@@ -73,10 +69,7 @@ class BinaryNode(LogicalPlan):
 
 
 class SetOperation(BinaryNode):
-    @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        # (left) operator (right)
-        return PlanNodeCategory.SET_OPERATION
+    pass
 
 
 class Except(SetOperation):
@@ -194,33 +187,3 @@ class Join(BinaryNode):
     @property
     def sql(self) -> str:
         return self.join_type.sql
-
-    @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.JOIN
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # SELECT * FROM (left) AS left_alias join_type_sql JOIN (right) AS right_alias match_cond, using_cond, join_cond
-        complexity = {self.plan_node_category: 1}
-        if isinstance(self.join_type, UsingJoin) and self.join_type.using_columns:
-            complexity = sum_node_complexities(
-                complexity,
-                {PlanNodeCategory.COLUMN: len(self.join_type.using_columns)},
-            )
-        complexity = (
-            sum_node_complexities(
-                complexity, self.join_condition.cumulative_node_complexity
-            )
-            if self.join_condition
-            else complexity
-        )
-
-        complexity = (
-            sum_node_complexities(
-                complexity, self.match_condition.cumulative_node_complexity
-            )
-            if self.match_condition
-            else complexity
-        )
-        return complexity
