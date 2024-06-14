@@ -205,7 +205,7 @@ class StringMethods:
 
         >>> ind = pd.Index(['Mouse', 'dog', 'house and parrot', '23.0', np.NaN])
         >>> ind.str.contains('23', regex=False)
-        Index([False, False, False, True, nan], dtype='object')
+        Index([False, False, False, True, None], dtype='object')
 
         Specifying case sensitivity using case.
 

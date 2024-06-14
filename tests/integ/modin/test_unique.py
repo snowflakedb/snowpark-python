@@ -128,7 +128,7 @@ def test_unique_timestamp_index(timestamp_index):
     # return an index.
     assert_values_equal(
         native_unique,
-        pd.Index(
+        native_pd.Index(
             [
                 native_pd.Timestamp("20160101", tz="US/Eastern"),
                 native_pd.Timestamp("20160201", tz="US/Eastern"),

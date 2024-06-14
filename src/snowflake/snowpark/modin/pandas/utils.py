@@ -796,14 +796,23 @@ def ensure_index(
     >>> ensure_index(['a', 'b'])
     Index(['a', 'b'], dtype='object')
 
+    # Snowpark pandas converts these tuples to lists
     >>> ensure_index([('a', 'a'),  ('b', 'c')])
-    Index([('a', 'a'), ('b', 'c')], dtype='object')
+    Index([['a', 'a'], ['b', 'c']], dtype='object')
+
+    >>> ensure_index([['a', 'a'], ['b', 'c']])
+    MultiIndex([('a', 'b'),
+                ('a', 'c')],
+               )
     """
     # if we have an index object already, simply copy it if required and return
     if isinstance(index_like, (pandas.MultiIndex, pd.Index)):
         if copy:
             index_like = index_like.copy()
         return index_like
+
+    if isinstance(index_like, pd.Series):
+        return pd.Index(index_like.values)
 
     if isinstance(index_like, list):
         # if we have a non-empty list that is multi dimensional, convert this to a multi-index and return

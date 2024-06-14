@@ -31,7 +31,7 @@ from tests.utils import Utils
             dtype("int64"),
             dtype("int8"),
             native_pd.DataFrame(
-                [-128, 127], index=pd.Index([0, 1]), columns=["INT8"]
+                [-128, 127], index=native_pd.Index([0, 1]), columns=["INT8"]
             ).astype("int8"),
         ),
         (
@@ -40,7 +40,7 @@ from tests.utils import Utils
             dtype("int64"),
             dtype("int16"),
             native_pd.DataFrame(
-                [-32768, 32767], index=pd.Index([0, 1]), columns=["INT16"]
+                [-32768, 32767], index=native_pd.Index([0, 1]), columns=["INT16"]
             ).astype("int16"),
         ),
         (
@@ -49,7 +49,9 @@ from tests.utils import Utils
             dtype("int64"),
             dtype("int32"),
             native_pd.DataFrame(
-                [-2147483648, 2147483647], index=pd.Index([0, 1]), columns=["INT32"]
+                [-2147483648, 2147483647],
+                index=native_pd.Index([0, 1]),
+                columns=["INT32"],
             ).astype("int32"),
         ),
         (
@@ -59,7 +61,7 @@ from tests.utils import Utils
             dtype("int64"),
             native_pd.DataFrame(
                 [-9223372036854775808, 9223372036854775807],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["INT64"],
             ),
         ),
@@ -73,7 +75,7 @@ from tests.utils import Utils
                     -99999999999999999999999999999999999999,
                     99999999999999999999999999999999999999,
                 ],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=[">int64"],
             ).astype("float64"),
         ),
@@ -83,7 +85,7 @@ from tests.utils import Utils
             dtype("float64"),
             dtype("float64"),
             native_pd.DataFrame(
-                [-128.02, 127.99], index=pd.Index([0, 1]), columns=["DECIMAL"]
+                [-128.02, 127.99], index=native_pd.Index([0, 1]), columns=["DECIMAL"]
             ).astype("float64"),
         ),
         # SNOW-990542 changed behavior to explicitly downcast to float. This means, the resulting
@@ -108,7 +110,7 @@ from tests.utils import Utils
             dtype("bool"),
             dtype("bool"),
             native_pd.DataFrame(
-                [True, False], index=pd.Index([0, 1]), columns=["BOOL"]
+                [True, False], index=native_pd.Index([0, 1]), columns=["BOOL"]
             ),
         ),
         (
@@ -117,7 +119,7 @@ from tests.utils import Utils
             dtype("bool"),
             dtype("O"),
             native_pd.DataFrame(
-                [True, None], index=pd.Index([0, 1]), columns=["BOOL_WITH_NULL"]
+                [True, None], index=native_pd.Index([0, 1]), columns=["BOOL_WITH_NULL"]
             ),
         ),
         (
@@ -126,7 +128,7 @@ from tests.utils import Utils
             dtype("float64"),
             dtype("float64"),
             native_pd.DataFrame(
-                [3.14, 9.999999], index=pd.Index([0, 1]), columns=["FLOAT64"]
+                [3.14, 9.999999], index=native_pd.Index([0, 1]), columns=["FLOAT64"]
             ),
         ),
         (
@@ -135,7 +137,7 @@ from tests.utils import Utils
             dtype("O"),
             dtype("O"),
             native_pd.DataFrame(
-                ["abc", "xxyyzz"], index=pd.Index([0, 1]), columns=["STR"]
+                ["abc", "xxyyzz"], index=native_pd.Index([0, 1]), columns=["STR"]
             ),
         ),
         (
@@ -144,7 +146,7 @@ from tests.utils import Utils
             dtype("O"),
             dtype("O"),
             native_pd.DataFrame(
-                [b"HELP", b"HELP"], index=pd.Index([0, 1]), columns=["BIN"]
+                [b"HELP", b"HELP"], index=native_pd.Index([0, 1]), columns=["BIN"]
             ),
         ),
         (
@@ -154,7 +156,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 np.array([{"key1": "value1", "key2": None}]),
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["VARIANT"],
             ),
         ),
@@ -165,7 +167,7 @@ from tests.utils import Utils
             dtype("float64"),
             native_pd.DataFrame(
                 np.array([3.14, 9.99999]),
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["FLOAT_IN_VARIANT"],
             ),
         ),
@@ -196,7 +198,7 @@ from tests.utils import Utils
                     ],
                     dtype="object",
                 ),
-                index=pd.Index([0, 1, 2, 3, 4, 5]),
+                index=native_pd.Index([0, 1, 2, 3, 4, 5]),
                 columns=["MULTITYPE", "MULTITYPE2"],
             ),
         ),
@@ -207,7 +209,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 np.array([{"key1": "value1", "key2": None}]),
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["OBJ"],
             ),
         ),
@@ -218,7 +220,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 ["val"],
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["ARR"],
             ).applymap(
                 lambda val: [1, 2, 3, [1, 2, 3]]
@@ -231,7 +233,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 [date(2016, 5, 1), date(2016, 5, 2)],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["DATE"],
             ),
         ),
@@ -242,7 +244,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 [time(0, 0, 1), time(23, 59, 59)],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["TIME"],
             ),
         ),
@@ -256,7 +258,7 @@ from tests.utils import Utils
                     Timestamp("2023-01-01 00:00:01.001"),
                     Timestamp("2023-12-31 23:59:59.999"),
                 ],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["TIMESTAMP_NTZ"],
             ),
         ),
@@ -270,7 +272,7 @@ from tests.utils import Utils
                     Timestamp("2023-01-01 00:00:01.001", tz="America/Los_Angeles"),
                     Timestamp("2023-12-31 23:59:59.999", tz="America/Los_Angeles"),
                 ],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["TIMESTAMP_LTZ"],
             ),
         ),
@@ -288,7 +290,7 @@ from tests.utils import Utils
                         "2023-12-31 05:59:59.999000-08:00", tz="America/Los_Angeles"
                     ),
                 ],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["TIMESTAMP_TZ"],
             ),
         ),
@@ -299,7 +301,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 ["val"],
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["GEOGRAPHY"],
             ).applymap(
                 lambda val: json.dumps(
@@ -314,7 +316,7 @@ from tests.utils import Utils
             dtype("O"),
             native_pd.DataFrame(
                 ["val"],
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["GEOMETRY"],
             ).applymap(
                 lambda val: """{
@@ -374,7 +376,7 @@ def test_read_snowflake_data_types(
                     Decimal("-999999999999999999999999999999999999.99"),
                     Decimal("999999999999999999999999999999999999.99"),
                 ],
-                index=pd.Index([0, 1]),
+                index=native_pd.Index([0, 1]),
                 columns=["LARGE_DECIMAL"],
             ),
         ),  # python decimal object
@@ -454,7 +456,7 @@ def test_read_snowflake_data_types_negative(
                         '"string"',
                     ],
                 ),
-                index=pd.Index([0, 1, 2, 3, 4]),
+                index=native_pd.Index([0, 1, 2, 3, 4]),
                 columns=["MULTITYPE"],
             ),
         ),
@@ -464,7 +466,7 @@ def test_read_snowflake_data_types_negative(
             dtype("O"),
             native_pd.DataFrame(
                 ["[\n  1,\n  2,\n  3,\n  undefined\n]"],
-                index=pd.Index([0]),
+                index=native_pd.Index([0]),
                 columns=["ARR"],
             ),
         ),

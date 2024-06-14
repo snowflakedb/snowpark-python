@@ -30,7 +30,6 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.indexes.frozen import FrozenList
 
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -43,7 +42,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 class Index:
     def __init__(
         self,
-        # Any should be replaced with SnowflakeQueryCompiler when possible (linter won't allow it now)
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
         data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
@@ -86,29 +85,86 @@ class Index:
         >>> pd.Index(list('abc'))
         Index(['a', 'b', 'c'], dtype='object')
 
+        # Snowpark pandas only supports signed integers so cast to uint won't work
         >>> pd.Index([1, 2, 3], dtype="uint8")
-        Index([1, 2, 3], dtype='uint8')
+        Index([1, 2, 3], dtype='int64')
         """
-        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-            SnowflakeQueryCompiler,
-        )
-
-        # TODO: SNOW-1359041: Switch to lazy index implementation
         self.is_lazy = convert_to_lazy
-        if isinstance(data, native_pd.Index):
-            self._index = data
-        elif isinstance(data, Index):
-            self._index = data.to_pandas()
-        elif isinstance(data, SnowflakeQueryCompiler):
-            self._index = data._modin_frame.index_columns_index
-        else:
-            self._index = native_pd.Index(
+        if self.is_lazy:
+            self.set_query_compiler(
                 data=data,
                 dtype=dtype,
                 copy=copy,
                 name=name,
                 tupleize_cols=tupleize_cols,
             )
+        else:
+            self.set_local_index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+
+    def set_query_compiler(
+        self,
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
+        data: ArrayLike | Any = None,
+        dtype: str | np.dtype | ExtensionDtype | None = None,
+        copy: bool = False,
+        name: object = None,
+        tupleize_cols: bool = True,
+    ) -> None:
+        """
+        Helper method to find and save query compiler when index should be lazy
+        """
+        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        if isinstance(data, SnowflakeQueryCompiler):
+            qc = data
+        else:
+            qc = DataFrame(
+                native_pd.Index(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                ).to_frame()
+            )._query_compiler
+        self._query_compiler = qc
+
+    def set_local_index(
+        self,
+        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
+        data: ArrayLike | Any = None,
+        dtype: str | np.dtype | ExtensionDtype | None = None,
+        copy: bool = False,
+        name: object = None,
+        tupleize_cols: bool = True,
+    ) -> None:
+        """
+        Helper method to create and save local index when index should not be lazy
+        """
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        if isinstance(data, SnowflakeQueryCompiler):
+            index = data._modin_frame.index_columns_pandas_index
+        else:
+            index = native_pd.Index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
+        self._index = index
 
     def is_lazy_check(func: Any) -> Any:
         """
@@ -134,6 +190,9 @@ class Index:
 
                 # Remove the first argument in args, because it is `self` and we don't need it
                 args = args[1:]
+                args = tuple(try_convert_index_to_native(a) for a in args)
+                for k, v in kwargs.items():
+                    kwargs[k] = try_convert_index_to_native(v)
                 returned_value = native_func(*args, **kwargs)
 
                 # If we return a native Index, we need to convert this to a modin index but keep it locally.
@@ -191,6 +250,8 @@ class Index:
         pandas Index
             A native pandas Index representation of self
         """
+        if self.is_lazy:
+            return self._query_compiler._modin_frame.index_columns_pandas_index
         return self._index
 
     @property
@@ -281,12 +342,12 @@ class Index:
         True
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.is_unique
         False
 
         >>> idx = pd.Index(["Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.is_unique
         True
         """
@@ -320,12 +381,12 @@ class Index:
         False
 
         >>> idx = pd.Index(["Watermelon", "Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.has_duplicates
         True
 
         >>> idx = pd.Index(["Orange", "Apple",
-        ...                 "Watermelon"]).astype("category")
+        ...                 "Watermelon"])
         >>> idx.has_duplicates
         False
         """
@@ -431,6 +492,7 @@ class Index:
         WarningMessage.index_to_pandas_warning("astype")
         return Index(
             self.to_pandas().astype(dtype=dtype, copy=copy),
+            dtype=dtype,
             convert_to_lazy=self.is_lazy,
         )
 
@@ -452,24 +514,26 @@ class Index:
         >>> idx.name
         'x'
         """
-        # TODO: SNOW-1458122 implement name
-        WarningMessage.index_to_pandas_warning("name")
-        return self.to_pandas().name
+        return self.names[0] if self.names else None
 
     @name.setter
     def name(self, value: Hashable) -> None:
         """
         Set Index name.
         """
-        WarningMessage.index_to_pandas_warning("name")
-        self.to_pandas().name = value
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names([value])
+        else:
+            self._index.name = value
 
-    def _get_names(self) -> FrozenList:
+    def _get_names(self) -> list[Hashable]:
         """
         Get names of index
         """
-        WarningMessage.index_to_pandas_warning("_get_names")
-        return self.to_pandas()._get_names()
+        if self.is_lazy:
+            return self._query_compiler.get_index_names()
+        else:
+            return self.to_pandas().names
 
     def _set_names(self, values: list) -> None:
         """
@@ -484,8 +548,10 @@ class Index:
         ------
         TypeError if each name is not hashable.
         """
-        WarningMessage.index_to_pandas_warning("_set_names")
-        self.to_pandas()._set_names(values)
+        if self.is_lazy:
+            self._query_compiler = self._query_compiler.set_index_names(values)
+        else:
+            self._index.names = values
 
     names = property(fset=_set_names, fget=_get_names)
 
@@ -937,9 +1003,11 @@ class Index:
         >>> int64_idx = pd.Index([1, 2, 3], dtype='int64')
         >>> int64_idx
         Index([1, 2, 3], dtype='int64')
+
+        # Snowpark pandas only supports signed integers so cast to uint won't work
         >>> uint64_idx = pd.Index([1, 2, 3], dtype='uint64')
         >>> uint64_idx
-        Index([1, 2, 3], dtype='uint64')
+        Index([1, 2, 3], dtype='int64')
         >>> int64_idx.equals(uint64_idx)
         True
         """
@@ -1835,15 +1903,13 @@ class Index:
 
         Examples
         --------
+        # Snowpark pandas converts np.nan, pd.NA, pd.NaT to None
         >>> idx = pd.Index([np.nan, 'var1', np.nan])
         >>> idx.get_indexer_for([np.nan])
         array([0, 2])
         """
         WarningMessage.index_to_pandas_warning("get_indexer_for")
-        ret = self.to_pandas().get_indexer_for(target=target)
-        # if isinstance(ret, native_pd.Index):
-        #     return Index(ret, convert_to_lazy=self.is_lazy)
-        return ret
+        return self.to_pandas().get_indexer_for(target=target)
 
     @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
@@ -2084,8 +2150,7 @@ class Index:
         """
         Return the length of the Index as an int.
         """
-        WarningMessage.index_to_pandas_warning("__len__")
-        return self.to_pandas().__len__()
+        return self._query_compiler.get_axis_len(0)
 
     @is_lazy_check
     def __getitem__(self, key: Any) -> np.ndarray | None | Index:
