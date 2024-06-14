@@ -55,30 +55,31 @@ def test_index_drop(native_index):
     assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
-@pytest.mark.parametrize("native_df", TEST_DFS)
+@sql_count_checker(query_count=7)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_equals(native_index, native_df):
-    with SqlCounter(query_count=7):
-        snow_index = pd.Index(native_index)
-        index_check = pd.Index([1, 2, 3, 4])
-        assert not snow_index.equals(index_check)
-        assert index_check.equals(pd.Index([1, 2, 3, 4]))
+def test_index_equals(native_index):
+    snow_index = pd.Index(native_index)
+    index_check = pd.Index([1, 2, 3, 4])
+    assert not snow_index.equals(index_check)
+    assert index_check.equals(pd.Index([1, 2, 3, 4]))
 
-        new_index = snow_index.copy()
-        assert snow_index.equals(new_index)
+    new_index = snow_index.copy()
+    assert snow_index.equals(new_index)
 
+
+@sql_count_checker(query_count=4)
+@pytest.mark.parametrize("native_df", TEST_DFS)
+def test_df_index_equals(native_df):
     snow_df = pd.DataFrame(native_df)
+    assert native_df.columns.equals(native_df.columns)
+    assert snow_df.columns.equals(snow_df.columns)
+    assert native_df.columns.equals(snow_df.columns.to_pandas())
+    assert snow_df.columns.equals(native_df.columns)
 
-    with SqlCounter(query_count=4):
-        assert native_df.columns.equals(native_df.columns)
-        assert snow_df.columns.equals(snow_df.columns)
-        assert native_df.columns.equals(snow_df.columns.to_pandas())
-        assert snow_df.columns.equals(native_df.columns)
-
-        assert native_df.index.equals(native_df.index)
-        assert snow_df.index.equals(snow_df.index)
-        assert native_df.index.equals(snow_df.index.to_pandas())
-        assert snow_df.index.equals(native_df.index)
+    assert native_df.index.equals(native_df.index)
+    assert snow_df.index.equals(snow_df.index)
+    assert native_df.index.equals(snow_df.index.to_pandas())
+    assert snow_df.index.equals(native_df.index)
 
 
 @sql_count_checker(query_count=1)
