@@ -590,6 +590,15 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {
+                "filter": 1,
+                "low_impact": 3,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -601,6 +610,15 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {
+                "filter": 1,
+                "low_impact": 3,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -612,6 +630,15 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {
+                "filter": 1,
+                "low_impact": 3,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -623,6 +650,15 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {
+                "filter": 1,
+                "low_impact": 3,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -634,6 +670,15 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {
+                "filter": 1,
+                "low_impact": 3,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -768,6 +813,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {"group_by": 1, "column": 6, "literal": 48},
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -783,6 +829,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "query_plan_complexity": {"group_by": 1, "column": 6, "literal": 48},
         }
     ]
 
