@@ -66,61 +66,32 @@ data_dictionary = {
 )
 @pytest.mark.parametrize("as_index", [True, False])
 @pytest.mark.parametrize("sort", [True, False])
-def test_groupby_first(by, as_index, sort):
+@pytest.mark.parametrize("skipna", [True, False])
+@pytest.mark.parametrize("method", ["first", "last"])
+def test_groupby_first(by, as_index, sort, skipna, method):
     snowpark_pandas_df = pd.DataFrame(data_dictionary)
     pandas_df = snowpark_pandas_df.to_pandas()
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
-            lambda df: df.groupby(by, as_index=as_index, sort=sort).first(),
+            lambda df: getattr(df.groupby(by, as_index=as_index, sort=sort), method)(
+                skipna=skipna
+            ),
         )
     # DataFrame with __getitem__
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
-            lambda df: df.groupby(by, as_index=as_index, sort=sort)[
-                "col5_int16"
-            ].first(),
+            lambda df: getattr(
+                df.groupby(by, as_index=as_index, sort=sort)["col5_int16"], method
+            )(skipna=skipna),
         )
 
-
-@pytest.mark.parametrize(
-    "by",
-    [
-        "col1_grp",
-        "col2_int64",
-        "col3_int_identical",
-        "col4_int32",
-        "col6_mixed",
-        "col7_bool",
-        "col8_bool_missing",
-        "col9_int_missing",
-        "col10_mixed_missing",
-        ["col1_grp", "col2_int64"],
-        ["col6_mixed", "col7_bool", "col3_int_identical"],
-    ],
-)
-@pytest.mark.parametrize("as_index", [True, False])
-def test_groupby_last(by, as_index):
-    snowpark_pandas_df = pd.DataFrame(data_dictionary)
-    pandas_df = snowpark_pandas_df.to_pandas()
-    # TODO: SNOW-1481281 add sort check once sort=False order is fixed
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snowpark_pandas_df,
-            pandas_df,
-            lambda df: df.groupby(by, as_index=as_index).last(),
-        )
-    # DataFrame with __getitem__
-    # TODO: SNOW-1481281 add sort check once sort=False order is fixed
-    with SqlCounter(query_count=1):
-        eval_snowpark_pandas_result(
-            snowpark_pandas_df,
-            pandas_df,
-            lambda df: df.groupby(by, as_index=as_index)["col5_int16"].last(),
-        )
+    # TODO: Support min_count in groupby first and last (SNOW-1482931)
+    with pytest.raises(NotImplementedError):
+        snowpark_pandas_df.groupby(by).first(min_count=2)
 
 
 @sql_count_checker(query_count=0)
