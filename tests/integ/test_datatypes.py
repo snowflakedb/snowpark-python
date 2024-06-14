@@ -3,8 +3,6 @@
 #
 from decimal import Decimal
 
-import pytest
-
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -20,7 +18,6 @@ from snowflake.snowpark.types import (
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_basic_filter(session):
     df: DataFrame = session.create_dataframe(
         [
@@ -44,7 +41,6 @@ def test_basic_filter(session):
     )
 
 
-@pytest.mark.localtest
 def test_plus_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -74,7 +70,6 @@ def test_plus_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_minus_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -104,7 +99,6 @@ def test_minus_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_multiple_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -134,7 +128,6 @@ def test_multiple_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_divide_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -167,7 +160,6 @@ def test_divide_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_div_decimal_double(session):
     df = session.create_dataframe(
         [[11.0, 13.0]],
@@ -183,7 +175,6 @@ def test_div_decimal_double(session):
     Utils.check_answer(df2, [Row(Decimal("0.846154"))])
 
 
-@pytest.mark.localtest
 def test_modulo_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -213,7 +204,6 @@ def test_modulo_basic(session):
     )
 
 
-@pytest.mark.localtest
 def test_binary_ops_bool(session):
     df = session.create_dataframe(
         [[1, 1.1]],
@@ -267,7 +257,6 @@ def test_binary_ops_bool(session):
     )
 
 
-@pytest.mark.localtest
 def test_unary_ops_bool(session):
     df = session.create_dataframe(
         [[1, 1.1]],
@@ -297,7 +286,6 @@ def test_unary_ops_bool(session):
     )
 
 
-@pytest.mark.localtest
 def test_literal(session):
     df = session.create_dataframe(
         [[1]], schema=StructType([StructField("a", LongType(), nullable=False)])
@@ -308,7 +296,6 @@ def test_literal(session):
     )
 
 
-@pytest.mark.localtest
 def test_string_op_bool(session):
     df = session.create_dataframe([["value"]], schema=["a"])
     df = df.select(df["a"].like("v%"), df["a"].regexp("v"))
@@ -322,7 +309,6 @@ def test_string_op_bool(session):
     )
 
 
-@pytest.mark.localtest
 def test_filter(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -340,7 +326,6 @@ def test_filter(session):
     assert repr(df1.schema) == repr(df.schema)
 
 
-@pytest.mark.localtest
 def test_sort(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -358,7 +343,6 @@ def test_sort(session):
     assert repr(df1.schema) == repr(df.schema)
 
 
-@pytest.mark.localtest
 def test_limit(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -376,7 +360,6 @@ def test_limit(session):
     assert repr(df1.schema) == repr(df.schema)
 
 
-@pytest.mark.localtest
 def test_chain_filter_sort_limit(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],
@@ -398,7 +381,6 @@ def test_chain_filter_sort_limit(session):
     assert repr(df1.schema) == repr(df.schema)
 
 
-@pytest.mark.localtest
 def test_join_basic(session):
     df = session.create_dataframe(
         [[1, 1.1, 2.2, 3.3]],

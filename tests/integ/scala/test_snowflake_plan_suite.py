@@ -53,7 +53,7 @@ def test_single_query(session):
 
         # build plan
         plans = session._plan_builder
-        table_plan = plans.table(table_name)
+        table_plan = plans.table(table_name, df._plan.source_plan)
         project = plans.project(["num"], table_plan, None)
 
         assert len(project.queries) == 1
