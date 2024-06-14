@@ -66,7 +66,6 @@ def test_series_groupby_unsupported_methods_raises(
         (lambda df: df.groupby("A").__len__(), "__len__"),
         (lambda df: df.groupby("A").__bytes__(), "__bytes__"),
         (lambda df: df.groupby("A").corrwith, "corrwith"),
-        (lambda df: df.groupby("A").get_group("group"), "get_group"),
         (lambda df: df.groupby("A").dtypes, "dtypes"),
         (lambda df: df.groupby("A").pipe(lambda x: x.max() - x.min()), "pipe"),
         (lambda df: df.groupby("A").filter(lambda x: x.mean() > 3), "filter"),
