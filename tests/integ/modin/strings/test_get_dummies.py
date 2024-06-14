@@ -64,11 +64,9 @@ def test_get_dummies_with_name_dummy():
     assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_get_dummies_index():
     # GH9980, GH8028
-    # This is a complete native pandas execution since Snowpark pandas
-    # Index is just an alias of native pandas
     idx = pd.Index(["a|b", "a|c", "b|c"])
     result = idx.str.get_dummies("|")
 
