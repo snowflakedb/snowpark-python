@@ -2,7 +2,7 @@
 Index
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: snowflake.snowpark.modin.plugin.index
 .. rubric:: :doc:`All supported Index APIs <supported/index_supported>`
 
 .. rubric:: Constructor
