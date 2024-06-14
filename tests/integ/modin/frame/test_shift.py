@@ -34,7 +34,7 @@ TEST_DATAFRAMES = [
             "a_none": [None, " ", "", "ABC", "_", "XYZ"],
             "b_none": ["1", "10", None, "0", "2", "abc"],
         },
-        index=pd.Index([1, 2, 3, 8, 9, 10], name="ind"),
+        index=native_pd.Index([1, 2, 3, 8, 9, 10], name="ind"),
     ),
 ]
 

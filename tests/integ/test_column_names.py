@@ -39,7 +39,6 @@ def get_metadata_names(session, df):
     return [quote_name(metadata.name) for metadata in description]
 
 
-@pytest.mark.localtest
 def test_like(session):
     df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].like(lit("v%")))
@@ -62,7 +61,6 @@ def test_like(session):
     )
 
 
-@pytest.mark.localtest
 def test_regexp(session):
     df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].regexp(lit("v%")))
@@ -107,7 +105,6 @@ def test_collate(session):
     )
 
 
-@pytest.mark.localtest
 def test_subfield(session):
     df1 = session.create_dataframe(
         data=[[[1, 2, 3], {"a": "b"}]], schema=["c", '"c c"']
@@ -183,7 +180,6 @@ def test_specified_window_frame(session):
     )
 
 
-@pytest.mark.localtest
 def test_cast(session):
 
     df1 = session.create_dataframe([[1, "v"]], schema=["a", '" a"'])
@@ -343,7 +339,6 @@ def test_interval(session):
     )
 
 
-@pytest.mark.localtest
 def test_attribute(session):
     df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1[" a"], df1["a"])
@@ -359,7 +354,6 @@ def test_attribute(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
-@pytest.mark.localtest
 def test_unresolved_attribute(session):
     df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
 
@@ -376,7 +370,6 @@ def test_unresolved_attribute(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
-@pytest.mark.localtest
 def test_star(session):
     df1 = session.create_dataframe([[1, 2]], schema=[" a", "a"])
     df2 = df1.select(df1["*"])
@@ -401,7 +394,6 @@ def test_star(session):
     ]  # In class ColumnIdentifier, the "" is removed for '"A"'.
 
 
-@pytest.mark.localtest
 def test_function_expression(session, local_testing_mode):
     df1 = session.create_dataframe(["a"], schema=["a"])
     if not local_testing_mode:
@@ -680,7 +672,6 @@ def test_binary_expression(session):
     )
 
 
-@pytest.mark.localtest
 def test_cast_nan_column_name(session):
     df1 = session.create_dataframe([["a"]], schema=["a"])
     df2 = df1.select(df1["A"] == math.nan)
@@ -713,7 +704,6 @@ def test_table_function():
     ...
 
 
-@pytest.mark.localtest
 def test_str_column_name_no_quotes(session, local_testing_mode):
     decimal_string = "1.500000"
     df = session.create_dataframe([1, 2], schema=["a"])
@@ -732,7 +722,6 @@ def test_str_column_name_no_quotes(session, local_testing_mode):
     )
 
 
-@pytest.mark.localtest
 def test_show_column_name_with_quotes(session, local_testing_mode):
     df = session.create_dataframe([1, 2], schema=["a"])
     assert (

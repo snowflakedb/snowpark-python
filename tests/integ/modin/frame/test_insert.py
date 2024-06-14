@@ -40,12 +40,14 @@ def native_df():
         # DataFrame
         native_pd.DataFrame({"col1": ["a", "b", "c"]}),
         # DataFrame with index
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 99, 100])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 99, 100])
+        ),
         # DataFrame with less rows
         native_pd.DataFrame({"col1": ["a"]}),
         # DataFrame with more rows
         native_pd.DataFrame(
-            {"col1": ["a", "b", "c", "d", "e"]}, index=pd.Index([4, 3, 2, 1, 0])
+            {"col1": ["a", "b", "c", "d", "e"]}, index=native_pd.Index([4, 3, 2, 1, 0])
         ),
     ],
 )
@@ -81,13 +83,17 @@ def test_insert_snowpark_pandas_objects(native_df, native_value):
     [
         # Note: Target dataFrame index values are [5, 1, 0]
         # DataFrame with duplicate index value 1
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 1, 1])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 1, 1])
+        ),
         # Series with duplicate index value 1
-        native_pd.Series(["a", "b", "c"], index=pd.Index([0, 1, 1])),
+        native_pd.Series(["a", "b", "c"], index=native_pd.Index([0, 1, 1])),
         # DataFrame with duplicate index value 2. 2 is not present in target dataframe
         # so technically this will not lead to one-to-many join but this is still
         # disallowed in native pandas.
-        native_pd.DataFrame({"col1": ["a", "b", "c"]}, index=pd.Index([0, 2, 2])),
+        native_pd.DataFrame(
+            {"col1": ["a", "b", "c"]}, index=native_pd.Index([0, 2, 2])
+        ),
     ],
 )
 @sql_count_checker(query_count=2, join_count=1)
@@ -606,7 +612,7 @@ def test_insert_into_empty_dataframe_negative(loc, data, columns):
 def test_insert_into_empty_df_with_single_column():
 
     series = native_pd.Series([1, 2], index=[3, 2])
-    df = native_pd.DataFrame({"col1": []}, index=pd.Index([], dtype="int64"))
+    df = native_pd.DataFrame({"col1": []}, index=native_pd.Index([], dtype="int64"))
 
     def helper(df):
         temp_series = series
@@ -717,21 +723,24 @@ def test_insert_multiindex_column_negative(snow_df, columns, insert_label):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+# Two extra queries to convert index to native pandas when creating snowpark pandas dataframes
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch
 ):
     data = list(range(5))
     data1 = {"foo": data}
     data2 = {"bar": [val * 10 for val in data]}
-    index = pd.Index(index_values, name="INDEX")
-    other_index = pd.Index(other_index_values, name="INDEX")
+    native_index = native_pd.Index(index_values, name="INDEX")
+    other_native_index = native_pd.Index(other_index_values, name="INDEX")
+    index = pd.Index(native_index)
+    other_index = pd.Index(other_native_index)
 
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
-    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
+    native_df1 = native_pd.DataFrame(data1, index=native_index)
+    native_df2 = native_pd.DataFrame(data2, index=other_native_index)
 
     def insert_op(df):
         df.insert(

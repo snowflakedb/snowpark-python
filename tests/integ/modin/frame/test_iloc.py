@@ -274,7 +274,10 @@ def test_df_iloc_get_row_input_snowpark_pandas_return_dataframe(
     default_index_native_df,
 ):
     expected_query_count = 2
-    if key == "Index" or key == "Index[bool]" or key == "RangeIndex":
+    if key == "Index" or key == "Index[bool]":
+        # extra query to convert to native pandas
+        expected_query_count = 3
+    elif key == "RangeIndex":
         expected_query_count = 1
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
@@ -309,7 +312,10 @@ def test_df_iloc_get_col_input_snowpark_pandas_return_dataframe(
         return df.iloc[slice(None), label]
 
     expected_query_count = 3
-    if key == "Index" or key == "RangeIndex" or key == "Index[bool]":
+    if key == "Index" or key == "Index[bool]":
+        # one extra query for converting to pandas and one extra query for dtype for indexing
+        expected_query_count = 5
+    elif key == "RangeIndex":
         expected_query_count = 1
 
     with SqlCounter(query_count=expected_query_count, join_count=0):
@@ -629,7 +635,7 @@ def test_df_iloc_get_with_numpy_types():
     }
     native_df = native_pd.DataFrame(
         data,
-        index=pd.Index(["foo"]),
+        index=native_pd.Index(["foo"]),
     )
     snow_df = pd.DataFrame(native_df)
 
@@ -690,20 +696,33 @@ def test_df_iloc_get_key_bool(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=bool)
+            _key = (
+                pd.Index(_key, dtype=bool)
+                if isinstance(_df, pd.DataFrame)
+                else native_pd.Index(_key, dtype=bool)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name", dtype=bool)
+            _key = (
+                pd.Index(_key, name="some name", dtype=bool)
+                if isinstance(_df, pd.DataFrame)
+                else native_pd.Index(_key, name="some name", dtype=bool)
+            )
         elif key_type == "series" and isinstance(_df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=bool)
 
-        if isinstance(_df, native_pd.DataFrame):
-            _key = try_convert_index_to_native(_key)
         return _df.iloc[_key] if axis == "row" else _df.iloc[:, _key]
 
-    query_count = 2 if (key_type == "series" and axis == "col") else 1
+    # Two extra queries for index dtype and one extra query for index conversion to series to set item
+    query_count = (
+        4
+        if "index" in key_type
+        else 2
+        if (key_type == "series" and axis == "col")
+        else 1
+    )
     expected_join_count = 0
     if axis == "row":
         if key == [] and key_type in ["list", "ndarray"]:
@@ -919,20 +938,33 @@ def test_df_iloc_get_key_numeric(
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=float)
+            _key = (
+                pd.Index(_key, dtype=float)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_key, dtype=float)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key)
         elif key_type == "index with name":
-            _key = pd.Index(_key, name="some name", dtype=float)
+            _key = (
+                pd.Index(_key, name="some name", dtype=float)
+                if isinstance(df, pd.DataFrame)
+                else native_pd.Index(_key, name="some name", dtype=float)
+            )
         elif key_type == "series" and isinstance(df, pd.DataFrame):
             # Native pandas does not support iloc with Snowpark Series.
             _key = pd.Series(_key, dtype=float if len(key) == 0 else None)
 
-        if isinstance(df, native_pd.DataFrame):
-            _key = try_convert_index_to_native(_key)
         return df.iloc[_key] if axis == "row" else df.iloc[:, _key]
 
-    query_count = 2 if (key_type == "series" and axis == "col") else 1
+    # Two extra queries for index dtype and one extra query for index conversion to series to set item
+    query_count = (
+        4
+        if "index" in key_type
+        else 2
+        if (key_type == "series" and axis == "col")
+        else 1
+    )
     join_count = 2 if axis == "row" else 0
 
     # test df with default index
@@ -1271,7 +1303,6 @@ def test_df_iloc_get_invalid_slice_key_negative(
     ],
 )
 @pytest.mark.parametrize("axis", ILOC_GET_KEY_AXIS)
-@sql_count_checker(query_count=0)
 def test_df_iloc_get_non_numeric_key_negative(
     key, axis, default_index_snowpark_pandas_df
 ):
@@ -1280,14 +1311,23 @@ def test_df_iloc_get_non_numeric_key_negative(
 
     if isinstance(key, native_pd.Index):
         key = pd.Index(key)
-    # General case fails with TypeError.
-    error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    with pytest.raises(IndexError, match=error_msg):
-        _ = (
-            default_index_snowpark_pandas_df.iloc[key]
-            if axis == "row"
-            else default_index_snowpark_pandas_df.iloc[:, key]
-        )
+    # 2 extra queries for repr, 2 extra queries for dtypes
+    # 1 extra query to convert index to series if row case
+    with SqlCounter(
+        query_count=5
+        if isinstance(key, pd.Index) and axis == "row"
+        else 4
+        if isinstance(key, pd.Index)
+        else 0
+    ):
+        # General case fails with TypeError.
+        error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
+        with pytest.raises(IndexError, match=error_msg):
+            _ = (
+                default_index_snowpark_pandas_df.iloc[key]
+                if axis == "row"
+                else default_index_snowpark_pandas_df.iloc[:, key]
+            )
 
 
 @sql_count_checker(query_count=0)
@@ -1792,15 +1832,18 @@ def test_df_iloc_set_with_row_key_list(
 ):
     row_pos = list_convert(row_pos)
     if isinstance(row_pos, native_pd.Index):
-        row_pos = pd.Index(row_pos)
+        snow_row_pos = pd.Index(row_pos)
+    else:
+        snow_row_pos = row_pos
 
-    expected_query_count = 1
+    # 2 extra queries for dtype, 2 for iter
+    expected_query_count = 5 if isinstance(snow_row_pos, pd.Index) else 1
     expected_join_count = 2 if isinstance(item_values, int) else 3
 
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         helper_test_iloc_set_with_row_and_col_pos(
             numeric_test_data_4x4,
-            row_pos,
+            snow_row_pos,
             row_pos,
             col_pos,
             col_pos,
@@ -2086,7 +2129,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [2, 1, 3],
             [3, 0, 2],
-            pd.Index([456]),
+            native_pd.Index([456]),
         ),
         # Test locations with 1d item (list) values
         (
@@ -2110,7 +2153,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [3, 1, 2],
             [0, 3, 1],
-            pd.Index([99, 98, 97]),
+            native_pd.Index([99, 98, 97]),
         ),
         # Test 3x3 locations with 2d item (list) values
         (
@@ -2134,7 +2177,7 @@ def test_df_iloc_set_with_row_key_series_rhs_dataframe_mismatch_pandas(
         (
             [2, 1, 0],
             [1, 0, 2],
-            pd.Index([(55, 56, 57), (58, 59, 60), (61, 62, 63)]),
+            native_pd.Index([(55, 56, 57), (58, 59, 60), (61, 62, 63)]),
         ),
         # Test 3x3 locations with scalar 0
         (
@@ -2164,6 +2207,13 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
     else:
         expected_join_count = 2
 
+    if isinstance(item_value, native_pd.Index):
+        snow_item_value = pd.Index(item_value)
+        # extra query for tolist
+        expected_query_count = 3
+    else:
+        snow_item_value = item_value
+
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         helper_test_iloc_set_with_row_and_col_pos(
             numeric_test_data_4x4,
@@ -2171,7 +2221,7 @@ def test_df_iloc_set_with_row_key_series_rhs_scalar(
             row_pos,
             col_pos,
             col_pos,
-            item_value,
+            snow_item_value,
             item_value,
             wrap_item="na",
             wrap_row="series",
@@ -2244,9 +2294,6 @@ def wrap_key_as_expected_type(wrap_type, snow_pos, native_pos):
     elif wrap_type == "tuple":
         snow_key = tuple(snow_pos)
         native_key = tuple(native_pos)
-    elif wrap_type == "index":
-        snow_key = pd.Index(snow_pos)
-        native_key = native_pd.Index(native_pos)
     else:
         snow_key = snow_pos
         native_key = native_pos
