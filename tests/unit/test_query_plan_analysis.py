@@ -62,7 +62,7 @@ def test_assign_custom_cumulative_node_complexity(
 
     """
                             o                       o
-                           / \\                     / \
+                           / \\                    / \
                           o   o                   x   o
                          /|\
                         o o o       ->
@@ -99,9 +99,7 @@ def test_selectable_entity_individual_node_complexity(mock_analyzer):
 
 
 def test_select_sql_individual_node_complexity(mock_analyzer):
-    plan_node = SelectSQL(
-        "non-select statement", convert_to_select=True, analyzer=mock_analyzer
-    )
+    plan_node = SelectSQL("non-select statement", analyzer=mock_analyzer)
     assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
     plan_node = SelectSQL("select 1 as A, 2 as B", analyzer=mock_analyzer)
