@@ -451,7 +451,12 @@ class Index:
     @property
     def shape(self) -> tuple:
         """
-        Return a tuple of the shape of the underlying data.
+        Get a tuple of the shape of the underlying data.
+
+        Returns
+        -------
+        tuple
+            A tuple representing the shape of self
         """
         return (len(self),)
 
@@ -602,10 +607,14 @@ class Index:
         return 1
 
     @property
-    @is_lazy_check
     def size(self) -> int:
         """
-        Return the number of elements in the underlying data.
+        Get the number of elements in the underlying data.
+
+        Returns
+        -------
+        int
+            The number of elements in self
         """
         return len(self)
 
@@ -621,6 +630,11 @@ class Index:
     def empty(self) -> bool:
         """
         Whether the index is empty.
+
+        Returns
+        -------
+        bool
+            True if the index has no elements, False otherwise.
         """
         return self.size == 0
 
