@@ -1873,6 +1873,9 @@ class DataFrameGroupBy:
 
 
 class SeriesGroupBy:
+    def get_group(self):
+        pass
+
     @property
     def ndim(self):
         """
