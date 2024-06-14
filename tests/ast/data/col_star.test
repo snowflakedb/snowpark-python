@@ -9,4 +9,4 @@ df = df.select(col("*"))
 
 res1 = session.table("test_table")
 
-res2 = res1.select('*')
+res2 = res1.select("*")
