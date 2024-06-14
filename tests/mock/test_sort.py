@@ -2,14 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import pytest
-
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import col
 from tests.utils import Utils
 
 
-@pytest.mark.localtest
 def test_sort_single_column(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -63,7 +60,6 @@ def test_sort_single_column(session):
     )
 
 
-@pytest.mark.localtest
 def test_sort_multiple_column(session):
     origin_df: DataFrame = session.create_dataframe(
         [

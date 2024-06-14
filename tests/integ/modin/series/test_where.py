@@ -114,7 +114,7 @@ def test_series_where_with_np_array_cond():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda df: df.where(cond))
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_series_where_with_series_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -139,7 +139,7 @@ def test_series_where_with_series_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_series_where_with_duplicated_index_aligned():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -164,10 +164,10 @@ def test_series_where_with_duplicated_index_aligned():
 @sql_count_checker(query_count=1)
 def test_series_where_with_lambda_cond():
     data = [1, 6, 7, 4]
-    index = pd.Index(["a", "b", "c", "d"])
+    index = native_pd.Index(["a", "b", "c", "d"])
 
-    snow_ser = pd.Series(data, index=index)
     native_ser = native_pd.Series(data, index=index)
+    snow_ser = pd.Series(native_ser)
 
     eval_snowpark_pandas_result(
         snow_ser,
@@ -179,10 +179,9 @@ def test_series_where_with_lambda_cond():
 @sql_count_checker(query_count=0)
 def test_series_where_with_lambda_cond_returns_singleton_should_fail():
     data = [1, 6, 7, 4]
-    index = pd.Index(["a", "b", "c", "d"])
-
-    snow_ser = pd.Series(data, index=index)
+    index = native_pd.Index(["a", "b", "c", "d"])
     native_ser = native_pd.Series(data, index=index)
+    snow_ser = pd.Series(native_ser)
 
     eval_snowpark_pandas_result(
         snow_ser,

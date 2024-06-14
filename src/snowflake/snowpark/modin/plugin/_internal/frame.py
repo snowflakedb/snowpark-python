@@ -388,11 +388,12 @@ class InternalFrame:
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
                 tupleize_cols=False,
+                # setting is_lazy as false because we want to store the columns locally
                 convert_to_lazy=False,
             )
 
     @property
-    def index_columns_index(self) -> native_pd.Index:
+    def index_columns_pandas_index(self) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
@@ -400,7 +401,6 @@ class InternalFrame:
         Returns:
             The index (row labels) of the DataFrame.
         """
-
         index_values = snowpark_to_pandas_helper(
             self.ordered_dataframe.select(
                 self.index_column_snowflake_quoted_identifiers
