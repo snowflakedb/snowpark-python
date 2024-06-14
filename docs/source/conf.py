@@ -101,7 +101,6 @@ from sphinx.ext.autodoc import (  # isort:skip
 )
 from sphinx.ext.autosummary import Autosummary  # isort:skip
 
-
 class ModinAccessorLevelDocumenter(Documenter):
     """
     Performs name resolution for modin Accessor classes like Series.str and Series.dt.
@@ -157,10 +156,12 @@ class ModinAutosummary(Autosummary):
                     lambda name:
                     # The trailing . is important here so we don't replace the path for the `str` property
                     # of the pd.Series class by mistake.
-                    name.replace("Series.str.", "series_utils.StringMethods.").replace(
+                    name.replace(
+                        "Series.str.", "series_utils.StringMethods."
+                    ).replace(
                         "Series.dt.", "series_utils.DatetimeProperties."
                     ),
-                    names,
+                    names
                 )
             )
 
@@ -204,6 +205,7 @@ def setup(app):
     app.add_autodocumenter(ModinAccessorMethodDocumenter)
     app.add_autodocumenter(ModinAccessorAttributeDocumenter)
     app.add_directive("autosummary", ModinAutosummary)
+    breakpoint()
 
 
 # We overwrite the existing "autosummary" directive in order to properly resolve names for modin

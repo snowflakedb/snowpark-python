@@ -228,19 +228,9 @@ Series
 .. the current module here.
 
 .. currentmodule:: modin.pandas
-.. rubric:: String accessor methods
-
-:doc:`All supported Series str APIs <supported/series_str_supported>`
-
-.. autosummary::
-    :toctree: pandas_api/
-    :template: autosummary/modin_accessor_method.rst
-
-    Series.str.replace
-    Series.str.split
 
 
-.. rubric:: Datetime accessor methods
+.. rubric:: Datetime accessor properties
 
 :doc:`All supported Series dt APIs <supported/series_dt_supported>`
 
@@ -249,5 +239,46 @@ Series
     :template: autosummary/modin_accessor_attribute.rst
 
     Series.dt.date
-    Series.dt.time
+    Series.dt.year
+    Series.dt.month
+    Series.dt.day
+    Series.dt.hour
+    Series.dt.minute
+    Series.dt.second
+    Series.dt.dayofweek
+    Series.dt.day_of_week
+    Series.dt.dayofyear
+    Series.dt.day_of_year
+    Series.dt.quarter
 
+
+.. rubric:: String accessor methods
+
+:doc:`All supported Series str APIs <supported/series_str_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_method.rst
+
+    Series.str.capitalize
+    Series.str.casefold
+    Series.str.center
+    Series.str.contains
+    Series.str.count
+    Series.str.endswith
+    Series.str.get
+    Series.str.isdigit
+    Series.str.islower
+    Series.str.istitle
+    Series.str.isupper
+    Series.str.len
+    Series.str.lower
+    Series.str.lstrip
+    Series.str.match
+    Series.str.replace
+    Series.str.rstrip
+    Series.str.slice
+    Series.str.split
+    Series.str.startswith
+    Series.str.strip
+    Series.str.upper
