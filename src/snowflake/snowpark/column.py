@@ -3,7 +3,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
 import sys
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import snowflake.snowpark
@@ -999,8 +1001,16 @@ class Column:
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
             for attr, msg in copy_messages.items():
-                if msg is not None:
-                    getattr(prop_ast, attr).CopyFrom(msg)
+                if msg is None:
+                    call_stack = inspect.stack()
+                    curr_frame = call_stack.pop(0)
+                    while call_stack and __file__ == curr_frame.filename:
+                        column_api = curr_frame.function
+                        curr_frame = call_stack.pop(0)
+                    raise NotImplementedError(f"Calling Column API \"{column_api}\" which supports AST logging, from File \"{curr_frame.filename}\", line {curr_frame.lineno}, potentially in {curr_frame.function}\n"
+                                              f"\t{curr_frame.code_context[0]}"
+                                              f"\tAn API from snowflake.snowpark.functions used above has not yet implemented AST logging.")
+                getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
         return ast
