@@ -56,6 +56,7 @@ from pandas.api.types import (
 )
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
+from pandas.core.indexes.base import ensure_index
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
@@ -1266,9 +1267,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
-        from snowflake.snowpark.modin.pandas.utils import ensure_index
+        from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 
-        new_pandas_labels = ensure_index(new_pandas_labels)
+        new_pandas_labels = ensure_index(try_convert_index_to_native(new_pandas_labels))
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
             raise ValueError(
                 "Length mismatch: Expected axis has {} elements, new values have {} elements".format(
@@ -1500,14 +1501,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @property
     def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
-        Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
-        filled
+        Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values to be
+        filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass it self
 
         Returns:
             The index (row labels) of the DataFrame.
         """
         if self.is_multiindex():
-            return self._modin_frame.index_columns_index
+            return self._modin_frame.index_columns_pandas_index
         else:
             return pd.Index(self)
 
@@ -12371,8 +12372,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_match(
         self, pat: str, case: bool = True, flags: int = 0, na: object = None
-    ) -> None:
-        ErrorMessage.method_not_implemented_error("match", "Series.str")
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Determine if each string starts with a match of a regular expression.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence.
+        case : bool, default True
+            If True, case sensitive.
+        flags : int, default 0 (no flags)
+            Regex module flags, e.g. re.IGNORECASE.
+        na : scalar, optional
+            Fill value for missing values. The default depends on dtype of the array. For object-dtype, numpy.nan is used. For StringDtype, pandas.NA is used.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not native_pd.isna(na) and not isinstance(na, bool):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument"
+            )
+
+        pat = f"({pat})(.|\n)*"
+        if flags & re.IGNORECASE > 0:
+            case = False
+        if flags & re.IGNORECASE == 0 and not case:
+            flags = flags | re.IGNORECASE
+        params = self._get_regex_params(flags)
+
+        def output_col(col_name: ColumnOrName, pat: str, na: object) -> SnowparkColumn:
+            new_col = builtin("rlike")(
+                col(col_name), pandas_lit(pat), pandas_lit(params)
+            )
+            new_col = (
+                new_col if pandas.isnull(na) else coalesce(new_col, pandas_lit(na))
+            )
+            return self._replace_non_str(col(col_name), new_col, replacement_value=na)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_data_columns(
+            lambda col_name: output_col(col_name, pat, na)
+        )
+
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_extract(self, pat: str, flags: int = 0, expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("extract", "Series.str")

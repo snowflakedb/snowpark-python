@@ -47,7 +47,7 @@ def transpose_empty_df(
 
     return SnowflakeQueryCompiler.from_pandas(
         native_pd.DataFrame(
-            columns=original_frame.index_columns_index,
+            columns=original_frame.index_columns_pandas_index,
             index=try_convert_index_to_native(original_frame.data_columns_index),
         )
     )
