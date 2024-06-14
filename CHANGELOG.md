@@ -44,8 +44,7 @@
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
-- Added support for `DataFrameGroupBy.first` and `SeriesGroupBy.first`
-- Added support for `DataFrameGroupBy.last` and `SeriesGroupBy.last`
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 
 #### Bug Fixes
 
