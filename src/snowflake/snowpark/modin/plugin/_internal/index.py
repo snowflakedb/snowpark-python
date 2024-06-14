@@ -451,12 +451,11 @@ class Index:
         return self.to_pandas().dtype
 
     @property
-    @index_not_implemented()
-    def shape(self) -> None:
+    def shape(self) -> tuple:
         """
         Return a tuple of the shape of the underlying data.
         """
-        # TODO: SNOW-1458118 implement shape
+        return (len(self),)
 
     @is_lazy_check
     def astype(self, dtype: Any, copy: bool = True) -> Index:
@@ -605,12 +604,12 @@ class Index:
         return 1
 
     @property
-    @index_not_implemented()
-    def size(self) -> None:
+    @is_lazy_check
+    def size(self) -> int:
         """
         Return the number of elements in the underlying data.
         """
-        # TODO: SNOW-1458118 implement size
+        return len(self)
 
     @property
     @is_lazy_check
@@ -621,12 +620,11 @@ class Index:
         return 1
 
     @property
-    @index_not_implemented()
-    def empty(self) -> None:
+    def empty(self) -> bool:
         """
         Whether the index is empty.
         """
-        # TODO: SNOW-1458118 implement empty
+        return self.size == 0
 
     @property
     def T(self, *args: Any, **kwargs: Any) -> Index:
