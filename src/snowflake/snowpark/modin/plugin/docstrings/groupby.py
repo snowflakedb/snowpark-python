@@ -1964,6 +1964,51 @@ class SeriesGroupBy:
         Series
         """
 
+    def size():
+        """
+        Compute group sizes.
+
+        Returns
+        -------
+        DataFrame or Series
+            Number of rows in each group as a Series if as_index is True
+            or a DataFrame if as_index is False.
+
+        Examples
+        --------
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a").size()
+        a
+        1    2
+        7    1
+        dtype: int64
+
+        For SeriesGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a")["b"].size()
+        a
+        1    2
+        7    1
+        Name: b, dtype: int64
+        """
+        pass
+
     def unique(self):
         pass
 
