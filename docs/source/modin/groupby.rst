@@ -39,9 +39,11 @@ GroupBy
     DataFrameGroupBy.cummax
     DataFrameGroupBy.cummin
     DataFrameGroupBy.cumsum
+    DataFrameGroupBy.first
     DataFrameGroupBy.head
     DataFrameGroupBy.idxmax
     DataFrameGroupBy.idxmin
+    DataFrameGroupBy.last
     DataFrameGroupBy.max
     DataFrameGroupBy.mean
     DataFrameGroupBy.median
@@ -65,9 +67,11 @@ GroupBy
     SeriesGroupBy.cummax
     SeriesGroupBy.cummin
     SeriesGroupBy.cumsum
+    SeriesGroupBy.first
     SeriesGroupBy.head
     SeriesGroupBy.idxmax
     SeriesGroupBy.idxmin
+    SeriesGroupBy.last
     SeriesGroupBy.max
     SeriesGroupBy.mean
     SeriesGroupBy.median
