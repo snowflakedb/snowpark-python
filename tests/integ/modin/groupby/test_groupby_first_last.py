@@ -68,7 +68,7 @@ data_dictionary = {
 @pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("skipna", [True, False])
 @pytest.mark.parametrize("method", ["first", "last"])
-def test_groupby_first(by, as_index, sort, skipna, method):
+def test_groupby_first_last(by, as_index, sort, skipna, method):
     snowpark_pandas_df = pd.DataFrame(data_dictionary)
     pandas_df = snowpark_pandas_df.to_pandas()
     with SqlCounter(query_count=1):
