@@ -9,6 +9,7 @@
 #### New Features
 
 - Added support for `to_boolean` function.
+- Added documentation pages for `Index` and its APIs.
 
 #### Bug Fixes
 

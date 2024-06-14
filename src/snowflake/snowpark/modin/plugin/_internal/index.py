@@ -236,6 +236,8 @@ class Index:
             if not key.startswith("_"):
                 native_index = native_pd.Index([])
                 if hasattr(native_index, key):
+                    # Any methods that not supported by the current Index.py but exist in a
+                    # native pandas index object should raise a not implemented error for now.
                     raise ErrorMessage.not_implemented(
                         f"Index.{key} is not yet implemented"
                     )
