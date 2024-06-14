@@ -364,7 +364,11 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     elif isinstance(column, native_pd.Index):
         expected_join_count = 4
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    # 3 extra queries, 2 for iter and 1 for tolist
+    with SqlCounter(
+        query_count=4 if isinstance(column, native_pd.Index) else 1,
+        join_count=expected_join_count,
+    ):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -433,7 +437,8 @@ def test_df_setitem_single_column_length_mismatch(key, value):
         [["a", "b", "b", "d", "e"], ["x", "y", "z", "u", "u"], True],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+# 2 extra queries to convert to native pandas when creating the two snowpark pandas dataframes
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_setitem_with_unique_and_duplicate_index_values(
     index_values, other_index_values, expect_mismatch
 ):
@@ -446,8 +451,12 @@ def test_df_setitem_with_unique_and_duplicate_index_values(
     snow_df1 = pd.DataFrame(data1, index=index)
     snow_df2 = pd.DataFrame(data2, index=other_index)
 
-    native_df1 = native_pd.DataFrame(data1, index=index.to_pandas())
-    native_df2 = native_pd.DataFrame(data2, index=other_index.to_pandas())
+    native_df1 = native_pd.DataFrame(
+        data1, index=native_pd.Index(index_values, name="INDEX")
+    )
+    native_df2 = native_pd.DataFrame(
+        data2, index=native_pd.Index(other_index_values, name="INDEX")
+    )
 
     def setitem_op(df):
         df["foo2"] = (
@@ -655,7 +664,7 @@ class TestDFSetitemBool2DKey:
                         native_df_key,
                         native_pd.DataFrame(
                             [[False, True, False]],
-                            index=pd.Index([3]),
+                            index=native_pd.Index([3]),
                             columns=["a", "b", "c"],
                         ),
                     ]
@@ -692,7 +701,7 @@ class TestDFSetitemBool2DKey:
                                     key,
                                     native_pd.DataFrame(
                                         [[False, True, False]],
-                                        index=pd.Index([3]),
+                                        index=native_pd.Index([3]),
                                         columns=["a", "b", "c"],
                                     ),
                                 ]
@@ -743,7 +752,7 @@ class TestDFSetitemBool2DKey:
                         native_df_key,
                         native_pd.DataFrame(
                             [[False, True, False]],
-                            index=pd.Index([3]),
+                            index=native_pd.Index([3]),
                             columns=["a", "b", "c"],
                         ),
                     ]
@@ -780,7 +789,7 @@ class TestDFSetitemBool2DKey:
                                     key,
                                     native_pd.DataFrame(
                                         [[False, True, False]],
-                                        index=pd.Index([3]),
+                                        index=native_pd.Index([3]),
                                         columns=["a", "b", "c"],
                                     ),
                                 ]
@@ -831,7 +840,7 @@ class TestDFSetitemBool2DKey:
                         native_df_key,
                         native_pd.DataFrame(
                             [[False, True, False]],
-                            index=pd.Index([3]),
+                            index=native_pd.Index([3]),
                             columns=["a", "b", "c"],
                         ),
                     ]
@@ -870,7 +879,7 @@ class TestDFSetitemBool2DKey:
                                     key,
                                     native_pd.DataFrame(
                                         [[False, True, False]],
-                                        index=pd.Index([3]),
+                                        index=native_pd.Index([3]),
                                         columns=["a", "b", "c"],
                                     ),
                                 ]
@@ -921,7 +930,7 @@ class TestDFSetitemBool2DKey:
                         native_df_key,
                         native_pd.DataFrame(
                             [[False, True, False]],
-                            index=pd.Index([3]),
+                            index=native_pd.Index([3]),
                             columns=["a", "b", "c"],
                         ),
                     ]
@@ -941,7 +950,7 @@ class TestDFSetitemBool2DKey:
         if not is_df_key:
             native_df_key = native_df_key.values
         values = native_pd.DataFrame(
-            -1 * native_df.values, index=pd.Index([100, 101, 102])
+            -1 * native_df.values, index=native_pd.Index([100, 101, 102])
         )
 
         def setitem_helper(df):
@@ -960,7 +969,7 @@ class TestDFSetitemBool2DKey:
                                     key,
                                     native_pd.DataFrame(
                                         [[False, True, False]],
-                                        index=pd.Index([3]),
+                                        index=native_pd.Index([3]),
                                         columns=["a", "b", "c"],
                                     ),
                                 ]
@@ -1011,7 +1020,7 @@ class TestDFSetitemBool2DKey:
                         native_df_key,
                         native_pd.DataFrame(
                             [[False, True, False]],
-                            index=pd.Index([3]),
+                            index=native_pd.Index([3]),
                             columns=["a", "b", "c"],
                         ),
                     ]
@@ -1048,7 +1057,7 @@ class TestDFSetitemBool2DKey:
                                     key,
                                     native_pd.DataFrame(
                                         [[False, True, False]],
-                                        index=pd.Index([3]),
+                                        index=native_pd.Index([3]),
                                         columns=["a", "b", "c"],
                                     ),
                                 ]
