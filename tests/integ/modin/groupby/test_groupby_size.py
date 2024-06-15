@@ -68,7 +68,7 @@ def test_groupby_size(by, as_index):
         }
     )
     pandas_df = snowpark_pandas_df.to_pandas()
-    with SqlCounter(query_count=1 if as_index else 2):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
@@ -76,7 +76,7 @@ def test_groupby_size(by, as_index):
         )
 
     # DataFrame with __getitem__
-    with SqlCounter(query_count=1 if as_index else 2):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
