@@ -631,12 +631,12 @@ def test_get_with_dict_label(key, expected_result):
             # Outputs:
             # - "head shaking vertically" = 1F642 + 200D + 2195 + FE0F
             # - "mending heart" = 2764 + FE0F + 200D + 1FA79
-            # - "health worker" = 1F91D1 + 200D + 2605 + FE0F
+            # - "health worker" = 1F91D1 + 200D + 2695 + FE0F
             ["🙂‍↔️", "❤️‍🔥", "🧑‍⚖️"],
             {
                 0x2194: 0x2195,
                 0x1F525: 0x1FA79,
-                0x2696: 0x2605,
+                0x2696: 0x2695,
             },
         ),
     ],
@@ -675,8 +675,8 @@ def test_translate_without_maketrans():
         {"😶‍🌫️": "a"},  # This emoji key is secretly 4 code points
         {"aa": "a"},  # Key is 2 chars
         # Mapping 1 char to multiple is valid in vanilla pandas, but we don't support this
-        {"a": "😶‍🌫️"},  # This emoji value is secretly 4 code points
-        {"a": "aa"},  # Value is 2 chars
+        {ord("a"): "😶‍🌫️"},  # This emoji value is secretly 4 code points
+        {ord("a"): "aa"},  # Value is 2 chars
     ],
 )
 @sql_count_checker(query_count=0)

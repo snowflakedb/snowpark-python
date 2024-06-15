@@ -1011,8 +1011,8 @@ class StringMethods:
         0    AAA
         dtype: object
 
-        Furthermore, due to restrictions in the underlying SQL, Snowpark pandas requires all string
-        values must to be one unicode codepoint in length. To create replacements of multiple
+        Furthermore, due to restrictions in the underlying SQL, Snowpark pandas currently requires
+        all string values to be one unicode codepoint in length. To create replacements of multiple
         characters, chain calls to `Series.str.replace` as needed.
 
         Vanilla pandas code:
