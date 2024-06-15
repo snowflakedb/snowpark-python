@@ -90,9 +90,34 @@ html_show_sourcelink = False  # Hide "view page source" link
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
 
-# Add custom Documenter classes to pre-process accessor classes like pd.Series.str, pd.Series.dt
+# Custom Documenter and AutoSummary classes to render friendly names for accessor attributes/methods
+# like pd.Series.str.replace and pd.Series.dt.date, rather than pd.series_utils.StringMethods.replace
+# and pd.series_utils.DatetimeProperties.date.
 # See implementation from pandas:
 # https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L484-L485
+# The rough control flow of autosummary/autodoc, and the manner in which our custom classes interact
+# it, is as follows:
+# (0.) The autosummary-generate directive creates rst files for each method detected within an "autosummary"
+#      block. I'm not completely sure how this resolution is performed, but it will only pick up elements
+#      defined in an explicit "autosummary" block, and does not find those declared within custom directives
+#      that inherit the Autosummary class. See comments on `ModinAutosummary` below.
+# 1. `Autosummary` reads the :toctree: elements specified in modin/series.rst.
+#    These elements are listed by the names we want displayed ("Series.str.replace", "Series.dt.date", etc.),
+#    as autosummary does not provide simple mechanisms for replacing a path with a different label.
+# 2. Our custom autosummary class (`ModinAutosummary`) replaces vanity names (e.g. "Series.str.replace")
+#    with the canonical import path ("series_utils.StringMethods.replace") before passing it to the base
+#    `Autosummary` class, which imports the appropriate module and class to parse type signatures and
+#    docstrings. After the base `Autosummary` import is done, `ModinAutosummary` restores the vanity names
+#    so they are properly rendered within the output of Series.html.
+# 3. Individual method/attribute stubs are generated from our custom files in _templates/autosummary/.
+#    The subclasses of `ModinAccessorLevelDocumenter` define the custom "automodinaccessormethod" and
+#    "automodinaccessorattribute" directives, which are necessary to perform formatting and avoid certain
+#    autodoc warnings. This is similar to the approach taken by native pandas. See comments on these
+#    classes for more details.
+# (4.) Sphinx or autodoc or some other thing out of our control resolves path names and turns them into
+#      links. In order for these links to properly generate, the `real_name` parsed in our custom
+#      `ModinAutosummary` class must match the `format_name` value generated from autodoc in our
+#      custom `ModinAccessorLevelDocumenter` class and its children.
 import sphinx  # isort:skip
 from sphinx.ext.autodoc import (  # isort:skip
     AttributeDocumenter,
