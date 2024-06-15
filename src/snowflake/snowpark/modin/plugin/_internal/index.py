@@ -126,6 +126,8 @@ class Index:
 
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
+            if name is not None:
+                qc = qc.set_index_names([name])
         else:
             qc = DataFrame(
                 native_pd.Index(
@@ -535,10 +537,7 @@ class Index:
         """
         Set Index name.
         """
-        if self.is_lazy:
-            self._query_compiler = self._query_compiler.set_index_names([value])
-        else:
-            self._index.name = value
+        self._set_names(values=[value])
 
     def _get_names(self) -> list[Hashable]:
         """
@@ -600,14 +599,22 @@ class Index:
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
-        # TODO: SNOW-1458122 implement set_names
-        WarningMessage.index_to_pandas_warning("set_names")
-        if not inplace:
-            return Index(
-                self.to_pandas().set_names(names, level=level, inplace=inplace),
-                convert_to_lazy=self.is_lazy,
-            )
-        return self.to_pandas().set_names(names, level=level, inplace=inplace)
+        if level is not None:
+            raise ValueError("Level must be None for non-MultiIndex")
+
+        if not isinstance(names, list) or len(names) != 1:
+            raise ValueError("Names must be a one element list for non-MultiIndex")
+
+        if self.is_lazy:
+            if not inplace:
+                return Index(
+                    self._query_compiler.set_index_names(names),
+                )
+            else:
+                self._set_names(names)
+                return None
+        else:
+            return self.to_pandas().set_names(names, level=level, inplace=inplace)
 
     @property
     def ndim(self) -> int:
@@ -1346,8 +1353,7 @@ class Index:
         """
         # TODO: SNOW-1458121 implement reindex
 
-    @index_not_implemented()
-    def rename(self) -> None:
+    def rename(self, name: Hashable = None, inplace: bool = False) -> Self | None:
         """
         Alter Index or MultiIndex name.
 
@@ -1371,7 +1377,7 @@ class Index:
         --------
         Index.set_names : Able to set new names partially and by level.
         """
-        # TODO: SNOW-1458122 implement rename
+        return self.set_names([name], level=None, inplace=inplace)
 
     @index_not_implemented()
     def nunique(self) -> None:
