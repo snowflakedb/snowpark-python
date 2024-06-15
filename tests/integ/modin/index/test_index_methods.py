@@ -197,3 +197,38 @@ def test_df_index_shape(native_df):
     snow_df = pd.DataFrame(native_df)
     assert snow_df.index.shape == native_df.index.shape
     assert snow_df.columns.shape == native_df.columns.shape
+
+
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+@sql_count_checker(query_count=0)
+def test_index_name(native_index):
+    snow_index = pd.Index(native_index)
+    assert snow_index.name == native_index.name
+
+    snow_index.name = "a"
+    native_index.name = "a"
+    assert snow_index.name == native_index.name
+
+    snow_index.names = ["abc"]
+    native_index.names = ["abc"]
+    assert snow_index.names == native_index.names
+
+    snow_index.set_names(names=["index"], inplace=True)
+    native_index.set_names(names=["index"], inplace=True)
+    assert snow_index.names == native_index.names
+
+    new_snow_index = snow_index.set_names(names=["name"], inplace=False)
+    new_native_index = native_index.set_names(names=["name"], inplace=False)
+
+    assert new_snow_index.names == new_native_index.names
+    assert new_snow_index.names != snow_index.names
+
+    snow_index.rename(name="index", inplace=True)
+    native_index.rename(name="index", inplace=True)
+    assert snow_index.names == native_index.names
+
+    new_snow_index = snow_index.rename(name="name", inplace=False)
+    new_native_index = native_index.rename(name="name", inplace=False)
+
+    assert new_snow_index.names == new_native_index.names
+    assert new_snow_index.names != snow_index.names
