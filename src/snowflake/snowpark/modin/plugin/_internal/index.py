@@ -599,9 +599,6 @@ class Index:
         >>> idx.set_names('quarter')
         Index([1, 2, 3, 4], dtype='int64', name='quarter')
         """
-        if level is not None:
-            raise ValueError("Level must be None for non-MultiIndex")
-
         if not isinstance(names, list):
             names = [names]
 
