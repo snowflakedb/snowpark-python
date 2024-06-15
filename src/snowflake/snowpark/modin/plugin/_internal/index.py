@@ -602,7 +602,10 @@ class Index:
         if level is not None:
             raise ValueError("Level must be None for non-MultiIndex")
 
-        if not isinstance(names, list) or len(names) != 1:
+        if not isinstance(names, list):
+            names = [names]
+
+        if len(names) != 1:
             raise ValueError("Names must be a one element list for non-MultiIndex")
 
         if self.is_lazy:
