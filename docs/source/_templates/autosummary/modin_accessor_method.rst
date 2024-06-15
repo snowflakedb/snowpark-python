@@ -3,4 +3,4 @@
 
 .. currentmodule:: {{ module }}
 
-.. automodinaccessormethod:: {{ (module.split('.')[2:] + [objname]) | join('.') }}
+.. automodinaccessormethod:: {{ objname }}
