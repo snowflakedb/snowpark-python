@@ -602,9 +602,6 @@ class Index:
         if not isinstance(names, list):
             names = [names]
 
-        if len(names) != 1:
-            raise ValueError("Names must be a one element list for non-MultiIndex")
-
         if self.is_lazy:
             if not inplace:
                 return Index(
