@@ -13963,7 +13963,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Because TRANSLATE only supports 1-to-1 character mappings, any entries with multi-character
         # values must be handled by REPLACE instead. 1-character keys are always invalid.
         single_char_pairs = {}
-        multi_char_pairs = {}
         none_keys = set()
         for key, value in table.items():
             # Treat integers as unicode codepoints
@@ -13984,8 +13983,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             if value is None or len(value) == 0:
                 none_keys.add(key)
-            elif len(value) > 1:
-                multi_char_pairs[key] = value
             else:
                 single_char_pairs[key] = value
         source_alphabet = "".join(single_char_pairs.keys()) + "".join(none_keys)
