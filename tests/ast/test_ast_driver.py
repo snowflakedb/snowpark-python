@@ -104,12 +104,13 @@ session._ast_batch.flush()  # Clear the AST.
 """
     locals = {"session": session}
     exec(source, locals)
-    return render(locals["result"])
+    base64 = locals["result"]
+    return render(base64), base64
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, test_case):
-    actual = run_test(session, test_case.source)
+    actual, base64 = run_test(session, test_case.source)
     if pytest.update_expectations:
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
@@ -126,8 +127,7 @@ def test_ast(session, test_case):
             assert actual.strip() == test_case.expected_output.strip()
         except AssertionError as e:
             raise AssertionError(
-                "If the expectation is incorrect, run pytest --update-expectations:\n\n"
-                + str(e)
+                f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
             )
 
 
