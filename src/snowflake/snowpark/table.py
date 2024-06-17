@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
-from snowflake.snowpark._internal.ast_utils import fill_src_position
+from snowflake.snowpark._internal.ast_utils import set_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -276,7 +276,7 @@ class Table(DataFrame):
         # TODO: what do we do if there's no session?
         stmt = session._ast_batch.assign()
         stmt.expr.sp_table.table = table_name
-        fill_src_position(stmt.expr.sp_table.src)
+        set_src_position(stmt.expr.sp_table.src)
 
         super().__init__(
             session,

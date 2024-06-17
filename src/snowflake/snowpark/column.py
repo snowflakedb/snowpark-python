@@ -64,7 +64,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryMinus,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.ast_utils import fill_const_ast, setattr_if_not_none
+from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
+    setattr_if_not_none,
+)
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -232,8 +235,8 @@ class Column:
     # NOTE: For now assume Expression instances can be safely ignored when building AST
     #       Expression logic can be eliminated entirely once phase 0 is integrated
     #       Currently a breaking example can be created using the Column.isin method as it does not build the AST.
-    #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator 
-    #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently 
+    #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator
+    #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently
     #       don't fill if the only argument provided in the Column constructor is 'expr1' of type Expression)
     def __init__(
         self,
@@ -970,10 +973,10 @@ class Column:
     @staticmethod
     def _create_ast(
         property: Optional[str] = None,
-        assign_fields: Dict[str, Any] = {},
-        assign_opt_fields: Dict[str, Any] = {},
-        copy_messages: Dict[str, Any] = {},
-        fill_expr_asts: Dict[str, ColumnOrLiteral] = {},
+        assign_fields: Dict[str, Any] = {},  # noqa: B006
+        assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
+        copy_messages: Dict[str, Any] = {},  # noqa: B006
+        fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
     ) -> proto.SpColumnExpr:
         """General purpose static method to generate the AST representation for a new Snowpark Column instance
 
@@ -994,9 +997,9 @@ class Column:
                 setattr_if_not_none(prop_ast, attr, value)
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
-            for attr, messg in copy_messages.items():
-                if messg:
-                    getattr(prop_ast, attr).CopyFrom(messg)
+            for attr, msg in copy_messages.items():
+                if msg is not None:
+                    getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
         return ast
@@ -1015,7 +1018,7 @@ class Column:
         if isinstance(value, cls):
             return ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-            fill_const_ast(value, ast)
+            build_const_from_python_val(value, ast)
         elif isinstance(value, Expression):
             pass  # TODO: clean this up
         else:
