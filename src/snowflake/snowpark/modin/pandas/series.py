@@ -500,6 +500,10 @@ class Series(BasePandasDataset):
             if temp_df.empty
             else temp_str.rsplit("dtype: ", 1)[-1]
         )
+
+        _, ast = pd.session()._ast_batch.flush()
+        print(ast)  # noqa: T201
+
         if row_count == 0:
             return f"Series([], {freq_str}{name_str}{dtype_str}"
         maxsplit = 1

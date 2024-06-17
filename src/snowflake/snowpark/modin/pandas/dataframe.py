@@ -281,6 +281,9 @@ class DataFrame(BasePandasDataset):
         ) = self._query_compiler.build_repr_df(num_rows, num_cols, "x")
         result = repr(repr_df)
 
+        _, ast = pd.session()._pd_ast_batch.flush()
+        print(ast)  # noqa: T201
+
         # if truncated, add shape information
         if is_repr_truncated(row_count, col_count, num_rows, num_cols):
             # The split here is so that we don't repr pandas row lengths.

@@ -509,6 +509,7 @@ class Session:
             self._conn.create_coprocessor()
 
         self._ast_batch = AstBatch(self)
+        self._pd_ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 

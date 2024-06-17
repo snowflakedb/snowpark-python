@@ -1162,7 +1162,7 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                ast.sp_dataframe_select__columns.cols.append(e._ast)
+                # ast.sp_dataframe_select__columns.cols.append(e._ast)
 
             elif isinstance(e, str):
                 col_expr_ast = ast.sp_dataframe_select__columns.cols.add()
@@ -3369,6 +3369,7 @@ class DataFrame:
             return response.body[0].eval_ok.data.string_val.v
         else:
             _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            print(kwargs["_dataframe_ast"])  # noqa: T201
 
             # Phase 0 code where string gets formatted.
             if is_sql_select_statement(query):
