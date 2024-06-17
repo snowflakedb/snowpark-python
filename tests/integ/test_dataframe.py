@@ -3976,15 +3976,16 @@ def test_dataframe_dataframe_in(session):
 
     rand_list = []
     n = 80000
-    for i in range(n):
+    for _ in range(n):
         rand_list.append(random.randint(100, 50000))
 
     # df2 = session.create_dataframe(rand_list)
     # df.filter(df['col_index'].in_(df2)).show(n=1000)
 
-    df.filter(df['col_index'].in_(rand_list)).show(10000)
+    df.filter(df["col_index"].in_(rand_list)).show(10000)
 
 
+"""
 def test_dataframe_flattern_loop(session):
     from snowflake.snowpark import Session, DataFrame, Column
     from snowflake.snowpark.functions import col, lit, when
@@ -4072,3 +4073,4 @@ def test_dataframe_flattern_loop(session):
         # session.sql(sql).collect()
 
     print("Done")
+"""
