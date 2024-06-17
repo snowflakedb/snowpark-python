@@ -110,10 +110,11 @@ from snowflake.snowpark.functions import (
     not_,
     pandas_udf,
     quarter,
+    random,
     rank,
     regexp_replace,
     reverse,
-    round,
+    round as round_,
     row_number,
     rtrim,
     second,
@@ -124,6 +125,7 @@ from snowflake.snowpark.functions import (
     to_date,
     to_variant,
     trim,
+    uniform,
     upper,
     when,
     year,
@@ -227,6 +229,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinKeyCoalesceConfig,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
+    DataFrameReference,
     OrderedDataFrame,
     OrderingColumn,
 )
@@ -276,6 +279,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
+    SAMPLED_ROW_POSITION_COLUMN_LABEL,
     FillNAMethod,
     TempObjectType,
     append_columns,
@@ -6040,7 +6044,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
         )
         partition_expression = (
-            round(
+            round_(
                 col(row_position_snowflake_quoted_identifier)
                 / pandas_lit(partition_size)
             )
@@ -10542,18 +10546,58 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if weights is not None:
             ErrorMessage.not_implemented("`weights` is not supported.")
 
-        if replace:
-            ErrorMessage.not_implemented("`replace = True` is not supported.")
-
         if random_state is not None:
             ErrorMessage.not_implemented("`random_state` is not supported.")
 
-        if frac is not None and frac > 1:
-            ErrorMessage.not_implemented("`frac > 1` is not supported.")
-
         assert n is not None or frac is not None
         frame = self._modin_frame
-        sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
+        if replace:
+            snowflake_quoted_identifiers = generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=[
+                    ROW_POSITION_COLUMN_LABEL,
+                    SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                ]
+            )
+
+            pre_sampling_rowcount = self.get_axis_len(axis=0)
+            if n is not None:
+                post_sampling_rowcount = n
+            else:
+                assert frac is not None
+                post_sampling_rowcount = round(frac * pre_sampling_rowcount)
+
+            row_position_col = (
+                row_number()
+                .over(Window.order_by(pandas_lit(1)))
+                .as_(snowflake_quoted_identifiers[0])
+            )
+
+            sampled_row_position_col = uniform(
+                0, pre_sampling_rowcount - 1, random()
+            ).as_(snowflake_quoted_identifiers[1])
+
+            sampled_row_positions_snowpark_frame = pd.session.generator(
+                row_position_col,
+                sampled_row_position_col,
+                rowcount=post_sampling_rowcount,
+            )
+
+            sampled_row_positions_odf = OrderedDataFrame(
+                dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
+                projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+            )
+            sampled_odf = cache_result(
+                sampled_row_positions_odf.join(
+                    right=self._modin_frame.ordered_dataframe,
+                    left_on_cols=[snowflake_quoted_identifiers[1]],
+                    right_on_cols=[
+                        self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                    ],
+                )
+            )
+            # ErrorMessage.not_implemented("`replace = True` is not supported.")
+        else:
+            sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
         logging.warning(
             "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
         )
@@ -11800,10 +11844,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         def round_col(col_name: ColumnOrName) -> SnowparkColumn:
             if is_scalar(decimals):
-                return round(col_name, decimals)
+                return round_(col_name, decimals)
             elif is_dict_like(decimals):
                 if col_name in id_to_decimal_dict:
-                    return round(col_name, id_to_decimal_dict[col_name])
+                    return round_(col_name, id_to_decimal_dict[col_name])
                 else:
                     return col(col_name)
 
