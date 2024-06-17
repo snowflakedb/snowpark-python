@@ -64,7 +64,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryMinus,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.ast_utils import fill_const_ast, setattr_if_not_none
+from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, setattr_if_not_none
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -994,8 +994,9 @@ class Column:
                 setattr_if_not_none(prop_ast, attr, value)
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
-            for attr, messg in copy_messages.items():
-                getattr(prop_ast, attr).CopyFrom(messg)
+            for attr, msg in copy_messages.items():
+                if msg is not None:
+                    getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
         return ast
@@ -1014,7 +1015,7 @@ class Column:
         if isinstance(value, cls):
             return ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-            fill_const_ast(value, ast)
+            build_const_from_python_val(value, ast)
         elif isinstance(value, Expression):
             pass  # TODO: clean this up
         else:
