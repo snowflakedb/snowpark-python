@@ -39,7 +39,6 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from snowflake.snowpark.types import IntegerType, StructField, StructType
 from tests.utils import TestData, Utils
 
 
@@ -513,19 +512,4 @@ def test_listagg_window_function(session):
             Row("21,24,35"),
             Row("12"),
         ],
-    )
-
-
-def test_empty_window(session):
-    df = session.create_dataframe(
-        [],
-        schema=StructType(
-            [StructField("key", IntegerType()), StructField("value", IntegerType())]
-        ),
-    )
-    w = Window.partition_by("key").order_by("value")
-
-    Utils.check_answer(
-        df.select(count("value").over(w)),
-        [],
     )

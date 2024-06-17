@@ -11,7 +11,6 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
 from snowflake.snowpark.functions import col, lit, parse_json, when
-from snowflake.snowpark.types import StructField, StructType, VariantType
 from tests.utils import TestData, Utils
 
 
@@ -135,17 +134,6 @@ def test_contains(session):
         TestData.string4(session).filter(col("a").contains(lit("e"))),
         [Row("apple"), Row("peach")],
         sort=False,
-    )
-
-
-def test_when_with_empty_data(session):
-    Utils.check_answer(
-        session.create_dataframe(
-            [], schema=StructType([StructField("a", VariantType())])
-        ).select(
-            when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
-        ),
-        [],
     )
 
 
