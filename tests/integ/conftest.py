@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import logging
 import os
 import uuid
 from typing import Dict
@@ -15,7 +15,7 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
-from tests.integ.ast_encoder import clear_ast_encoder_called, is_ast_encoder_called
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
 
@@ -36,8 +36,8 @@ SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
     "x-amz-server-side-encryption-customer-key",
     "x-amz-server-side-encryption-customer-algorithm",
     "x-amz-id-2",
-    "x-amz-request-id",
-    "x-amz-version-id",
+    # "x-amz-request-id",
+    # "x-amz-version-id",
 ]
 
 
@@ -297,48 +297,168 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
 
 
-@pytest.fixture(autouse=True)
-def check_ast_encode_invoked(request):
+class TracebackHistory(QueryListener):
+    def __init__(self) -> None:
+        self.queries = []
+        self.tracebacks = []
+        self.request_ids = []
 
-    # store for each test a separate yaml file for inspection
-    test_file_path, _, test_name = request.node.location
-    cassette_locator = test_file_path.replace("tests/", "").replace(".py", "")
+    def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
+
+        # get traceback
+        import traceback
+
+        formatted_lines = traceback.format_stack()
+
+        # exclude all the wrapper code, i.e. start with files in snowflake/snowpark (or tests)
+        idx = next(
+            i
+            for i, line in enumerate(formatted_lines)
+            if "snowflake/snowpark" in line or "tests/" in line
+        )
+        formatted_lines = formatted_lines[idx:]
+
+        # remove traceback related to _internal/server_connection.py
+        idx = next(
+            i
+            for i, line in enumerate(formatted_lines)
+            if "_internal/server_connection.py" in line
+        )
+
+        # cleanup traceback from telemetry, because there's no added value in displaying it.
+        formatted_lines = formatted_lines[
+            : idx - 1
+        ]  # -1 to also exclude the call of session._conn.execute
+
+        formatted_lines = [
+            line for line in formatted_lines if "telemetry.py" not in line
+        ]
+
+        request_id = kwargs["requestId"]
+
+        self.request_ids.append(request_id)
+        self.queries.append(query_record)
+        self.tracebacks.append(formatted_lines)
+
+
+@pytest.fixture(autouse=True)
+def check_ast_encode_invoked(request, session):
+    # In code later the pytest request will be shadowed, save here.
+    test_request = request
+
+    # Store for each test a separate yaml file for inspection.
+    test_file, test_line_no, test_name = test_request.node.location
+    cassette_locator = test_file.replace("tests/", "").replace(".py", "")
     cassette_file_path = os.path.join(cassette_locator, test_name + ".yaml")
 
     # Can not extract tracebacks directly, therefore store them using query listener
+    query_history = TracebackHistory()
+    session._conn.add_query_listener(query_history)
 
-    with vcr.use_cassette(cassette_file_path, match_on=[]) as tape:
-        do_check = "modin" not in request.node.location[0] and running_on_public_ci()
+    # Remove casette file if exists to prevent repeated execution problems with VCR.
+    if os.path.isfile(cassette_file_path):
+        os.remove(cassette_file_path)
 
-        if do_check:
-            clear_ast_encoder_called()
+    do_check = "modin" not in request.node.location[0]
 
+    if not do_check:
         yield
+    else:
+        # Disable VCR logger here to be less verbose.
+        logging.basicConfig()
+        vcr_log = logging.getLogger("_vendored.vcrpy")
+        vcr_log.setLevel(logging.WARNING)
 
-        # decompress gzip body from requests (should be all POST requests)
-        import json
-        import gzip
+        with vcr.use_cassette(cassette_file_path, match_on=[]) as tape:
 
-        for request in tape.requests:
-            dict_body = json.loads(gzip.decompress(request.body).decode("UTF-8"))
+            # Execute test by yielding
+            yield
 
-            sqlText = dict_body["sqlText"]
+            # decompress gzip body from requests (should be all POST requests)
+            import json
+            import gzip
 
-            # is dataframe_ast attribute contained or not?
-            # if not, mark as failure.
+            # Match with query history
+            query_dict = {}
+            for record, request_id, traceback in zip(
+                query_history.queries,
+                query_history.request_ids,
+                query_history.tracebacks,
+            ):
+                query_dict[request_id] = {
+                    "sfqid": record.query_id,
+                    "sqlText": record.sql_text,
+                    "traceback": traceback,
+                }
 
-            print(sqlText)
+            for request, response in zip(tape.requests, tape.responses):
+                # Failed requests have no body, skip them here.
+                if request.body and request.method in [
+                    "POST",
+                    "GET",
+                ]:  # Skip PUT requests.
+                    request_dict_body = json.loads(
+                        gzip.decompress(request.body).decode("UTF-8")
+                    )
+
+                    request_id = dict(request.query).get("requestId")
+
+                    # Some requests do not correspond to queries.
+                    # Only log here requests that belong to queries.
+                    if request_id and request_id in query_dict.keys():
+                        query_dict[request_id]["request"] = request_dict_body
+                        query_dict[request_id]["response"] = response
+
+            # Check now for all queries whether "dataframeAst" is contained in request. If not, need to add AST to APIs.
+            # Collect information on test/API to display to user in fail message.
+            REST_AST_KEY = "dataframeAst"
+
+            line_numbers_without_ast_request = set()
+
+            for q in query_dict.values():
+                if "request" in q.keys():
+                    if REST_AST_KEY not in q["request"].keys():
+                        # TODO: can show full traceback here.
+
+                        # Should be single line b.c. of traceback uniqueness
+                        line = [
+                            line
+                            for line in q["traceback"]
+                            if test_file in line and test_name in line
+                        ][0]
+                        lineno = int(line.split(",")[1].replace("line", "").strip())
+
+                        line_numbers_without_ast_request.add(lineno)
+                else:
+                    # TODO: can also get line number for this.
+                    logging.error(f"No REST request found for Query sfqid={q['sfqid']}")
+
+        session._conn.remove_query_listener(query_history)
 
         if (
             do_check
-            # We only need to check the SQL counts if the test has passed so far.
-            and request.node.rep_call.passed
-            and not is_ast_encoder_called()
+            # check only tests that passed.
+            # and test_request.node.rep_call.passed
+            and len(line_numbers_without_ast_request) > 0
         ):
-            test_file, line_no, test_name = request.node.location
+
+            # Format lines together with content for user display
+            line_numbers_without_ast_request = sorted(
+                list(line_numbers_without_ast_request)
+            )
+
+            error_message = (
+                "Following lines did not encode AST as part of the REST request:\n"
+            )
+            import linecache
+
+            for line_no in line_numbers_without_ast_request:
+                line = linecache.getline(filename=test_file, lineno=line_no).strip()
+                error_message += f"{test_file}:{line_no} {line}\n"
+
             fail(
-                reason=f"Dataframe ast encoding was not run in test '{test_name}' "
-                + f"\n\nTest file: {test_file}\nTest name: {test_name}\nLine no: {line_no}\n\n"
-                + "Please add for test to pass.",
+                reason=f"Dataframe ast encoding missing in test '{test_name}' "
+                + f"\n\nTest file: {test_file}\nTest name: {test_name}\nLine no: {test_line_no}\n\n"
+                + f"Please add AST encoding for the APIs used in:\n{error_message}",
                 pytrace=False,
             )

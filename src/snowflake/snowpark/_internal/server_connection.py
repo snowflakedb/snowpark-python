@@ -345,17 +345,18 @@ class ServerConnection:
             else:
                 raise ex
 
-    def notify_query_listeners(self, query_record: QueryRecord) -> None:
+    def notify_query_listeners(self, query_record: QueryRecord, **kwargs) -> None:
         for listener in self._query_listeners:
-            listener._notify(query_record)
+            listener._notify(query_record, **kwargs)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
 
         results_cursor = self._cursor.execute(query, **kwargs)
+        notify_kwargs = {"requestId": str(results_cursor._request_id)}
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
         return results_cursor
 
