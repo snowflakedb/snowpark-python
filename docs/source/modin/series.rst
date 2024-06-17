@@ -151,6 +151,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.case_when
     Series.drop
     Series.drop_duplicates
     Series.get

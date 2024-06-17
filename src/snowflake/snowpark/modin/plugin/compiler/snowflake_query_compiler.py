@@ -10,7 +10,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -7971,6 +7971,136 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame, key_frame
         )  # pragma: no cover
 
+        return SnowflakeQueryCompiler(new_frame)
+
+    def case_when(self, caselist: List[tuple]) -> "SnowflakeQueryCompiler":
+        """
+        Replace values where the conditions are True.
+
+        Args:
+            caselist: A list of tuples of conditions and expected replacements
+             Takes the form: (condition0, replacement0), (condition1, replacement1), … .
+             condition should be a 1-D boolean array-like object or a callable.
+             replacement should be a 1-D array-like object, a scalar or a callable.
+
+        Returns:
+            New QueryCompiler with replacements.
+        """
+        # Validate caselist. Errors raised are same as native pandas.
+        if not isinstance(caselist, list):
+            # modin frotnend always passes a list, but we still keep this check to guard
+            # against any breaking changes in frontend layer.
+            raise TypeError(
+                f"The caselist argument should be a list; instead got {type(caselist)}"
+            )
+        if not caselist:
+            raise ValueError(
+                "provide at least one boolean condition, with a corresponding replacement."
+            )
+
+        # Validate entries in caselist. Errors raised are same as native pandas.
+        for num, entry in enumerate(caselist):
+            if not isinstance(entry, tuple):
+                # modin frotnend always passes a tuple, but we still eep this check to
+                # guard against any breaking changes in frontend layer.
+                raise TypeError(
+                    f"Argument {num} must be a tuple; instead got {type(entry)}."
+                )
+            if len(entry) != 2:
+                raise ValueError(
+                    f"Argument {num} must have length 2; "
+                    "a condition and replacement; "
+                    f"instead got length {len(entry)}."
+                )
+
+        orig_frame = self._modin_frame
+        joined_frame = self._modin_frame
+        case_expr: Optional[CaseExpr] = None
+        for cond, replacement in caselist:
+            if isinstance(cond, SnowflakeQueryCompiler):
+                joined_frame, _ = join_utils.align_on_index(
+                    joined_frame, cond._modin_frame, "left"
+                )
+            elif is_list_like(cond):
+                cond_frame = self.from_pandas(
+                    pandas.DataFrame(cond)
+                )._modin_frame.ensure_row_position_column()
+                joined_frame = joined_frame.ensure_row_position_column()
+                joined_frame, _ = join_utils.join(
+                    joined_frame,
+                    cond_frame,
+                    how="left",
+                    left_on=[joined_frame.row_position_snowflake_quoted_identifier],
+                    right_on=[cond_frame.row_position_snowflake_quoted_identifier],
+                )
+            elif callable(cond):
+                # TODO SNOW-1489503: Add support for callable
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method Series.case_when doesn't yet support callable as condition"
+                )
+            else:
+                raise TypeError(
+                    f"condition must be a Series or 1-D array-like object; instead got {type(cond)}"
+                )
+
+            # if indices are misaligned treat the condition as True
+            cond_expr = coalesce(
+                col(joined_frame.data_column_snowflake_quoted_identifiers[-1]),
+                pandas_lit(True),
+            )
+            if isinstance(replacement, SnowflakeQueryCompiler):
+                joined_frame, _ = join_utils.align_on_index(
+                    joined_frame, replacement._modin_frame, "left"
+                )
+                value = col(joined_frame.data_column_snowflake_quoted_identifiers[-1])
+            elif is_scalar(replacement):
+                value = pandas_lit(replacement)
+            elif is_list_like(replacement):
+                repl_frame = self.from_pandas(
+                    pandas.DataFrame(replacement)
+                )._modin_frame.ensure_row_position_column()
+                joined_frame = joined_frame.ensure_row_position_column()
+                joined_frame, _ = join_utils.join(
+                    joined_frame,
+                    repl_frame,
+                    how="left",
+                    left_on=[joined_frame.row_position_snowflake_quoted_identifier],
+                    right_on=[repl_frame.row_position_snowflake_quoted_identifier],
+                )
+                value = col(joined_frame.data_column_snowflake_quoted_identifiers[-1])
+            elif callable(replacement):
+                # TODO SNOW-1489503: Add support for callable
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method Series.case_when doesn't yet support callable as replacement"
+                )
+            else:
+                raise TypeError(
+                    f"replacement must be a Series, 1-D array-like object or scalar; instead got {type(replacement)}"
+                )
+
+            case_expr = (
+                when(cond_expr, value)
+                if case_expr is None
+                else case_expr.when(cond_expr, value)
+            )
+        orig_col = col(joined_frame.data_column_snowflake_quoted_identifiers[0])
+        case_expr = orig_col if case_expr is None else case_expr.otherwise(orig_col)
+        (
+            joined_frame,
+            _,
+        ) = joined_frame.update_snowflake_quoted_identifiers_with_expressions(
+            {joined_frame.data_column_snowflake_quoted_identifiers[0]: case_expr}
+        )
+        new_frame = InternalFrame.create(
+            ordered_dataframe=joined_frame.ordered_dataframe,
+            index_column_pandas_labels=orig_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=orig_frame.data_column_pandas_index_names,
+            data_column_pandas_labels=orig_frame.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=joined_frame.data_column_snowflake_quoted_identifiers[
+                :1
+            ],
+        )
         return SnowflakeQueryCompiler(new_frame)
 
     def mask(
