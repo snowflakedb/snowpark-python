@@ -2,16 +2,22 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import gzip
+import json
+import linecache
+import logging
 import os
 from typing import Dict
 
 import pytest
+from pytest import fail
 
+import _vendored.vcrpy as vcr
 import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
