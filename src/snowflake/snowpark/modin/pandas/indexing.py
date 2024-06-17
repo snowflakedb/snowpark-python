@@ -1051,7 +1051,7 @@ class _iLocIndexer(_LocationIndexerBase):
         original_row_loc = row_loc  # keep a copy for error message
 
         # IR changes! Add iloc get nodes to AST.
-        stmt = pd.session._ast_batch.assign()
+        stmt = pd.session._pd_ast_batch.assign()
         ast = stmt.expr
         ast.pd_dataframe_i_loc.df.var_id.bitfield1 = self.df._ast_id
         # Map python built-ins (functions, scalars, lists, slices, etc.) to AST expr and emit Ref nodes for dataframes,
@@ -1099,6 +1099,10 @@ class _iLocIndexer(_LocationIndexerBase):
         if isinstance(result, Series):
             result._parent = self.df
             result._parent_axis = 0
+
+        _, ast = pd.session()._ast_batch.flush()
+        print(ast)  # noqa: T201
+
         return result
 
     def _get_pandas_object_from_qc_view(

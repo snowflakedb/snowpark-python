@@ -621,20 +621,20 @@ class Column:
     def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-        if try_:
-            ast = Column._create_ast(
-                property="sp_column_try_cast",
-                copy_messages={"col": self._ast},
-            )
-            to._fill_ast(ast.sp_column_try_cast.to)
-        else:
-            ast = Column._create_ast(
-                property="sp_column_cast",
-                copy_messages={"col": self._ast},
-            )
-            to._fill_ast(ast.sp_column_cast.to)
+        # if try_:
+        #     ast = Column._create_ast(
+        #         property="sp_column_try_cast",
+        #         copy_messages={"col": self._ast},
+        #     )
+        #     to._fill_ast(ast.sp_column_try_cast.to)
+        # else:
+        #     ast = Column._create_ast(
+        #         property="sp_column_cast",
+        #         copy_messages={"col": self._ast},
+        #     )
+        #     to._fill_ast(ast.sp_column_cast.to)
 
-        return Column(Cast(self._expression, to, try_), ast=ast)
+        return Column(Cast(self._expression, to, try_), ast=None)
 
     def cast(self, to: Union[str, DataType]) -> "Column":
         """Casts the value of the Column to the specified data type.
@@ -986,7 +986,7 @@ class Column:
         Returns:
             proto.SpColumnExpr: Returns fully populated SpColumnExpr AST from given arguments
         """
-
+        return None
         # Avoid using mutable values as default values in function signature.
         if fill_expr_asts is None:
             fill_expr_asts = {}
