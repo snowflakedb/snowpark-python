@@ -2,6 +2,9 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import gzip
+import json
+import linecache
 import logging
 import os
 import uuid
@@ -374,11 +377,7 @@ def check_ast_encode_invoked(request, session):
             # Execute test by yielding
             yield
 
-            # decompress gzip body from requests (should be all POST requests)
-            import json
-            import gzip
-
-            # Match with query history
+            # Match with query history.
             query_dict = {}
             for record, request_id, traceback in zip(
                 query_history.queries,
@@ -450,7 +449,6 @@ def check_ast_encode_invoked(request, session):
             error_message = (
                 "Following lines did not encode AST as part of the REST request:\n"
             )
-            import linecache
 
             for line_no in line_numbers_without_ast_request:
                 line = linecache.getline(filename=test_file, lineno=line_no).strip()
