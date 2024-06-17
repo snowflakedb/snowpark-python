@@ -11,7 +11,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
-    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
+    "==0.28.2"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.x
 )
 CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
 INSTALL_REQ_LIST = [
@@ -23,6 +23,7 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "numpy>=2.0.0",  # --- TEST ---
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
