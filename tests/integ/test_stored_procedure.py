@@ -56,10 +56,10 @@ from snowflake.snowpark.types import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
-    IS_STRUCTURED_TYPES_SUPPORTED,
     TempObjectType,
     TestFiles,
     Utils,
+    structured_types_supported,
 )
 
 pytestmark = [
@@ -352,11 +352,9 @@ def test_call_named_stored_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-@pytest.mark.skipif(
-    not IS_STRUCTURED_TYPES_SUPPORTED,
-    reason="Structured types not enabled in this account.",
-)
-def test_stored_procedure_with_structured_returns(session):
+def test_stored_procedure_with_structured_returns(session, local_testing_mode):
+    if not structured_types_supported(session, local_testing_mode):
+        pytest.skip("Structured types not enabled in this account.")
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
         ("MAP", "map<string(16777216),bigint>"),
