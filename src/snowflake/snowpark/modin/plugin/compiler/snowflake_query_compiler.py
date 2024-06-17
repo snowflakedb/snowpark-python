@@ -114,7 +114,7 @@ from snowflake.snowpark.functions import (
     rank,
     regexp_replace,
     reverse,
-    round as round_,
+    round as snowpark_round,
     row_number,
     rtrim,
     second,
@@ -6044,7 +6044,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
         )
         partition_expression = (
-            round_(
+            snowpark_round(
                 col(row_position_snowflake_quoted_identifier)
                 / pandas_lit(partition_size)
             )
@@ -10595,7 +10595,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     ],
                 )
             )
-            # ErrorMessage.not_implemented("`replace = True` is not supported.")
         else:
             sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
         logging.warning(
@@ -11844,10 +11843,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         def round_col(col_name: ColumnOrName) -> SnowparkColumn:
             if is_scalar(decimals):
-                return round_(col_name, decimals)
+                return snowpark_round(col_name, decimals)
             elif is_dict_like(decimals):
                 if col_name in id_to_decimal_dict:
-                    return round_(col_name, id_to_decimal_dict[col_name])
+                    return snowpark_round(col_name, id_to_decimal_dict[col_name])
                 else:
                     return col(col_name)
 
