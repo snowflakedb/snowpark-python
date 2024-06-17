@@ -13096,7 +13096,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             if np.isnan(n):
                 # Follow pandas behavior
-                return pandas_lit(np.NaN)
+                return pandas_lit(np.nan)
             elif n <= 0:
                 # If all possible splits are requested, we just use SQL's split function.
                 new_col = builtin("split")(new_col, pandas_lit(new_pat))
