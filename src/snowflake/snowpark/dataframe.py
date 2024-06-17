@@ -23,6 +23,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -84,6 +85,15 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast import (
+    check_response,
+    decode_ast_response_from_snowpark,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    set_src_position,
+    get_symbol,
+    setattr_if_not_none,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -115,6 +125,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     parse_table_name,
     prepare_pivot_arguments,
     private_preview,
@@ -508,8 +519,18 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
+        ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
+        """
+        :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+                             slot self._ast_id. This allows this value to be referred to symbolically when it's
+                             referenced in subsequent dataframe expressions.
+        """
         self._session = session
+        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if ast_stmt is not None:
+            setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
+
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -539,6 +560,14 @@ class DataFrame:
         self.replace = self._na.replace
 
         self._alias: Optional[str] = None
+
+    def set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
+        """
+        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        """
+        # TODO: remove the None guard below once we generate the correct AST.
+        if self._ast_id is not None:
+            sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -908,7 +937,7 @@ class DataFrame:
         Args:
             names: list of new column names
         """
-        col_names = parse_positional_args_to_list(*names)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
                 "Invalid input type in to_df(), expected str or a list of strs."
@@ -922,10 +951,18 @@ class DataFrame:
                 f"New column names ({len(col_names)}): {','.join(col_names)}."
             )
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_to_df
+        self.set_ast_ref(ast.df)
+        ast.col_names.extend(col_names)
+        ast.variadic = is_variadic
+        set_src_position(ast.src)
+
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
-        return self.select(new_cols)
+        return self.select(new_cols, _ast_stmt=stmt)
 
     @df_collect_api_telemetry
     def to_snowpark_pandas(
@@ -1057,10 +1094,16 @@ class DataFrame:
 
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
+        col_expr_ast = proto.Expr()
+        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
-            return Column(Star(self._output))
+            col_expr_ast.sp_dataframe_col.col_name = "*"
+            return Column(Star(self._output), ast=col_expr_ast)
         else:
-            return Column(self._resolve(col_name))
+            resolved_name = self._resolve(col_name)
+            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
+            return Column(resolved_name, ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1069,6 +1112,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
+        _ast_stmt: proto.Assign = None,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1114,9 +1158,20 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
+
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_select__columns
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+            set_src_position(ast.src)
+        else:
+            stmt = _ast_stmt
+            ast = None
 
         names = []
         table_func = None
@@ -1125,8 +1180,16 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
+                if ast:
+                    ast.cols.append(e._ast)
+
             elif isinstance(e, str):
-                names.append(Column(e)._named())
+                if ast:
+                    col_expr_ast = ast.cols.add()
+                col = Column(e, ast=col_expr_ast)
+                col_expr_ast.sp_column.name = col.get_name()
+                names.append(col._named())
+
             elif isinstance(e, TableFunctionCall):
                 if table_func:
                     raise ValueError(
@@ -1190,9 +1253,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan))
+        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
@@ -1321,17 +1384,31 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_filter
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        if isinstance(expr, Column):
+            pass  # TODO
+        elif isinstance(expr, str):
+            ast.condition.sp_column_sql_expr.sql = expr
+        else:
+            raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
-                )
+                ),
+                ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
-            )
+            ),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -3290,78 +3367,108 @@ class DataFrame:
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
-        if is_sql_select_statement(query):
-            result, meta = self._session._conn.get_result_and_metadata(
-                self.limit(n)._plan, **kwargs
+        # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+        repr = self._session._ast_batch.assign()
+        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        self._session._ast_batch.eval(repr)
+
+        if self._session._conn.is_phase1_enabled():
+            ast = self._session._ast_batch.flush()
+            res = self._session._conn.ast_query(ast)
+
+            _logger.debug(f"AST response: {res}")
+
+            # In Phase 1, the code to format the result set to a string
+            # is run on the server, retrieve simply the result here.
+            response = decode_ast_response_from_snowpark(
+                res, self._session._conn._conn._session_parameters
             )
+
+            check_response(response)
+
+            return response.body[0].eval_ok.data.string_val.v
         else:
-            res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, **kwargs
-            )
-            result = res[:n]
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-        # The query has been executed
-        col_count = len(meta)
-        col_width = []
-        header = []
-        for field in meta:
-            name = field.name
-            col_width.append(len(name))
-            header.append(name)
-
-        body = []
-        for row in result:
-            lines = []
-            for i, v in enumerate(row):
-                texts = str(v).split("\n") if v is not None else ["NULL"]
-                for t in texts:
-                    col_width[i] = max(len(t), col_width[i])
-                    col_width[i] = min(max_width, col_width[i])
-                lines.append(texts)
-
-            # max line number in this row
-            line_count = max(len(li) for li in lines)
-            res = []
-            for line_number in range(line_count):
-                new_line = []
-                for colIndex in range(len(lines)):
-                    n = (
-                        lines[colIndex][line_number]
-                        if len(lines[colIndex]) > line_number
-                        else ""
-                    )
-                    new_line.append(n)
-                res.append(new_line)
-            body.extend(res)
-
-        # Add 2 more spaces in each column
-        col_width = [w + 2 for w in col_width]
-
-        total_width = sum(col_width) + col_count + 1
-        line = "-" * total_width + "\n"
-
-        def row_to_string(row: List[str]) -> str:
-            tokens = []
-            if row:
-                for segment, size in zip(row, col_width):
-                    if len(segment) > max_width:
-                        # if truncated, add ... to the end
-                        formatted = (segment[: max_width - 3] + "...").ljust(size, " ")
-                    else:
-                        formatted = segment.ljust(size, " ")
-                    tokens.append(formatted)
+            # Phase 0 code where string gets formatted.
+            if is_sql_select_statement(query):
+                result, meta = self._session._conn.get_result_and_metadata(
+                    self.limit(n)._plan, **kwargs
+                )
             else:
-                tokens = [" " * size for size in col_width]
-            return f"|{'|'.join(tok for tok in tokens)}|\n"
+                res, meta = self._session._conn.get_result_and_metadata(
+                    self._plan, **kwargs
+                )
+                result = res[:n]
 
-        return (
-            line
-            + row_to_string(header)
-            + line
-            # `body` of an empty df is empty
-            + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
-            + line
-        )
+            # The query has been executed
+            col_count = len(meta)
+            col_width = []
+            header = []
+            for field in meta:
+                name = field.name
+                col_width.append(len(name))
+                header.append(name)
+
+            body = []
+            for row in result:
+                lines = []
+                for i, v in enumerate(row):
+                    texts = str(v).split("\n") if v is not None else ["NULL"]
+                    for t in texts:
+                        col_width[i] = max(len(t), col_width[i])
+                        col_width[i] = min(max_width, col_width[i])
+                    lines.append(texts)
+
+                # max line number in this row
+                line_count = max(len(li) for li in lines)
+                res = []
+                for line_number in range(line_count):
+                    new_line = []
+                    for colIndex in range(len(lines)):
+                        n = (
+                            lines[colIndex][line_number]
+                            if len(lines[colIndex]) > line_number
+                            else ""
+                        )
+                        new_line.append(n)
+                    res.append(new_line)
+                body.extend(res)
+
+            # Add 2 more spaces in each column
+            col_width = [w + 2 for w in col_width]
+
+            total_width = sum(col_width) + col_count + 1
+            line = "-" * total_width + "\n"
+
+            def row_to_string(row: List[str]) -> str:
+                tokens = []
+                if row:
+                    for segment, size in zip(row, col_width):
+                        if len(segment) > max_width:
+                            # if truncated, add ... to the end
+                            formatted = (segment[: max_width - 3] + "...").ljust(
+                                size, " "
+                            )
+                        else:
+                            formatted = segment.ljust(size, " ")
+                        tokens.append(formatted)
+                else:
+                    tokens = [" " * size for size in col_width]
+                return f"|{'|'.join(tok for tok in tokens)}|\n"
+
+            return (
+                line
+                + row_to_string(header)
+                + line
+                # `body` of an empty df is empty
+                + (
+                    "".join(row_to_string(b) for b in body)
+                    if body
+                    else row_to_string([])
+                )
+                + line
+            )
 
     @df_collect_api_telemetry
     def create_or_replace_view(
@@ -4119,8 +4226,11 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan) -> "DataFrame":
-        df = DataFrame(self._session, plan)
+    def _with_plan(self, plan, ast_stmt=None) -> "DataFrame":
+        """
+        :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
+        """
+        df = DataFrame(self._session, plan, ast_stmt=ast_stmt)
         df._statement_params = self._statement_params
         return df
 

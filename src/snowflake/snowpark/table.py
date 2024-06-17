@@ -8,6 +8,7 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -19,6 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
+from snowflake.snowpark._internal.ast_utils import set_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -271,8 +273,15 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
+        # TODO: what do we do if there's no session?
+        stmt = session._ast_batch.assign()
+        stmt.expr.sp_table.table = table_name
+        set_src_position(stmt.expr.sp_table.src)
+
         super().__init__(
-            session, session._analyzer.resolve(UnresolvedRelation(table_name))
+            session,
+            session._analyzer.resolve(UnresolvedRelation(table_name)),
+            ast_stmt=stmt,
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name

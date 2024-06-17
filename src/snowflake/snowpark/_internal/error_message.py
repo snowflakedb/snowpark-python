@@ -38,6 +38,11 @@ class SnowparkClientExceptionMessages:
 
     # Internal Error messages 001X
 
+    # use this for now to surface errors
+    @staticmethod
+    def IR_MESSAGE(message: str):
+        return _SnowparkInternalException(f"Internal Snowpark coprocessor/IR message: {message}.", error_code="1011")
+
     @staticmethod
     def INTERNAL_TEST_MESSAGE(message: str) -> _SnowparkInternalException:
         return _SnowparkInternalException(

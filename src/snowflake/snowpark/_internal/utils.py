@@ -413,6 +413,14 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         return [*inputs]
 
 
+def parse_positional_args_to_list_variadic(*inputs: Any) -> Tuple[List, bool]:
+    """Convert the positional arguments to a list, indicating whether to treat the argument list as a variadic list."""
+    if len(inputs) == 1 and isinstance(inputs[0], (list, tuple, set)):
+        return ([*inputs[0]], False)
+    else:
+        return ([*inputs], True)
+
+
 def _hash_file(
     hash_algo: "hashlib._hashlib.HASH",
     path: str,

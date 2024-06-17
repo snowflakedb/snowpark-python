@@ -661,11 +661,17 @@ class MockServerConnection:
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        self.log_not_supported_error(
-            external_feature_name="Running SQL queries",
-            internal_feature_name="MockServerConnection.get_result_query_id",
-            raise_error=NotImplementedError,
-        )
+        # get the iterator such that the data is not fetched
+        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
+        return result_set["sfqid"]
+
+    def create_coprocessor(self):
+        # It's not necessary to mock this call.
+        pass
+
+    def is_phase1_enabled(self):
+        # We don't yet mock Phase 1.
+        return False
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
