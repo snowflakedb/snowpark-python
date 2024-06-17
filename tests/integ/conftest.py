@@ -13,8 +13,10 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from tests.integ.ast_encoder import clear_ast_encoder_called, is_ast_encoder_called
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
+from pytest import fail
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
@@ -22,6 +24,63 @@ TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 if RUNNING_ON_JENKINS:
     TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 
+
+import os
+import _vendored.vcrpy as vcr
+import logging
+
+test_dir = os.path.dirname(__file__)
+test_data_dir = os.path.join(test_dir, "cassettes")
+
+SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
+    "Authorization",
+    "x-amz-server-side-encryption-customer-key-MD5",
+    "x-amz-server-side-encryption-customer-key-md5",
+    "x-amz-server-side-encryption-customer-key",
+    "x-amz-server-side-encryption-customer-algorithm",
+    "x-amz-id-2",
+    "x-amz-request-id",
+    "x-amz-version-id"
+]
+
+def _process_request_recording(request):
+    """Invoked before request is processed"""
+
+
+
+    return request
+
+def _process_response_recording(response):
+    """Process response recording"""
+    # The following line is to note how to decompress body in request
+    for key in SNOWFLAKE_CREDENTIAL_HEADER_FIELDS:
+        response["headers"].pop(key, None)
+    return response
+
+vcr.default_vcr = vcr.VCR(
+    cassette_library_dir=test_data_dir,
+    before_record_request=_process_request_recording,
+    before_record_response=_process_response_recording,
+    filter_headers=SNOWFLAKE_CREDENTIAL_HEADER_FIELDS,
+    record_mode='all'
+    )
+
+# use dummy matcher, no need for replay here.
+# vcr.default_vcr.register_matcher('jurassic', lambda r1, r2: True)
+vcr.use_cassette = vcr.default_vcr.use_cassette
+
+#
+# with vcr.use_cassette('headers.yml'):
+#     import requests
+#     requests.get('http://httpbin.org/headers')
+
+# @pytest.fixture(autouse=True)
+# def vcr_config():
+#     return {
+#         "record_mode": "all",
+#         # Replace the Authorization request header with "DUMMY" in cassettes
+#         #"filter_headers": [('authorization', 'DUMMY')],
+#     }
 
 def running_on_public_ci() -> bool:
     """Whether or not tests are currently running on one of our public CIs."""
@@ -252,3 +311,49 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(autouse=True)
+def check_ast_encode_invoked(request):
+
+    # store for each test a separate yaml file for inspection
+    test_file_path, _, test_name = request.node.location
+    cassette_locator = test_file_path.replace('tests/', '').replace('.py', '')
+    cassette_file_path = os.path.join(cassette_locator, test_name + ".yaml")
+
+    with vcr.use_cassette(cassette_file_path, match_on=[]) as tape:
+        do_check = (
+            "modin" not in request.node.location[0] and running_on_public_ci()
+        )
+
+        if do_check:
+            clear_ast_encoder_called()
+
+        yield
+
+        # decompress gzip body from requests (should be all POST requests)
+        import json
+        import gzip
+        for request in tape.requests:
+            dict_body = json.loads(gzip.decompress(request.body).decode('UTF-8'))
+
+            sqlText = dict_body['sqlText']
+
+            # is dataframe_ast attribute contained or not?
+            # if not, mark as failure.
+
+            print(dict_body)
+
+        if (
+            do_check
+            # We only need to check the SQL counts if the test has passed so far.
+            and request.node.rep_call.passed
+            and not is_ast_encoder_called()
+        ):
+            test_file, line_no, test_name = request.node.location
+            fail(
+                reason=f"Dataframe ast encoding was not run in test '{test_name}' "
+                + f"\n\nTest file: {test_file}\nTest name: {test_name}\nLine no: {line_no}\n\n"
+                + "Please add for test to pass.",
+                pytrace=False,
+            )

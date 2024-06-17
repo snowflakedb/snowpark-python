@@ -995,7 +995,8 @@ class Column:
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
             for attr, messg in copy_messages.items():
-                getattr(prop_ast, attr).CopyFrom(messg)
+                if messg:
+                    getattr(prop_ast, attr).CopyFrom(messg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
         return ast
