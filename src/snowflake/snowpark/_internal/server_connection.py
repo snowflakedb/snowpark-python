@@ -59,7 +59,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -160,7 +160,7 @@ class ServerConnection:
             self._lower_case_parameters["password"] = None
         self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
+        self._query_listeners: Set[QueryListener] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -197,11 +197,11 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = get_version()
 
-    def add_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.add(listener)
+    def add_query_listener(self, listener: QueryListener) -> None:
+        self._query_listeners.add(listener)
 
-    def remove_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.remove(listener)
+    def remove_query_listener(self, listener: QueryListener) -> None:
+        self._query_listeners.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -346,8 +346,8 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
-        for listener in self._query_listener:
-            listener._add_query(query_record)
+        for listener in self._query_listeners:
+            listener._notify(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any

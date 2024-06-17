@@ -8,7 +8,9 @@ import uuid
 from typing import Dict
 
 import pytest
+from pytest import fail
 
+import _vendored.vcrpy as vcr
 import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -16,7 +18,6 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.integ.ast_encoder import clear_ast_encoder_called, is_ast_encoder_called
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import Utils
-from pytest import fail
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
@@ -24,10 +25,6 @@ TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 if RUNNING_ON_JENKINS:
     TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 
-
-import os
-import _vendored.vcrpy as vcr
-import logging
 
 test_dir = os.path.dirname(__file__)
 test_data_dir = os.path.join(test_dir, "cassettes")
@@ -40,47 +37,34 @@ SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
     "x-amz-server-side-encryption-customer-algorithm",
     "x-amz-id-2",
     "x-amz-request-id",
-    "x-amz-version-id"
+    "x-amz-version-id",
 ]
+
 
 def _process_request_recording(request):
     """Invoked before request is processed"""
-
-
-
     return request
+
 
 def _process_response_recording(response):
     """Process response recording"""
-    # The following line is to note how to decompress body in request
+    # Remove Snowflake credentials.
     for key in SNOWFLAKE_CREDENTIAL_HEADER_FIELDS:
         response["headers"].pop(key, None)
+
     return response
+
 
 vcr.default_vcr = vcr.VCR(
     cassette_library_dir=test_data_dir,
     before_record_request=_process_request_recording,
     before_record_response=_process_response_recording,
     filter_headers=SNOWFLAKE_CREDENTIAL_HEADER_FIELDS,
-    record_mode='all'
-    )
+    record_mode="all",
+)
 
-# use dummy matcher, no need for replay here.
-# vcr.default_vcr.register_matcher('jurassic', lambda r1, r2: True)
 vcr.use_cassette = vcr.default_vcr.use_cassette
 
-#
-# with vcr.use_cassette('headers.yml'):
-#     import requests
-#     requests.get('http://httpbin.org/headers')
-
-# @pytest.fixture(autouse=True)
-# def vcr_config():
-#     return {
-#         "record_mode": "all",
-#         # Replace the Authorization request header with "DUMMY" in cassettes
-#         #"filter_headers": [('authorization', 'DUMMY')],
-#     }
 
 def running_on_public_ci() -> bool:
     """Whether or not tests are currently running on one of our public CIs."""
@@ -318,13 +302,13 @@ def check_ast_encode_invoked(request):
 
     # store for each test a separate yaml file for inspection
     test_file_path, _, test_name = request.node.location
-    cassette_locator = test_file_path.replace('tests/', '').replace('.py', '')
+    cassette_locator = test_file_path.replace("tests/", "").replace(".py", "")
     cassette_file_path = os.path.join(cassette_locator, test_name + ".yaml")
 
+    # Can not extract tracebacks directly, therefore store them using query listener
+
     with vcr.use_cassette(cassette_file_path, match_on=[]) as tape:
-        do_check = (
-            "modin" not in request.node.location[0] and running_on_public_ci()
-        )
+        do_check = "modin" not in request.node.location[0] and running_on_public_ci()
 
         if do_check:
             clear_ast_encoder_called()
@@ -334,15 +318,16 @@ def check_ast_encode_invoked(request):
         # decompress gzip body from requests (should be all POST requests)
         import json
         import gzip
-        for request in tape.requests:
-            dict_body = json.loads(gzip.decompress(request.body).decode('UTF-8'))
 
-            sqlText = dict_body['sqlText']
+        for request in tape.requests:
+            dict_body = json.loads(gzip.decompress(request.body).decode("UTF-8"))
+
+            sqlText = dict_body["sqlText"]
 
             # is dataframe_ast attribute contained or not?
             # if not, mark as failure.
 
-            print(dict_body)
+            print(sqlText)
 
         if (
             do_check
