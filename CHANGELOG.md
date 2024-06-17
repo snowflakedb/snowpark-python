@@ -49,6 +49,7 @@
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `Series.str.match`.
+- Upgrade supported Modin version to 0.28.3
 
 #### Bug Fixes
 
