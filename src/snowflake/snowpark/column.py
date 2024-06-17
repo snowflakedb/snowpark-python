@@ -64,7 +64,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnaryMinus,
     UnresolvedAlias,
 )
-from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, setattr_if_not_none
+from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
+    setattr_if_not_none,
+)
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -980,10 +983,10 @@ class Column:
     @staticmethod
     def _create_ast(
         property: Optional[str] = None,
-        assign_fields: Dict[str, Any] = {},
-        assign_opt_fields: Dict[str, Any] = {},
-        copy_messages: Dict[str, Any] = {},
-        fill_expr_asts: Dict[str, ColumnOrLiteral] = {},
+        assign_fields: Dict[str, Any] = {},  # noqa: B006
+        assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
+        copy_messages: Dict[str, Any] = {},  # noqa: B006
+        fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
     ) -> proto.SpColumnExpr:
         """General purpose static method to generate the AST representation for a new Snowpark Column instance
 
