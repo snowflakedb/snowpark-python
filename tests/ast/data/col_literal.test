@@ -65,36 +65,36 @@ res5 = res4.select(col("A") + 42)
 
 res6 = res5.select(col("A") + 42.24)
 
-res7 = res6.select(col("A") + 'test')
+res7 = res6.select(col("A") + "test")
 
-res8 = res7.select(col("A") + bytes('test', "utf-8"))
+res8 = res7.select(col("A") + bytes("test", "utf-8"))
 
-res9 = res8.select(col("A") + bytes('test', "utf-8"))
+res9 = res8.select(col("A") + bytes("test", "utf-8"))
 
 res10 = res9.select(col("A") + datetime.datetime(2024, 6, 8, 6, 15, 33, 403587, tzinfo=datetime.timezone.utc))
 
-res11 = res10.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name='test')))
+res11 = res10.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
 
-res12 = res11.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name='UTC-03:15')))
+res12 = res11.select(col("A") + datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
 res13 = res12.select(col("A") + datetime.date(2024, 6, 7))
 
 res14 = res13.select(col("A") + datetime.time(12, 42, 23, 403587, tzinfo=datetime.timezone.utc))
 
-res15 = res14.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name='test')))
+res15 = res14.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=11700), name="test")))
 
-res16 = res15.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name='UTC-03:15')))
+res16 = res15.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
-res17 = res16.select(col("A") + decimal.Decimal('403487.436973'))
+res17 = res16.select(col("A") + decimal.Decimal("403487.436973"))
 
-res18 = res17.select(col("A") + decimal.Decimal('-403487.436973'))
+res18 = res17.select(col("A") + decimal.Decimal("-403487.436973"))
 
-res19 = res18.select(col("A") + decimal.Decimal('403487'))
+res19 = res18.select(col("A") + decimal.Decimal("403487"))
 
-res20 = res19.select(col("A") + decimal.Decimal('403487000'))
+res20 = res19.select(col("A") + decimal.Decimal("403487000"))
 
-res21 = res20.select(col("A") + {0: 'test', 42.24: None, 'hello': bytes('test', "utf-8"), True: decimal.Decimal('-403487.436973'), None: datetime.date(2024, 6, 7)})
+res21 = res20.select(col("A") + {0: "test", 42.24: None, "hello": bytes("test", "utf-8"), True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)})
 
-res22 = res21.select(col("A") + [(0, 'test', 42.24), None, 'hello', bytes('test', "utf-8"), {True: decimal.Decimal('-403487.436973'), None: datetime.date(2024, 6, 7)}])
+res22 = res21.select(col("A") + [(0, "test", 42.24), None, "hello", bytes("test", "utf-8"), {True: decimal.Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)}])
 
-res23 = res22.select(col("A") + (0, ('test', 42.24, {None: ('hello', bytes('test', "utf-8"))}), [True, decimal.Decimal('-403487.436973'), {None: datetime.date(2024, 6, 7)}]))
+res23 = res22.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", "utf-8"))}), [True, decimal.Decimal("-403487.436973"), {None: datetime.date(2024, 6, 7)}]))
