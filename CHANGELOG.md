@@ -49,6 +49,7 @@
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `Series.str.match`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 
 #### Bug Fixes
 
