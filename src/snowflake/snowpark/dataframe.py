@@ -90,8 +90,8 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    fill_src_position,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -125,6 +125,7 @@ from snowflake.snowpark._internal.utils import (
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     parse_table_name,
     prepare_pivot_arguments,
     private_preview,
@@ -560,6 +561,14 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
+    def set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
+        """
+        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        """
+        # TODO: remove the None guard below once we generate the correct AST.
+        if self._ast_id is not None:
+            sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
+
     @property
     def stat(self) -> DataFrameStatFunctions:
         return self._stat
@@ -928,7 +937,7 @@ class DataFrame:
         Args:
             names: list of new column names
         """
-        col_names = parse_positional_args_to_list(*names)
+        col_names, is_variadic = parse_positional_args_to_list_variadic(*names)
         if not all(isinstance(n, str) for n in col_names):
             raise TypeError(
                 "Invalid input type in to_df(), expected str or a list of strs."
@@ -942,10 +951,18 @@ class DataFrame:
                 f"New column names ({len(col_names)}): {','.join(col_names)}."
             )
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_to_df
+        self.set_ast_ref(ast.df)
+        ast.col_names.extend(col_names)
+        ast.variadic = is_variadic
+        set_src_position(ast.src)
+
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
-        return self.select(new_cols)
+        return self.select(new_cols, _ast_stmt=stmt)
 
     @df_collect_api_telemetry
     def to_snowpark_pandas(
@@ -1079,7 +1096,7 @@ class DataFrame:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
         col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
-        fill_src_position(col_expr_ast.sp_dataframe_col.src)
+        set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"
             return Column(Star(self._output), ast=col_expr_ast)
@@ -1095,6 +1112,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
+        _ast_stmt: proto.Assign = None,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1140,20 +1158,20 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
         """
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr
-        # TODO: remove the None guard below once we generate the correct AST.
-        ast.sp_dataframe_select__columns.df.sp_dataframe_ref.id.bitfield1 = (
-            self._ast_id if self._ast_id is not None else 666
-        )
-        ast.sp_dataframe_select__columns.variadic = len(cols) > 1 or not isinstance(
-            cols[0], (list, tuple, set)
-        )
-        fill_src_position(ast.sp_dataframe_select__columns.src)
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_select__columns
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+            set_src_position(ast.src)
+        else:
+            stmt = _ast_stmt
+            ast = None
 
         names = []
         table_func = None
@@ -1162,12 +1180,13 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                # ast.sp_dataframe_select__columns.cols.append(e._ast)
+                if ast:
+                    ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                col_expr_ast = ast.sp_dataframe_select__columns.cols.add()
+                if ast:
+                    col_expr_ast = ast.cols.add()
                 col = Column(e, ast=col_expr_ast)
-
                 col_expr_ast.sp_column.name = col.get_name()
                 names.append(col._named())
 
@@ -1365,14 +1384,15 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+        # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr
-        ast.sp_dataframe_filter.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
-        fill_src_position(ast.sp_dataframe_filter.src)
+        ast = stmt.expr.sp_dataframe_filter
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
         if isinstance(expr, Column):
             pass  # TODO
         elif isinstance(expr, str):
-            ast.sp_dataframe_filter.condition.sp_column_sql_expr.sql = expr
+            ast.condition.sp_column_sql_expr.sql = expr
         else:
             raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
 
@@ -3369,7 +3389,6 @@ class DataFrame:
             return response.body[0].eval_ok.data.string_val.v
         else:
             _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
-            print(kwargs["_dataframe_ast"])  # noqa: T201
 
             # Phase 0 code where string gets formatted.
             if is_sql_select_statement(query):
