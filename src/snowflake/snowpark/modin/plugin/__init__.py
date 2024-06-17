@@ -36,7 +36,7 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.28.1"
+supported_modin_version = "0.28.3"
 if version.parse(modin.__version__) != version.parse(supported_modin_version):
     raise ImportError(
         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
