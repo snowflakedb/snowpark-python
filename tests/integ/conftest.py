@@ -7,6 +7,7 @@ import json
 import linecache
 import logging
 import os
+import traceback
 import uuid
 from typing import Dict
 
@@ -39,14 +40,9 @@ SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
     "x-amz-server-side-encryption-customer-key",
     "x-amz-server-side-encryption-customer-algorithm",
     "x-amz-id-2",
-    # "x-amz-request-id",
-    # "x-amz-version-id",
+    "x-amz-request-id",
+    "x-amz-version-id",
 ]
-
-
-def _process_request_recording(request):
-    """Invoked before request is processed"""
-    return request
 
 
 def _process_response_recording(response):
@@ -58,14 +54,13 @@ def _process_response_recording(response):
     return response
 
 
+# Initialize VCR and strip Snowflake credentials by default.
 vcr.default_vcr = vcr.VCR(
     cassette_library_dir=test_data_dir,
-    before_record_request=_process_request_recording,
     before_record_response=_process_response_recording,
     filter_headers=SNOWFLAKE_CREDENTIAL_HEADER_FIELDS,
     record_mode="all",
 )
-
 vcr.use_cassette = vcr.default_vcr.use_cassette
 
 
@@ -301,15 +296,17 @@ def temp_schema(connection, session, local_testing_mode) -> None:
 
 
 class TracebackHistory(QueryListener):
+    """
+    Helper class to track queries, tracebacks and request IDs to merge them with REST requests tracked
+    through VCRpy.
+    """
+
     def __init__(self) -> None:
         self.queries = []
         self.tracebacks = []
         self.request_ids = []
 
     def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
-
-        # get traceback
-        import traceback
 
         formatted_lines = traceback.format_stack()
 
@@ -344,6 +341,9 @@ class TracebackHistory(QueryListener):
         self.tracebacks.append(formatted_lines)
 
 
+# Disable phase0 Snowpark IR check by setting autouse=False,
+# by default enabled for all tests (except modin/) to check that Snowpark python requests contain
+# the dataframeAST field holding the encoded representation.
 @pytest.fixture(autouse=True)
 def check_ast_encode_invoked(request, session):
     # In code later the pytest request will be shadowed, save here.
@@ -379,7 +379,7 @@ def check_ast_encode_invoked(request, session):
 
             # Match with query history.
             query_dict = {}
-            for record, request_id, traceback in zip(
+            for record, request_id, tb in zip(
                 query_history.queries,
                 query_history.request_ids,
                 query_history.tracebacks,
@@ -387,11 +387,11 @@ def check_ast_encode_invoked(request, session):
                 query_dict[request_id] = {
                     "sfqid": record.query_id,
                     "sqlText": record.sql_text,
-                    "traceback": traceback,
+                    "traceback": tb,
                 }
 
             for request, response in zip(tape.requests, tape.responses):
-                # Failed requests have no body, skip them here.
+                # Failed requests do not have body, skip them here.
                 if request.body and request.method in [
                     "POST",
                     "GET",

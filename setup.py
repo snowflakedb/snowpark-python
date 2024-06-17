@@ -121,7 +121,6 @@ setup(
         "modin-development": [
             *MODIN_REQUIREMENTS,
             *DEVELOPMENT_REQUIREMENTS,
-            "pytest-vcr", # Snowpark IR - record requests
             "pytest-assume",  # Snowpark pandas
             "decorator",  # Snowpark pandas
             "scipy",  # Snowpark pandas 3rd party library testing
