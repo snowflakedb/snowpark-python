@@ -92,7 +92,7 @@ def test_alias(session):
     )
 
 
-def test_equal_and_not_equal(session, local_testing_mode):
+def test_equal_and_not_equal(session):
     test_data1 = TestData.test_data1(session)
     assert test_data1.where(test_data1["BOOL"] == True).collect() == [  # noqa: E712
         Row(1, True, "a")
