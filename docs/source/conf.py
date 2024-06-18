@@ -90,6 +90,172 @@ html_show_sourcelink = False  # Hide "view page source" link
 # Disable footer message "Built with Sphinx using a theme provided by Read the Docs."
 html_show_sphinx = False
 
+# Custom Documenter and AutoSummary classes to render friendly names for accessor attributes/methods
+# like pd.Series.str.replace and pd.Series.dt.date, rather than pd.series_utils.StringMethods.replace
+# and pd.series_utils.DatetimeProperties.date.
+# See implementation from pandas:
+# https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L484-L485
+# The rough control flow of autosummary/autodoc, and the manner in which our custom classes interact
+# it, is as follows:
+# (0.) The autosummary-generate directive creates rst files for each method detected within an "autosummary"
+#      block. I'm not completely sure how this resolution is performed, but it will only pick up elements
+#      defined in an explicit "autosummary" block, and does not find those declared within custom directives
+#      that inherit the Autosummary class. See comments on `ModinAutosummary` below.
+# 1. `Autosummary` reads the :toctree: elements specified in modin/series.rst.
+#    These elements are listed by the names we want displayed ("Series.str.replace", "Series.dt.date", etc.),
+#    as autosummary does not provide simple mechanisms for replacing a path with a different label.
+# 2. Our custom autosummary class (`ModinAutosummary`) replaces vanity names (e.g. "Series.str.replace")
+#    with the canonical import path ("series_utils.StringMethods.replace") before passing it to the base
+#    `Autosummary` class, which imports the appropriate module and class to parse type signatures and
+#    docstrings. After the base `Autosummary` import is done, `ModinAutosummary` restores the vanity names
+#    so they are properly rendered within the output of Series.html.
+# 3. Individual method/attribute stubs are generated from our custom files in _templates/autosummary/.
+#    The subclasses of `ModinAccessorLevelDocumenter` define the custom "automodinaccessormethod" and
+#    "automodinaccessorattribute" directives, which are necessary to perform formatting and avoid certain
+#    autodoc warnings. This is similar to the approach taken by native pandas. See comments on these
+#    classes for more details.
+# (4.) Sphinx or autodoc or some other thing out of our control resolves path names and turns them into
+#      links. In order for these links to properly generate, the `real_name` parsed in our custom
+#      `ModinAutosummary` class must match the `format_name` value generated from autodoc in our
+#      custom `ModinAccessorLevelDocumenter` class and its children.
+import sphinx  # isort:skip
+from sphinx.ext.autodoc import (  # isort:skip
+    AttributeDocumenter,
+    Documenter,
+    MethodDocumenter,
+)
+from sphinx.ext.autosummary import Autosummary  # isort:skip
+
+
+class ModinAccessorLevelDocumenter(Documenter):
+    """
+    Performs name resolution and formatting for modin Accessor classes like Series.str and Series.dt.
+    """
+
+    def format_name(self):
+        # format_name determines the name displayed as part of a member's signature (below the heading)
+        # on every individual method/attribute page.
+        # This also determines the name of the anchor element that links to the member's signature,
+        # for example
+        # modin/pandas_api/modin.pandas.Series.dt.date.html#modin.pandas.Series.dt.date
+        # Changing this line may cause the links from Series.rst to break, since autosummary
+        # needs the anchor name to match the name listed in the toctree in order to link properly.
+        # Note that if this link is generated incorrectly, `make html` may still silently pass without
+        # generating any warnings.
+        return (
+            ".".join(self.objpath)
+            .replace("series_utils.DatetimeProperties.", "Series.dt.")
+            .replace("series_utils.StringMethods.", "Series.str.")
+        )
+
+    def resolve_name(self, modname, parents, path, base):
+        if modname is None:
+            if path == "Series.str.":
+                modname = "modin.pandas"
+                parents = ["series_utils", "StringMethods"]
+            elif path == "Series.dt.":
+                modname = "modin.pandas"
+                parents = ["series_utils", "DatetimeProperties"]
+        return modname, parents + [base]
+
+
+class ModinAccessorMethodDocumenter(ModinAccessorLevelDocumenter, MethodDocumenter):
+    objtype = "modinaccessormethod"
+    directivetype = "method"
+
+    # lower than MethodDocumenter (1) so this is not chosen for normal methods
+    priority = 0.6
+
+
+class ModinAccessorAttributeDocumenter(ModinAccessorLevelDocumenter, MethodDocumenter):
+    objtype = "modinaccessorattribute"
+    directivetype = "attribute"
+
+    # lower than AttributeDocumenter (1) so this is not chosen for normal attributes
+    priority = 0.6
+
+    def format_signature(self) -> str:
+        # Avoids this warning:
+        # WARNING: Failed to get a method signature for modin.pandas.series_utils.DatetimeProperties.date: <property object at 0x130c33c20> is not a callable object
+        return ""
+
+
+class ModinAutosummary(Autosummary):
+    """
+    Overrides the default autosummary directive to properly resolve and display modin accessor
+    methods like Series.str.replace.
+    """
+
+    def get_items(self, names):
+        if self.env.ref_context.get("py:module") == "modin.pandas":
+            # Within rst files, we will specify paths as `Series.str.replace`, `Series.dt.date`, etc.
+            # for readability and because autosummary is very inflexible about replacing these displayed
+            # strings with some other label.
+            # Even though we want the displayed names to contain `Series.str` instead of `StringMethods`,
+            # we need to replace them with their canonical import paths in order for Autosummary.get_items
+            # to correctly import them.
+            names = list(
+                map(
+                    lambda name:
+                    # The trailing . is important here so we don't replace the path for the `str` property
+                    # of the pd.Series class by mistake.
+                    name.replace("Series.str.", "series_utils.StringMethods.").replace(
+                        "Series.dt.", "series_utils.DatetimeProperties."
+                    ),
+                    names,
+                )
+            )
+
+        items = Autosummary.get_items(self, names)
+
+        if self.env.ref_context.get("py:module") == "modin.pandas":
+
+            def process_modin_accessors(args):
+                display_name, sig, summary, real_name = args
+                # Before calling Autosummary.get_items, we replaced `Series.str`/`Series.dt` with
+                # the canonical path from which to import these methods (`modin.pandas.series_utils.StringMethods`
+                # and `modin.pandas.series_utils.DatetimeProperties`) in order for Autosummary to
+                # be able to import the correct classes. These paths are then passed here as the
+                # parsed `display_name` value. However, we still want to render the name as
+                # `Series.str` or `Series.dt`, so we re-replace those values here.
+                display_name = display_name.replace(
+                    "series_utils.StringMethods.",
+                    "Series.str.",
+                ).replace(
+                    "series_utils.DatetimeProperties.",
+                    "Series.dt.",
+                )
+                # We also need to replace `real_name` to properly resolve links from Series.rst.
+                # If we don't do this replacement here, autosummary will raise
+                # WARNING: document isn't included in any toctree
+                # for all the generated accessor members.
+                real_name = real_name.replace(
+                    "series_utils.StringMethods.",
+                    "Series.str.",
+                ).replace(
+                    "series_utils.DatetimeProperties.",
+                    "Series.dt.",
+                )
+                return display_name, sig, summary, real_name
+
+            return list(map(process_modin_accessors, items))
+        return items
+
+
+def setup(app):
+    # Like pandas, we need to do some pre-processing for accessor methods/properties like
+    # pd.Series.str.replace and pd.Series.dt.date in order to resolve the parent class correctly.
+    # https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L792
+    app.add_autodocumenter(ModinAccessorMethodDocumenter)
+    app.add_autodocumenter(ModinAccessorAttributeDocumenter)
+    app.add_directive("autosummary", ModinAutosummary)
+
+
+# We overwrite the existing "autosummary" directive in order to properly resolve names for modin
+# accessor classes. We cannot simply declare an alternative directive like "automodinsummary" to use
+# in rst files because their children would not be picked up by the autosummary-generate flag.
+suppress_warnings = ["app.add_directive"]
+
 
 # Construct URL to the corresponding section in the snowpark-python repo
 def linkcode_resolve(domain, info):
