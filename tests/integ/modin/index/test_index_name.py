@@ -206,3 +206,19 @@ def test_df_columns_rename(data, name, name_2):
 
     assert new_snow_columns.names == new_native_columns.names
     assert new_snow_columns.names != snow_df.columns.names
+
+
+@pytest.mark.parametrize("name", TEST_NAMES)
+@pytest.mark.parametrize("name_2", TEST_NAMES_2)
+@pytest.mark.parametrize("data", NATIVE_DF_TEST_DATA)
+@sql_count_checker(query_count=0)
+def test_df_index_name_set_with_reference(data, name, name_2):
+    native_df = native_pd.DataFrame(data)
+    snow_df = pd.DataFrame(native_df)
+
+    my_index = snow_df.index
+    my_index.set_names(name, inplace=True)
+    assert snow_df.index.name == my_index.name
+
+    snow_df.index.set_names(name_2, inplace=True)
+    assert snow_df.index.names == my_index.names

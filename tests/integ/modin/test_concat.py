@@ -657,10 +657,14 @@ def test_concat_keys_with_none(df1, df2, axis):
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
     # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 3, join_count=0):
+    with SqlCounter(
+        query_count=0 if name1 is None else 1 if axis == 1 else 3, join_count=0
+    ):
         df1 = df1.rename_axis(name1, axis=axis)
     # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 3, join_count=0):
+    with SqlCounter(
+        query_count=0 if name2 is None else 1 if axis == 1 else 3, join_count=0
+    ):
         df2 = df2.rename_axis(name2, axis=axis)
 
     expected_join_count = (
