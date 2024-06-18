@@ -973,10 +973,10 @@ class Column:
     @staticmethod
     def _create_ast(
         property: Optional[str] = None,
-        assign_fields=None,
-        assign_opt_fields=None,
-        copy_messages=None,
-        fill_expr_asts=None,
+        assign_fields: Dict[str, Any] = {},  # noqa: B006
+        assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
+        copy_messages: Dict[str, Any] = {},  # noqa: B006
+        fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
     ) -> proto.SpColumnExpr:
         """General purpose static method to generate the AST representation for a new Snowpark Column instance
 
