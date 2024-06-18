@@ -223,8 +223,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - image_name: macos-latest
-            download_name: macos  # it includes doctest
+          - image_name: ubuntu-latest-64-cores
+            download_name: linux
         python-version: ["3.9", "3.10", "3.11"]
         cloud-provider: [aws]
     steps:
@@ -243,7 +243,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
