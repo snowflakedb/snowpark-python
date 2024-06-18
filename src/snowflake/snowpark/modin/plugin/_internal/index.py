@@ -49,6 +49,7 @@ class Index:
         name: object = None,
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
+        convert_to_index: bool = True,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -90,6 +91,7 @@ class Index:
         Index([1, 2, 3], dtype='int64')
         """
         self.is_lazy = convert_to_lazy
+        self.parent_data = None
         if self.is_lazy:
             self.set_query_compiler(
                 data=data,
@@ -97,6 +99,7 @@ class Index:
                 copy=copy,
                 name=name,
                 tupleize_cols=tupleize_cols,
+                convert_to_index=convert_to_index,
             )
         else:
             self.set_local_index(
@@ -115,10 +118,12 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
+        convert_to_index: bool = True,
     ) -> None:
         """
         Helper method to find and save query compiler when index should be lazy
         """
+        from snowflake.snowpark.modin.pandas import Series
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
@@ -128,6 +133,23 @@ class Index:
             qc = data
             if name is not None:
                 qc = qc.set_index_names([name])
+        elif isinstance(data, (DataFrame, Series)):
+            if convert_to_index:
+                qc = data._query_compiler
+                # old_frame = data._query_compiler._modin_frame
+                # from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+                # new_frame = InternalFrame.create(
+                #     ordered_dataframe=old_frame.ordered_dataframe,
+                #     data_column_pandas_labels=old_frame.data_column_pandas_labels,
+                #     data_column_pandas_index_names=old_frame.data_column_pandas_index_names,
+                #     data_column_snowflake_quoted_identifiers=old_frame.data_column_snowflake_quoted_identifiers,
+                #     index_column_pandas_labels=old_frame.data_column_pandas_labels,
+                #     index_column_snowflake_quoted_identifiers=old_frame.data_column_snowflake_quoted_identifiers,
+                # )
+                # qc = SnowflakeQueryCompiler(new_frame)
+            else:
+                self.parent_data = data
+                qc = data._query_compiler
         else:
             qc = DataFrame(
                 native_pd.Index(
@@ -530,7 +552,7 @@ class Index:
         >>> idx.name
         'x'
         """
-        return self.names[0] if self.names else None
+        return self.names[0]
 
     @name.setter
     def name(self, value: Hashable) -> None:
@@ -544,9 +566,12 @@ class Index:
         Get names of index
         """
         if self.is_lazy:
-            return self._query_compiler.get_index_names()
+            if self.parent_data is not None:
+                return self.parent_data._query_compiler.get_index_names()
+            else:
+                return self._query_compiler.get_index_names()
         else:
-            return self.to_pandas().names
+            return self._index.names
 
     def _set_names(self, values: list) -> None:
         """
@@ -562,6 +587,10 @@ class Index:
         TypeError if each name is not hashable.
         """
         if self.is_lazy:
+            if self.parent_data is not None:
+                self.parent_data._query_compiler = (
+                    self.parent_data._query_compiler.set_index_names(values)
+                )
             self._query_compiler = self._query_compiler.set_index_names(values)
         else:
             self._index.names = values
@@ -611,7 +640,11 @@ class Index:
                 self._set_names(names)
                 return None
         else:
-            return self.to_pandas().set_names(names, level=level, inplace=inplace)
+            return (
+                Index(self._index.set_names(names, level=level, inplace=inplace))
+                if not inplace
+                else None
+            )
 
     @property
     def ndim(self) -> int:
@@ -1373,6 +1406,12 @@ class Index:
         See Also
         --------
         Index.set_names : Able to set new names partially and by level.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['A', 'C', 'A', 'B'], name='score')
+        >>> idx.rename('grade')
+        Index(['A', 'C', 'A', 'B'], dtype='object', name='grade')
         """
         return self.set_names([name], level=None, inplace=inplace)
 
