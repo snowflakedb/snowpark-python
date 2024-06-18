@@ -136,6 +136,7 @@ class Index:
         elif isinstance(data, (DataFrame, Series)):
             if convert_to_index:
                 qc = data._query_compiler
+                # TODO: move Series data columns to Index index columns
                 # old_frame = data._query_compiler._modin_frame
                 # from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
                 # new_frame = InternalFrame.create(
