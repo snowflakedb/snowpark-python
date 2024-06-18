@@ -9,6 +9,7 @@
 #### New Features
 
 - Added support for `to_boolean` function.
+- Added documentation pages for `Index` and its APIs.
 
 #### Bug Fixes
 
@@ -44,6 +45,7 @@
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
+- Added support for `DataFrameGroupby.size` and `SeriesGroupby.size`.
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `DataFrameGroupBy.get_group`.
@@ -60,7 +62,7 @@
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 - Initial work to support an Index directly in Snowpark pandas. Support for Index as a first-class component of Snowpark pandas is coming soon.
-- Added lazy index constructor and support for len, to_pandas() and names. For `df.index`, Snowpark pandas creates a lazy index object. 
+- Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
 
 ## 1.18.0 (2024-05-28)
