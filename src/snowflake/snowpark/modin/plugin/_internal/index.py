@@ -108,6 +108,7 @@ class Index:
                 copy=copy,
                 name=name,
                 tupleize_cols=tupleize_cols,
+                convert_to_index=convert_to_index,
             )
 
     def set_query_compiler(
@@ -171,16 +172,28 @@ class Index:
         copy: bool = False,
         name: object = None,
         tupleize_cols: bool = True,
+        convert_to_index: bool = True,
     ) -> None:
         """
         Helper method to create and save local index when index should not be lazy
         """
+        from snowflake.snowpark.modin.pandas import DataFrame, Series
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
         if isinstance(data, SnowflakeQueryCompiler):
             index = data._modin_frame.index_columns_pandas_index
+        elif isinstance(data, (DataFrame, Series)):
+            if not convert_to_index:
+                self.parent_data = data
+            index = native_pd.Index(
+                data=data._query_compiler._modin_frame.data_column_pandas_labels,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
         else:
             index = native_pd.Index(
                 data=data,
@@ -572,7 +585,10 @@ class Index:
             else:
                 return self._query_compiler.get_index_names()
         else:
-            return self._index.names
+            if self.parent_data is not None:
+                return self.parent_data._query_compiler.get_index_names(axis=1)
+            else:
+                return self._index.names
 
     def _set_names(self, values: list) -> None:
         """
@@ -594,6 +610,10 @@ class Index:
                 )
             self._query_compiler = self._query_compiler.set_index_names(values)
         else:
+            if self.parent_data is not None:
+                self.parent_data._query_compiler = (
+                    self.parent_data._query_compiler.set_index_names(values, axis=1)
+                )
             self._index.names = values
 
     names = property(fset=_set_names, fget=_get_names)
@@ -636,16 +656,21 @@ class Index:
             if not inplace:
                 return Index(
                     self._query_compiler.set_index_names(names),
+                    convert_to_lazy=self.is_lazy,
                 )
             else:
                 self._set_names(names)
                 return None
         else:
-            return (
-                Index(self._index.set_names(names, level=level, inplace=inplace))
-                if not inplace
-                else None
-            )
+            ret = self._index.set_names(names, level=level, inplace=inplace)
+            if not inplace:
+                return Index(ret, convert_to_lazy=self.is_lazy)
+            else:
+                if self.parent_data is not None:
+                    self.parent_data._query_compiler = (
+                        self.parent_data._query_compiler.set_index_names(names, axis=1)
+                    )
+                return None
 
     @property
     def ndim(self) -> int:
