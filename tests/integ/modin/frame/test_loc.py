@@ -152,12 +152,6 @@ def test_df_loc_get_tuple_key(
     query_count = 1
     if is_scalar(row) or isinstance(row, tuple) or isinstance(row, native_pd.Index):
         query_count = 2
-    if is_scalar(col) or isinstance(col, tuple):
-        if isinstance(row, native_pd.Index):
-            # one extra query to convert to series to index into df
-            query_count = 3
-        else:
-            query_count = 2
 
     with SqlCounter(
         query_count=query_count,
@@ -201,8 +195,7 @@ def test_df_loc_get_callable_key(
 def test_df_loc_get_col_non_boolean_key(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
-
-    with SqlCounter(query_count=2 if is_scalar(key) or isinstance(key, tuple) else 1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
