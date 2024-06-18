@@ -5,15 +5,114 @@
 import glob
 import os
 from collections.abc import Hashable
-from typing import Any, Callable, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as native_pd
+from pandas._typing import FilePath
 
 import snowflake.snowpark.modin.pandas as pd
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.session import Session
 
 PANDAS_KWARGS = {"names", "index_col", "usecols", "dtype"}
+
+# Series.to_csv and DataFrame.to_csv default values.
+# This must be same as modin.pandas.base.py:to_csv.
+TO_CSV_DEFAULTS = {
+    "path_or_buf": None,
+    "sep": ",",
+    "na_rep": "",
+    "float_format": None,
+    "columns": None,
+    "header": True,
+    "index": True,
+    "index_label": None,
+    "mode": "w",
+    "encoding": None,
+    "compression": "infer",
+    "quoting": None,
+    "quotechar": '"',
+    "lineterminator": None,
+    "chunksize": None,
+    "date_format": None,
+    "doublequote": True,
+    "escapechar": None,
+    "decimal": ".",
+    "errors": "strict",
+    "storage_options": None,
+}
+
+# Reference https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#type-csv
+SUPPORTED_COMPRESSION_IN_SNOWFLAKE = [
+    "auto",
+    "brotli",
+    "bz2",
+    "deflate",
+    "gzip",
+    "raw_deflate",
+    "zstd",
+]
+
+
+def infer_compression_algorithm(filepath: str) -> Optional[str]:
+    """
+    Try to infer compression algorithm from extension of given filepath.
+    Return None, if we fail to map extension to any known compression algorithm.
+    Args:
+        filepath: path to file.
+
+    Returns:
+        Corresponding compression algorithm on success, None otherwise.
+    """
+    _, ext = os.path.splitext(filepath)
+    if not ext:
+        return None
+    # Remove leading dot and convert to lower case.
+    ext = ext[1:].lower()
+    # Map from file extension to compression algorithm.
+    ext_to_algo = {
+        "br": "brotli",
+        "br2": "br2",
+        "gz": "gzip",
+        "tar": "tar",
+        "xz": "xz",
+        "zip": "zip",
+        "zst": "zstd",
+        "zz": "deflate",
+    }
+    return ext_to_algo.get(ext)
+
+
+def get_compression_algorithm_for_csv(
+    compression: Union[str, dict, None], filepath: str
+) -> Optional[str]:
+    """
+    Get compression algorithm for output csv file.
+    Args:
+        compression: compression parameter value.
+        filepath: path to write csv file to.
+
+    Returns:
+        Compression algorithm or None.
+    """
+    if compression == "infer":
+        # Same as native pandas, try to infer compression from file extension.
+        compression = infer_compression_algorithm(filepath)
+    elif isinstance(compression, dict):
+        compression = compression.get("method")
+
+    if compression is None:
+        return compression
+
+    # Check against supported compression algorithms in Snowflake.
+    if compression.lower() not in SUPPORTED_COMPRESSION_IN_SNOWFLAKE:
+        WarningMessage.single_warning(
+            f"Snowpark pandas does not support compression algorithm '{compression}'."
+            " Please refer to https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#type-csv for supported compression algorithms"
+        )
+        return None
+    return compression
 
 
 def upload_local_path_to_snowflake_stage(
@@ -73,6 +172,18 @@ def is_local_filepath(filepath: str) -> bool:
     """
 
     return not filepath.startswith("@") or filepath.startswith(r"\@")
+
+
+def is_snowflake_stage_path(filepath: FilePath) -> bool:
+    """
+    Returns whether a filepath refers to snowflake stage location.
+    Args:
+        filepath: File path to file.
+    Returns:
+    """
+    return (
+        filepath is not None and isinstance(filepath, str) and filepath.startswith("@")
+    )
 
 
 def get_non_pandas_kwargs(kwargs: Any) -> Any:
