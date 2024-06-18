@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import typing
+import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from typing import Any, Callable, Literal, Optional, Union, get_args
@@ -3825,6 +3826,89 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
             )
         )
+
+    def groupby_size(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        compute groupby with size.
+        With a dataframe created with following:
+        import pandas as pd
+
+        data = [[1,2,3], [1, 5, 6], [2, 5, 8], [2, 6, 9]]
+
+        df = pd.DataFrame(data, columns=["a", "b", "c"], index = ["tuna", "salmon", "catfish", "goldfish"])
+
+        df
+
+                  a  b  c
+
+        tuna      1  2  3
+        salmon    1  5  6
+        catfish   2  5  8
+        goldfish  2  6  9
+
+        df.groupby("a").size()
+
+        a
+        1    2
+        2    2
+        dtype: int64
+
+
+        Args:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns).
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_size`.
+            agg_kwargs: dict
+                The aggregation keyword args, unused in `groupby_size`.
+            drop: bool
+                Drop the `by` column, unused in `groupby_size`.
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_size()
+        """
+        level = groupby_kwargs.get("level", None)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.size does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
+        if not is_list_like(by):
+            by = [by]
+        positions_col_name = f"__TEMP_POS_NAME_{uuid.uuid4().hex[-6:]}__"
+        # We reset index twice to ensure we perform the count aggregation on the row
+        # positions (which cannot be null). We name the column a unique new name to
+        # avoid collisions. We rename them to their final names at the end.
+        result = (
+            self.reset_index(drop=True)
+            .reset_index(drop=False, names=positions_col_name)
+            .take_2d_labels(slice(None), [positions_col_name] + by)
+            .groupby_agg(
+                by,
+                "count",
+                axis,
+                groupby_kwargs,
+                (),
+                {},
+            )
+        )
+        if not groupby_kwargs.get("as_index", True):
+            return result.rename(columns_renamer={positions_col_name: "size"})
+        else:
+            return result.rename(
+                columns_renamer={positions_col_name: MODIN_UNNAMED_SERIES_LABEL}
+            )
 
     def groupby_groups(
         self,
@@ -9575,20 +9659,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             frame = perform_resample_binning_on_frame(frame, start_date, rule)
-            qc = SnowflakeQueryCompiler(frame).groupby_agg(
-                by=self._modin_frame.index_column_pandas_labels,
-                agg_func=resample_method,
-                axis=resample_kwargs.get("axis", 0),
-                groupby_kwargs=dict(),
-                agg_args=resample_method_args,
-                agg_kwargs=resample_method_kwargs,
-                numeric_only=resample_method_kwargs.get("numeric_only", False),
-                is_series_groupby=is_series,
-            )
+            if resample_method == "size":
+                # Call groupby_size directly on the dataframe or series with the index reset
+                # to ensure we perform count aggregation on row positions which cannot be null
+                qc = (
+                    SnowflakeQueryCompiler(frame)
+                    .reset_index()
+                    .groupby_size(
+                        by="index",
+                        axis=resample_kwargs.get("axis", 0),
+                        groupby_kwargs=dict(),
+                        agg_args=resample_method_args,
+                        agg_kwargs=resample_method_kwargs,
+                    )
+                    .set_index_names([None])
+                )
+            else:
+                qc = SnowflakeQueryCompiler(frame).groupby_agg(
+                    by=self._modin_frame.index_column_pandas_labels,
+                    agg_func=resample_method,
+                    axis=resample_kwargs.get("axis", 0),
+                    groupby_kwargs=dict(),
+                    agg_args=resample_method_args,
+                    agg_kwargs=resample_method_kwargs,
+                    numeric_only=resample_method_kwargs.get("numeric_only", False),
+                    is_series_groupby=is_series,
+                )
             frame = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
-            if resample_method in ("sum", "count"):
+            if resample_method in ("sum", "count", "size"):
                 # For these aggregations, we need to fill NaN values as 0
                 return SnowflakeQueryCompiler(frame).fillna(
                     value=0, self_is_series=is_series
@@ -13194,7 +13294,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             if np.isnan(n):
                 # Follow pandas behavior
-                return pandas_lit(np.NaN)
+                return pandas_lit(np.nan)
             elif n <= 0:
                 # If all possible splits are requested, we just use SQL's split function.
                 new_col = builtin("split")(new_col, pandas_lit(new_pat))
