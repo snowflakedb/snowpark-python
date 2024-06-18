@@ -417,9 +417,25 @@ class Resampler(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._method_not_implemented("prod")
 
-    def size(self):  # pragma: no cover
+    def size(self):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("size")
+        from .series import Series
+
+        is_series = not self._dataframe._is_dataframe
+
+        output_series = Series(
+            query_compiler=self._query_compiler.resample(
+                self.resample_kwargs,
+                "size",
+                tuple(),
+                dict(),
+                is_series,
+            )
+        )
+        if not isinstance(self._dataframe, Series):
+            # If input is a DataFrame, rename output Series to None
+            return output_series.rename(None)
+        return output_series
 
     def sem(
         self,

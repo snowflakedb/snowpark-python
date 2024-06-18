@@ -2305,8 +2305,8 @@ DATAFRAME_DATAFRAME_TEST_LIST = [
     ),
     # test with np.Nan as well
     (
-        native_pd.DataFrame([[np.NaN, None, 3], [4, 5, 6]]),
-        native_pd.DataFrame([[1, -2, 3], [6, -5, np.NaN]]),
+        native_pd.DataFrame([[np.nan, None, 3], [4, 5, 6]]),
+        native_pd.DataFrame([[1, -2, 3], [6, -5, np.nan]]),
     ),
     # Test column alignment.
     (
