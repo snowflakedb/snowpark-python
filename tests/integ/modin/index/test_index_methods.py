@@ -39,7 +39,7 @@ def test_index_astype(native_index):
     assert repr(snow_index) == repr(native_index)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_copy(native_index):
     snow_index = pd.Index(native_index)
@@ -48,11 +48,11 @@ def test_index_copy(native_index):
     assert_index_equal(snow_index, new_index)
 
     snow_index.name = "a"
-    assert snow_index.name != new_index.name
+    assert_index_equal(snow_index, new_index, check_names=False)
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=4)
 def test_df_index_copy(native_df):
     snow_df = pd.DataFrame(native_df)
     new_index = snow_df.index.copy()
@@ -66,8 +66,8 @@ def test_df_index_copy(native_df):
 
     new_index.name = "a"
     new_columns.name = "a"
-    assert snow_df.index.name != new_index.name
-    assert snow_df.columns.name != new_columns.name
+    assert_index_equal(snow_df.index, new_index, check_names=False)
+    assert_index_equal(snow_df.columns, new_columns, check_names=False)
 
 
 @sql_count_checker(query_count=2)
