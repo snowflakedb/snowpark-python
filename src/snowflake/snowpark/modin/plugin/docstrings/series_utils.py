@@ -38,7 +38,7 @@ class StringMethods:
 
         Returns
         -------
-        Series, Index, DataFrame or MultiIndex
+        :class:`~snowflake.snowpark.modin.pandas.Series`, Index, :class:`~snowflake.snowpark.modin.pandas.DataFrame` or MultiIndex
             Type matches caller unless expand=True (see Notes).
 
         See also
