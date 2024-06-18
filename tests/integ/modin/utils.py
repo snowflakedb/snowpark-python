@@ -131,7 +131,7 @@ RAND_HIGH = 100
 TEST_DF_DATA = {
     "float_nan_data": {
         f"col{int((i - NCOLS / 2) % NCOLS + 1)}": [
-            x if (j != i and j - 2 != i and j + 2 != i) else np.NaN
+            x if (j != i and j - 2 != i and j + 2 != i) else np.nan
             for j, x in enumerate(
                 random_state.uniform(RAND_LOW, RAND_HIGH, size=(NROWS))
             )
