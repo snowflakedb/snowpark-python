@@ -1100,7 +1100,7 @@ class _iLocIndexer(_LocationIndexerBase):
             result._parent = self.df
             result._parent_axis = 0
 
-        _, ast = pd.session()._ast_batch.flush()
+        _, ast = pd.session._ast_batch.flush()
         print(ast)  # noqa: T201
 
         return result

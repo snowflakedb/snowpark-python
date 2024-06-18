@@ -501,7 +501,7 @@ class Series(BasePandasDataset):
             else temp_str.rsplit("dtype: ", 1)[-1]
         )
 
-        _, ast = pd.session()._ast_batch.flush()
+        _, ast = pd.session._ast_batch.flush()
         print(ast)  # noqa: T201
 
         if row_count == 0:
