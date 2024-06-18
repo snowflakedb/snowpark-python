@@ -52,6 +52,7 @@ GroupBy
     DataFrameGroupBy.quantile
     DataFrameGroupBy.rank
     DataFrameGroupBy.shift
+    DataFrameGroupBy.size
     DataFrameGroupBy.std
     DataFrameGroupBy.sum
     DataFrameGroupBy.tail
@@ -80,6 +81,7 @@ GroupBy
     SeriesGroupBy.quantile
     SeriesGroupBy.rank
     SeriesGroupBy.shift
+    SeriesGroupBy.size
     SeriesGroupBy.std
     SeriesGroupBy.sum
     SeriesGroupBy.tail

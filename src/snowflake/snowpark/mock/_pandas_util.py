@@ -68,7 +68,7 @@ def _extract_schema_and_data_from_pandas_df(
         for col_idx in range(data.shape[1]):
             if plain_data[row_idx][col_idx] is None:
                 continue
-            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float_)):
+            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float64)):
                 # in pandas, a float is represented in type numpy.float64
                 # which can not be inferred by snowpark python, we cast to built-in float type
                 if math.isnan(plain_data[row_idx][col_idx]):
@@ -116,7 +116,7 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Interval):
 
                 def convert_to_python_obj(obj):
-                    if isinstance(obj, numpy.float_):
+                    if isinstance(obj, numpy.float64):
                         return float(obj)
                     elif isinstance(obj, numpy.int64):
                         # on Windows, numpy.int64 and numpy.int_ are different

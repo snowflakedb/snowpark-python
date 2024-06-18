@@ -192,7 +192,7 @@ class StringMethods:
         --------
         Returning a Series of booleans using only a literal pattern.
 
-        >>> s1 = pd.Series(['Mouse', 'dog', 'house and parrot', '23', np.NaN])
+        >>> s1 = pd.Series(['Mouse', 'dog', 'house and parrot', '23', np.nan])
         >>> s1.str.contains('og', regex=False)
         0    False
         1     True
@@ -203,7 +203,7 @@ class StringMethods:
 
         Returning an Index of booleans using only a literal pattern.
 
-        >>> ind = pd.Index(['Mouse', 'dog', 'house and parrot', '23.0', np.NaN])
+        >>> ind = pd.Index(['Mouse', 'dog', 'house and parrot', '23.0', np.nan])
         >>> ind.str.contains('23', regex=False)
         Index([False, False, False, True, None], dtype='object')
 
