@@ -1000,7 +1000,7 @@ class Series:
         Empty strings are not considered NA values. ``None`` is considered an
         NA value.
 
-        >>> ser = pd.Series([np.NaN, 2, pd.NaT, '', None, 'I stay'])
+        >>> ser = pd.Series([np.nan, 2, pd.NaT, '', None, 'I stay'])
         >>> ser  # doctest: +NORMALIZE_WHITESPACE
         0      None
         1         2
