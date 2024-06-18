@@ -639,7 +639,8 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register_from_file`
         """
-        with open_telemetry_udf_context_manager(self.register, locals()):
+        parameters = {"handler": handler, "name": name}
+        with open_telemetry_udf_context_manager(self.register, parameters):
             if not callable(handler):
                 raise TypeError(
                     "Invalid function: not a function or callable "
@@ -798,7 +799,12 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register`
         """
-        with open_telemetry_udf_context_manager(self.register_from_file, locals()):
+        parameters = {
+            "file_path": file_path,
+            "handler_name": handler_name,
+            "name": name,
+        }
+        with open_telemetry_udf_context_manager(self.register_from_file, parameters):
             file_path = process_file_path(file_path)
             check_register_args(
                 TempObjectType.TABLE_FUNCTION,

@@ -416,7 +416,8 @@ class UDAFRegistration:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register_from_file`
         """
-        with open_telemetry_udf_context_manager(self.register, locals()):
+        parameters = {"handler": handler, "name": name}
+        with open_telemetry_udf_context_manager(self.register, parameters):
             if not isinstance(handler, type):
                 raise TypeError(
                     f"Invalid handler: expecting a class type, but get {type(handler)}"
@@ -571,7 +572,12 @@ class UDAFRegistration:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register`
         """
-        with open_telemetry_udf_context_manager(self.register_from_file, locals()):
+        parameters = {
+            "file_path": file_path,
+            "handler_name": handler_name,
+            "name": name,
+        }
+        with open_telemetry_udf_context_manager(self.register_from_file, parameters):
             file_path = process_file_path(file_path)
             check_register_args(
                 TempObjectType.AGGREGATE_FUNCTION,
