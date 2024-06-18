@@ -13,7 +13,7 @@ from logging import getLogger
 from typing import Tuple
 
 logger = getLogger(__name__)
-target_class = [
+target_modules = [
     "dataframe.py",
     "dataframe_writer.py",
     "udf.py",
@@ -21,7 +21,7 @@ target_class = [
     "udaf.py",
     "functions.py",
 ]
-registration_class = ["udf.py", "udtf.py", "udaf.py"]
+registration_modules = ["udf.py", "udtf.py", "udaf.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
 try:
@@ -39,11 +39,7 @@ def open_telemetry_context_manager(func, dataframe):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = trace.get_tracer(
-            f"snow.snowpark.{class_name.split('.')[0].lower()}"
-            if "." in class_name
-            else class_name
-        )
+        tracer = trace.get_tracer(extract_tracer_name(class_name))
         with tracer.start_as_current_span(name) as cur_span:
             try:
                 if cur_span.is_recording():
@@ -71,11 +67,7 @@ def open_telemetry_udf_context_manager(func, parameters):
     if open_telemetry_found:
         class_name = func.__qualname__
         name = func.__name__
-        tracer = trace.get_tracer(
-            f"snow.snowpark.{class_name.split('.')[0].lower()}"
-            if "." in class_name
-            else class_name
-        )
+        tracer = trace.get_tracer(extract_tracer_name(class_name))
         with tracer.start_as_current_span(name) as cur_span:
             try:
                 # first try to get func if it is udf, then try to get handler if it is udtf/udaf, if still None, means it is
@@ -137,9 +129,9 @@ def context_manager_code_location(frame_info, func) -> Tuple[str, int]:
     target_index = -1
     for i, frame in enumerate(frame_info):
         file_name = os.path.basename(frame.filename)
-        if file_name in target_class:
+        if file_name in target_modules:
             target_index = i + decorator_number + 1
-            if file_name in registration_class:
+            if file_name in registration_modules:
                 continue
             break
     frame = frame_info[target_index]
@@ -156,3 +148,11 @@ def build_method_chain(api_calls, name) -> str:
         method_chain = f"{method_chain}{method_name}()."
     method_chain = f"{method_chain}{name.split('.')[-1]}()"
     return method_chain
+
+
+def extract_tracer_name(class_name):
+    return (
+        f"snow.snowpark.{class_name.split('.')[0].lower()}"
+        if "." in class_name
+        else class_name
+    )
