@@ -287,3 +287,10 @@ Series
     Series.str.strip
     Series.str.translate
     Series.str.upper
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_csv

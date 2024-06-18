@@ -3323,7 +3323,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._default_to_pandas("to_clipboard", excel=excel, sep=sep, **kwargs)
 
-    @base_not_implemented()
     def to_csv(
         self,
         path_or_buf=None,
@@ -3348,7 +3347,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         errors: str = "strict",
         storage_options: StorageOptions = None,
     ):  # pragma: no cover
-        from snowflake.snowpark.modin.pandas.core.execution.dispatching.factories.dispatcher import (
+        from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
             FactoryDispatcher,
         )
 
