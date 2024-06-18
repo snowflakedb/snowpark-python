@@ -367,7 +367,7 @@ def test_str_replace_neg(pat, n, repl, error):
 
 
 @pytest.mark.parametrize("pat", [None, "a", "|", "%"])
-@pytest.mark.parametrize("n", [None, np.NaN, 3, 2, 1, 0, -1, -2])
+@pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=1)
 def test_str_split(pat, n):
     native_ser = native_pd.Series(TEST_DATA)

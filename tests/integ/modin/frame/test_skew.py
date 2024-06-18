@@ -38,9 +38,9 @@ def test_skew_basic():
         {
             "frame": {
                 "A": [1, 2, 3],
-                "B": [2, np.NaN, 4],
-                "C": [1, 2, np.NaN],
-                "D": [np.NaN, np.NaN, 3],
+                "B": [2, np.nan, 4],
+                "C": [1, 2, np.nan],
+                "D": [np.nan, np.nan, 3],
             },
             "kwargs": {"skipna": True},
         },
@@ -48,7 +48,7 @@ def test_skew_basic():
             "frame": {
                 "A": [1, 2, 3],
                 "B": ["a", "b", "c"],
-                "C": [1, 2, np.NaN],
+                "C": [1, 2, np.nan],
                 "D": ["x", "y", "z"],
             },
             "kwargs": {"numeric_only": True},
@@ -57,7 +57,7 @@ def test_skew_basic():
             "frame": {
                 "A": [1, 2, 3],
                 "B": ["a", "b", "c"],
-                "C": [1, 2, np.NaN],
+                "C": [1, 2, np.nan],
                 "D": ["x", "y", "z"],
             },
             "kwargs": {"numeric_only": True, "skipna": True},
@@ -86,7 +86,7 @@ def test_skew(data):
             "frame": {
                 "A": [1, 2, 3],
                 "B": ["a", "b", "c"],
-                "C": [1, 2, np.NaN],
+                "C": [1, 2, np.nan],
                 "D": ["x", "y", "z"],
             },
             "kwargs": {"numeric_only": False},
