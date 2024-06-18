@@ -315,6 +315,10 @@ class Rolling:
         fname="var",
         args=dedent(
             """\
+        ddof : int, default 1
+            Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+            where ``N`` represents the number of elements.
+
         *args : tuple
             Positional arguments to pass to func."""
         ),
@@ -368,6 +372,10 @@ class Rolling:
         fname="std",
         args=dedent(
             """\
+        ddof : int, default 1
+            Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+            where ``N`` represents the number of elements.
+
         *args : tuple
             Positional arguments to pass to func."""
         ),
@@ -520,6 +528,34 @@ class Rolling:
     def quantile():
         pass
 
+    """
+    Calculate the rolling standard error of mean.
+
+    Parameters
+    ----------
+    ddof : int, default 1
+        Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+        where ``N`` represents the number of elements.
+
+    numeric_only : bool, default False
+        Include only float, int, boolean columns.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Return type is the same as the original object with np.float64 dtype.
+
+    Examples
+    --------
+    >>> s = pd.Series([0, 1, 2, 3])
+    >>> s.rolling(2, min_periods=1).sem()
+    0         NaN
+    1    0.707107
+    2    0.707107
+    3    0.707107
+    dtype: float64
+    """
+
     def sem():
         pass
 
@@ -634,7 +670,12 @@ class Expanding:
         win_type="expanding",
         fname="var",
         no=False,
-        args=None,
+        args=dedent(
+            """\
+        ddof : int, default 1
+            Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+            where ``N`` represents the number of elements."""
+        ),
         kwargs=None,
         e=None,
         ek=None,
@@ -665,7 +706,12 @@ class Expanding:
         win_type="expanding",
         fname="std",
         no=False,
-        args=None,
+        args=dedent(
+            """\
+        ddof : int, default 1
+            Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+            where ``N`` represents the number of elements."""
+        ),
         kwargs=None,
         e=None,
         ek=None,
@@ -773,6 +819,34 @@ class Expanding:
 
     def quantile():
         pass
+
+    """
+    Calculate the expanding standard error of mean.
+
+    Parameters
+    ----------
+    ddof : int, default 1
+        Delta Degrees of Freedom. The divisor used in calculations is ``N - ddof``,
+        where ``N`` represents the number of elements.
+
+    numeric_only : bool, default False
+        Include only float, int, boolean columns.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Return type is the same as the original object with np.float64 dtype.
+
+    Examples
+    --------
+    >>> s = pd.Series([0, 1, 2, 3])
+    >>> s.expanding().sem()
+    0         NaN
+    1    0.707107
+    2    0.707107
+    3    0.745356
+    dtype: float64
+    """
 
     def sem():
         pass
