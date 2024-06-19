@@ -243,7 +243,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: wheel
           path: dist
