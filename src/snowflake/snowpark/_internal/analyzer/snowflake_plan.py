@@ -21,10 +21,6 @@ from typing import (
     Union,
 )
 
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-    sum_node_complexities,
-)
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
@@ -236,7 +232,6 @@ class SnowflakePlan(LogicalPlan):
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
-        self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -354,25 +349,6 @@ class SnowflakePlan(LogicalPlan):
     @cached_property
     def num_duplicate_nodes(self) -> int:
         return len(find_duplicate_subtrees(self))
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self.source_plan:
-            return self.source_plan.individual_node_complexity
-        return {}
-
-    @property
-    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
-        return self._cumulative_node_complexity
-
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
@@ -607,8 +583,8 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
         )
 
-    def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), source_plan)
+    def table(self, table_name: str) -> SnowflakePlan:
+        return self.query(project_statement([], table_name), None)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
