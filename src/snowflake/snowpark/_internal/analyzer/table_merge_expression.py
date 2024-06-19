@@ -5,10 +5,6 @@
 from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-    sum_node_complexities,
-)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     LogicalPlan,
     SnowflakePlan,
@@ -20,21 +16,6 @@ class MergeExpression(Expression):
         super().__init__()
         self.condition = condition
 
-    @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.LOW_IMPACT
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # WHEN MATCHED [AND condition] THEN DEL
-        complexity = {self.plan_node_category: 1}
-        complexity = (
-            sum_node_complexities(complexity, self.condition.cumulative_node_complexity)
-            if self.condition
-            else complexity
-        )
-        return complexity
-
 
 class UpdateMergeExpression(MergeExpression):
     def __init__(
@@ -42,26 +23,6 @@ class UpdateMergeExpression(MergeExpression):
     ) -> None:
         super().__init__(condition)
         self.assignments = assignments
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # WHEN MATCHED [AND condition] THEN UPDATE SET COMMA.join(k=v for k,v in assignments)
-        complexity = sum_node_complexities(
-            {self.plan_node_category: 1},
-            *(
-                sum_node_complexities(
-                    key_expr.cumulative_node_complexity,
-                    val_expr.cumulative_node_complexity,
-                )
-                for key_expr, val_expr in self.assignments.items()
-            ),
-        )
-        complexity = (
-            sum_node_complexities(complexity, self.condition.cumulative_node_complexity)
-            if self.condition
-            else complexity
-        )
-        return complexity
 
 
 class DeleteMergeExpression(MergeExpression):
@@ -79,21 +40,6 @@ class InsertMergeExpression(MergeExpression):
         self.keys = keys
         self.values = values
 
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # WHEN NOT MATCHED [AND cond] THEN INSERT [(COMMA.join(key))] VALUES (COMMA.join(values))
-        complexity = sum_node_complexities(
-            {self.plan_node_category: 1},
-            *(key.cumulative_node_complexity for key in self.keys),
-            *(val.cumulative_node_complexity for val in self.values),
-        )
-        complexity = (
-            sum_node_complexities(complexity, self.condition.cumulative_node_complexity)
-            if self.condition
-            else complexity
-        )
-        return complexity
-
 
 class TableUpdate(LogicalPlan):
     def __init__(
@@ -110,24 +56,6 @@ class TableUpdate(LogicalPlan):
         self.source_data = source_data
         self.children = [source_data] if source_data else []
 
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # UPDATE table_name SET COMMA.join(k, v in assignments) [source_data] [WHERE condition]
-        complexity = sum_node_complexities(
-            *(
-                sum_node_complexities(
-                    k.cumulative_node_complexity, v.cumulative_node_complexity
-                )
-                for k, v in self.assignments.items()
-            ),
-        )
-        complexity = (
-            sum_node_complexities(complexity, self.condition.cumulative_node_complexity)
-            if self.condition
-            else complexity
-        )
-        return complexity
-
 
 class TableDelete(LogicalPlan):
     def __init__(
@@ -141,11 +69,6 @@ class TableDelete(LogicalPlan):
         self.condition = condition
         self.source_data = source_data
         self.children = [source_data] if source_data else []
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # DELETE FROM table_name [USING source_data] [WHERE condition]
-        return self.condition.cumulative_node_complexity if self.condition else {}
 
 
 class TableMerge(LogicalPlan):
@@ -162,11 +85,3 @@ class TableMerge(LogicalPlan):
         self.join_expr = join_expr
         self.clauses = clauses
         self.children = [source] if source else []
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # MERGE INTO table_name USING (source) ON join_expr clauses
-        return sum_node_complexities(
-            self.join_expr.cumulative_node_complexity,
-            *(clause.cumulative_node_complexity for clause in self.clauses),
-        )

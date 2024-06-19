@@ -8,9 +8,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     derive_dependent_columns,
 )
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-)
 
 
 class BinaryExpression(Expression):
@@ -28,10 +25,6 @@ class BinaryExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.left, self.right)
-
-    @property
-    def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.LOW_IMPACT
 
 
 class BinaryArithmeticExpression(BinaryExpression):
