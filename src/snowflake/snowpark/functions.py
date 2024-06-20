@@ -165,6 +165,7 @@ from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
@@ -181,6 +182,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     LastValue,
     Lead,
 )
+from snowflake.snowpark._internal.ast_utils import build_fn_apply
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -251,10 +253,21 @@ def col(df_alias: str, col_name: str) -> Column:
 
 
 def col(name1: str, name2: Optional[str] = None) -> Column:
+    # When name2 is None, corresponds to col(col_name: str).
+    # Else, corresponds to col(df_alias: str, col_name: str)
+    kwargs = (
+        {"df_alias": name1, "col_name": name2}
+        if name2 is not None
+        else {"col_name": name1}
+    )
+
+    expr = proto.Expr()
+    build_fn_apply(expr, "col", kwargs=kwargs)
+
     if name2 is None:
-        return Column(name1)
+        return Column(name1, ast=expr)
     else:
-        return Column(name1, name2)
+        return Column(name1, name2, ast=expr)
 
 
 @overload
@@ -8177,7 +8190,12 @@ def _call_function(
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
 ) -> Column:
-    expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
+
+    args_list = parse_positional_args_to_list(*args)
+    ast = proto.Expr()
+    build_fn_apply(ast, name, *tuple(arg._ast for arg in args_list))
+
+    expressions = [Column._to_expr(arg) for arg in args_list]
     return Column(
         FunctionExpression(
             name,
@@ -8185,7 +8203,8 @@ def _call_function(
             is_distinct=is_distinct,
             api_call_source=api_call_source,
             is_data_generator=is_data_generator,
-        )
+        ),
+        ast=ast,
     )
 
 

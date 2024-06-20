@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
@@ -127,6 +127,50 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
+
+
+def build_fn_apply(
+    ast: proto.Expr,
+    builtin_name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]]
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
+    functions.
+    Args:
+        ast: Expr node to fill
+        builtin_name: Name of the builtin function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    Returns:
+
+    """
+
+    expr = ast.apply_expr
+
+    fn = proto.BuiltinFn()
+    fn.name = builtin_name
+    set_src_position(fn.src)
+    expr.fn.builtin_fn.CopyFrom(fn)
+
+    for arg in args:
+        if isinstance(arg, proto.Expr):
+            expr.pos_args.append(arg)
+        else:
+            pos_arg = proto.Expr()
+            build_const_from_python_val(arg, pos_arg)
+            expr.pos_args.append(pos_arg)
+
+    for name, arg in kwargs.items():
+        kwarg = proto.Tuple_String_Expr()
+        kwarg._1 = name
+        if isinstance(arg, proto.Expr):
+            kwarg._2.CopyFrom(arg)
+        else:
+            build_const_from_python_val(arg, kwarg._2)
+        expr.named_args.append(kwarg)
 
 
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
