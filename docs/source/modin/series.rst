@@ -283,4 +283,5 @@ Series
     Series.str.split
     Series.str.startswith
     Series.str.strip
+    Series.str.translate
     Series.str.upper
