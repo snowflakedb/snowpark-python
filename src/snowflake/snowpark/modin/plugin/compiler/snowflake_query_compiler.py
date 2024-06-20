@@ -5006,6 +5006,63 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop=drop,
         )
 
+    def groupby_value_counts(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        subset: Optional[list[str]],
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        level = groupby_kwargs.get("level", None)
+        as_index = groupby_kwargs.get("as_index", True)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.value_counts does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
+        if not is_list_like(by):
+            by = [by]
+        if subset is not None:
+            if not isinstance(subset, (list, tuple)):
+                subset = [subset]
+            else:
+                subset = [
+                    label
+                    for label in self._modin_frame.data_column_pandas_labels
+                    if label not in by
+                ]
+
+        if as_index:
+            # When as_index=True, the result is a Series with a MultiIndex index. Each column in the
+            # original frame is treated as a level of this index.
+            raise NotImplementedError()
+        else:
+            # When as_index=False, the result is a DataFrame where count/proportion is appended as a new column.
+            # This is effectively the result of df.value_counts() sorted on the `by` columns.
+            return (
+                self.value_counts(
+                    subset=subset,
+                    normalize=normalize,
+                    sort=sort,
+                    ascending=ascending,
+                    bins=bins,
+                    dropna=dropna,
+                )
+                .reset_index()  # Demote MultiIndex index back to normal columns
+                .sort_rows_by_column_values(  # Sort on 'by' columns
+                    columns=by,
+                    ascending=[True] * len(by),
+                    kind="quicksort",
+                    na_position="last",
+                    ignore_index=True,
+                )
+            )
+
     def _get_dummies_helper(
         self,
         column: Hashable,
