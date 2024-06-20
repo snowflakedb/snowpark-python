@@ -15,6 +15,7 @@
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 
 ### Snowpark Local Testing Updates
 
@@ -50,7 +51,7 @@
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
-- Fixes a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
+- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 
 #### Improvements
 

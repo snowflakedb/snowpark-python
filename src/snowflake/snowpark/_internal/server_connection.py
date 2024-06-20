@@ -735,7 +735,7 @@ def _fix_pandas_df_fixed_type(
                     except OverflowError:
                         # Return the original input even if pandas.to_numeric errors
                         pd_df[pandas_col_name] = pandas.to_numeric(
-                            pd_df[pandas_col_name], errors="ignore"
+                            pd_df[pandas_col_name]
                         )
                 else:
                     pd_df[pandas_col_name] = pandas.to_numeric(

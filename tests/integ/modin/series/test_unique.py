@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from decimal import Decimal
 from typing import Any
 
 import modin.pandas as pd
@@ -32,6 +33,12 @@ HOMOGENEOUS_INPUT_DATA_FOR_SERIES = [
         native_pd.Series([1, 2, -(2**63) - 1, -(2**64)]),
         marks=pytest.mark.xfail(
             reason="Represent overflow using float instead of integer",
+        ),
+    ),
+    pytest.param(
+        native_pd.Series([Decimal(1.5), Decimal(2**64 - 1)], dtype=object),
+        marks=pytest.mark.xfail(
+            reason="Represent Decimal using float instead of integer as pandas does not recognize it",
         ),
     ),
 ]
