@@ -10953,19 +10953,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     quoted_identifier: iff(
                         count(col(quoted_identifier)).over(window_expr) >= min_periods,
                         when(
-                            # If STDDEV is Null, return NaN
+                            # If STDDEV is Null (like when the window has 1 element), return NaN
+                            # Note that in Python, np.nan / np.inf results in np.nan, so this check must come first
                             builtin("stddev")(col(quoted_identifier))
                             .over(window_expr)
                             .is_null(),
                             pandas_lit(None),
                         )
                         .when(
-                            # Elif (N-ddof) is negative number, return NaN
+                            # Elif (N-ddof) is negative number, return NaN to mimic pandas sqrt of a negative number
                             count(col(quoted_identifier)).over(window_expr) - ddof < 0,
                             pandas_lit(None),
                         )
                         .when(
-                            # Elif (N-ddof) is 0, return np.inf
+                            # Elif (N-ddof) is 0, return np.inf to mimic pandas division by 0
                             count(col(quoted_identifier)).over(window_expr) - ddof == 0,
                             pandas_lit(np.inf),
                         )
