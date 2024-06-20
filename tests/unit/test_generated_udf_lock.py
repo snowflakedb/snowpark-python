@@ -37,9 +37,9 @@ def test_lock_function(has_lock):
 
     @cachetools.cached({})
     def load_model():
-        nonlocal load_model_called
         time.sleep(0.5)  # simulate a long operation
         with lock:
+            nonlocal load_model_called
             load_model_called += 1
 
     def mock_udf_handler():
