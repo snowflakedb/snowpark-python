@@ -81,6 +81,13 @@ modin.utils._inherit_docstrings(
     overwrite_existing=True,
 )(modin.pandas.series_utils.DatetimeProperties)
 
+# Instrument telemetry on external classes
+from snowflake.snowpark.modin.plugin._internal.telemetry import (  # noqa: E402
+    register_series_telemetry,
+)
+
+register_series_telemetry()
+
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
 # is in public or private preview. They likely don't know or care that we are

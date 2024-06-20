@@ -108,7 +108,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset):
+class StopUsingThisSeries(BasePandasDataset):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 

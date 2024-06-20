@@ -1733,7 +1733,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -1874,8 +1874,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
+        from modin.pandas import Series
+
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -8018,7 +8019,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             New QueryCompiler that contains specified rows.
         """
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None
