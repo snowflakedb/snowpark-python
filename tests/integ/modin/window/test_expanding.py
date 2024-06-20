@@ -72,7 +72,7 @@ def test_expanding_series(agg_func, min_periods):
     )
 
 
-@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1])
+@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1, 2])
 def test_expanding_sem_ddof(ddof):
     with SqlCounter(query_count=1):
         native_df = native_pd.DataFrame(
@@ -85,7 +85,6 @@ def test_expanding_sem_ddof(ddof):
             lambda df: df.expanding().sem(numeric_only=True, ddof=ddof),
         )
     with SqlCounter(query_count=1):
-        # Test SQRT(N-ddof) is values 1, 0, -0.5, -1
         native_df = native_pd.DataFrame(
             {
                 "A": ["h", np.nan, "l", "l", "o"],

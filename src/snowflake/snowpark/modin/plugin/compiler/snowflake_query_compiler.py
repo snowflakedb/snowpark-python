@@ -10952,10 +10952,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 {
                     quoted_identifier: iff(
                         count(col(quoted_identifier)).over(window_expr) >= min_periods,
-                        # If (N-ddof) is negative number, return NaN instead of attempting to sqrt
-                        iff(
+                        when(
+                            # If STDDEV is Null, return NaN
+                            builtin("stddev")(col(quoted_identifier))
+                            .over(window_expr)
+                            .is_null(),
+                            pandas_lit(None),
+                        )
+                        .when(
+                            # Elif (N-ddof) is negative number, return NaN
                             count(col(quoted_identifier)).over(window_expr) - ddof < 0,
                             pandas_lit(None),
+                        )
+                        .when(
+                            # Elif (N-ddof) is 0, return np.inf
+                            count(col(quoted_identifier)).over(window_expr) - ddof == 0,
+                            pandas_lit(np.inf),
+                        )
+                        .otherwise(
+                            # Else compute STDDEV/SQRT(N-ddof)
                             builtin("stddev")(col(quoted_identifier)).over(window_expr)
                             / builtin("sqrt")(
                                 count(col(quoted_identifier)).over(window_expr) - ddof

@@ -126,7 +126,7 @@ def test_rolling_series(window, min_periods, center, agg_func):
             )
 
 
-@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1])
+@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1, 2])
 @sql_count_checker(query_count=1)
 def test_rolling_sem_ddof(ddof):
     native_df = native_pd.DataFrame(
