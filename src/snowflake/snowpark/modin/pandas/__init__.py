@@ -88,6 +88,7 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from modin.pandas import Series  # type: ignore[import]
 from modin.pandas import plotting  # type: ignore[import]
 
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
@@ -142,7 +143,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_xml,
     to_pickle,
 )
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 
 # The extensions assigned to this module
@@ -312,6 +312,8 @@ _SKIP_TOP_LEVEL_ATTRS = [
     # would override register_pd_accessor and similar methods defined in our own modin.pandas.extensions
     # module.
     "api",
+    # We're already using the upstream copy of the Series class, so there's no need to re-export it.
+    "Series",
 ]
 
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.

@@ -40,6 +40,7 @@ from modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
 
 # from . import _update_engine
 from modin.pandas.iterator import PartitionIterator
+from modin.pandas.series import Series
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -78,7 +79,6 @@ from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )

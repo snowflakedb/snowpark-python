@@ -689,7 +689,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Aggregate using one or more operations over the specified axis.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         origin_axis = axis
         axis = self._get_axis_number(axis)
@@ -1105,7 +1105,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # dtype can be a series, a dict, or a scalar. If it's series or scalar,
         # convert it to a dict before passing it to the query compiler.
         raise_if_native_pandas_objects(dtype)
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         if isinstance(dtype, Series):
             dtype = dtype.to_pandas()
@@ -1587,7 +1587,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if isinstance(cond, Callable):
             raise NotImplementedError("Do not support callable for 'cond' parameter.")
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         if isinstance(cond, Series):
             cond._query_compiler._shape_hint = "column"
@@ -1646,7 +1646,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if isinstance(cond, Callable):
             raise NotImplementedError("Do not support callable for 'cond' parameter.")
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         if isinstance(cond, Series):
             cond._query_compiler._shape_hint = "column"
@@ -2270,7 +2270,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         # This pattern is seen throughout this file so we should try to correct it
         # when we have a more general way of resetting the name to None
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         if isinstance(result_qc, Series):
             result_qc.name = None
@@ -2362,7 +2362,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Return number of unique elements in the `BasePandasDataset`.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         axis = self._get_axis_number(axis)
         result = self._reduce_dimension(

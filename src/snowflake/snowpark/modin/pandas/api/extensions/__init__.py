@@ -19,11 +19,9 @@
 # existing code originally distributed by the Modin project, under the Apache License,
 # Version 2.0.
 
-from .extensions import (
-    register_dataframe_accessor,
-    register_pd_accessor,
-    register_series_accessor,
-)
+from modin.pandas.api.extensions import register_series_accessor
+
+from .extensions import register_dataframe_accessor, register_pd_accessor
 
 __all__ = [
     "register_dataframe_accessor",

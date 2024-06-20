@@ -7,23 +7,21 @@ File containing Series APIs defined in the Modin API layer, but with different b
 pandas, such as `Series.memory_usage`.
 """
 
-from typing import Union
+from __future__ import annotations
 
 import pandas as native_pd
+from pandas._libs.lib import NoDefault, no_default
+from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    snowpark_pandas_telemetry_method_decorator,
-)
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
 @_inherit_docstrings(native_pd.Series.memory_usage, apilink="pandas.Series")
 @register_series_accessor("memory_usage")
-@snowpark_pandas_telemetry_method_decorator
 def memory_usage(self, index: bool = True, deep: bool = False) -> int:
     """
     Return zero bytes for memory_usage
@@ -34,8 +32,7 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> int:
 
 @_inherit_docstrings(native_pd.Series.isin, apilink="pandas.Series")
 @register_series_accessor("isin")
-@snowpark_pandas_telemetry_method_decorator
-def isin(self, values: Union[set, ListLike]) -> Series:
+def isin(self, values: set | ListLike) -> Series:
     """
     Whether elements in Series are contained in `values`.
 
@@ -117,3 +114,82 @@ def isin(self, values: Union[set, ListLike]) -> Series:
         values = list(values)
 
     return super(Series, self).isin(values)
+
+
+@register_series_accessor("groupby")
+def groupby(
+    self,
+    by=None,
+    axis: Axis = 0,
+    level: IndexLabel | None = None,
+    as_index: bool = True,
+    sort: bool = True,
+    group_keys: bool = True,
+    observed: bool | NoDefault = no_default,
+    dropna: bool = True,
+):
+    """
+    Group Series using a mapper or by a Series of columns.
+    """
+    from snowflake.snowpark.modin.pandas.groupby import (
+        SeriesGroupBy,
+        validate_groupby_args,
+    )
+
+    validate_groupby_args(by, level, observed)
+
+    if not as_index:
+        raise TypeError("as_index=False only valid with DataFrame")
+
+    axis = self._get_axis_number(axis)
+    return SeriesGroupBy(
+        self,
+        by,
+        axis,
+        level,
+        as_index,
+        sort,
+        group_keys,
+        idx_name=None,
+        observed=observed,
+        dropna=dropna,
+    )
+
+
+@register_series_accessor("cat")
+@property
+def cat(self):  # noqa: RT01, D200
+    """
+    Accessor object for categorical properties of the Series values.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    from snowflake.snowpark.modin.pandas.series_utils import CategoryMethods
+
+    return CategoryMethods(self)
+
+
+# seems to be issues with CachedAccessor from upstream
+
+
+@register_series_accessor("dt")
+@property
+def dt(self):
+    from modin.pandas.series_utils import DatetimeProperties
+
+    return DatetimeProperties(self)
+
+
+@register_series_accessor("str")
+@property
+def str(self):
+    from modin.pandas.series_utils import StringMethods
+
+    return StringMethods(self)
+
+
+# modin 0.28.1 doesn't define type annotations on properties, so we override this
+# to satisfy test_type_annotations.py
+@register_series_accessor("empty")
+@property
+def empty(self) -> bool:
+    return super().empty
