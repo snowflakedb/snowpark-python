@@ -844,6 +844,7 @@ class Index:
         >>> idx is new_idx
         False
         """
+        WarningMessage.single_warning("Snowpark pandas ignores the `deep` parameter")
         return Index(
             self._query_compiler.copy(),
             name=name,
