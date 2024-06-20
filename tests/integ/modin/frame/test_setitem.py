@@ -351,9 +351,11 @@ def test_df_setitem_replace_column_with_single_column(column, key):
 
         # convert to snow objects when testing for Snowpark pandas
         if isinstance(df, pd.DataFrame):
-            if isinstance(column, native_pd.Index):
+            if isinstance(column, native_pd.Index) and not isinstance(
+                column, native_pd.DatetimeIndex
+            ):
                 column = pd.Index(column)
-            elif isinstance(column, native_pd.Series):
+            if isinstance(column, native_pd.Series):
                 column = try_cast_to_snowpark_pandas_series(column)
 
         df[key] = column
@@ -361,12 +363,17 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     expected_join_count = 2
     if isinstance(column, native_pd.Series):
         expected_join_count = 1
-    elif isinstance(column, native_pd.Index):
+    elif isinstance(column, native_pd.Index) and not isinstance(
+        column, native_pd.DatetimeIndex
+    ):
         expected_join_count = 4
 
     # 3 extra queries, 2 for iter and 1 for tolist
     with SqlCounter(
-        query_count=4 if isinstance(column, native_pd.Index) else 1,
+        query_count=4
+        if isinstance(column, native_pd.Index)
+        and not isinstance(column, native_pd.DatetimeIndex)
+        else 1,
         join_count=expected_join_count,
     ):
         eval_snowpark_pandas_result(

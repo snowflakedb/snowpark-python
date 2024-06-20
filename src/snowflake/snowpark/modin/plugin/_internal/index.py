@@ -1493,7 +1493,9 @@ class Index:
         ValueError
             If the data is not length = 1.
         """
-        return self._query_compiler.get_index_item()
+        if len(self) == 1:
+            return self.tolist()[0]
+        raise ValueError("can only convert an array of size 1 to a Python scalar")
 
     # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
     def to_series(
