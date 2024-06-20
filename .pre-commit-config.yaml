@@ -80,7 +80,10 @@ repos:
           - flake8-init-return == 1.0.0
           - flake8-print
         args:
-          - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+          # prints are allowed in test files
+          - --per-file-ignores=tests/*.py:T201
+          # Ignore errors for protobuf generated file
+          - --exclude=src/snowflake/snowpark/_internal/proto/ast_pb2.py
     # Use mypy for static type checking.
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: 'v0.991'
