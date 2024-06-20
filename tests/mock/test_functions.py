@@ -4,6 +4,8 @@
 import datetime
 import math
 
+import pytest
+
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column, _to_col_if_str
@@ -22,7 +24,7 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     to_char,
     to_date,
 )
-from snowflake.snowpark.mock._functions import patch
+from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 
 
@@ -300,3 +302,28 @@ def test_function_mock_and_call_neg(session):
     with pytest.raises(NotImplementedError):
         df = session.create_dataframe([[1]]).to_df(["a"])
         df.select(foobar("a")).collect()
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=True)",
+    reason="Only test local testing code in local testing mode.",
+)
+def test_function_register_unregister(session):
+    registry = MockedFunctionRegistry()
+
+    def _abs(x):
+        return math.abs(x)
+
+    # Try register/unregister using actual function
+    assert registry.get_function("abs") is None
+    mocked = registry.register(abs, _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister(abs)
+    assert registry.get_function("abs") is None
+
+    # Try register/unregister using function name
+    assert registry.get_function("abs") is None
+    mocked = registry.register("abs", _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister("abs")
+    assert registry.get_function("abs") is None
