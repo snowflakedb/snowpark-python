@@ -640,6 +640,10 @@ def test_close_session_twice(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
+)
 def test_sql_simplifier_disabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
         assert new_session.sql_simplifier_enabled is True
@@ -657,6 +661,10 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
+)
 def test_cte_optimization_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
         assert new_session.cte_optimization_enabled is False
