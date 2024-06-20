@@ -10912,8 +10912,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         numeric_only: bool = False,
         *args: Any,
         **kwargs: Any,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="sem", class_="Rolling")
+    ) -> "SnowflakeQueryCompiler":
+        return self._window_agg(
+            window_func=WindowFunction.ROLLING,
+            agg_func="sem",
+            window_kwargs=rolling_kwargs,
+            agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
+        )
 
     def rolling_rank(
         self,
@@ -10983,26 +10988,67 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Handle case where min_periods = None
         min_periods = 0 if min_periods is None else min_periods
         # Perform Aggregation over the window_expr
-        new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                # If aggregation is count use count on row_position_quoted_identifier
-                # to include NULL values for min_periods comparison
-                quoted_identifier: iff(
-                    count(col(row_position_quoted_identifier)).over(window_expr)
-                    >= min_periods
-                    if agg_func == "count"
-                    else count(col(quoted_identifier)).over(window_expr) >= min_periods,
-                    get_snowflake_agg_func(agg_func, agg_kwargs)(
-                        # Expanding is cumulative so replace NULL with 0 for sum aggregation
-                        builtin("zeroifnull")(col(quoted_identifier))
-                        if window_func == WindowFunction.EXPANDING and agg_func == "sum"
-                        else col(quoted_identifier)
-                    ).over(window_expr),
-                    pandas_lit(None),
-                )
-                for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-            }
-        ).frame
+        if agg_func == "sem":
+            # Standard error of mean (SEM) does not have native Snowflake engine support
+            # so calculate as STDDEV/SQRT(N-ddof)
+            ddof = agg_kwargs.get("ddof", 1)
+            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    quoted_identifier: iff(
+                        count(col(quoted_identifier)).over(window_expr) >= min_periods,
+                        when(
+                            # If STDDEV is Null (like when the window has 1 element), return NaN
+                            # Note that in Python, np.nan / np.inf results in np.nan, so this check must come first
+                            builtin("stddev")(col(quoted_identifier))
+                            .over(window_expr)
+                            .is_null(),
+                            pandas_lit(None),
+                        )
+                        .when(
+                            # Elif (N-ddof) is negative number, return NaN to mimic pandas sqrt of a negative number
+                            count(col(quoted_identifier)).over(window_expr) - ddof < 0,
+                            pandas_lit(None),
+                        )
+                        .when(
+                            # Elif (N-ddof) is 0, return np.inf to mimic pandas division by 0
+                            count(col(quoted_identifier)).over(window_expr) - ddof == 0,
+                            pandas_lit(np.inf),
+                        )
+                        .otherwise(
+                            # Else compute STDDEV/SQRT(N-ddof)
+                            builtin("stddev")(col(quoted_identifier)).over(window_expr)
+                            / builtin("sqrt")(
+                                count(col(quoted_identifier)).over(window_expr) - ddof
+                            ),
+                        ),
+                        pandas_lit(None),
+                    )
+                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                }
+            ).frame
+        else:
+            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    # If aggregation is count use count on row_position_quoted_identifier
+                    # to include NULL values for min_periods comparison
+                    quoted_identifier: iff(
+                        count(col(row_position_quoted_identifier)).over(window_expr)
+                        >= min_periods
+                        if agg_func == "count"
+                        else count(col(quoted_identifier)).over(window_expr)
+                        >= min_periods,
+                        get_snowflake_agg_func(agg_func, agg_kwargs)(
+                            # Expanding is cumulative so replace NULL with 0 for sum aggregation
+                            builtin("zeroifnull")(col(quoted_identifier))
+                            if window_func == WindowFunction.EXPANDING
+                            and agg_func == "sum"
+                            else col(quoted_identifier)
+                        ).over(window_expr),
+                        pandas_lit(None),
+                    )
+                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                }
+            ).frame
         return self.__constructor__(new_frame)
 
     def expanding_count(
@@ -11215,8 +11261,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         expanding_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-    ) -> None:
-        ErrorMessage.method_not_implemented_error(name="sem", class_="Expanding")
+    ) -> "SnowflakeQueryCompiler":
+        return self._window_agg(
+            window_func=WindowFunction.EXPANDING,
+            agg_func="sem",
+            window_kwargs=expanding_kwargs,
+            agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
+        )
 
     def expanding_rank(
         self,
