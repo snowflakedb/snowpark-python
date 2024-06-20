@@ -4,7 +4,7 @@
 
 import threading
 import time
-from threading import RLock
+from threading import Event, RLock
 
 import cachetools
 import pytest
@@ -12,18 +12,13 @@ import pytest
 lock = RLock()
 
 
-class InvokedFlag:
-    def __init__(self) -> None:
-        self.invoked = False
-
-
 def lock_function_once(f, flag):
     def wrapper(*args, **kwargs):
-        if not flag.invoked:
+        if not flag.is_set():
             with lock:
-                if not flag.invoked:
+                if not flag.is_set():
                     result = f(*args, **kwargs)
-                    flag.invoked = True
+                    flag.set()
                     return result
                 return f(*args, **kwargs)
         return f(*args, **kwargs)
@@ -35,17 +30,16 @@ def lock_function_once(f, flag):
 def test_lock_function(has_lock):
     load_model_called = 0
 
-    @cachetools.cached({})
+    @cachetools.cached({}, lock=lock)
     def load_model():
+        nonlocal load_model_called
         time.sleep(0.5)  # simulate a long operation
-        with lock:
-            nonlocal load_model_called
-            load_model_called += 1
+        load_model_called += 1
 
     def mock_udf_handler():
         load_model()
 
-    locked_mock_udf_handler = lock_function_once(mock_udf_handler, InvokedFlag())
+    locked_mock_udf_handler = lock_function_once(mock_udf_handler, Event())
 
     threads = []
     for _ in range(10):
