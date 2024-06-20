@@ -131,7 +131,7 @@ RAND_HIGH = 100
 TEST_DF_DATA = {
     "float_nan_data": {
         f"col{int((i - NCOLS / 2) % NCOLS + 1)}": [
-            x if (j != i and j - 2 != i and j + 2 != i) else np.NaN
+            x if (j != i and j - 2 != i and j + 2 != i) else np.nan
             for j, x in enumerate(
                 random_state.uniform(RAND_LOW, RAND_HIGH, size=(NROWS))
             )
@@ -183,12 +183,18 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         the arguments to the pandas dataframe constructor.
     """
     native_kw_args = kwargs.copy()
-    if "index" in native_kw_args:
-        native_kw_args["index"] = try_convert_index_to_native(native_kw_args["index"])
-    if "columns" in native_kw_args:
-        native_kw_args["columns"] = try_convert_index_to_native(
-            native_kw_args["columns"]
-        )
+    if (
+        "index" in native_kw_args
+        and isinstance(native_kw_args["index"], native_pd.Index)
+        and not isinstance(native_kw_args["index"], pd.MultiIndex)
+    ):
+        kwargs["index"] = pd.Index(native_kw_args["index"])
+    if (
+        "columns" in native_kw_args
+        and isinstance(native_kw_args["columns"], native_pd.Index)
+        and not isinstance(native_kw_args["columns"], pd.MultiIndex)
+    ):
+        kwargs["columns"] = pd.Index(native_kw_args["columns"], convert_to_lazy=False)
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
