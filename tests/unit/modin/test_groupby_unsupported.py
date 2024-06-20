@@ -11,7 +11,6 @@ import pytest
         (lambda se: se.groupby("A").__len__(), "__len__"),
         (lambda se: se.groupby("A").__bytes__(), "__bytes__"),
         (lambda se: se.groupby("A").corrwith, "corrwith"),
-        (lambda se: se.groupby("A").get_group("group"), "get_group"),
         (lambda se: se.groupby("A").dtypes, "dtypes"),
         (lambda se: se.groupby("A").pipe(lambda x: x.max() - x.min()), "pipe"),
         (lambda se: se.groupby("A").filter(lambda x: x.mean() > 3), "filter"),
