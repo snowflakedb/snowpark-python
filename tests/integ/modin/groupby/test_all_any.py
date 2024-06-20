@@ -3,11 +3,15 @@
 #
 # tests pulled from pandas/pandas/tests/groupby/test_min_max.py
 #
+
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 
@@ -45,20 +49,26 @@ def test_all_any_empty():
 
 
 @pytest.mark.parametrize(
-    "data",
+    "data, msg",
     [
-        {"by": ["a", "b", "a", "c"], "value": ["a", "", None, "abc"]},
-        {"by": ["a", "b", "a", "c"], "value": [1.1, 2.0, 0.0, np.nan]},
+        (
+            {"by": ["a", "b", "a", "c"], "value": ["a", "", None, "abc"]},
+            "Boolean value 'a' is not recognized",
+        ),
+        (
+            {"by": ["a", "b", "a", "c"], "value": [1.1, 2.0, 0.0, np.nan]},
+            re.escape(
+                """invalid type [TO_BOOLEAN("values"."value")] for parameter 'TO_BOOLEAN'"""
+            ),
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_all_any_invalid_types(data):
-    msg = "Snowpark pandas GroupBy.all API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        pd.DataFrame(data).groupby("by").all()
-    msg = "Snowpark pandas GroupBy.any API doesn't yet support non-integer/boolean columns"
-    with pytest.raises(NotImplementedError, match=msg):
-        pd.DataFrame(data).groupby("by").any()
+def test_all_any_invalid_types(data, msg):
+    with pytest.raises(SnowparkSQLException, match=msg):
+        pd.DataFrame(data).groupby("by").all().to_pandas()
+    with pytest.raises(SnowparkSQLException, match=msg):
+        pd.DataFrame(data).groupby("by").any().to_pandas()
 
 
 @sql_count_checker(query_count=5, join_count=1, udtf_count=1)

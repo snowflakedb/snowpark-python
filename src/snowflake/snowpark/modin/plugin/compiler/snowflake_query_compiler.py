@@ -2733,27 +2733,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels_for_columns_to_exclude=by_list,
             )
 
-        if agg_func in ("all", "any"):
-            empty_columns = (
-                len(
-                    [
-                        label
-                        for label in query_compiler._modin_frame.data_columns_index
-                        if label not in by_list
-                    ]
-                )
-                == 0
-            )
-            if not empty_columns and not all(
-                is_bool_dtype(t) or is_integer_dtype(t)
-                for label, t in query_compiler.dtypes.items()
-                if label not in by_list
-            ):
-                # Raise error if columns are non-integer/boolean
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas GroupBy.{agg_func} API doesn't yet support non-integer/boolean columns"
-                )
-
         internal_frame = query_compiler._modin_frame
 
         # get a map between the Snowpark pandas column to the aggregation function needs to be applied on the column
