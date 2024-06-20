@@ -196,7 +196,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.min(),
     lambda idx: idx.max(),
     lambda idx: idx.reindex(),
-    lambda idx: idx.rename(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),

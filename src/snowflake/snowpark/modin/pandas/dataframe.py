@@ -317,7 +317,7 @@ class DataFrame(BasePandasDataset):
         else:
             return result
 
-    def _get_columns(self) -> pd.Index:
+    def _get_columns(self) -> pd.Index | pandas.MultiIndex:
         """
         Get the columns for this Snowpark pandas ``DataFrame``.
 
@@ -327,7 +327,25 @@ class DataFrame(BasePandasDataset):
             The all columns.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        return self._query_compiler.columns
+        if self._query_compiler._modin_frame.is_multiindex(axis=1):
+            return pandas.MultiIndex.from_tuples(
+                self._query_compiler._modin_frame.data_column_pandas_labels,
+                names=self._query_compiler._modin_frame.data_column_pandas_index_names,
+            )
+        else:
+            return pd.Index(
+                self,
+                name=self._query_compiler._modin_frame.data_column_pandas_index_names[
+                    0
+                ],
+                # setting tupleize_cols=False to avoid creating a MultiIndex
+                # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
+                # a MultiIndex will be created incorrectly
+                tupleize_cols=False,
+                # setting is_lazy as false because we want to store the columns locally
+                convert_to_lazy=False,
+                convert_to_index=False,
+            )
 
     def _set_columns(self, new_columns: Axes) -> None:
         """
