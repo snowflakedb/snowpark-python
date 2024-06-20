@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
@@ -33,8 +33,10 @@ def test_1d(axis):
         )
     if axis is None:
         expected_query_count = 3
-    else:
+    elif axis in [0, "index"]:
         expected_query_count = 2
+    else:
+        expected_query_count = 1
     with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
             pd.DataFrame({"a": [1], "b": [2], "c": [3]}),
@@ -43,13 +45,13 @@ def test_1d(axis):
         )
 
 
-@sql_count_checker(query_count=2)
 def test_2d(axis):
-    eval_snowpark_pandas_result(
-        pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
-        native_pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
-        lambda df: df.squeeze(axis=axis),
-    )
+    with SqlCounter(query_count=1 if axis in [1, "columns"] else 2):
+        eval_snowpark_pandas_result(
+            pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
+            native_pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
+            lambda df: df.squeeze(axis=axis),
+        )
 
 
 def test_scalar(axis):

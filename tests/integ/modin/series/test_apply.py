@@ -415,7 +415,9 @@ def test_apply_and_map_numpy(func):
     "native_series, expected_query_count, expected_udf_count",
     [
         (
-            native_pd.Series(dtype=object, name="foo", index=pd.Index([], name="bar")),
+            native_pd.Series(
+                dtype=object, name="foo", index=native_pd.Index([], name="bar")
+            ),
             10,
             4,
         ),

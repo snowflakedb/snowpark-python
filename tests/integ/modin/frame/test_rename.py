@@ -104,7 +104,8 @@ class TestRename:
             assert_index_equal(renamed.index, native_pd.Index(["A", "B", "foo", "bar"]))
 
         # index with name
-        with SqlCounter(query_count=3, join_count=2):
+        # Two extra queries, one for converting to native pandas in renamer Dataframe constructor, one to get the name
+        with SqlCounter(query_count=2, join_count=1):
             index = Index(["foo", "bar"], name="name")
             renamer = DataFrame(data, index=index)
             renamed = renamer.rename(index={"foo": "bar", "bar": "foo"})

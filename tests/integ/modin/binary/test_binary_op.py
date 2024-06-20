@@ -404,8 +404,8 @@ def list_like_rhs_params(values):
         # The ndarray is created with the float dtype to avoid raising TypeError for operations between
         # a float and NoneType.
         pytest.param(np.array(values, dtype=float), id="ndarray"),
-        pytest.param(pd.Index(values), id="index"),
-        pytest.param(pd.Index(values, name="some name"), id="index_with_name"),
+        pytest.param(native_pd.Index(values), id="index"),
+        pytest.param(native_pd.Index(values, name="some name"), id="index_with_name"),
     ]
 
 
@@ -783,7 +783,7 @@ class TestFillValue:
         # fill_value is supposed to be used when either the lhs or rhs is NaN, not when both are NaN.
         def op_helper(ser):
             other = rhs
-            if isinstance(other, pd.Index) and isinstance(ser, native_pd.Series):
+            if isinstance(other, native_pd.Index) and isinstance(ser, native_pd.Series):
                 # Native pandas does not support binary operations between a Series and list-like objects -
                 # Series <op> list-like works as expected for all cases except when rhs is an Index object.
                 index_as_list = other.tolist()
@@ -2305,8 +2305,8 @@ DATAFRAME_DATAFRAME_TEST_LIST = [
     ),
     # test with np.Nan as well
     (
-        native_pd.DataFrame([[np.NaN, None, 3], [4, 5, 6]]),
-        native_pd.DataFrame([[1, -2, 3], [6, -5, np.NaN]]),
+        native_pd.DataFrame([[np.nan, None, 3], [4, 5, 6]]),
+        native_pd.DataFrame([[1, -2, 3], [6, -5, np.nan]]),
     ),
     # Test column alignment.
     (

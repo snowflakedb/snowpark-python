@@ -871,7 +871,7 @@ def get_valid_col_positions_from_col_labels(
                     )
                 )
             )
-            col_loc = col_loc.index
+            col_loc = pd.Index(col_loc, convert_to_lazy=False)
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
@@ -939,7 +939,10 @@ def get_valid_col_positions_from_col_labels(
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
         col_loc = pd.Index(
-            [label for label in col_loc if label in columns], dtype=object
+            [label for label in col_loc if label in columns],
+            dtype=object,
+            # we do not convert to lazy because we are using this index as columns
+            convert_to_lazy=False,
         )
 
         # `Index._get_indexer_strict` returns position index from label index

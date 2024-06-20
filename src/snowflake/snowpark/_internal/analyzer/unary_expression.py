@@ -2,12 +2,15 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Optional
+from typing import AbstractSet, Dict, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     NamedExpression,
     derive_dependent_columns,
+)
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
 )
 from snowflake.snowpark.types import DataType
 
@@ -32,6 +35,10 @@ class UnaryExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.LOW_IMPACT
 
 
 class Cast(UnaryExpression):
@@ -80,6 +87,11 @@ class Alias(UnaryExpression, NamedExpression):
     def __str__(self):
         return f"{self.child} {self.sql_operator} {self.name}"
 
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # do not add additional complexity for alias
+        return {}
+
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
@@ -88,3 +100,8 @@ class UnresolvedAlias(UnaryExpression, NamedExpression):
     def __init__(self, child: Expression) -> None:
         super().__init__(child)
         self.name = child.sql
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # this is a wrapper around child
+        return {}

@@ -17,7 +17,7 @@ NATIVE_INDEX_TEST_DATA = [
 ]
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_transpose(native_index):
     snow_index = pd.Index(native_index)
