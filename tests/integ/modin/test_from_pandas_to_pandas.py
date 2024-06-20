@@ -175,9 +175,9 @@ def test_value_type_mismatch_index_type(name, indices_dict):
 @sql_count_checker(query_count=1)
 def test_basic_type_data():
     check_result_from_and_to_pandas(
-        [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2],
+        # Excluded the first int value since Snowflake may map integers to different size, e.g., int8 or int64
+        [BASIC_TYPE_DATA1[1:], BASIC_TYPE_DATA2[1:]],
         expected_dtypes=[
-            "int64",  # snowflake maps all integer type back to int64
             "object",
             "float64",
             "object",
@@ -195,6 +195,7 @@ def test_base_index():
         [1, 2, 3],
         index=native_pd.Index([8, 9, 9]),
         columns="base-index-homogeneous-type",
+        check_dtype=False,
     )
 
 
@@ -222,13 +223,16 @@ def test_column_name(col_name):
     check_result_from_and_to_pandas(
         [[1, 2], [2, 3]],
         columns=["5", col_name],
+        check_dtype=False,
     )
 
 
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_index_name(index_name):
-    check_result_from_and_to_pandas([1, 2], index=pd.RangeIndex(2, name=index_name))
+    check_result_from_and_to_pandas(
+        [1, 2], index=pd.RangeIndex(2, name=index_name), check_dtype=False
+    )
 
 
 @pytest.mark.parametrize("pandas_label", [None, *VALID_PANDAS_LABELS])
@@ -642,4 +646,4 @@ def test_create_df_from_series():
     native_df = native_pd.DataFrame(native_data)
     snow_df = pd.DataFrame(data)
 
-    assert_frame_equal(snow_df, native_df)
+    assert_frame_equal(snow_df, native_df, check_dtype=False)
