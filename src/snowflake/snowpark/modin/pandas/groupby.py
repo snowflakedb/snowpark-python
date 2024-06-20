@@ -188,9 +188,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=dict(numeric_only=numeric_only),
         )
 
-    def any(self, skipna=True):
+    def any(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="any", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_any,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     @property
     def plot(self):  # pragma: no cover
@@ -731,9 +735,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="__len__", class_="GroupBy")
 
-    def all(self, skipna=True):
+    def all(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_all,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     def size(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
