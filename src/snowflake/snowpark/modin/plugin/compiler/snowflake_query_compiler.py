@@ -5038,30 +5038,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ]
 
         if as_index:
-            # When as_index=True, the result is a Series with a MultiIndex index. Each column in the
-            # original frame is treated as a level of this index.
-            raise NotImplementedError()
-        else:
-            # When as_index=False, the result is a DataFrame where count/proportion is appended as a new column.
-            # This is effectively the result of df.value_counts() sorted on the `by` columns.
-            return (
-                self.value_counts(
-                    subset=subset,
-                    normalize=normalize,
-                    sort=sort,
-                    ascending=ascending,
-                    bins=bins,
-                    dropna=dropna,
-                )
-                .reset_index()  # Demote MultiIndex index back to normal columns
-                .sort_rows_by_column_values(  # Sort on 'by' columns
-                    columns=by,
-                    ascending=[True] * len(by),
-                    kind="quicksort",
-                    na_position="last",
-                    ignore_index=True,
-                )
+            # When as_index=True, the result is a Series with a MultiIndex index.
+            result = self.value_counts(
+                subset=subset,
+                normalize=normalize,
+                sort=sort,
+                bins=bins,
+                dropna=dropna,
             )
+        else:
+            # When as_index=False, the result is a DataFrame where count/proportion is appended as a new named column.
+            sort_cols = by
+            result = self.value_counts(
+                subset=subset,
+                normalize=normalize,
+                bins=bins,
+                dropna=dropna,
+            ).reset_index()
+            result = result.set_columns(
+                result._modin_frame.data_column_pandas_labels[:-1]
+                + ["proportion" if normalize else "count"]
+            )
+        # Always sort the result by all columns except proportion/count
+        sort_cols = self._modin_frame.data_column_pandas_labels
+        ascending_cols = [True] * len(sort_cols)
+        if sort:
+            # When sort=True, also sort on the value column (always the last)
+            sort_cols.append(
+                result._modin_frame.data_column_pandas_labels[-1],
+            )
+            ascending_cols.append(ascending)
+        return result.sort_rows_by_column_values(
+            columns=sort_cols,
+            ascending=ascending_cols,
+            kind="quicksort",
+            na_position="last",
+            ignore_index=not as_index,  # When as_index=False, take the default positional index
+        )
 
     def _get_dummies_helper(
         self,
