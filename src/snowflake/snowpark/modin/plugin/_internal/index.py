@@ -1561,10 +1561,13 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import DataFrame
 
+        pandas_index = self.to_pandas()
         if name is None:
             name = self.name if self.name is not None else 0
 
-        return DataFrame(data=self, index=None if not index else self, columns=[name])
+        return DataFrame(
+            data=pandas_index, index=None if not index else pandas_index, columns=[name]
+        )
 
     @index_not_implemented()
     def fillna(self) -> None:

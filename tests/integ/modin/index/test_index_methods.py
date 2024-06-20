@@ -21,7 +21,7 @@ TEST_DFS = [
     native_pd.DataFrame({"col1": [1, 2, 3], "col2": [3, 4, 5], "col3": [5, 6, 7]}),
     native_pd.DataFrame(
         data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
-        index=native_pd.Index([[1, 2], [2, 3], [3, 4]], name="here"),
+        index=native_pd.Index([[1, 2], [2, 3], [3, 4]]),
     ),
     native_pd.DataFrame([1]),
 ]
@@ -29,7 +29,7 @@ TEST_DFS = [
 NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([], dtype="object"),
     native_pd.Index([[1, 2], [2, 3], [3, 4]]),
-    native_pd.Index([1, 2, 3], name="this"),
+    native_pd.Index([1, 2, 3]),
     native_pd.Index([3, np.nan, 5]),
     native_pd.Index([5, None, 7]),
     native_pd.Index([1]),
@@ -325,12 +325,12 @@ def test_df_index_columns_to_series(native_df):
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index):
     snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=2):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_index.to_frame(), native_index.to_frame()
         )
 
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=2):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_index.to_frame(index=False, name="name"),
             native_index.to_frame(index=False, name="name"),
@@ -340,7 +340,7 @@ def test_index_to_frame(native_index):
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_frame(native_df):
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=7):
+    with SqlCounter(query_count=3):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_df.index.to_frame(),
             native_df.index.to_frame(),
@@ -354,7 +354,7 @@ def test_df_index_columns_to_frame(native_df):
             check_column_type=False,
         )
 
-    with SqlCounter(query_count=6):
+    with SqlCounter(query_count=3):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snow_df.index.to_frame(index=False, name=1),
             native_df.index.to_frame(index=False, name=1),
