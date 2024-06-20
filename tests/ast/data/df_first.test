@@ -2,11 +2,18 @@
 
 df = session.table("test_table")
 
+df = df.first(-5)
+
 df = df.first(2)
 
+df = df.first()
 
 ## EXPECTED OUTPUT
 
 res1 = session.table("test_table")
 
-res2 = res1.first(2)
+res2 = res1.first(-5)
+
+res3 = res2.first(2)
+
+res4 = res3.first(1)

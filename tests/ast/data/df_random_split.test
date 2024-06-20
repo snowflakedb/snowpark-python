@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+weights = [0.1, 0.2, 0.3]
+
+df2 = df.random_split(weights)
+
+df3 = df.random_split(weights, seed=24)
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = [0.1, 0.2, 0.3]
+
+res3 = res1.random_split(res2)
+
+res4 = res1.random_split(res2, 24)
