@@ -28,15 +28,25 @@ set -euxo pipefail
 REMOTE_HOME=$(ssh $HOST "bash -c 'echo \$HOME'")
 UNPARSER_DIR="Snowflake/trunk/Snowpark/unparser"
 JAR_HOME="$REMOTE_HOME/$UNPARSER_DIR/target/scala-2.13/unparser-assembly-0.1.jar"
+LOCAL_TARGET_FILENAME="unparser-assembly-0.1.jar"
+
 
 # Step 1: Build the Unparser JAR using sbt if it does not exist
-ssh $HOST "bash -c 'cd Snowflake/trunk/Snowpark/unparser;sbt assembly'" || true
+ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark/unparser:unparser'"
+JAR_HOME=$(ssh $HOST "bash -c 'cd Snowflake/trunk;bazel cquery --output=files //Snowpark/unparser:unparser.jar'")
+JAR_HOME=$REMOTE_HOME/Snowflake/trunk/$JAR_HOME
+echo "Remote JAR_HOME=$JAR_HOME"
 
 # Step 2: Copy file to local
 mkdir -p ~/.snowflake
-scp $HOST:$JAR_HOME ~/.snowflake
+
+# Remove file if exists.
+LOCAL_TARGET_PATH=~/.snowflake/$LOCAL_TARGET_FILENAME
+rm -f $LOCAL_TARGET_PATH
+
+scp $HOST:$JAR_HOME $LOCAL_TARGET_PATH
 
 # Step 3: Instruct user to export SNOWPARK_UNPARSER_JAR to be used in test cases
  echo "To use the pulled Snowpark Unparser JAR please set the environment variable"
- echo "export SNOWPARK_UNPARSER_JAR=~/.snowflake/unparser-assembly-0.1.jar"
- echo "Or you may also provide it as an argument when running ast tests via --unparser-jar=~/.snowflake/unparser-assembly-0.1.jar"
+ echo "export SNOWPARK_UNPARSER_JAR=$LOCAL_TARGET_PATH"
+ echo "Or you may also provide it as an argument when running ast tests via --unparser-jar=$LOCAL_TARGET_PATH"
