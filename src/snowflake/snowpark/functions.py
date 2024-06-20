@@ -295,10 +295,21 @@ def column(df_alias: str, col_name: str) -> Column:
 
 
 def column(name1: str, name2: Optional[str] = None) -> Column:
+    # When name2 is None, corresponds to col(col_name: str).
+    # Else, corresponds to col(df_alias: str, col_name: str)
+    kwargs = (
+        {"df_alias": name1, "col_name": name2}
+        if name2 is not None
+        else {"col_name": name1}
+    )
+
+    expr = proto.Expr()
+    build_fn_apply(expr, "column", kwargs=kwargs)
+
     if name2 is None:
-        return Column(name1)
+        return Column(name1, ast=expr)
     else:
-        return Column(name1, name2)
+        return Column(name1, name2, ast=expr)
 
 
 def lit(literal: LiteralType) -> Column:
