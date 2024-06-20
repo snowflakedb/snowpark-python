@@ -188,13 +188,22 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     def value_counts(
         self,
-        subset=None,
+        subset: Optional[list[str]] = None,
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
         dropna: bool = True,
     ):
-        ErrorMessage.method_not_implemented_error(name="value_counts", class_="GroupBy")
+        return self._query_compiler.groupby_value_counts(
+            by=self._by,
+            axis=self._axis,
+            groupby_kwargs=self._kwargs,
+            subset=subset,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            dropna=dropna,
+        )
 
     def mean(
         self,
@@ -1313,6 +1322,32 @@ class SeriesGroupBy(DataFrameGroupBy):
         ErrorMessage.method_not_implemented_error(
             name="get_group", class_="SeriesGroupBy"
         )
+
+    def value_counts(
+        self,
+        subset: Optional[list[str]] = None,
+        normalize: bool = False,
+        sort: bool = True,
+        ascending: bool = False,
+        bins: Optional[int] = None,
+        dropna: bool = True,
+    ):
+        # Unlike DataFrameGroupBy, SeriesGroupBy has an additional `bins` parameter
+        result = self._query_compiler.groupby_value_counts(
+            by=self._by,
+            axis=self._axis,
+            groupby_kwargs=self._kwargs,
+            subset=subset,
+            normalize=normalize,
+            sort=sort,
+            ascending=ascending,
+            bins=bins,
+            dropna=dropna,
+        )
+        if self._kwargs["_as_index"]:
+            return pd.DataFrame(result)
+        else:
+            return pd.Series(result)
 
 
 def validate_groupby_args(
