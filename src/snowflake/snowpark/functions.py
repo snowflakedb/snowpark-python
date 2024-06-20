@@ -1639,6 +1639,18 @@ def seq8(sign: int = 0) -> Column:
     return _call_function("seq8", False, Literal(sign), is_data_generator=True)
 
 
+def to_boolean(e: ColumnOrName) -> Column:
+    """Converts an input expression to a boolean.
+
+    Example::
+        >>> df = session.create_dataframe(['yes', 'no'], schema=['a'])
+        >>> df.select(to_boolean(col('a')).as_('ans')).collect()
+        [Row(ANS=True), Row(ANS=False)]
+    """
+    c = _to_col_if_str(e, "to_boolean")
+    return builtin("to_boolean")(c)
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal.
 

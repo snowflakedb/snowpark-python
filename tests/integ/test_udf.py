@@ -410,7 +410,6 @@ def test_session_register_udf(session, local_testing_mode):
         Utils.assert_executed_with_query_tag(session, query_tag)
 
 
-@pytest.mark.localtest
 def test_register_udf_from_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -458,7 +457,6 @@ def test_register_vectorized_udf_from_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -483,7 +481,6 @@ def test_register_udf_from_zip_file(session, resources_path, tmpdir):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file(session, resources_path):
     test_files = TestFiles(resources_path)
     df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
@@ -502,7 +499,6 @@ def test_register_udf_from_remote_file(session, resources_path):
     )
 
 
-@pytest.mark.localtest
 def test_register_udf_from_remote_file_with_statement_params(
     session, resources_path, local_testing_mode
 ):
@@ -575,7 +571,6 @@ def test_register_from_file_with_skip_upload(session, resources_path, caplog):
         Utils.drop_stage(session, stage_name)
 
 
-@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -622,7 +617,6 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -666,7 +660,6 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -693,7 +686,6 @@ def test_add_import_stage_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is required")
 def test_add_import_package(session):
     def plus_one_month(x):
@@ -714,7 +706,6 @@ def test_add_import_package(session):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -743,7 +734,6 @@ def test_add_import_duplicate(session, resources_path, caplog, local_testing_mod
     assert len(session.get_imports()) == 0
 
 
-@pytest.mark.localtest
 def test_udf_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -797,7 +787,6 @@ def test_udf_level_import(session, resources_path, local_testing_mode):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_namespace_collision(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -833,7 +822,6 @@ def test_add_import_namespace_collision(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_namespace_collision_snowflake_package(session, tmp_path):
     fake_snowflake_dir = tmp_path / "snowflake" / "task"
     fake_snowflake_dir.mkdir(parents=True)
@@ -929,7 +917,6 @@ def test_type_hints(session, local_testing_mode):
         )
 
 
-@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(x: int, y: int) -> int:
         return x + y
@@ -939,7 +926,6 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
-@pytest.mark.localtest
 def test_register_udf_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -1913,6 +1899,7 @@ def test_pandas_udf_input_variant(session):
             [[True]],
             (
                 "<class 'bool'>",
+                "<class 'numpy.bool'>",
                 "<class 'numpy.bool_'>",
             ),
             ("bool",),
@@ -2127,7 +2114,6 @@ def test_register_udf_no_commit(session):
         session._run_query(f"drop function if exists {perm_func_name}(int)")
 
 
-@pytest.mark.localtest
 def test_udf_class_method(session):
     # Note that we never mention in the doc that we support registering UDF from a class method.
     # However, some users might still be interested in doing that.
@@ -2248,7 +2234,6 @@ def test_comment_in_udf_description(session):
             break
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
@@ -2300,7 +2285,6 @@ def test_secure_udf(session):
     (not is_pandas_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
 )
-@pytest.mark.localtest
 @pytest.mark.parametrize("func", numpy_funcs)
 def test_numpy_udf(session, func):
     numpy_udf = udf(
@@ -2541,7 +2525,6 @@ def test_udf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.mark.localtest
 def test_access_snowflake_import_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
