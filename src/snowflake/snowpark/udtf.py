@@ -27,6 +27,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -636,43 +639,49 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register_from_file`
         """
-        if not callable(handler):
-            raise TypeError(
-                "Invalid function: not a function or callable "
-                f"(__call__ is not defined): {type(handler)}"
+        parameters = {"handler": handler, "name": name}
+        with open_telemetry_udf_context_manager(self.register, parameters):
+            if not callable(handler):
+                raise TypeError(
+                    "Invalid function: not a function or callable "
+                    f"(__call__ is not defined): {type(handler)}"
+                )
+
+            check_register_args(
+                TempObjectType.TABLE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
             )
 
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
+            native_app_params = kwargs.get("native_app_params", None)
 
-        native_app_params = kwargs.get("native_app_params", None)
-
-        # register udtf
-        return self._do_register_udtf(
-            handler,
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            max_batch_size=max_batch_size,
-            comment=comment,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register",
-            is_permanent=is_permanent,
-            native_app_params=native_app_params,
-        )
+            # register udtf
+            return self._do_register_udtf(
+                handler,
+                output_schema,
+                input_types,
+                input_names,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                max_batch_size=max_batch_size,
+                comment=comment,
+                statement_params=statement_params,
+                api_call_source="UDTFRegistration.register",
+                is_permanent=is_permanent,
+                native_app_params=native_app_params,
+            )
 
     def register_from_file(
         self,
@@ -790,35 +799,45 @@ class UDTFRegistration:
             - :func:`~snowflake.snowpark.functions.udtf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.TABLE_FUNCTION, name, is_permanent, stage_location, parallel
-        )
+        parameters = {
+            "file_path": file_path,
+            "handler_name": handler_name,
+            "name": name,
+        }
+        with open_telemetry_udf_context_manager(self.register_from_file, parameters):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.TABLE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
+            )
 
-        # register udtf
-        return self._do_register_udtf(
-            (file_path, handler_name),
-            output_schema,
-            input_types,
-            input_names,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            comment=comment,
-            statement_params=statement_params,
-            api_call_source="UDTFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register udtf
+            return self._do_register_udtf(
+                (file_path, handler_name),
+                output_schema,
+                input_types,
+                input_names,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                api_call_source="UDTFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+            )
 
     def _do_register_udtf(
         self,
