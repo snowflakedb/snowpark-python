@@ -733,7 +733,6 @@ def _fix_pandas_df_fixed_type(
                     try:
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
-                        # Return the original input even if pandas.to_numeric errors
                         pd_df[pandas_col_name] = pandas.to_numeric(
                             pd_df[pandas_col_name]
                         )
