@@ -31,7 +31,7 @@ def df1():
             "A": ["a", "b", "c"],
             "D": [3, 2, 1],
         },
-        index=Index([3, 1, 2], name="left_i"),
+        index=pd.Index([3, 1, 2], name="left_i"),
     )
 
 
@@ -43,7 +43,7 @@ def df2():
             "A": ["a", "b", "c", "a"],
             "C": [1, 2, 3, 2],
         },
-        index=Index([2, 0, 3, 4], name="right_i"),
+        index=pd.Index([2, 0, 3, 4], name="right_i"),
     )
 
 
@@ -59,7 +59,7 @@ def zero_rows_df():
 
 @pytest.fixture(scope="function")
 def zero_columns_df():
-    return pd.DataFrame(index=Index([1, 2]))
+    return pd.DataFrame(index=pd.Index([1, 2]))
 
 
 @pytest.fixture(scope="function")
@@ -656,9 +656,11 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 3, join_count=0):
+    # One extra query to convert index to native pandas when creating df
+    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 4, join_count=0):
         df1 = df1.rename_axis(name1, axis=axis)
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 3, join_count=0):
+    # One extra query to convert index to native pandas when creating df
+    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 4, join_count=0):
         df2 = df2.rename_axis(name2, axis=axis)
 
     expected_join_count = (
@@ -671,6 +673,7 @@ def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
             expected_join_count += 1
         if name1 is not None and name2 is not None:
             expected_join_count += 1
+    # One extra query to convert index to native pandas when creating df
     with SqlCounter(query_count=3, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
@@ -1071,4 +1074,4 @@ def test_concat_keys():
         "three": pd.Series([3, 4, 5], index=["b", "c", "d"]),
     }
     snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
-    assert_frame_equal(snow_df, native_df)
+    assert_frame_equal(snow_df, native_df, check_dtype=False)

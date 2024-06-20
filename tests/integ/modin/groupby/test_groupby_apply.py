@@ -490,8 +490,10 @@ class TestFuncReturnsDataFrame:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    "index": pd.Index(["i0", "i1", "i2", "i1", None], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(
+                        ["i0", "i1", "i2", "i1", None], name="index"
+                    ),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -505,8 +507,8 @@ class TestFuncReturnsDataFrame:
                         ["k0", 15, "c"],
                         ["k0", 16, "b"],
                     ],
-                    "index": pd.Index(["i1", None, "i0", "i2"], name="index"),
-                    "columns": pd.Index(
+                    "index": native_pd.Index(["i1", None, "i0", "i2"], name="index"),
+                    "columns": native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 },
@@ -685,8 +687,10 @@ class TestFuncReturnsDataFrame:
                 ["k0", 16, "b"],
                 [None, 17, "a"],
             ],
-            index=pd.Index(["i1", None, "i0", "i2", None], name="index"),
-            columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+            index=native_pd.Index(["i1", None, "i0", "i2", None], name="index"),
+            columns=native_pd.Index(
+                ["string_col_1", "int_col", "string_col_2"], name="x"
+            ),
         )
 
         def groupby_apply_without_sort(df):
@@ -962,7 +966,8 @@ class TestFuncReturnsSeries:
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -986,7 +991,9 @@ class TestFuncReturnsSeries:
                     ["k0", 16, "b"],
                 ],
                 index=pandas_index,
-                columns=pd.Index(["string_col_1", "int_col", "string_col_2"], name="x"),
+                columns=native_pd.Index(
+                    ["string_col_1", "int_col", "string_col_2"], name="x"
+                ),
             ),
             lambda df: df.groupby("index", dropna=dropna).apply(
                 lambda group: native_pd.Series(
@@ -1075,7 +1082,8 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK
+            # one additional query for converting index to native pandas in dataframe constructor
+            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
             if not group_keys
             and func
             in (
@@ -1084,7 +1092,7 @@ class TestSeriesGroupBy:
                 series_transform_returns_frame,
                 series_transform_returns_series,
             )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
@@ -1097,8 +1105,8 @@ class TestSeriesGroupBy:
                         ["k0", 16, "b"],
                         [None, 17, "a"],
                     ],
-                    index=pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
-                    columns=pd.Index(
+                    index=native_pd.Index(["i1", None, "i0", "i2", "i3"], name="index"),
+                    columns=native_pd.Index(
                         ["string_col_1", "int_col", "string_col_2"], name="x"
                     ),
                 ),

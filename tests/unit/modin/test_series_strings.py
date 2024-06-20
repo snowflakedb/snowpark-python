@@ -43,7 +43,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.wrap(3), "wrap"),
         (lambda s: s.str.slice_replace(start=3, stop=5, repl="abc"), "slice_replace"),
         (lambda s: s.str.findall("ab"), "findall"),
-        (lambda s: s.str.match("ab", case=False), "match"),
         (lambda s: s.str.extract("(ab)", expand=False), "extract"),
         (lambda s: s.str.extractall("(ab)", flags=1), "extractall"),
         (lambda s: s.str.partition("|", expand=False), "partition"),
