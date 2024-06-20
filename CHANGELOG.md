@@ -6,6 +6,8 @@
 
 #### Improvements
 
+- Added open telemetry tracing on UDxF functions in snowpark.
+
 #### New Features
 
 - Added support for `to_boolean` function.
