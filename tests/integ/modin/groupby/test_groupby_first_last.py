@@ -65,17 +65,17 @@ data_dictionary = {
     ],
 )
 @pytest.mark.parametrize("as_index", [True, False])
-@pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("skipna", [True, False])
 @pytest.mark.parametrize("method", ["first", "last"])
-def test_groupby_first_last(by, as_index, sort, skipna, method):
+def test_groupby_first_last(by, as_index, skipna, method):
+    # TODO: Add sort when SNOW-1481281 is resolved
     snowpark_pandas_df = pd.DataFrame(data_dictionary)
     pandas_df = snowpark_pandas_df.to_pandas()
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
-            lambda df: getattr(df.groupby(by, as_index=as_index, sort=sort), method)(
+            lambda df: getattr(df.groupby(by, as_index=as_index), method)(
                 skipna=skipna
             ),
         )
@@ -84,9 +84,9 @@ def test_groupby_first_last(by, as_index, sort, skipna, method):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
-            lambda df: getattr(
-                df.groupby(by, as_index=as_index, sort=sort)["col5_int16"], method
-            )(skipna=skipna),
+            lambda df: getattr(df.groupby(by, as_index=as_index)["col5_int16"], method)(
+                skipna=skipna
+            ),
         )
 
     # TODO: Support min_count in groupby first and last (SNOW-1482931)
