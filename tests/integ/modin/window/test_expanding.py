@@ -73,6 +73,20 @@ def test_expanding_series(agg_func, min_periods):
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.parametrize("ddof", [0, 0.5, 1])
+def test_expanding_sem_different_ddof(ddof):
+    native_df = native_pd.DataFrame(
+        {"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.expanding().sem(numeric_only=True, ddof=ddof),
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_expanding_min_periods_default():
     native_df = native_pd.DataFrame(
         {"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]}

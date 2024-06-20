@@ -10946,20 +10946,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             # Standard error of mean (SEM) does not have native Snowflake engine support
-            # so calculate as STDDEV/SQRT(N-1)
+            # so calculate as STDDEV/SQRT(N-ddof)
+            ddof = agg_kwargs.get("ddof", 1)
             new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
                 {
                     quoted_identifier: iff(
                         count(col(quoted_identifier)).over(window_expr) >= min_periods,
-                        # If (N-1) is negative number, return NaN instead of attempting to sqrt
+                        # If (N-ddof) is negative number, return NaN instead of attempting to sqrt
                         iff(
-                            count(col(quoted_identifier)).over(window_expr) - 1 < 0,
+                            count(col(quoted_identifier)).over(window_expr) - ddof < 0,
                             pandas_lit(None),
-                            get_snowflake_agg_func("std", agg_kwargs)(
-                                col(quoted_identifier)
-                            ).over(window_expr)
+                            builtin("stddev")(col(quoted_identifier)).over(window_expr)
                             / builtin("sqrt")(
-                                count(col(quoted_identifier)).over(window_expr) - 1
+                                count(col(quoted_identifier)).over(window_expr) - ddof
                             ),
                         ),
                         pandas_lit(None),
