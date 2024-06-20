@@ -673,7 +673,6 @@ def test_cte_optimization_enabled_on_session(db_parameters):
         assert new_session2.cte_optimization_enabled is True
 
 
-@pytest.mark.localtest
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_create_session_from_default_config_file(monkeypatch, db_parameters):
     import tomlkit
