@@ -69,6 +69,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
         (lambda df: df.aggregate(x=("A", "max")), 0),
         (lambda df: df.aggregate(x=("A", "max"), y=pd.NamedAgg("A", "max")), 1),
         (lambda df: df.aggregate(x=("A", "max"), y=("C", "min"), z=("A", "min")), 2),
+        (lambda df: df.aggregate(x=("B", "all"), y=("B", "any")), 1),
         # note following aggregation requires transpose
         (lambda df: df.aggregate(max), 0),
         (lambda df: df.min(), 0),
