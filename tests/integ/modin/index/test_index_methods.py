@@ -23,6 +23,7 @@ TEST_DFS = [
         data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
         index=native_pd.Index([[1, 2], [2, 3], [3, 4]], name="here"),
     ),
+    native_pd.DataFrame([1]),
 ]
 
 NATIVE_INDEX_TEST_DATA = [
@@ -31,23 +32,8 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([1, 2, 3], name="this"),
     native_pd.Index([3, np.nan, 5]),
     native_pd.Index([5, None, 7]),
+    native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2]),
-]
-
-vals_dtype = "values, dtype"
-vals_dtype_params = [
-    ([1, 2, 305], None),
-    (list("abc"), None),
-    ([1, 2, -3], "int64"),
-    ([1.248, 1, 7.0], "float"),
-    ([1.0, 0.2, 3.6], "float"),
-    ([1.0, 0.2, 3.6], "float64"),
-    ([7, 0, 1], "int64"),
-    ([1.0, 0, -1], None),
-    (list("abb"), "str"),
-    (list("cba"), None),
-    (["abc", "d", "-efgh"], None),
-    (list("ccb"), None),
 ]
 
 
@@ -235,19 +221,47 @@ def test_df_index_values(native_df):
     assert_equal(native_df.columns.values, snow_df.columns.values)
 
 
-# @sql_count_checker(query_count=1)
-# @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-# def test_index_item(native_index):
-#     snow_index = pd.Index(native_index)
-#     assert snow_index.item() == native_index.item()
-#
-#
-# @pytest.mark.parametrize("native_df", TEST_DFS)
-# @sql_count_checker(query_count=1)
-# def test_df_index_item(native_df):
-#     snow_df = pd.DataFrame(native_df)
-#     assert snow_df.index.item() == native_df.index.item()
-#     assert snow_df.columns.item() == native_df.columns.item()
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+def test_index_item(native_index):
+    snow_index = pd.Index(native_index)
+    # 1 query to check length in item method, if length is 1, issue another query to get item
+    if len(native_index) == 1:
+        with SqlCounter(query_count=2):
+            assert snow_index.item() == native_index.item()
+    else:
+        with SqlCounter(query_count=1):
+            with pytest.raises(
+                expected_exception=ValueError,
+                match="can only convert an array of size 1 to a Python scalar",
+            ):
+                snow_index.item()
+
+
+@pytest.mark.parametrize("native_df", TEST_DFS)
+def test_df_index_item(native_df):
+    snow_df = pd.DataFrame(native_df)
+    # 1 query to check length in item method, if length is 1, issue another query to get item
+    if len(native_df.index) == 1:
+        with SqlCounter(query_count=2):
+            assert snow_df.index.item() == native_df.index.item()
+    else:
+        with SqlCounter(query_count=1):
+            with pytest.raises(
+                expected_exception=ValueError,
+                match="can only convert an array of size 1 to a Python scalar",
+            ):
+                snow_df.index.item()
+
+    # no queries needed for columns
+    with SqlCounter(query_count=0):
+        if len(native_df.columns) == 1:
+            assert snow_df.columns.item() == native_df.columns.item()
+        else:
+            with pytest.raises(
+                expected_exception=ValueError,
+                match="can only convert an array of size 1 to a Python scalar",
+            ):
+                snow_df.columns.item()
 
 
 @sql_count_checker(query_count=1)

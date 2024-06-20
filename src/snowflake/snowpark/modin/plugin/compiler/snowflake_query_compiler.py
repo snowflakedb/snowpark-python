@@ -1689,21 +1689,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         ).values.flatten()
 
-    def get_index_item(self) -> Hashable:
-        """
-        Return the first element of the underlying Index.
-
-        Returns
-        -------
-        scalar
-            The first element of Series or Index.
-        """
-        return self._modin_frame.ordered_dataframe.select(
-            first_value(
-                *self._modin_frame.index_column_snowflake_quoted_identifiers
-            ).as_("first_value")
-        ).collect()
-
     def _binary_op_scalar_rhs(
         self, op: str, other: Scalar, fill_value: Scalar
     ) -> "SnowflakeQueryCompiler":
