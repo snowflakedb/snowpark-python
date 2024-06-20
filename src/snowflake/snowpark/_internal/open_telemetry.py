@@ -63,7 +63,7 @@ def open_telemetry_context_manager(func, dataframe):
 
 @contextmanager
 def open_telemetry_udf_context_manager(
-    function,
+    registration_function,
     func=None,
     handler=None,
     func_name=None,
@@ -73,8 +73,8 @@ def open_telemetry_udf_context_manager(
 ):
     # trace when required package is installed
     if open_telemetry_found:
-        class_name = function.__qualname__
-        span_name = function.__name__
+        class_name = registration_function.__qualname__
+        span_name = registration_function.__name__
         tracer = trace.get_tracer(extract_tracer_name(class_name))
         with tracer.start_as_current_span(span_name) as cur_span:
             try:
@@ -91,7 +91,7 @@ def open_telemetry_udf_context_manager(
                 if cur_span.is_recording():
                     # store execution location in span
                     filename, lineno = context_manager_code_location(
-                        inspect.stack(), function
+                        inspect.stack(), registration_function
                     )
                     cur_span.set_attribute("code.filepath", f"{filename}")
                     cur_span.set_attribute("code.lineno", lineno)
