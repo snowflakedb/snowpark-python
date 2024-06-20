@@ -29,12 +29,14 @@ def lock_function_once(f, flag):
 @pytest.mark.parametrize("has_lock", [True, False])
 def test_lock_function(has_lock):
     load_model_called = 0
+    inc_lock = RLock()
 
-    @cachetools.cached({}, lock=lock)
+    @cachetools.cached({})
     def load_model():
         nonlocal load_model_called
-        time.sleep(0.5)  # simulate a long operation
-        load_model_called += 1
+        time.sleep(1.0)  # simulate a long operation
+        with inc_lock:
+            load_model_called += 1
 
     def mock_udf_handler():
         load_model()
