@@ -65,7 +65,7 @@ def test_df_index_copy(native_df):
     assert_index_equal(snow_df.columns, new_columns)
 
     new_index.name = "a"
-    new_columns.name = "a"
+    new_columns.name = 1
     assert_index_equal(snow_df.index, new_index, check_names=False)
     assert_index_equal(snow_df.columns, new_columns, check_names=False)
 

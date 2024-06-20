@@ -847,7 +847,6 @@ class Index:
         return Index(
             self._query_compiler.copy(),
             name=name,
-            copy=deep,
             convert_to_lazy=self.is_lazy,
         )
 
