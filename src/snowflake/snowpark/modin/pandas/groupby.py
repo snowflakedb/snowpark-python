@@ -194,7 +194,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ascending: bool = False,
         dropna: bool = True,
     ):
-        return self._query_compiler.groupby_value_counts(
+        query_compiler = self._query_compiler.groupby_value_counts(
             by=self._by,
             axis=self._axis,
             groupby_kwargs=self._kwargs,
@@ -204,6 +204,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             ascending=ascending,
             dropna=dropna,
         )
+        if self._as_index:
+            return pd.Series(
+                query_compiler=query_compiler,
+                name="proportion" if normalize else "count",
+            )
+        return pd.DataFrame(query_compiler=query_compiler)
 
     def mean(
         self,
@@ -1332,22 +1338,22 @@ class SeriesGroupBy(DataFrameGroupBy):
         bins: Optional[int] = None,
         dropna: bool = True,
     ):
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         # Unlike DataFrameGroupBy, SeriesGroupBy has an additional `bins` parameter
-        result = self._query_compiler.groupby_value_counts(
-            by=self._by,
-            axis=self._axis,
-            groupby_kwargs=self._kwargs,
-            subset=subset,
-            normalize=normalize,
-            sort=sort,
-            ascending=ascending,
-            bins=bins,
-            dropna=dropna,
+        return pd.Series(
+            query_compiler=self._query_compiler.groupby_value_counts(
+                by=self._by,
+                axis=self._axis,
+                groupby_kwargs=self._kwargs,
+                subset=subset,
+                normalize=normalize,
+                sort=sort,
+                ascending=ascending,
+                bins=bins,
+                dropna=dropna,
+            ),
+            name="proportion" if normalize else "count",
         )
-        if self._kwargs["_as_index"]:
-            return pd.DataFrame(result)
-        else:
-            return pd.Series(result)
 
 
 def validate_groupby_args(
