@@ -1526,13 +1526,14 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import Series
 
+        pandas_index = self.to_pandas()
         if index is None:
-            index = self
+            index = pandas_index
 
         if name is None:
             name = self.name
 
-        return Series(data=self, index=index, name=name)
+        return Series(data=pandas_index, index=index, name=name)
 
     # TODO: SNOW-1481037 : Fix typehints
     def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
