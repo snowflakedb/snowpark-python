@@ -548,7 +548,7 @@ class StoredProcedureRegistration:
             - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register_from_file`
         """
-        with open_telemetry_udf_context_manager(self.register, locals()):
+        with open_telemetry_udf_context_manager(self.register, func=func, name=name):
             if not callable(func):
                 raise TypeError(
                     "Invalid function: not a function or callable "
@@ -704,7 +704,9 @@ class StoredProcedureRegistration:
             - :func:`~snowflake.snowpark.functions.sproc`
             - :meth:`register`
         """
-        with open_telemetry_udf_context_manager(self.register_from_file, locals()):
+        with open_telemetry_udf_context_manager(
+            self.register_from_file, file_path=file_path, func_name=func_name, name=name
+        ):
             file_path = process_file_path(file_path)
             check_register_args(
                 TempObjectType.PROCEDURE, name, is_permanent, stage_location, parallel
