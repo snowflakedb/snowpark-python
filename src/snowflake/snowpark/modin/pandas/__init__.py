@@ -184,6 +184,10 @@ def __getattr__(name: str) -> Any:
         )
 
 
+from snowflake.snowpark.modin.pandas.series import (  # noqa: E402
+    Series as DONOTEXPORTMESeries,
+)
+
 __all__ = [  # noqa: F405
     "DataFrame",
     "Series",
@@ -337,6 +341,12 @@ for name in __all__ + _ADDITIONAL_ATTRS:
 for name in _EXTENSION_ATTRS:
     _ext.register_pd_accessor(name)(getattr(pd_extensions, name))
 
+temporary_heritance_do_not_keep_this_in_final_pr = [
+    "align",
+]
+
+for name in temporary_heritance_do_not_keep_this_in_final_pr:
+    _ext.register_series_accessor(name)(getattr(DONOTEXPORTMESeries, name))
 
 # TODO: https://github.com/modin-project/modin/issues/7233
 # Upstream Modin does not properly render property names in default2pandas warnings, so we need
