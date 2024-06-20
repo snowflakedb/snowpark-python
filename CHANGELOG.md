@@ -6,6 +6,8 @@
 
 #### Improvements
 
+- Added open telemetry tracing on UDxF functions in snowpark.
+
 #### New Features
 
 - Added support for `to_boolean` function.
@@ -16,6 +18,7 @@
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 
 ### Snowpark Local Testing Updates
 
@@ -49,6 +52,7 @@
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `Series.str.match`.
+- Added support for `DataFrame.resample` and `Series.resample` for aggregation `size`.
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 
 #### Bug Fixes
@@ -56,6 +60,7 @@
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
+- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 
 #### Improvements
 
