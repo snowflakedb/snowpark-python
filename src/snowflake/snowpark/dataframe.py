@@ -90,8 +90,8 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    set_src_position,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1325,6 +1325,17 @@ class DataFrame:
             raise ValueError("The input of drop() cannot be empty")
         exprs = parse_positional_args_to_list(*cols)
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        if isinstance(exprs[0], str):
+            ast = stmt.expr.sp_dataframe_drop__strings
+        else:
+            ast = stmt.expr.sp_dataframe_drop__columns
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.cols = exprs
+        ast.variadic = False if len(exprs) == 1 else True
+
         names = []
         for c in exprs:
             if isinstance(c, str):
@@ -1361,7 +1372,7 @@ class DataFrame:
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
-            return self.select(list(keep_col_names))
+            return self.select(list(keep_col_names), _ast_stmt=stmt)
 
     @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
@@ -1468,12 +1479,27 @@ class DataFrame:
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = (
+            stmt.expr.sp_dataframe_sort__strings
+            if isinstance(exprs[0], str)
+            else stmt.expr.sp_dataframe_sort__columns
+        )
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.cols = cols
+        ast.variadic = True if len(exprs) == 1 else False
+
         orders = []
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
+                ast.ascending = [True if asc else False for asc in ascending]
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
+                ast.ascending = [True if ascending else False]
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
@@ -1501,8 +1527,10 @@ class DataFrame:
                 )
 
         if self._select_statement:
-            return self._with_plan(self._select_statement.sort(sort_exprs))
-        return self._with_plan(Sort(sort_exprs, self._plan))
+            return self._with_plan(
+                self._select_statement.sort(sort_exprs), ast_stmt=stmt
+            )
+        return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
 
     @experimental(version="1.5.0")
     def alias(self, name: str):
@@ -1537,6 +1565,13 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_filter
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.name = name
+
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
@@ -1939,9 +1974,21 @@ class DataFrame:
             -------------
             <BLANKLINE>
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_filter
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.n = n
+        ast.offset = offset
+
         if self._select_statement:
-            return self._with_plan(self._select_statement.limit(n, offset=offset))
-        return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
+            return self._with_plan(
+                self._select_statement.limit(n, offset=offset), ast_stmt=stmt
+            )
+        return self._with_plan(
+            Limit(Literal(n), Literal(offset), self._plan), ast_stmt=stmt
+        )
 
     @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
