@@ -67,8 +67,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
     build_const_from_python_val,
     setattr_if_not_none,
+    set_src_position,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -995,22 +997,25 @@ class Column:
         ast = proto.Expr()
         if property is not None:
             prop_ast = getattr(ast, property)
-            fill_src_position(prop_ast.src)
+            set_src_position(prop_ast.src)
             for attr, value in assign_fields.items():
                 setattr_if_not_none(prop_ast, attr, value)
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
             for attr, msg in copy_messages.items():
-                if msg is None:
+                if msg is None and FAIL_ON_MISSING_AST:
                     call_stack = inspect.stack()
                     curr_frame = call_stack.pop(0)
                     while call_stack and __file__ == curr_frame.filename:
                         column_api = curr_frame.function
                         curr_frame = call_stack.pop(0)
-                    raise NotImplementedError(f"Calling Column API \"{column_api}\" which supports AST logging, from File \"{curr_frame.filename}\", line {curr_frame.lineno}, potentially in {curr_frame.function}\n"
-                                              f"\t{curr_frame.code_context[0]}"
-                                              f"\tAn API from snowflake.snowpark.functions used above has not yet implemented AST logging.")
-                getattr(prop_ast, attr).CopyFrom(msg)
+                    raise NotImplementedError(
+                        f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
+                        f'\t{curr_frame.code_context[0].strip()}\n'
+                        f'A Snowpark API which returns a Column instance used above has not yet implemented AST logging.'
+                    )
+                elif msg is not None:
+                    getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
         return ast

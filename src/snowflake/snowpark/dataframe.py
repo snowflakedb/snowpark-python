@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
     set_src_position,
     get_symbol,
     setattr_if_not_none,
@@ -1181,7 +1182,12 @@ class DataFrame:
             if isinstance(e, Column):
                 names.append(e._named())
                 if ast:
-                    ast.cols.append(e._ast)
+                    if e._ast is None and FAIL_ON_MISSING_AST:
+                        raise NotImplementedError(
+                            f'Column({e._expression}) does not have a logged AST in Column._ast, likely due to the use of a Snowpark API which does not support AST logging yet.'
+                        )
+                    elif e._ast is not None:
+                        ast.cols.append(e._ast)
 
             elif isinstance(e, str):
                 if ast:

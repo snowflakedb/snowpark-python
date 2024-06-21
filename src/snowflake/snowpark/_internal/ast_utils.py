@@ -13,6 +13,7 @@ from typing import Any, List, Optional
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
+FAIL_ON_MISSING_AST = True
 
 def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance

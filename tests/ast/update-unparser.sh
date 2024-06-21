@@ -31,10 +31,18 @@ JAR_HOME="$REMOTE_HOME/$UNPARSER_DIR/target/scala-2.13/unparser-assembly-0.1.jar
 LOCAL_TARGET_FILENAME="unparser-assembly-0.1.jar"
 
 
-# Step 1: Build the Unparser JAR using sbt if it does not exist
-ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark/unparser:unparser'"
-JAR_HOME=$(ssh $HOST "bash -c 'cd Snowflake/trunk;bazel cquery --output=files //Snowpark/unparser:unparser.jar'")
-JAR_HOME=$REMOTE_HOME/Snowflake/trunk/$JAR_HOME
+# Step 1: Build the Unparser JAR using bazel or sbt if it does not exist
+if [ -z "$2" ]
+  then 
+    echo "Building Unparser JAR with Bazel"
+    ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark/unparser:unparser'"
+    JAR_HOME=$(ssh $HOST "bash -c 'cd Snowflake/trunk;bazel cquery --output=files //Snowpark/unparser:unparser.jar'")
+    JAR_HOME=$REMOTE_HOME/Snowflake/trunk/$JAR_HOME
+elif [ -n "$2" ]
+  then
+    echo "Building Unparser JAR with SBT"
+    ssh $HOST "bash -c 'cd Snowflake/trunk/Snowpark/unparser;sbt assembly'" || true
+fi
 echo "Remote JAR_HOME=$JAR_HOME"
 
 # Step 2: Copy file to local
