@@ -1511,7 +1511,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if self.is_multiindex():
             return self._modin_frame.index_columns_pandas_index
         else:
-            return pd.Index(self)
+            return pd.Index(self, tupleize_cols=False)
 
     def _is_scalar_in_index(self, scalar: Union[Scalar, tuple]) -> bool:
         """
@@ -4983,7 +4983,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             keys
         ):
             # Error checking for missing labels is already done in frontend layer.
-            index_column_snowflake_quoted_identifiers.append(ids[0])
+            if ids:
+                index_column_snowflake_quoted_identifiers.append(ids[0])
 
         if drop:
             # Exclude 'keys' from data columns.

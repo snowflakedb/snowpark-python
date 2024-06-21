@@ -208,6 +208,18 @@ class Index:
                         Index(returned_value[0], convert_to_lazy=False),
                         returned_value[1],
                     )
+                # For methods that return a series, convert this series to snowpark pandas
+                # an example is to_series
+                elif isinstance(returned_value, native_pd.Series):
+                    from snowflake.snowpark.modin.pandas import Series
+
+                    returned_value = Series(returned_value)
+
+                # for methods that return a dataframe, convert this dataframe to snowpark pandas
+                elif isinstance(returned_value, native_pd.DataFrame):
+                    from snowflake.snowpark.modin.pandas import DataFrame
+
+                    returned_value = DataFrame(returned_value)
                 return returned_value
 
         return check_lazy
@@ -1500,6 +1512,7 @@ class Index:
             return self.tolist()[0]
         raise ValueError("can only convert an array of size 1 to a Python scalar")
 
+    @is_lazy_check
     def to_series(
         self, index: Index | None = None, name: Hashable | None = None
     ) -> Any:
@@ -1528,15 +1541,23 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import Series
 
-        pandas_index = self.to_pandas()
-        if index is None:
-            index = pandas_index
-
         if name is None:
             name = self.name
+        new_qc = (
+            self._query_compiler.drop(columns=self._query_compiler.columns)
+            .reset_index()
+            .set_index(["index"], drop=False)
+            .set_index_names([None])
+        )
+        if index is not None:
+            new_qc = new_qc.reset_index(drop=True)
 
-        return Series(data=pandas_index, index=index, name=name)
+        ser = Series(query_compiler=new_qc)
+        ser.name = name
 
+        return ser
+
+    @is_lazy_check
     def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
         """
         Create a DataFrame with a column containing the Index.
@@ -1562,13 +1583,21 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import DataFrame
 
-        pandas_index = self.to_pandas()
         if name is None:
-            name = self.name if self.name is not None else 0
+            name = self.name
+        new_qc = self._query_compiler.drop(
+            columns=self._query_compiler.columns
+        ).reset_index()
+        if index:
+            df = DataFrame(
+                query_compiler=new_qc.rename(columns_renamer={"index": name}),
+            )
+            df = df.set_index(df[df.columns[0]], drop=False)
+        else:
+            df = DataFrame(query_compiler=new_qc)
 
-        return DataFrame(
-            data=pandas_index, index=None if not index else pandas_index, columns=[name]
-        )
+        df.columns = [0] if name is None else [name]
+        return df
 
     @index_not_implemented()
     def fillna(self) -> None:
