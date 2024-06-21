@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import importlib
+
 from snowflake.connector.options import MissingOptionalDependency, MissingPandas
 
 try:
@@ -20,9 +22,8 @@ class MissingNumpy(MissingOptionalDependency):
 
 
 try:
-    import numpy  # noqa: F401
-
+    numpy = importlib.import_module("numpy")
     installed_numpy = True
 except ImportError:
-    pandas = MissingPandas()
+    numpy = MissingNumpy()
     installed_numpy = False
