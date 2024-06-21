@@ -464,7 +464,7 @@ class Index:
         """
         # TODO: SNOW-1458123 implement dtype
         WarningMessage.index_to_pandas_warning("dtype")
-        return self.to_pandas().dtype
+        return self._query_compiler.index_dtypes[0]
 
     @property
     def shape(self) -> tuple:
@@ -1550,7 +1550,7 @@ class Index:
             .set_index_names([None])
         )
         if index is not None:
-            new_qc = new_qc.reset_index(drop=True)
+            new_qc = new_qc.set_index_from_series(Series(index)._query_compiler)
 
         ser = Series(query_compiler=new_qc)
         ser.name = name

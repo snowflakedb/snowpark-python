@@ -294,7 +294,7 @@ def test_df_index_columns_to_list(native_df):
     assert_equal(native_df.columns.to_list(), snow_df.columns.to_list())
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_series(native_index):
     print(native_index.to_series())
@@ -303,12 +303,13 @@ def test_index_to_series(native_index):
         snow_index.to_series(), native_index.to_series(), check_index_type=False
     )
     assert_series_equal(
-        native_index.to_series(index=range(len(native_index)), name="name"),
-        snow_index.to_series(index=range(len(snow_index)), name="name"),
+        native_index.to_series(index=range(10, 10 + len(native_index)), name="name"),
+        snow_index.to_series(index=range(10, 10 + len(snow_index)), name="name"),
+        check_index_type=False,
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=4, join_count=1)
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_series(native_df):
     snow_df = pd.DataFrame(native_df)
