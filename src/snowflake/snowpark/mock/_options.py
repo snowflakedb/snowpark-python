@@ -20,7 +20,7 @@ class MissingNumpy(MissingOptionalDependency):
 
 
 try:
-    import numpy
+    import numpy  # noqa: F401
 
     installed_numpy = True
 except ImportError:
