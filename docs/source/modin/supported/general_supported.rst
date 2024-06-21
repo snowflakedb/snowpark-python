@@ -64,6 +64,12 @@ Data manipulations
 |                             |                                 |                                  | performance. You can force the use of the Snowflake|
 |                             |                                 |                                  | parser with ``engine=snowflake``                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
+| ``read_excel``              | D                               |                                  | Uses local pandas to read excel files, using the   | 
+|                             |                                 |                                  | engine specified by the pandas. You will need to   |
+|                             |                                 |                                  | separately install a supported excel reader such   |
+|                             |                                 |                                  | openpyxl. Please refer to the native pandas        | 
+|                             |                                 |                                  | documentation for more details.                    |
++-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``read_json``               | P                               | ``orient``, ``typ``, ``dtype``,  | ``P``:                                             |
 |                             |                                 | ``convert_axes``, ``lines``,     | - if ndjson files are passed                       |
 |                             |                                 | ``convert_dates``, ``date_unit``,| - Supported parameters are ``compression`` and     |
