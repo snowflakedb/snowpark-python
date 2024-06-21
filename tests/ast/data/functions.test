@@ -1,0 +1,80 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import *
+
+df = session.table("test_table")
+
+df = df.select(col("A"))
+
+df = df.select(col(col_name="A"))
+
+df = df.select(col("X", "A"))
+
+df = df.select(col("X", col_name="A"))
+
+df = df.select(col(col_name="A", df_alias="X"))
+
+df = df.select(col(df_alias="X", col_name="A"))
+
+df = df.select(col("A", None))
+
+df = df.select(column("A"))
+
+df = df.select(column(col_name="A"))
+
+df = df.select(column("X", "A"))
+
+df = df.select(column("X", col_name="A"))
+
+df = df.select(column(col_name="A", df_alias="X"))
+
+df = df.select(column(df_alias="X", col_name="A"))
+
+df = df.select(column("A", None))
+
+df = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}))
+
+df = df.select(sql_expr("CURRENT_WAREHOUSE()"))
+
+df = df.select(current_session())
+
+df = df.select(current_statement())
+
+df = df.select(current_user())
+
+df = df.select(current_version())
+
+df = df.select(current_warehouse())
+
+df = df.select(current_database())
+
+df = df.select(current_role())
+
+df = df.select(current_schema())
+
+df = df.select(current_schemas())
+
+df = df.select(current_region())
+
+df = df.select(current_account())
+
+df = df.select(current_available_roles())
+
+df = df.select(add_months("d", 4))
+
+df = df.select(add_months(col("A"), 4))
+
+df = df.select(add_months(col("A"), col("A")))
+
+df = df.select(any_value("A"), any_value(col("A")))
+
+df = df.select(bitnot("A"), bitnot(col("A")), bitnot(e=col("A")))
+
+df = df.select(bitshiftleft("A", col("B")), bitshiftleft("A", -10), bitshiftleft(col("B"), 42), bitshiftleft(n=2, to_shift_column=col("A")))
+
+df = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshiftright(col("B"), 42), bitshiftright(n=2, to_shift_column=col("A")))
+
+df = df.select(bround("A", scale=10), bround("A", 2), bround(col("A"), scale=col("B")))
+
+## EXPECTED OUTPUT
+

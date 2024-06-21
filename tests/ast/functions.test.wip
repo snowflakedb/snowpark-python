@@ -1,0 +1,367 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import *
+
+df = session.table("test_table")
+
+df = df.select(col("A"))
+
+df = df.select(col(col_name="A"))
+
+df = df.select(col("X", "A"))
+
+df = df.select(col("X", col_name="A"))
+
+df = df.select(col(col_name="A", df_alias="X"))
+
+df = df.select(col(df_alias="X", col_name="A"))
+
+df = df.select(col("A", None))
+
+df = df.select(column("A"))
+
+df = df.select(column(col_name="A"))
+
+df = df.select(column("X", "A"))
+
+df = df.select(column("X", col_name="A"))
+
+df = df.select(column(col_name="A", df_alias="X"))
+
+df = df.select(column(df_alias="X", col_name="A"))
+
+df = df.select(column("A", None))
+
+df = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}))
+
+df = df.select(sql_expr("CURRENT_WAREHOUSE()"))
+
+df = df.select(current
+
+df = df.select(current_session())
+
+df = df.select(current_statement())
+
+df = df.select(current_user())
+
+df = df.select(current_version())
+
+df = df.select(current_warehouse())
+
+df = df.select(current_database())
+
+df = df.select(current_role())
+
+df = df.select(current_schema())
+
+df = df.select(current_schemas())
+
+df = df.select(current_region())
+
+df = df.select(current_account())
+
+df = df.select(current_available_roles())
+
+df = df.select(add_months("d", 4))
+
+df = df.select(add_months(col("A"), 4))
+
+df = df.select(add_months(col("A"), col("A")))
+
+df = df.select(any_value("A"), any_value(col("A")))
+
+df = df.select(bitnot("A"), bitnot(col("A")), bitnot(e=col("A")))
+
+df = df.select(bitshiftleft("A", col("B")), bitshiftleft("A", -10), bitshiftleft(col("B"), 42), bitshiftleft(n=2, to_shift_column=col("A")))
+
+df = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshiftright(col("B"), 42), bitshiftright(n=2, to_shift_column=col("A")))
+
+df = df.select(bround("A", scale=10), bround("A", 2), bround(col("A"), scale=col("B")))
+
+df = df.select(convert_timezone(
+df = df.select(approx_count_distinct(e: ColumnOrName) -> Column:
+df = df.select(avg(e: ColumnOrName) -> Column:
+df = df.select(corr(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+df = df.select(count(e: ColumnOrName) -> Column:
+df = df.select(count_distinct(*cols: ColumnOrName) -> Column:
+df = df.select(covar_pop(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+df = df.select(covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
+df = df.select(create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+df = df.select(kurtosis(e: ColumnOrName) -> Column:
+df = df.select(max(e: ColumnOrName) -> Column:
+df = df.select(mean(e: ColumnOrName) -> Column:
+df = df.select(median(e: ColumnOrName) -> Column:
+df = df.select(min(e: ColumnOrName) -> Column:
+df = df.select(mode(e: ColumnOrName) -> Column:
+df = df.select(skew(e: ColumnOrName) -> Column:
+df = df.select(stddev(e: ColumnOrName) -> Column:
+df = df.select(stddev_samp(e: ColumnOrName) -> Column:
+df = df.select(stddev_pop(e: ColumnOrName) -> Column:
+df = df.select(sum(e: ColumnOrName) -> Column:
+df = df.select(sum_distinct(e: ColumnOrName) -> Column:
+df = df.select(variance(e: ColumnOrName) -> Column:
+df = df.select(var_samp(e: ColumnOrName) -> Column:
+df = df.select(var_pop(e: ColumnOrName) -> Column:
+df = df.select(approx_percentile(col: ColumnOrName, percentile: float) -> Column:
+df = df.select(approx_percentile_accumulate(col: ColumnOrName) -> Column:
+df = df.select(approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column:
+df = df.select(approx_percentile_combine(state: ColumnOrName) -> Column:
+df = df.select(explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFunctionCall":
+df = df.select(explode_outer(
+df = df.select(flatten(
+df = df.select(grouping(*cols: ColumnOrName) -> Column:
+df = df.select(coalesce(*e: ColumnOrName) -> Column:
+df = df.select(equal_nan(e: ColumnOrName) -> Column:
+df = df.select(is_null(e: ColumnOrName) -> Column:
+df = df.select(negate(e: ColumnOrName) -> Column:
+df = df.select(not_(e: ColumnOrName) -> Column:
+df = df.select(random(seed: Optional[int] = None) -> Column:
+df = df.select(uniform(
+df = df.select(def convert_limit_to_col(limit):
+df = df.select(seq1(sign: int = 0) -> Column:
+df = df.select(seq2(sign: int = 0) -> Column:
+df = df.select(seq4(sign: int = 0) -> Column:
+df = df.select(seq8(sign: int = 0) -> Column:
+df = df.select(to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
+df = df.select(to_double(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
+df = df.select(div0(
+df = df.select(sqrt(e: ColumnOrName) -> Column:
+df = df.select(abs(e: ColumnOrName) -> Column:
+df = df.select(acos(e: ColumnOrName) -> Column:
+df = df.select(asin(e: ColumnOrName) -> Column:
+df = df.select(atan(e: ColumnOrName) -> Column:
+df = df.select(atan2(y: ColumnOrName, x: ColumnOrName) -> Column:
+df = df.select(ceil(e: ColumnOrName) -> Column:
+df = df.select(cos(e: ColumnOrName) -> Column:
+df = df.select(cosh(e: ColumnOrName) -> Column:
+df = df.select(exp(e: ColumnOrName) -> Column:
+df = df.select(factorial(e: ColumnOrName) -> Column:
+df = df.select(floor(e: ColumnOrName) -> Column:
+df = df.select(format_number(col: ColumnOrName, d: Union[Column, int]):
+df = df.select(sin(e: ColumnOrName) -> Column:
+df = df.select(sinh(e: ColumnOrName) -> Column:
+df = df.select(tan(e: ColumnOrName) -> Column:
+df = df.select(tanh(e: ColumnOrName) -> Column:
+df = df.select(degrees(e: ColumnOrName) -> Column:
+df = df.select(radians(e: ColumnOrName) -> Column:
+df = df.select(md5(e: ColumnOrName) -> Column:
+df = df.select(sha1(e: ColumnOrName) -> Column:
+df = df.select(sha2(e: ColumnOrName, num_bits: int) -> Column:
+df = df.select(hash(*cols: ColumnOrName) -> Column:
+df = df.select(ascii(e: ColumnOrName) -> Column:
+df = df.select(initcap(e: ColumnOrName, delimiters: ColumnOrName = None) -> Column:
+df = df.select(length(e: ColumnOrName) -> Column:
+df = df.select(lower(e: ColumnOrName) -> Column:
+df = df.select(lpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+df = df.select(ltrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+df = df.select(rpad(e: ColumnOrName, len: Union[Column, int], pad: ColumnOrName) -> Column:
+df = df.select(rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+df = df.select(repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
+df = df.select(reverse(col: ColumnOrName) -> Column:
+df = df.select(soundex(e: ColumnOrName) -> Column:
+df = df.select(trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
+df = df.select(upper(e: ColumnOrName) -> Column:
+df = df.select(strtok_to_array(
+df = df.select(struct(*cols: ColumnOrName) -> Column:
+df = df.select(log(
+df = df.select(pow(
+df = df.select(round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+df = df.select(sign(col: ColumnOrName) -> Column:
+df = df.select(split(
+df = df.select(substring(
+df = df.select(substring_index(
+df = df.select(regexp_count(
+df = df.select(regexp_extract(
+df = df.select(regexp_replace(
+df = df.select(replace(
+df = df.select(charindex(
+df = df.select(collate(e: Column, collation_spec: str) -> Column:
+df = df.select(collation(e: ColumnOrName) -> Column:
+df = df.select(concat(*cols: ColumnOrName) -> Column:
+df = df.select(concat_ws(*cols: ColumnOrName) -> Column:
+df = df.select(translate(
+df = df.select(contains(col: ColumnOrName, string: ColumnOrName) -> Column:
+df = df.select(startswith(col: ColumnOrName, str: ColumnOrName) -> Column:
+df = df.select(endswith(col: ColumnOrName, str: ColumnOrName) -> Column:
+df = df.select(insert(
+df = df.select(left(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+df = df.select(right(str_expr: ColumnOrName, length: Union[Column, int]) -> Column:
+df = df.select(char(col: ColumnOrName) -> Column:
+df = df.select(to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
+df = df.select(date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
+df = df.select(to_time(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
+df = df.select(to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+df = df.select(to_timestamp_ntz(
+df = df.select(to_timestamp_ltz(
+df = df.select(to_timestamp_tz(
+df = df.select(from_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+df = df.select(to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
+df = df.select(to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+df = df.select(current_timestamp() -> Column:
+df = df.select(current_date() -> Column:
+df = df.select(current_time() -> Column:
+df = df.select(hour(e: ColumnOrName) -> Column:
+df = df.select(last_day(expr: ColumnOrName, part: Optional[ColumnOrName] = None) -> Column:
+df = df.select(minute(e: ColumnOrName) -> Column:
+df = df.select(next_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+df = df.select(previous_day(date: ColumnOrName, day_of_week: ColumnOrLiteral) -> Column:
+df = df.select(second(e: ColumnOrName) -> Column:
+df = df.select(month(e: ColumnOrName) -> Column:
+df = df.select(monthname(e: ColumnOrName) -> Column:
+df = df.select(quarter(e: ColumnOrName) -> Column:
+df = df.select(year(e: ColumnOrName) -> Column:
+df = df.select(sysdate() -> Column:
+df = df.select(months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
+df = df.select(to_geography(e: ColumnOrName) -> Column:
+df = df.select(to_geometry(e: ColumnOrName) -> Column:
+df = df.select(arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
+df = df.select(array_distinct(col: ColumnOrName):
+df = df.select(array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
+df = df.select(array_except(
+df = df.select(array_min(array: ColumnOrName) -> Column:
+df = df.select(array_max(array: ColumnOrName) -> Column:
+df = df.select(array_flatten(array: ColumnOrName) -> Column:
+df = df.select(array_sort(
+df = df.select(arrays_to_object(
+df = df.select(array_generate_range(
+df = df.select(sequence(
+df = df.select(date_add(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
+df = df.select(date_sub(col: ColumnOrName, num_of_days: Union[ColumnOrName, int]):
+df = df.select(datediff(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
+df = df.select(daydiff(col1: ColumnOrName, col2: ColumnOrName) -> Column:
+df = df.select(trunc(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column:
+df = df.select(dateadd(part: str, col1: ColumnOrName, col2: ColumnOrName) -> Column:
+df = df.select(date_part(part: str, e: ColumnOrName) -> Column:
+df = df.select(date_from_parts(
+df = df.select(date_trunc(part: str, expr: ColumnOrName) -> Column:
+df = df.select(dayname(e: ColumnOrName) -> Column:
+df = df.select(dayofmonth(e: ColumnOrName) -> Column:
+df = df.select(dayofweek(e: ColumnOrName) -> Column:
+df = df.select(dayofyear(e: ColumnOrName) -> Column:
+df = df.select(is_array(col: ColumnOrName) -> Column:
+df = df.select(is_boolean(col: ColumnOrName) -> Column:
+df = df.select(is_binary(col: ColumnOrName) -> Column:
+df = df.select(is_char(col: ColumnOrName) -> Column:
+df = df.select(is_date(col: ColumnOrName) -> Column:
+df = df.select(is_decimal(col: ColumnOrName) -> Column:
+df = df.select(is_double(col: ColumnOrName) -> Column:
+df = df.select(is_real(col: ColumnOrName) -> Column:
+df = df.select(is_integer(col: ColumnOrName) -> Column:
+df = df.select(is_null_value(col: ColumnOrName) -> Column:
+df = df.select(is_object(col: ColumnOrName) -> Column:
+df = df.select(is_time(col: ColumnOrName) -> Column:
+df = df.select(is_timestamp_ltz(col: ColumnOrName) -> Column:
+df = df.select(is_timestamp_ntz(col: ColumnOrName) -> Column:
+df = df.select(is_timestamp_tz(col: ColumnOrName) -> Column:
+df = df.select(_columns_from_timestamp_parts(
+df = df.select(_timestamp_from_parts_internal(
+df = df.select(time_from_parts(
+df = df.select(timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
+df = df.select(timestamp_from_parts(
+df = df.select(timestamp_from_parts(*args, **kwargs) -> Column:
+df = df.select(timestamp_ltz_from_parts(
+df = df.select(timestamp_ntz_from_parts(
+df = df.select(timestamp_ntz_from_parts(
+df = df.select(timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+df = df.select(timestamp_tz_from_parts(
+df = df.select(weekofyear(e: ColumnOrName) -> Column:
+df = df.select(typeof(col: ColumnOrName) -> Column:
+df = df.select(check_json(col: ColumnOrName) -> Column:
+df = df.select(check_xml(col: ColumnOrName) -> Column:
+df = df.select(json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
+df = df.select(parse_json(e: ColumnOrName) -> Column:
+df = df.select(parse_xml(e: ColumnOrName) -> Column:
+df = df.select(strip_null_value(col: ColumnOrName) -> Column:
+df = df.select(array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
+df = df.select(array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
+df = df.select(array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
+df = df.select(array_compact(array: ColumnOrName) -> Column:
+df = df.select(array_construct(*cols: ColumnOrName) -> Column:
+df = df.select(array_construct_compact(*cols: ColumnOrName) -> Column:
+df = df.select(array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
+df = df.select(array_insert(
+df = df.select(array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
+df = df.select(array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
+df = df.select(array_size(array: ColumnOrName) -> Column:
+df = df.select(array_slice(array: ColumnOrName, from_: ColumnOrName, to: ColumnOrName) -> Column:
+df = df.select(array_to_string(array: ColumnOrName, separator: ColumnOrName) -> Column:
+df = df.select(array_unique_agg(col: ColumnOrName) -> Column:
+df = df.select(object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
+df = df.select(object_construct(*key_values: ColumnOrName) -> Column:
+df = df.select(object_construct_keep_null(*key_values: ColumnOrName) -> Column:
+df = df.select(object_delete(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
+df = df.select(object_insert(
+df = df.select(object_pick(obj: ColumnOrName, key1: ColumnOrName, *keys: ColumnOrName) -> Column:
+df = df.select(vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+df = df.select(vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+df = df.select(vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
+df = df.select(asc(c: ColumnOrName) -> Column:
+df = df.select(asc_nulls_first(c: ColumnOrName) -> Column:
+df = df.select(asc_nulls_last(c: ColumnOrName) -> Column:
+df = df.select(desc(c: ColumnOrName) -> Column:
+df = df.select(desc_nulls_first(c: ColumnOrName) -> Column:
+df = df.select(desc_nulls_last(c: ColumnOrName) -> Column:
+df = df.select(as_array(variant: ColumnOrName) -> Column:
+df = df.select(as_binary(variant: ColumnOrName) -> Column:
+df = df.select(as_char(variant: ColumnOrName) -> Column:
+df = df.select(as_varchar(variant: ColumnOrName) -> Column:
+df = df.select(as_date(variant: ColumnOrName) -> Column:
+df = df.select(cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+df = df.select(try_cast(column: ColumnOrName, to: Union[str, DataType]) -> Column:
+df = df.select(_as_decimal_or_number(
+df = df.select(as_decimal(
+df = df.select(as_number(
+df = df.select(as_double(variant: ColumnOrName) -> Column:
+df = df.select(as_real(variant: ColumnOrName) -> Column:
+df = df.select(as_integer(variant: ColumnOrName) -> Column:
+df = df.select(as_object(variant: ColumnOrName) -> Column:
+df = df.select(as_time(variant: ColumnOrName) -> Column:
+df = df.select(as_timestamp_ltz(variant: ColumnOrName) -> Column:
+df = df.select(as_timestamp_ntz(variant: ColumnOrName) -> Column:
+df = df.select(as_timestamp_tz(variant: ColumnOrName) -> Column:
+df = df.select(to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
+df = df.select(to_array(e: ColumnOrName) -> Column:
+df = df.select(to_json(e: ColumnOrName) -> Column:
+df = df.select(to_object(e: ColumnOrName) -> Column:
+df = df.select(to_variant(e: ColumnOrName) -> Column:
+df = df.select(to_xml(e: ColumnOrName) -> Column:
+df = df.select(get_ignore_case(obj: ColumnOrName, field: ColumnOrName) -> Column:
+df = df.select(object_keys(obj: ColumnOrName) -> Column:
+df = df.select(xmlget(
+df = df.select(get_path(col: ColumnOrName, path: ColumnOrName) -> Column:
+df = df.select(get(col1: Union[ColumnOrName, int], col2: Union[ColumnOrName, int]) -> Column:
+df = df.select(when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
+df = df.select(iff(
+df = df.select(in_(
+df = df.select(cume_dist() -> Column:
+df = df.select(rank() -> Column:
+df = df.select(percent_rank() -> Column:
+df = df.select(dense_rank() -> Column:
+df = df.select(row_number() -> Column:
+df = df.select(lag(
+df = df.select(lead(
+df = df.select(last_value(
+df = df.select(first_value(
+df = df.select(ntile(e: Union[int, ColumnOrName]) -> Column:
+df = df.select(percentile_cont(percentile: float) -> Column:
+df = df.select(greatest(*columns: ColumnOrName) -> Column:
+df = df.select(least(*columns: ColumnOrName) -> Column:
+df = df.select(listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> Column:
+df = df.select(when_matched(
+df = df.select(when_not_matched(
+df = df.select(udf(
+df = df.select(udtf(
+df = df.select(udaf(
+df = df.select(pandas_udf(
+df = df.select(pandas_udtf(
+df = df.select(call_udf(
+df = df.select(call_table_function(
+df = df.select(table_function(function_name: str) -> Callable:
+df = df.select(call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
+df = df.select(function(
+df = df.select(_call_function(
+df = df.select(sproc(
+df = df.select(unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+df = df.select(locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
+
+## EXPECTED OUTPUT
