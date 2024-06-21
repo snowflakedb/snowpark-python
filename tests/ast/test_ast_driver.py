@@ -23,19 +23,19 @@ class TestCase:
 
 def parse_file(file):
     """Parses a test case file."""
-    with open(file, "r", encoding="utf-8") as f:
+    with open(file, encoding="utf-8") as f:
         src = f.readlines()
 
     try:
         test_case_start = src.index("## TEST CASE\n")
-    except ValueError as e:
+    except ValueError:
         raise ValueError(
             "Required header ## TEST CASE missing in the file: " + file.name
         )
 
     try:
         expected_output_start = src.index("## EXPECTED OUTPUT\n")
-    except ValueError as e:
+    except ValueError:
         raise ValueError(
             "Required header ## EXPECTED OUTPUT missing in the file: " + file.name
         )
@@ -75,7 +75,9 @@ def render(ast_base64: str) -> str:
         ],
         capture_output=True,
         text=True,
+        check=True,
     )
+
     return res.stdout
 
 
