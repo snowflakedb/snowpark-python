@@ -1745,7 +1745,7 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        return list(self.values)
+        return self.values.tolist()
 
     to_list = tolist
 
