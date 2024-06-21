@@ -69,11 +69,12 @@ def test_groupby_get_group(by):
     pandas_df = snowpark_pandas_df.to_pandas()
     name = pandas_df[by].iloc[0]
     if isinstance(by, list):
-        with pytest.raises(
-            NotImplementedError,
-            match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
-        ):
-            snowpark_pandas_df.groupby(by).get_group(name)
+        with SqlCounter(query_count=0):
+            with pytest.raises(
+                NotImplementedError,
+                match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
+            ):
+                snowpark_pandas_df.groupby(by).get_group(name)
     else:
         with SqlCounter(query_count=1):
             eval_snowpark_pandas_result(
