@@ -64,6 +64,7 @@
 - Added support for `Series.str.match`.
 - Added support for `DataFrame.resample` and `Series.resample` for aggregation `size`.
 - Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
 
 #### Bug Fixes
 
