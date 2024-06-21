@@ -4,10 +4,10 @@
 import modin.pandas as pd
 import pandas as native_pd
 
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_frame_equal
-from tests.utils import IS_WINDOWS, TestFiles, Utils
+from tests.utils import TestFiles
+
 
 def test_read_excel(resources_path):
     test_files = TestFiles(resources_path)
@@ -20,4 +20,3 @@ def test_read_excel(resources_path):
             native_pd.read_excel(filename),
             check_dtype=False,
         )
-
