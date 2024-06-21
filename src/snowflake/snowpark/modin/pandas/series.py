@@ -1490,22 +1490,32 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().ne(other, level=level, axis=axis)
 
-    @series_not_implemented()
     def nlargest(self, n=5, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the largest `n` elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return self._default_to_pandas(pandas.Series.nlargest, n=n, keep=keep)
+        if len(self._query_compiler.columns) == 0:
+            # pandas returns empty series when requested largest/smallest from empty series
+            return self.__constructor__(data=[], dtype=float)
+        return Series(
+            query_compiler=self._query_compiler.nlargest(
+                n=n, columns=self.name, keep=keep
+            )
+        )
 
-    @series_not_implemented()
     def nsmallest(self, n=5, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the smallest `n` elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        if len(self._query_compiler.columns) == 0:
+            # pandas returns empty series when requested largest/smallest from empty series
+            return self.__constructor__(data=[], dtype=float)
         return self.__constructor__(
-            query_compiler=self._query_compiler.nsmallest(n=n, keep=keep)
+            query_compiler=self._query_compiler.nsmallest(
+                n=n, columns=self.name, keep=keep
+            )
         )
 
     def set_axis(
