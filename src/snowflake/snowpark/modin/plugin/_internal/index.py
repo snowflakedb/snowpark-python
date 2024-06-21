@@ -300,9 +300,7 @@ class Index:
         array([1, 2, 3])
         """
         return (
-            self._convert_index_column_to_data_column()
-            .drop(columns=self._query_compiler.columns)
-            .to_numpy()
+            self._convert_index_column_to_data_column().to_numpy()
             # reshape data to a "row vector" to match native pandas behavior
             .reshape(-1)
         )
