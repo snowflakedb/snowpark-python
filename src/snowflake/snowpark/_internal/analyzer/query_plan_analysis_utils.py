@@ -40,6 +40,19 @@ class PlanNodeCategory(Enum):
         return self.name
 
 
+class PipelineBreakerCategory(Enum):
+    """This enum class is used to classify if a given node is a pipeline
+    breaker and can be a good candidate for materialization.
+    """
+
+    PIPELINE_BREAKER = "pipeline_breaker" # Sort, Grouping+Aggregate, Pivot, Unpivot, Union, Row Sampling, (Percentile?)
+    UNION_ALL = "union_all"  # (EXCEPT, INTERSECT, ?) UNION ALL
+    CONSECUTIVE_JOIN = "consecutive_join" # a join where one of the child is also a join
+    NON_CONSECUTIVE_JOIN = "non_consecutive_join" # join where none of the children are join
+    PIPELINED = "pipelined" # all nodes that are pipelines and should not be broken
+
+
+
 def sum_node_complexities(
     *node_complexities: Dict[PlanNodeCategory, int]
 ) -> Dict[PlanNodeCategory, int]:
@@ -49,3 +62,21 @@ def sum_node_complexities(
         (Counter(complexity) for complexity in node_complexities), Counter()
     )
     return dict(counter_sum)
+
+def subtract_node_complexity(
+    node_complexity: Dict[PlanNodeCategory, int],
+    subtract_complexity: Dict[PlanNodeCategory, int]
+) -> Dict[PlanNodeCategory, int]:
+    """This function subtracts the complexity values of `subtract_complexity`
+    from `node_complexity` and returns the result."""
+    result = node_complexity.copy()
+    for category, count in subtract_complexity.items():
+        result[category] -= count
+    return result
+
+
+def get_complexity_score(cumulative_node_complexity: Dict[PlanNodeCategory, int]) -> int:
+    """Calculates the complexity score based on the cumulative node complexity"""
+    return sum(
+        (val if key not in (PlanNodeCategory.LOW_IMPACT, PlanNodeCategory.OTHERS) else 0 for key, val in cumulative_node_complexity.items())
+    )

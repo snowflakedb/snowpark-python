@@ -819,7 +819,7 @@ def batch_insert_into_statement(
 def create_table_as_select_statement(
     table_name: str,
     child: str,
-    column_definition: str,
+    column_definition: Optional[str],
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
@@ -831,12 +831,15 @@ def create_table_as_select_statement(
         if clustering_key
         else EMPTY_STRING
     )
+    column_definition_sql = f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}" if column_definition else EMPTY_STRING
     comment_sql = get_comment_sql(comment)
+    project_sql = child if is_sql_select_statement(child) else project_statement([], child)
+
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause} {comment_sql} {AS}{project_statement([], child)}"
+        f" {table_name}{column_definition_sql}"
+        f"{cluster_by_clause}{comment_sql}{AS}{project_sql}"
     )
 
 

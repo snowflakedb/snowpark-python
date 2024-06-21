@@ -97,6 +97,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
+    get_temp_type_for_object,
     is_sql_select_statement,
     random_name_for_temp_object,
 )
@@ -262,6 +263,10 @@ class SnowflakePlan(LogicalPlan):
                 return self.source_plan.children
         else:
             return []
+
+    def replace_child(self, old_node, new_node) -> None:
+        if self.source_plan:
+            self.source_plan.replace_child(old_node, new_node)
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
@@ -959,20 +964,15 @@ class SnowflakePlanBuilder:
         is_generated: bool = False,
     ) -> SnowflakePlan:
         child = child.replace_repeated_subquery_with_cte()
-        return self.build_from_multiple_queries(
-            lambda x: self.create_table_and_insert(
-                self.session,
+        return self.build(
+            lambda x: create_table_as_select_statement(
                 name,
-                child.schema_query,
                 x,
-                use_scoped_temp_objects=use_scoped_temp_objects,
-                is_generated=is_generated,
-            ),
-            child,
-            None,
-            child.schema_query,
-            is_ddl_on_temp_object=True,
-        )
+                None,
+                table_type=get_temp_type_for_object(use_scoped_temp_objects, is_generated)),
+                child,
+                None,
+            )
 
     def create_table_and_insert(
         self,
