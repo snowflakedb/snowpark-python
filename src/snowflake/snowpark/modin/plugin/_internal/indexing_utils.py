@@ -775,8 +775,8 @@ def _extract_loc_set_col_info(
             label for label in columns if label not in frame_data_columns
         ]
         columns = [label for label in columns if label in frame_data_columns]
-        before = frame_data_columns.value_counts()
-        after = union_data_columns.value_counts()
+        before = frame_data_columns.to_pandas().value_counts()
+        after = union_data_columns.to_pandas().value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
         for label in after.index:
             if label in frame_data_columns:
