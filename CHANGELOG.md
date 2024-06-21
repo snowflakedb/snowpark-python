@@ -65,6 +65,7 @@
 - Added support for `DataFrame.resample` and `Series.resample` for aggregation `size`.
 - Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
 - Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 
 #### Bug Fixes
 
