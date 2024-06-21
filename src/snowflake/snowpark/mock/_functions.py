@@ -18,6 +18,7 @@ from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 import pytz
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
@@ -57,14 +58,126 @@ from ._util import (
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
-_MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
-
 
 _DEFAULT_OUTPUT_FORMAT = {
     DateType: "YYYY-MM-DD",
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+
+class MockedFunctionRegistry:
+    _instance = None
+
+    def __init__(self) -> None:
+        self._registry = dict()
+
+    @classmethod
+    def get_or_create(cls):
+        if cls._instance is None:
+            cls._instance = MockedFunctionRegistry()
+        return cls._instance
+
+    def get_function(self, func: Union[Expression, str]):
+        if isinstance(func, str):
+            func_name = func
+            distinct = False
+        else:
+            func_name = func.name
+            distinct = func.is_distinct
+        func_name = func_name.lower()
+
+        if func_name not in self._registry:
+            return None
+
+        function = self._registry[func_name]
+
+        return function.distinct if distinct else function
+
+    def register(
+        self,
+        snowpark_func: Union[str, Callable],
+        func_implementation: Callable,
+        *args,
+        **kwargs,
+    ):
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
+        self._registry[name] = mocked_function
+        return mocked_function
+
+    def unregister(
+        self,
+        snowpark_func: Union[str, Callable],
+    ):
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+
+        if name in self._registry:
+            del self._registry[name]
+
+
+class MockedFunction:
+    def __init__(
+        self,
+        name: str,
+        func_implementation: Callable,
+        distinct: Optional["MockedFunction"] = None,
+        pass_column_index: Optional[bool] = None,
+        pass_row_index: Optional[bool] = None,
+        pass_input_data: Optional[bool] = None,
+    ) -> None:
+        self.name = name
+        self.impl = func_implementation
+        self.distinct = distinct or self
+        self._pass_row_index = pass_row_index
+        self._pass_column_index = pass_column_index
+        self._pass_input_data = pass_input_data
+
+    def _check_constant_result(self, input_data, args, result):
+        # This function helps automaticallly fill a column with a constant value in certain
+        # circumstances. Ideally a mocked function would enable pass_index and generate it's own
+        # column filled with constant values, but this works as well as a fallback.
+
+        # If none of the args are column emulators and the function result only has one item
+        # assume that the single value should be repeated instead of Null filled. This allows
+        # constant expressions like current_date or current_database to fill a column instead
+        # of just the first row.
+
+        if (
+            not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
+            and len(result) == 1
+        ):
+            resized = result.repeat(len(input_data)).reset_index(drop=True)
+            resized.sf_type = result.sf_type
+            return resized
+
+        return result
+
+    def __call__(self, *args, input_data=None, row_number=None, **kwargs):
+
+        if self._pass_input_data:
+            kwargs["raw_input"] = input_data
+        if self._pass_row_index:
+            kwargs["row_index"] = list(input_data.index).index(row_number)
+        if self._pass_column_index:
+            kwargs["column_index"] = input_data.index
+
+        result = self.impl(*args, **kwargs)
+
+        if (
+            input_data is not None
+            and not self._pass_column_index
+            and not self._pass_row_index
+        ):
+            return self._check_constant_result(
+                input_data, args + tuple(kwargs.values()), result
+            )
+
+        return result
 
 
 class LocalTimezone:
@@ -93,33 +206,12 @@ class LocalTimezone:
         return d.replace(tzinfo=cls.LOCAL_TZ)
 
 
-def _register_func_implementation(
-    snowpark_func: Union[str, Callable], func_implementation: Callable
-):
-    try:
-        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
-    except AttributeError:
-        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
-
-
-def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
-    try:
-        try:
-            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
-        except AttributeError:
-            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
-    except KeyError:
-        pass
-
-
-def patch(function):
+def patch(function, *args, **kwargs):
     def decorator(mocking_function):
-        _register_func_implementation(function, mocking_function)
-
-        def wrapper(*args, **kwargs):
-            return mocking_function(*args, **kwargs)
-
-        return wrapper
+        mocked_function = MockedFunctionRegistry.get_or_create().register(
+            function, mocking_function, *args, **kwargs
+        )
+        return mocked_function
 
     return decorator
 
@@ -152,8 +244,7 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
         return ColumnEmulator(data=res, sf_type=column.sf_type)
 
 
-@patch("sum")
-def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+def _sum(column: ColumnEmulator) -> ColumnEmulator:
     all_item_is_none = True
     res = 0
     for data in column:
@@ -186,6 +277,17 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
             data=[None], sf_type=ColumnType(new_type, column.sf_type.nullable)
         )
     )
+
+
+@patch("sum_distinct")
+def mock_sum_distinct(column: ColumnEmulator) -> ColumnEmulator:
+    column = ColumnEmulator(data=column.unique(), sf_type=column.sf_type)
+    return _sum(column)
+
+
+@patch("sum", distinct=mock_sum_distinct)
+def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+    return _sum(column)
 
 
 @patch("avg")
@@ -221,15 +323,6 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
-@patch("count")
-def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
-    if isinstance(column, ColumnEmulator):
-        count_column = column.count()
-        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
-    else:  # TableEmulator
-        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
-
-
 @patch("count_distinct")
 def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     """
@@ -244,6 +337,15 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     combined = df[df.columns].apply(lambda row: tuple(row), axis=1).dropna()
     res = combined.nunique()
     return ColumnEmulator(data=res, sf_type=ColumnType(LongType(), False))
+
+
+@patch("count", distinct=mock_count_distinct)
+def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
+    if isinstance(column, ColumnEmulator):
+        count_column = column.count()
+        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
+    else:  # TableEmulator # TODO would this branch actually ever happen?
+        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
 
 
 @patch("median")
@@ -408,24 +510,28 @@ def mock_to_date(
     return res
 
 
-@patch("current_timestamp")
-def mock_current_timestamp():
+@patch("current_timestamp", pass_column_index=True)
+def mock_current_timestamp(column_index):
     return ColumnEmulator(
-        data=datetime.datetime.now(),
+        data=[datetime.datetime.now()] * len(column_index),
         sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
     )
 
 
-@patch("current_date")
-def mock_current_date():
+@patch("current_date", pass_column_index=True)
+def mock_current_date(column_index):
     now = datetime.datetime.now()
-    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
+    return ColumnEmulator(
+        data=[now.date()] * len(column_index), sf_type=ColumnType(DateType(), False)
+    )
 
 
-@patch("current_time")
-def mock_current_time():
+@patch("current_time", pass_column_index=True)
+def mock_current_time(column_index):
     now = datetime.datetime.now()
-    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
+    return ColumnEmulator(
+        data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
+    )
 
 
 @patch("contains")
@@ -1233,9 +1339,10 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     return res
 
 
-@patch("row_number")
-def mock_row_number(window: TableEmulator, row_idx: int):
-    return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
+@patch("row_number", pass_row_index=True)
+def mock_row_number(row_index: int):
+    res = ColumnEmulator(data=[row_index + 1], sf_type=ColumnType(LongType(), False))
+    return res
 
 
 @patch("parse_json")
@@ -1739,19 +1846,21 @@ def mock_convert_timezone(
     )
 
 
-@patch("current_session")
-def mock_current_session():
+@patch("current_session", pass_column_index=True)
+def mock_current_session(column_index):
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
-        data=str(hash(session)), sf_type=ColumnType(StringType(), False)
+        data=[str(hash(session))] * len(column_index),
+        sf_type=ColumnType(StringType(), False),
     )
 
 
-@patch("current_database")
-def mock_current_database():
+@patch("current_database", pass_column_index=True)
+def mock_current_database(column_index):
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
-        data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
+        data=[session.get_current_database()] * len(column_index),
+        sf_type=ColumnType(StringType(), False),
     )
 
 
