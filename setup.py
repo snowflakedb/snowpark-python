@@ -44,7 +44,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "cachetools",  # used in UDF doctest
     "pytest-timeout",
     "pytest-xdist",
-    "openpyxl", # used in read_excel test, not a requirement for distribution
+    "openpyxl",  # used in read_excel test, not a requirement for distribution
     "pre-commit",
 ]
 
