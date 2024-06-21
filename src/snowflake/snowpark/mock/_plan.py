@@ -131,10 +131,7 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.mock._functions import (
-    _MOCK_FUNCTION_IMPLEMENTATION_MAP,
-    cast_column_to,
-)
+from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
 from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
@@ -335,20 +332,13 @@ def handle_function_expression(
     expr_to_alias: Dict[str, str],
     current_row=None,
 ):
-    # Special case for count_distinct
-    if exp.name.lower() == "count" and exp.is_distinct:
-        func_name = "count_distinct"
-    else:
-        func_name = exp.name.lower()
+    func = MockedFunctionRegistry.get_or_create().get_function(exp)
 
-    try:
-        original_func = getattr(
-            importlib.import_module("snowflake.snowpark.functions"), func_name
-        )
-    except AttributeError:
+    if func is None:
         current_schema = analyzer.session.get_current_schema()
         current_database = analyzer.session.get_current_database()
         udf_name = get_fully_qualified_name(exp.name, current_schema, current_database)
+
         # If udf name in the registry then this is a udf, not an actual function
         if udf_name in analyzer.session.udf._registry:
             exp.udf_name = udf_name
@@ -358,25 +348,30 @@ def handle_function_expression(
 
         if exp.api_call_source == "functions.call_udf":
             raise SnowparkLocalTestingException(
-                f"Unknown function {func_name}. UDF by that name does not exist."
+                f"Unknown function {exp.name}. UDF by that name does not exist."
             )
 
+        analyzer.session._conn.log_not_supported_error(
+            external_feature_name=exp.name,
+            error_message=f"Function {exp.name} is not implemented. You can implement and make a patch by "
+            f"using the `snowflake.snowpark.mock.patch` decorator.",
+            raise_error=NotImplementedError,
+        )
+
+    try:
+        original_func = getattr(
+            importlib.import_module("snowflake.snowpark.functions"), func.name
+        )
+    except AttributeError:
         # this is missing function in snowpark-python, need support for both live and local test
         analyzer.session._conn.log_not_supported_error(
-            external_feature_name=func_name,
-            error_message=f"Function {func_name} is not supported in snowpark-python.",
+            external_feature_name=func.name,
+            error_message=f"Function {func.name} is not supported in snowpark-python.",
             raise_error=NotImplementedError,
         )
 
     signatures = inspect.signature(original_func)
     spec = inspect.getfullargspec(original_func)
-    if func_name not in _MOCK_FUNCTION_IMPLEMENTATION_MAP:
-        analyzer.session._conn.log_not_supported_error(
-            external_feature_name=func_name,
-            error_message=f"Function {func_name} is not implemented. You can implement and make a patch by "
-            f"using the `snowflake.snowpark.mock.patch` decorator.",
-            raise_error=NotImplementedError,
-        )
     to_pass_args = []
     type_hints = typing.get_type_hints(original_func)
     for idx, key in enumerate(signatures.parameters):
@@ -423,42 +418,14 @@ def handle_function_expression(
                 )
             except IndexError:
                 to_pass_args.append(None)
-    if func_name == "array_agg":
-        to_pass_args[-1] = exp.is_distinct
-    if func_name == "sum" and exp.is_distinct:
-        to_pass_args[0] = ColumnEmulator(
-            data=to_pass_args[0].unique(), sf_type=to_pass_args[0].sf_type
-        )
-    # Rank related function specific arguments
-    if func_name == "row_number":
-        # for window functions, input_data is the current window
-        to_pass_args.append(input_data)
-        row_idx = list(input_data.index).index(
-            current_row
-        )  # the row's 0-base index in the window
-        to_pass_args.append(row_idx)
 
     try:
-        result = _MOCK_FUNCTION_IMPLEMENTATION_MAP[func_name](*to_pass_args)
+        result = func(*to_pass_args, row_number=current_row, input_data=input_data)
     except Exception as err:
         SnowparkLocalTestingException.raise_from_error(
             err,
-            error_message=f"Error executing mocked function '{func_name}'. See error traceback for detailed information.",
+            error_message=f"Error executing mocked function '{func.name}'. See error traceback for detailed information.",
         )
-
-    # If none of the args are column emulators and the function result only has one item
-    # assume that the single value should be repeated instead of Null filled. This allows
-    # constant expressions like current_date or current_database to fill a column instead
-    # of just the first row.
-    if (
-        not any(
-            isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in to_pass_args
-        )
-        and len(result) == 1
-    ):
-        resized = result.repeat(len(input_data)).reset_index(drop=True)
-        resized.sf_type = result.sf_type
-        return resized
 
     return result
 
@@ -1607,6 +1574,8 @@ def calculate_expression(
     """
     import numpy as np
 
+    registry = MockedFunctionRegistry.get_or_create()
+
     if isinstance(exp, Attribute):
         try:
             return input_data[expr_to_alias.get(exp.expr_id, exp.name)]
@@ -1634,7 +1603,7 @@ def calculate_expression(
     if isinstance(exp, ListAgg):
         lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)
         lhs.sf_type = ColumnType(StringType(), exp.col.nullable)
-        return _MOCK_FUNCTION_IMPLEMENTATION_MAP["listagg"](
+        return registry.get_function("listagg")(
             lhs,
             is_distinct=exp.is_distinct,
             delimiter=exp.delimiter,

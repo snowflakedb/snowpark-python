@@ -25,6 +25,12 @@
 #### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+- Added new parameters to `patch` function when registering a mocked function:
+  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
+  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
+  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
+  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
+
 
 #### Bug Fixes
 
