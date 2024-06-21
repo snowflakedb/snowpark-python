@@ -311,8 +311,8 @@ def float_frame() -> pandas.DataFrame:
     """
     return pandas.DataFrame(
         np.random.default_rng(2).standard_normal((30, 4)),
-        index=pd.Index([f"foo_{i}" for i in range(30)], dtype=object),
-        columns=pd.Index(list("ABCD"), dtype=object),
+        index=pandas.Index([f"foo_{i}" for i in range(30)], dtype=object),
+        columns=pandas.Index(list("ABCD"), dtype=object),
     )
 
 

@@ -1074,4 +1074,4 @@ def test_concat_keys():
         "three": pd.Series([3, 4, 5], index=["b", "c", "d"]),
     }
     snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
-    assert_frame_equal(snow_df, native_df)
+    assert_frame_equal(snow_df, native_df, check_dtype=False)

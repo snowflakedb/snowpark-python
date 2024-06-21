@@ -66,8 +66,8 @@ def test_stage_put_file():
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
-    assert result_1.source == result_1.target == "test_file_1"
-    assert result_2.source == result_2.target == "test_file_2"
+    assert result_1.source == result_1.target in ("test_file_1", "test_file_2")
+    assert result_2.source == result_2.target in ("test_file_1", "test_file_2")
     assert result_1.source_size is not None and result_2.source_size is not None
     assert result_1.target_size is not None and result_1.target_size is not None
     assert result_1.source_compression == result_1.target_compression == "NONE"

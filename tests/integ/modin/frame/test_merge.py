@@ -32,7 +32,7 @@ def left_df():
         {
             "A": [3, 2, 1, 4, 4],
             "B": [2, 3, 1, 2, 1],
-            "left_c": [1.0, 2.0, 3.0, 4.0, np.NaN],
+            "left_c": [1.0, 2.0, 3.0, 4.0, np.nan],
             "left_d": [None, "d", "a", "c", "b"],
         },
         index=pd.Index([0, 1, 3, 2, 4], name="left_i"),
@@ -61,7 +61,7 @@ def right_df():
         {
             "A": [4, 3, 1, 4, 4],
             "B": [3, 4, 2, 1, 1],
-            "right_c": [2.0, 1.0, 4.0, 0.0, np.NaN],
+            "right_c": [2.0, 1.0, 4.0, 0.0, np.nan],
             "right_d": ["c", "d", "a", "b", None],
         },
         index=pd.Index([8, 4, 2, 9, 1], name="right_i"),
@@ -335,7 +335,7 @@ def test_join_type_mismatch_negative(index1, index2):
             [3, 4],
             [True, False],
             native_pd.DataFrame(
-                {"A": [np.NaN, 1.0, 2.0], "B": [4, 3, 3]},
+                {"A": [np.nan, 1.0, 2.0], "B": [4, 3, 3]},
                 index=native_pd.Index([False, True, True]),
             ),
         ),
@@ -345,7 +345,7 @@ def test_join_type_mismatch_negative(index1, index2):
             ["a", "b"],
             [True, False],
             native_pd.DataFrame(
-                {"A": [1.0, 2.0, np.NaN, np.NaN], "B": [np.NaN, np.NaN, 4.0, 3.0]},
+                {"A": [1.0, 2.0, np.nan, np.nan], "B": [np.nan, np.nan, 4.0, 3.0]},
                 index=native_pd.Index(["a", "b", "false", "true"]),
             ),
         ),

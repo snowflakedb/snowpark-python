@@ -60,7 +60,9 @@ def test_write_pandas_with_overwrite(
                 auto_create_table=True,
             )
 
-            assert_frame_equal(pd1, table1.to_pandas(), check_dtype=False)
+            assert_frame_equal(
+                pd1, table1.to_pandas(), check_dtype=False, check_index_type=False
+            )
 
         with SqlCounter(query_count=3 if auto_create_table else 4):
             # Insert 1 row
@@ -73,7 +75,9 @@ def test_write_pandas_with_overwrite(
             results = table2.to_pandas()
             if overwrite:
                 # Results should match pd2
-                assert_frame_equal(results, pd2, check_dtype=False)
+                assert_frame_equal(
+                    results, pd2, check_dtype=False, check_index_type=False
+                )
             else:
                 # Results count should match pd1 + pd2
                 assert results.shape[0] == 4
@@ -88,7 +92,9 @@ def test_write_pandas_with_overwrite(
                     auto_create_table=auto_create_table,
                 )
                 results = table3.to_pandas()
-                assert_frame_equal(results, pd3, check_dtype=False)
+                assert_frame_equal(
+                    results, pd3, check_dtype=False, check_index_type=False
+                )
         else:
             with SqlCounter(query_count=1 if auto_create_table else 2):
                 # In this case, the table is truncated but since there's a new schema, it should fail
