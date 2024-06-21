@@ -201,6 +201,11 @@ class Index:
                     returned_value = Index(returned_value, convert_to_lazy=False)
                 # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
                 # Examples of this are `_get_indexer_strict` and `sort_values`
+
+                # We want to return a native pandas series for value counts because our loc/iloc functionality relies on it
+                # If we returned a snowpark pandas series, this would result in querying data many times
+                elif func_name == "value_counts":
+                    return returned_value
                 elif isinstance(returned_value, tuple) and isinstance(
                     returned_value[0], native_pd.Index
                 ):
@@ -220,6 +225,7 @@ class Index:
                     from snowflake.snowpark.modin.pandas import DataFrame
 
                     returned_value = DataFrame(returned_value)
+
                 return returned_value
 
         return check_lazy
