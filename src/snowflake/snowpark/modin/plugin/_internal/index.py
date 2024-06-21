@@ -470,7 +470,7 @@ class Index:
         """
         # TODO: SNOW-1458123 implement dtype
         WarningMessage.index_to_pandas_warning("dtype")
-        return self._query_compiler.index_dtypes[0]
+        return self.to_pandas().dtype
 
     @property
     def shape(self) -> tuple:
