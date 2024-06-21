@@ -14326,6 +14326,130 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
         )
 
+    def topn(
+        self, n: int, columns: IndexLabel, keep: str, ascending: bool
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the top 'n' rows ordered by 'columns'..
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+            ascending: {True, False}
+              If True return smallest n values otherwise return largest n values.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        if keep not in ("first", "last", "all"):
+            raise ValueError('keep must be either "first", "last" or "all"')
+        if keep == "all":
+            method_name = "nsmallest" if ascending else "nlargest"
+            # TODO SNOW-1483214: Add support for keep='all'
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't yet support parameter keep='all'"
+            )
+        # Special case handling for unnamed series. 'columns' passed from frontend layer
+        # will be None, replace it with MODIN_UNNAMED_SERIES_LABEL.
+        if self._modin_frame.is_unnamed_series():
+            columns = MODIN_UNNAMED_SERIES_LABEL
+
+        if not is_list_like(columns):
+            columns = [columns]
+
+        # Native pandas returns empty dataframe if n is negative. Set it to zero to
+        # provide same behavior.
+        n = max(0, n)
+        # Native pandas returns empty dataframe if 'columns' is a empty array. Set n
+        # to zero to provide same behavior.
+        if len(columns) == 0:
+            n = 0
+
+        internal_frame = self._modin_frame
+        # Map pandas labels to snowflake identifiers.
+        matched_identifiers = (
+            internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                columns, include_index=False
+            )
+        )
+        ordering_columns = []
+        for label, identifiers in zip(columns, matched_identifiers):
+            if len(identifiers) == 0:
+                raise KeyError(label)
+            if len(identifiers) > 1:
+                raise ValueError(f"The column label '{label}' is not unique.")
+            ordering_columns.append(
+                OrderingColumn(identifiers[0], ascending, na_last=True)
+            )
+
+        # Append existing ordering column to handle duplicates.
+        for ordering_column in internal_frame.ordering_columns:
+            # reverse the sort order if keep is 'last'
+            if keep == "last":
+                ordering_column = OrderingColumn(
+                    ordering_column.snowflake_quoted_identifier,
+                    not ordering_column.ascending,
+                    ordering_column.na_last,
+                )
+            ordering_columns.append(ordering_column)
+
+        ordered_frame = internal_frame.ordered_dataframe.sort(ordering_columns).limit(n)
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=ordered_frame,
+                data_column_pandas_labels=internal_frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
+        )
+
+    def nlargest(
+        self, n: int, columns: IndexLabel, keep: str
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the first 'n' rows ordered by 'columns' in descending order.
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        return self.topn(n, columns, keep, ascending=False)
+
+    def nsmallest(
+        self, n: int, columns: IndexLabel, keep: str
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the first 'n' rows ordered by 'columns' in ascending order.
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        return self.topn(n, columns, keep, ascending=True)
+
     def pct_change(
         self,
         periods: int = 1,
