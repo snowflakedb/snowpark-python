@@ -128,13 +128,13 @@ class Index:
             qc = data
         else:
             qc = DataFrame(
-                native_pd.Index(
+                index=native_pd.Index(
                     data=data,
                     dtype=dtype,
                     copy=copy,
                     name=name,
                     tupleize_cols=tupleize_cols,
-                ).to_frame()
+                )
             )._query_compiler
         self._query_compiler = qc
 
