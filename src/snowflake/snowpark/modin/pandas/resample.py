@@ -321,7 +321,7 @@ class Resampler(metaclass=TelemetryMeta):
         skipna: bool = True,
         *args: Any,
         **kwargs: Any,
-    ):  # pragma: no cover
+    ):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._validate_numeric_only_for_aggregate_methods(numeric_only)
 
