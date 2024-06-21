@@ -262,7 +262,7 @@ def col(name1: str, name2: Optional[str] = None) -> Column:
     )
 
     expr = proto.Expr()
-    build_fn_apply(expr, "col", kwargs=kwargs)
+    build_fn_apply(expr, "col", **kwargs)
 
     if name2 is None:
         return Column(name1, ast=expr)
@@ -304,7 +304,7 @@ def column(name1: str, name2: Optional[str] = None) -> Column:
     )
 
     expr = proto.Expr()
-    build_fn_apply(expr, "column", kwargs=kwargs)
+    build_fn_apply(expr, "column", **kwargs)
 
     if name2 is None:
         return Column(name1, ast=expr)
