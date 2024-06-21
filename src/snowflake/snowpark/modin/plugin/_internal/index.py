@@ -1710,7 +1710,6 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        # TODO: SNOW-1458117 implement tolist
         return list(self.values)
 
     to_list = tolist
