@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df = df.sort(col("A"), ascending=True)
+
+df = df.sort(col("A"), ascending=False)
+
+df = df.sort(col("A"))
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.sort(res1["A"], True)
+
+res3 = res2.sort(res2["A"], False)
+
+res4 = res3.sort(res3["A"])
