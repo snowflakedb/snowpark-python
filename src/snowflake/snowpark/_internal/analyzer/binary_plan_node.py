@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -95,6 +96,12 @@ class Union(SetOperation):
     @property
     def sql(self) -> str:
         return f"UNION{' ALL' if self.is_all else ''}"
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        if self.is_all:
+            return PipelineBreakerCategory.UNION_ALL
+        return PipelineBreakerCategory.PIPELINE_BREAKER
 
 
 class JoinType:
@@ -224,3 +231,9 @@ class Join(BinaryNode):
             else complexity
         )
         return complexity
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        if isinstance(self.left, Join) or isinstance(self.right, Join):
+            return PipelineBreakerCategory.CONSECUTIVE_JOIN
+        return PipelineBreakerCategory.NON_CONSECUTIVE_JOIN

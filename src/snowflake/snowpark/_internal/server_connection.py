@@ -33,6 +33,7 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.large_query_breakdown import LargeQueryBreakdown
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
@@ -606,38 +607,50 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
-                for i, query in enumerate(plan.queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(plan.queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        result = self.run_query(
-                            final_query,
-                            to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
-                            data_type=data_type,
-                            async_job_plan=plan,
-                            log_on_exception=log_on_exception,
-                            case_sensitive=case_sensitive,
-                            params=query.params,
-                            ignore_results=ignore_results,
-                            **kwargs,
-                        )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
-                        result_meta = get_new_description(self._cursor)
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+                # break down blocking queries first
+                query_breaker = LargeQueryBreakdown(plan.session)
+                plans = query_breaker.breakdown_if_large_plan(plan)
+                executed_queries = set()
+
+                for j, plan in enumerate(plans):
+                    for i, query in enumerate(plan.queries):
+                        is_last = (j == len(plans) -1) and (i == len(plan.queries) - 1) and not block
+                        if isinstance(query, BatchInsertQuery):
+                            self.run_batch_insert(query.sql, query.rows, **kwargs)
+                        else:
+                            is_last = i == len(plan.queries) - 1 and not block
+                            final_query = query.sql
+                            # pre-actions might be executed twice since they are
+                            # present in partition and root
+                            if final_query in executed_queries:
+                                continue
+                            executed_queries.add(final_query)
+                            for holder, id_ in placeholders.items():
+                                final_query = final_query.replace(holder, id_)
+                            result = self.run_query(
+                                final_query,
+                                to_pandas,
+                                to_iter and (i == len(plan.queries) - 1 and j == len(plans) -1),
+                                is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                                block=not is_last,
+                                data_type=data_type,
+                                async_job_plan=plan,
+                                log_on_exception=log_on_exception,
+                                case_sensitive=case_sensitive,
+                                params=query.params,
+                                ignore_results=ignore_results,
+                                **kwargs,
+                            )
+                            placeholders[query.query_id_place_holder] = (
+                                result["sfqid"] if not is_last else result.query_id
+                            )
+                            result_meta = get_new_description(self._cursor)
+                        if action_id < plan.session._last_canceled_id:
+                            raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             if block:
-                for action in plan.post_actions:
+                for action in plans[-1].post_actions:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,

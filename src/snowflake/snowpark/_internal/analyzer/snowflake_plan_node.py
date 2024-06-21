@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -56,6 +57,13 @@ class LogicalPlan:
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        return PipelineBreakerCategory.PIPELINED
+
+    def replace_child(self, old_node, new_node) -> None:
+        self.children = [child if child != old_node else new_node for child in self.children]
+
 
 class LeafNode(LogicalPlan):
     pass
@@ -92,6 +100,9 @@ class UnresolvedRelation(LeafNode):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
         return {PlanNodeCategory.COLUMN: 1}
+
+class TempTableReference(UnresolvedRelation):
+    pass
 
 
 class SnowflakeValues(LeafNode):
