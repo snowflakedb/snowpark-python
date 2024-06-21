@@ -92,7 +92,6 @@ NUMPY_SNOWFLAKE_TYPE_PAIRS: list[tuple[Union[type, str], DataType]] = [
     (np.half, FloatType()),
     (np.float16, FloatType()),
     (np.float64, DoubleType()),
-    (np.float_, DoubleType()),
     (np.object_, VariantType()),
     (np.bool_, BooleanType()),
     ("datetime64[ns]", TimestampType()),
