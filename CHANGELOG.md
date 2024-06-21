@@ -71,7 +71,7 @@
 - For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
 - Added support for `Index.copy()`
-- Added support for `values`, `item`, `tolist`, `to_series` and `to_frame`
+- Added support for `Index.values`, `Index.item()`, `Index.tolist()`, `Index.to_series()` and `Index.to_frame()`
 
 ## 1.18.0 (2024-05-28)
 
