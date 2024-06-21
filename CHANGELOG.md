@@ -6,6 +6,8 @@
 
 #### Improvements
 
+- Added open telemetry tracing on UDxF functions in snowpark.
+
 #### New Features
 
 - Added support for `to_boolean` function.
@@ -16,12 +18,21 @@
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - random
+- Added new parameters to `patch` function when registering a mocked function:
+  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
+  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
+  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
+  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
 
 #### Bug Fixes
 
@@ -31,6 +42,7 @@
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in handling of `CaseExpr` expressions that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in implementation of `Column.like` that raises `IndexError` when incoming column has nonconsecutive row index.
+- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
 
 #### Improvements
 
@@ -45,24 +57,31 @@
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
-- Added support for `DataFrameGroupby.size` and `SeriesGroupby.size`.
-- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
+- Added support for `DataFrameGroupBy.size` and `SeriesGroupBy.size`.
+- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, `var`, and `sem` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `DataFrameGroupBy.get_group`.
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `Series.str.match`.
+- Added support for `DataFrame.resample` and `Series.resample` for aggregation `size`.
+- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
+- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 
 #### Improvements
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 - Initial work to support an Index directly in Snowpark pandas. Support for Index as a first-class component of Snowpark pandas is coming soon.
-- Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object. 
+- Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. 
+- Added support for `Index.copy()`
+- For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
 
 ## 1.18.0 (2024-05-28)

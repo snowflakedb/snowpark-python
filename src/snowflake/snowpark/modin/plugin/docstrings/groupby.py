@@ -269,9 +269,6 @@ class DataFrameGroupBy:
         Name: B, dtype: float64
         """
 
-    def any():
-        pass
-
     @property
     def plot():
         pass
@@ -1325,7 +1322,101 @@ class DataFrameGroupBy:
         pass
 
     def all():
-        pass
+        """
+        Return True if all values in the group are truthful, else False.
+
+        Parameters
+        ----------
+        skipna : bool, default True
+            Flag to ignore nan values during truth testing.
+
+        Returns
+        -------
+        Series or DataFrame
+            DataFrame or Series of boolean values, where a value is True if all elements
+            are True within its respective group, False otherwise.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 0], index=lst)
+        >>> ser  # doctest: +NORMALIZE_WHITESPACE
+        a    1
+        a    2
+        b    0
+        dtype: int64
+        >>> ser.groupby(level=0).all()  # doctest: +NORMALIZE_WHITESPACE
+        a     True
+        b    False
+        dtype: bool
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 0, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["ostrich", "penguin", "parrot"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                 a  b  c
+        ostrich  1  0  3
+        penguin  1  5  6
+        parrot   7  8  9
+        >>> df.groupby(by=["a"]).all()  # doctest: +NORMALIZE_WHITESPACE
+               b      c
+        a
+        1  False   True
+        7   True   True
+        """
+
+    def any():
+        """
+        Return True if any value in the group is truthful, else False.
+
+        Parameters
+        ----------
+        skipna : bool, default True
+            Flag to ignore nan values during truth testing.
+
+        Returns
+        -------
+        Series or DataFrame
+            DataFrame or Series of boolean values, where a value is True if any element
+            is True within its respective group, False otherwise.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 0], index=lst)
+        >>> ser  # doctest: +NORMALIZE_WHITESPACE
+        a    1
+        a    2
+        b    0
+        dtype: int64
+        >>> ser.groupby(level=0).any()  # doctest: +NORMALIZE_WHITESPACE
+        a     True
+        b    False
+        dtype: bool
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 0, 3], [1, 0, 6], [7, 1, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["ostrich", "penguin", "parrot"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                 a  b  c
+        ostrich  1  0  3
+        penguin  1  0  6
+        parrot   7  1  9
+        >>> df.groupby(by=["a"]).any()  # doctest: +NORMALIZE_WHITESPACE
+               b      c
+        a
+        1  False   True
+        7   True   True
+        """
 
     def size():
         """

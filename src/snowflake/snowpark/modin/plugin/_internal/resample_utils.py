@@ -41,7 +41,17 @@ RESAMPLE_INDEX_LABEL = "__resample_index__"
 
 SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE = "1970-01-01 00:00:00"
 
-IMPLEMENTED_AGG_METHODS = ["max", "min", "mean", "median", "sum", "std", "var", "count"]
+IMPLEMENTED_AGG_METHODS = [
+    "max",
+    "min",
+    "mean",
+    "median",
+    "sum",
+    "std",
+    "var",
+    "count",
+    "size",
+]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
 
 ResampleMethodTypeLit = Literal["ffill", "max", "min", "mean"]
