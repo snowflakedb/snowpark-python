@@ -9721,7 +9721,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             elif resample_method in ("first", "last"):
                 # Call groupby_first or groupby_last directly
                 qc = getattr(
-                    SnowflakeQueryCompiler(frame), "groupby_" + resample_method
+                    SnowflakeQueryCompiler(frame), f"groupby_{resample_method}"
                 )(
                     by=self._modin_frame.index_column_pandas_labels,
                     axis=resample_kwargs.get("axis", 0),
