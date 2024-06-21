@@ -297,16 +297,19 @@ def test_df_index_columns_to_list(native_df):
 @sql_count_checker(query_count=3, join_count=1)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_series(native_index):
-    print(native_index.to_series())
     snow_index = pd.Index(native_index)
     assert_series_equal(
         snow_index.to_series(), native_index.to_series(), check_index_type=False
     )
-    assert_series_equal(
-        native_index.to_series(index=range(10, 10 + len(native_index)), name="name"),
-        snow_index.to_series(index=range(10, 10 + len(snow_index)), name="name"),
-        check_index_type=False,
-    )
+
+    with SqlCounter(join_count=1):
+        assert_series_equal(
+            native_index.to_series(
+                index=range(10, 10 + len(native_index)), name="name"
+            ),
+            snow_index.to_series(index=range(10, 10 + len(snow_index)), name="name"),
+            check_index_type=False,
+        )
 
 
 @sql_count_checker(query_count=4, join_count=1)
@@ -314,24 +317,24 @@ def test_index_to_series(native_index):
 def test_df_index_columns_to_series(native_df):
     snow_df = pd.DataFrame(native_df)
     assert_series_equal(
-        native_df.index.to_series(),
         snow_df.index.to_series(),
-        check_dtype=False,
+        native_df.index.to_series(),
         check_index_type=False,
     )
     assert_series_equal(
-        native_df.columns.to_series(),
         snow_df.columns.to_series(),
+        native_df.columns.to_series(),
         check_dtype=False,
         check_index_type=False,
     )
 
-    assert_series_equal(
-        native_df.index.to_series(index=range(len(native_df.index)), name=1),
-        snow_df.index.to_series(index=range(len(native_df.index)), name=1),
-        check_dtype=False,
-        check_index_type=False,
-    )
+    with SqlCounter(join_count=1):
+        assert_series_equal(
+            snow_df.index.to_series(index=range(len(native_df.index)), name=1),
+            native_df.index.to_series(index=range(len(native_df.index)), name=1),
+            check_index_type=False,
+        )
+
     assert_series_equal(
         native_df.columns.to_series(index=range(len(native_df.columns)), name=True),
         snow_df.columns.to_series(index=range(len(native_df.columns)), name=True),

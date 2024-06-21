@@ -136,7 +136,7 @@ class Index:
                     tupleize_cols=tupleize_cols,
                 )
             )._query_compiler
-        self._query_compiler = qc
+        self._query_compiler = qc.drop(columns=qc.columns)
 
     def set_local_index(
         self,
@@ -303,6 +303,7 @@ class Index:
             self._query_compiler.reset_index()
             .drop(columns=self._query_compiler.columns)
             .to_numpy()
+            # reshape data to a "row vector" to match native pandas behavior
             .reshape(-1)
         )
 
@@ -1518,9 +1519,18 @@ class Index:
             return self.tolist()[0]
         raise ValueError("can only convert an array of size 1 to a Python scalar")
 
+    def _convert_index_column_to_data_column(self) -> Any:
+        """
+        Helper method to fill empty data columns with an index column
+        """
+        return self._query_compiler.reset_index()
+
     @is_lazy_check
     def to_series(
-        self, index: Index | None = None, name: Hashable | None = None
+        self,
+        index: Index | None = None,
+        name: Hashable | None = None
+        # TODO: SNOW-1481037 : Fix typehints
     ) -> Any:
         """
         Create a Series with both index and values equal to the index keys.
@@ -1550,8 +1560,7 @@ class Index:
         if name is None:
             name = self.name
         new_qc = (
-            self._query_compiler.drop(columns=self._query_compiler.columns)
-            .reset_index()
+            self._convert_index_column_to_data_column()
             .set_index(["index"], drop=False)
             .set_index_names([None])
         )
@@ -1564,6 +1573,7 @@ class Index:
         return ser
 
     @is_lazy_check
+    # TODO: SNOW-1481037 : Fix typehints
     def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
         """
         Create a DataFrame with a column containing the Index.
@@ -1591,9 +1601,7 @@ class Index:
 
         if name is None:
             name = self.name
-        new_qc = self._query_compiler.drop(
-            columns=self._query_compiler.columns
-        ).reset_index()
+        new_qc = self._convert_index_column_to_data_column()
         if index:
             df = DataFrame(
                 query_compiler=new_qc.rename(columns_renamer={"index": name}),
