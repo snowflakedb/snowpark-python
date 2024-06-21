@@ -185,6 +185,8 @@ DataFrame
     DataFrame.pivot_table
     DataFrame.sort_values
     DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.smallest
     DataFrame.melt
     DataFrame.squeeze
     DataFrame.T
