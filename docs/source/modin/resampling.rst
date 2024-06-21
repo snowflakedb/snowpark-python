@@ -13,7 +13,6 @@ Resampling
     Resampler.get_group
     Resampler.groups
     Resampler.indices
-    Resampler.__iter__
 
 .. rubric:: Function application
 
