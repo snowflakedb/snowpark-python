@@ -1899,6 +1899,7 @@ def test_pandas_udf_input_variant(session):
             [[True]],
             (
                 "<class 'bool'>",
+                "<class 'numpy.bool'>",
                 "<class 'numpy.bool_'>",
             ),
             ("bool",),

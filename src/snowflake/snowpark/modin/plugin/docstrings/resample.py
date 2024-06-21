@@ -715,7 +715,68 @@ class Resampler:
         pass
 
     def size():
-        pass
+        """
+        Compute group sizes.
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            Number of rows in each group as a Series if ``as_index`` is True or a DataFrame if ``as_index`` is False.
+
+        Examples
+        --------
+        For Series:
+
+        >>> lst1 = pd.date_range('2020-01-01', periods=4, freq='1D')
+        >>> ser1 = pd.Series([1, 2, 3, 4], index=lst1)
+        >>> ser1
+        2020-01-01    1
+        2020-01-02    2
+        2020-01-03    3
+        2020-01-04    4
+        Freq: None, dtype: int64
+
+        >>> ser1.resample('2D').size()
+        2020-01-01    2
+        2020-01-03    2
+        Freq: None, dtype: int64
+
+        >>> lst2 = pd.date_range('2020-01-01', periods=4, freq='S')
+        >>> ser2 = pd.Series([1, 2, np.nan, 4], index=lst2)
+        >>> ser2
+        2020-01-01 00:00:00    1.0
+        2020-01-01 00:00:01    2.0
+        2020-01-01 00:00:02    NaN
+        2020-01-01 00:00:03    4.0
+        Freq: None, dtype: float64
+
+        >>> ser2.resample('2S').size()
+        2020-01-01 00:00:00    2
+        2020-01-01 00:00:02    2
+        Freq: None, dtype: int64
+
+        For DataFrame:
+
+        >>> data = [[1, 8, 2], [1, 2, 5], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data,
+        ...      columns=["a", "b", "c"],
+        ...      index=pd.date_range('2020-01-01', periods=4, freq='1D'))
+        >>> df
+                    a  b  c
+        2020-01-01  1  8  2
+        2020-01-02  1  2  5
+        2020-01-03  2  5  8
+        2020-01-04  2  6  9
+
+        >>> df.resample('2D').size()
+        2020-01-01    2
+        2020-01-03    2
+        Freq: None, dtype: int64
+        """
 
     def sem():
         pass

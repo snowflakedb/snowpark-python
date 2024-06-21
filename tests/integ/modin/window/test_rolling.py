@@ -12,7 +12,7 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 agg_func = pytest.mark.parametrize(
-    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max"]
+    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
 )
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [1, 2])
@@ -126,6 +126,22 @@ def test_rolling_series(window, min_periods, center, agg_func):
             )
 
 
+@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1, 2])
+@sql_count_checker(query_count=1)
+def test_rolling_sem_ddof(ddof):
+    native_df = native_pd.DataFrame(
+        {"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.rolling(window=2, min_periods=1).sem(
+            numeric_only=True, ddof=ddof
+        ),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_rolling_window_negative():
     native_df = native_pd.DataFrame({"B": [0, 1, 2, np.nan, 4]})
@@ -223,7 +239,6 @@ def test_rolling_params_unsupported(function):
 @pytest.mark.parametrize(
     "agg_func, agg_func_kwargs",
     [
-        ("sem", None),
         ("median", None),
         ("corr", None),
         ("cov", None),

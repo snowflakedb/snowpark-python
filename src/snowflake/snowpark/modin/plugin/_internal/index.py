@@ -128,13 +128,13 @@ class Index:
             qc = data
         else:
             qc = DataFrame(
-                native_pd.Index(
+                index=native_pd.Index(
                     data=data,
                     dtype=dtype,
                     copy=copy,
                     name=name,
                     tupleize_cols=tupleize_cols,
-                ).to_frame()
+                )
             )._query_compiler
         self._query_compiler = qc
 
@@ -844,10 +844,11 @@ class Index:
         >>> idx is new_idx
         False
         """
-        # TODO: SNOW-1458120 implement copy
-        WarningMessage.index_to_pandas_warning("copy")
+        WarningMessage.ignored_argument(operation="copy", argument="deep", message="")
         return Index(
-            self.to_pandas().copy(deep=deep, name=name), convert_to_lazy=self.is_lazy
+            self._query_compiler.copy(),
+            name=name,
+            convert_to_lazy=self.is_lazy,
         )
 
     @index_not_implemented()
