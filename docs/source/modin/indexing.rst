@@ -63,6 +63,7 @@ Index
     Index.is_interval
     Index.is_numeric
     Index.is_object
+    Index.item
     Index.min
     Index.max
     Index.reindex
