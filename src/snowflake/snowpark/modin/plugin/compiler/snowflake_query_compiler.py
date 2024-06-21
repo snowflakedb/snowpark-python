@@ -688,7 +688,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # here it's overwritten to actually perform numpy conversion, i.e. return an actual numpy object
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    def repartition(self, axis: Optional[Any] = None) -> "SnowflakeQueryCompiler":
+    def repartition(self, axis: Any = None) -> "SnowflakeQueryCompiler":
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
         return self
 
@@ -1466,7 +1466,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def shift(
         self,
         periods: Union[int, Sequence[int]] = 1,
-        freq: Optional[Any] = None,
+        freq: Any = None,
         axis: Literal[0, 1] = 0,
         fill_value: Hashable = no_default,
         suffix: Optional[str] = None,
@@ -1678,16 +1678,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if axis == 0
             else self._modin_frame.data_column_pandas_index_names
         )
-
-    def get_index_values(self) -> AnyArrayLike:
-        """
-        Return an array representing the data in the Index.
-        """
-        return snowpark_to_pandas_helper(
-            self._modin_frame.ordered_dataframe.select(
-                self._modin_frame.index_column_snowflake_quoted_identifiers
-            )
-        ).values.flatten()
 
     def _binary_op_scalar_rhs(
         self, op: str, other: Scalar, fill_value: Scalar
@@ -2184,12 +2174,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def reset_index(
         self,
-        level: Optional[IndexLabel] = None,
+        level: IndexLabel = None,
         drop: bool = False,
         col_level: Hashable = 0,
         col_fill: Hashable = "",
         allow_duplicates: bool = False,
-        names: Optional[IndexLabel] = None,
+        names: IndexLabel = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Reset the index, or a level of it.
@@ -8436,7 +8426,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         how: Literal["any", "all"],
         thresh: Optional[Union[int, lib.NoDefault]] = lib.no_default,
-        subset: Optional[IndexLabel] = None,
+        subset: IndexLabel = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Remove missing values. If 'thresh' is specified then the 'how' parameter is ignored.
@@ -11292,7 +11282,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def replace(
         self,
-        to_replace: Optional[Union[str, int, float, ListLike, dict]] = None,
+        to_replace: Union[str, int, float, ListLike, dict] = None,
         value: Union[Scalar, ListLike, dict] = lib.no_default,
         limit: Optional[int] = None,
         regex: Union[bool, str, int, float, ListLike, dict] = False,
@@ -11596,7 +11586,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def duplicated(
         self,
-        subset: Optional[Union[Hashable, Sequence[Hashable]]] = None,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
         keep: DropKeep = "first",
     ) -> "SnowflakeQueryCompiler":
         """
@@ -12403,7 +12393,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _str_startswith_endswith(
         self,
         pat: Union[str, tuple],
-        na: Optional[object] = None,
+        na: object = None,
         is_startswith: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
@@ -12471,7 +12461,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("encode", "Series.str")
 
     def str_startswith(
-        self, pat: Union[str, tuple], na: Optional[object] = None
+        self, pat: Union[str, tuple], na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
         Test if the start of each string element matches a pattern.
@@ -12490,7 +12480,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self._str_startswith_endswith(pat, na, is_startswith=True)
 
     def str_endswith(
-        self, pat: Union[str, tuple], na: Optional[object] = None
+        self, pat: Union[str, tuple], na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
         Test if the end of each string element matches a pattern.
@@ -12524,12 +12514,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("rindex", "Series.str")
 
     def str_fullmatch(
-        self, pat: str, case: bool = True, flags: int = 0, na: Optional[object] = None
+        self, pat: str, case: bool = True, flags: int = 0, na: object = None
     ) -> None:
         ErrorMessage.method_not_implemented_error("fullmatch", "Series.str")
 
     def str_match(
-        self, pat: str, case: bool = True, flags: int = 0, na: Optional[object] = None
+        self, pat: str, case: bool = True, flags: int = 0, na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
         Determine if each string starts with a match of a regular expression.
@@ -12793,7 +12783,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pat: str,
         case: bool = True,
         flags: int = 0,
-        na: Optional[object] = None,
+        na: object = None,
         regex: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """

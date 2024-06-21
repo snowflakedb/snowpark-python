@@ -355,7 +355,7 @@ def test_df_setitem_replace_column_with_single_column(column, key):
                 column, native_pd.DatetimeIndex
             ):
                 column = pd.Index(column)
-            if isinstance(column, native_pd.Series):
+            elif isinstance(column, native_pd.Series):
                 column = try_cast_to_snowpark_pandas_series(column)
 
         df[key] = column
