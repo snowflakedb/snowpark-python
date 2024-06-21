@@ -237,46 +237,42 @@ def test_df_index_columns_values(native_df):
 
 
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+@sql_count_checker(query_count=1)
 def test_index_item(native_index):
     snow_index = pd.Index(native_index)
     # 1 query to check length in item method, if length is 1, issue another query to get item
     if len(native_index) == 1:
-        with SqlCounter(query_count=2):
-            assert snow_index.item() == native_index.item()
+        assert snow_index.item() == native_index.item()
     else:
-        with SqlCounter(query_count=1):
-            with pytest.raises(
-                expected_exception=ValueError,
-                match="can only convert an array of size 1 to a Python scalar",
-            ):
-                snow_index.item()
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="can only convert an array of size 1 to a Python scalar",
+        ):
+            snow_index.item()
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
+@sql_count_checker(query_count=1)
 def test_df_index_columns_item(native_df):
     snow_df = pd.DataFrame(native_df)
-    # 1 query to check length in item method, if length is 1, issue another query to get item
     if len(native_df.index) == 1:
-        with SqlCounter(query_count=2):
-            assert snow_df.index.item() == native_df.index.item()
+        assert snow_df.index.item() == native_df.index.item()
     else:
-        with SqlCounter(query_count=1):
-            with pytest.raises(
-                expected_exception=ValueError,
-                match="can only convert an array of size 1 to a Python scalar",
-            ):
-                snow_df.index.item()
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="can only convert an array of size 1 to a Python scalar",
+        ):
+            snow_df.index.item()
 
     # no queries needed for columns
-    with SqlCounter(query_count=0):
-        if len(native_df.columns) == 1:
-            assert snow_df.columns.item() == native_df.columns.item()
-        else:
-            with pytest.raises(
-                expected_exception=ValueError,
-                match="can only convert an array of size 1 to a Python scalar",
-            ):
-                snow_df.columns.item()
+    if len(native_df.columns) == 1:
+        assert snow_df.columns.item() == native_df.columns.item()
+    else:
+        with pytest.raises(
+            expected_exception=ValueError,
+            match="can only convert an array of size 1 to a Python scalar",
+        ):
+            snow_df.columns.item()
 
 
 @sql_count_checker(query_count=1)
@@ -324,7 +320,6 @@ def test_df_index_columns_to_series(native_df):
     assert_series_equal(
         snow_df.columns.to_series(),
         native_df.columns.to_series(),
-        check_dtype=False,
         check_index_type=False,
     )
 
@@ -343,7 +338,7 @@ def test_df_index_columns_to_series(native_df):
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index):
     snow_index = pd.Index(native_index)
@@ -363,7 +358,7 @@ def test_index_to_frame(native_index):
     )
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_frame(native_df):
     snow_df = pd.DataFrame(native_df)

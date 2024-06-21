@@ -201,11 +201,6 @@ class Index:
                     returned_value = Index(returned_value, convert_to_lazy=False)
                 # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
                 # Examples of this are `_get_indexer_strict` and `sort_values`
-
-                # We want to return a native pandas series for value counts because our loc/iloc functionality relies on it
-                # If we returned a snowpark pandas series, this would result in querying data many times
-                elif func_name == "value_counts":
-                    return returned_value
                 elif isinstance(returned_value, tuple) and isinstance(
                     returned_value[0], native_pd.Index
                 ):
@@ -1499,6 +1494,7 @@ class Index:
             dropna=dropna,
         )
 
+    @is_lazy_check
     def item(self) -> None:
         """
         Return the first element of the underlying data as a Python scalar.
@@ -1513,8 +1509,11 @@ class Index:
         ValueError
             If the data is not length = 1.
         """
-        if len(self) == 1:
-            return self.tolist()[0]
+        item = self._query_compiler.take_2d_positional(
+            index=slice(0, 2), columns=[0]
+        ).index.to_pandas()
+        if len(item) == 1:
+            return item[0]
         raise ValueError("can only convert an array of size 1 to a Python scalar")
 
     def _convert_index_column_to_data_column(self) -> Any:
@@ -1595,20 +1594,9 @@ class Index:
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
         """
-        from snowflake.snowpark.modin.pandas import DataFrame
-
-        if name is None:
-            name = self.name
-        new_qc = self._convert_index_column_to_data_column()
-        if index:
-            df = DataFrame(
-                query_compiler=new_qc.rename(columns_renamer={"index": name}),
-            )
-            df = df.set_index(df[df.columns[0]], drop=False)
-        else:
-            df = DataFrame(query_compiler=new_qc)
-
-        df.columns = [0] if name is None else [name]
+        df = self.to_series(name=name).to_frame(name=name)
+        if not index:
+            df = df.reset_index(drop=True)
         return df
 
     @index_not_implemented()
