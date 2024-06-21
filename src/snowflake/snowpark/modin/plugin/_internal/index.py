@@ -43,10 +43,10 @@ class Index:
     def __init__(
         self,
         # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any | None = None,
+        data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
-        name: object | None = None,
+        name: object = None,
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
     ) -> None:
@@ -110,23 +110,20 @@ class Index:
     def set_query_compiler(
         self,
         # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any | None = None,
+        data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
-        name: object | None = None,
+        name: object = None,
         tupleize_cols: bool = True,
     ) -> None:
         """
         Helper method to find and save query compiler when index should be lazy
         """
-        from snowflake.snowpark.modin.pandas import Series
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
         )
 
-        if isinstance(data, Series):
-            qc = data._query_compiler.copy()
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
@@ -144,10 +141,10 @@ class Index:
     def set_local_index(
         self,
         # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any | None = None,
+        data: ArrayLike | Any = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
-        name: object | None = None,
+        name: object = None,
         tupleize_cols: bool = True,
     ) -> None:
         """
@@ -284,7 +281,12 @@ class Index:
         >>> idx.values
         array([1, 2, 3])
         """
-        return self._query_compiler.get_index_values()
+        return (
+            self._query_compiler.reset_index()
+            .drop(columns=self._query_compiler.columns)
+            .to_numpy()
+            .reshape(-1)
+        )
 
     @property
     @index_not_implemented()
@@ -572,7 +574,7 @@ class Index:
     names = property(fset=_set_names, fget=_get_names)
 
     def set_names(
-        self, names: Any, level: Any | None = None, inplace: bool = False
+        self, names: Any, level: Any = None, inplace: bool = False
     ) -> Self | None:
         """
         Set Index name.
@@ -1405,7 +1407,7 @@ class Index:
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: Any | None = None,
+        bins: Any = None,
         dropna: bool = True,
     ) -> native_pd.Series:
         # how to change the above return type to modin pandas series?
@@ -1480,7 +1482,7 @@ class Index:
             dropna=dropna,
         )
 
-    def item(self) -> Hashable:
+    def item(self) -> None:
         """
         Return the first element of the underlying data as a Python scalar.
 
@@ -1498,7 +1500,6 @@ class Index:
             return self.tolist()[0]
         raise ValueError("can only convert an array of size 1 to a Python scalar")
 
-    # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
     def to_series(
         self, index: Index | None = None, name: Hashable | None = None
     ) -> Any:
@@ -1536,7 +1537,6 @@ class Index:
 
         return Series(data=pandas_index, index=index, name=name)
 
-    # TODO: SNOW-1481037 : Fix typehints
     def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
         """
         Create a DataFrame with a column containing the Index.
@@ -1710,7 +1710,8 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        return self.values.tolist()
+        # TODO: SNOW-1458117 implement tolist
+        return list(self.values)
 
     to_list = tolist
 
@@ -1914,7 +1915,7 @@ class Index:
         )
 
     @is_lazy_check
-    def difference(self, other: Any, sort: Any | None = None) -> Index:
+    def difference(self, other: Any, sort: Any = None) -> Index:
         """
         Return a new Index with elements of index not in `other`.
 
@@ -2119,7 +2120,7 @@ class Index:
         return self.to_pandas().array
 
     @is_lazy_check
-    def _summary(self, name: Any | None = None) -> str:
+    def _summary(self, name: Any = None) -> str:
         """
         Return a summarized representation.
 
@@ -2137,7 +2138,7 @@ class Index:
         return self.to_pandas()._summary(name=name)
 
     @is_lazy_check
-    def __array__(self, dtype: Any | None = None) -> np.ndarray:
+    def __array__(self, dtype: Any = None) -> np.ndarray:
         """
         The array interface, return the values.
         """
