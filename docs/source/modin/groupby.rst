@@ -34,6 +34,8 @@ GroupBy
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrameGroupBy.all
+    DataFrameGroupBy.any
     DataFrameGroupBy.count
     DataFrameGroupBy.cumcount
     DataFrameGroupBy.cummax
@@ -50,6 +52,7 @@ GroupBy
     DataFrameGroupBy.quantile
     DataFrameGroupBy.rank
     DataFrameGroupBy.shift
+    DataFrameGroupBy.size
     DataFrameGroupBy.std
     DataFrameGroupBy.sum
     DataFrameGroupBy.tail
@@ -60,6 +63,8 @@ GroupBy
 .. autosummary::
     :toctree: pandas_api/
 
+    SeriesGroupBy.all
+    SeriesGroupBy.any
     SeriesGroupBy.count
     SeriesGroupBy.cumcount
     SeriesGroupBy.cummax
@@ -76,6 +81,7 @@ GroupBy
     SeriesGroupBy.quantile
     SeriesGroupBy.rank
     SeriesGroupBy.shift
+    SeriesGroupBy.size
     SeriesGroupBy.std
     SeriesGroupBy.sum
     SeriesGroupBy.tail

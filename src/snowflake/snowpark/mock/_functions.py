@@ -139,9 +139,9 @@ class MockedFunction:
         self._pass_input_data = pass_input_data
 
     def _check_constant_result(self, input_data, args, result):
-        # TODO how should we raise this as depricated?
-        # Ideally a mocked function would enable pass_index and generate it's own column
-        # filled with constant values.
+        # This function helps automaticallly fill a column with a constant value in certain
+        # circumstances. Ideally a mocked function would enable pass_index and generate it's own
+        # column filled with constant values, but this works as well as a fallback.
 
         # If none of the args are column emulators and the function result only has one item
         # assume that the single value should be repeated instead of Null filled. This allows

@@ -234,7 +234,6 @@ def parameter_override(session, parameter, value, enabled=True):
             session.sql(f"alter session unset {parameter}").collect()
 
 
-@pytest.mark.localtest
 def test_col(session):
     test_data1 = TestData.test_data1(session)
     Utils.check_answer(test_data1.select(col("bool")), [Row(True), Row(False)])
@@ -245,7 +244,6 @@ def test_col(session):
     Utils.check_answer(test_data1.select(col("num")), [Row(1), Row(2)])
 
 
-@pytest.mark.localtest
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
@@ -471,7 +469,6 @@ def test_variance(session):
     )
 
 
-@pytest.mark.localtest
 def test_coalesce(session):
     Utils.check_answer(
         TestData.null_data2(session).select(coalesce(col("A"), col("B"), col("C"))),
@@ -533,7 +530,6 @@ def test_random(session):
     assert values & seen == set()
 
 
-@pytest.mark.localtest
 def test_sqrt(session):
     Utils.check_answer(
         TestData.test_data1(session).select(sqrt(col("NUM"))),
@@ -548,7 +544,6 @@ def test_sqrt(session):
     )
 
 
-@pytest.mark.localtest
 def test_abs(session):
     Utils.check_answer(
         TestData.number2(session).select(abs(col("X"))), [Row(1), Row(0), Row(5)], False
@@ -616,7 +611,6 @@ def test_log(session):
     )
 
 
-@pytest.mark.localtest
 def test_pow(session):
     Utils.check_answer(
         TestData.double2(session).select(pow(col("A"), col("B"))),
@@ -645,7 +639,6 @@ def test_builtin_function(session):
     )
 
 
-@pytest.mark.localtest
 def test_sub_string(session):
     Utils.check_answer(
         TestData.string1(session).select(substring(col("A"), lit(2), lit(4))),
@@ -704,7 +697,6 @@ def test_datediff_negative(session):
         TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -761,7 +753,6 @@ def test_dateadd(part, expected, session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -956,7 +947,6 @@ def test_dateadd_timestamp(part, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part",
     [
@@ -998,7 +988,6 @@ def test_dateadd_tz(tz_type, tzinfo, part, session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -1062,7 +1051,6 @@ def test_date_part_timestamp(part, expected, session):
     LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -1093,7 +1081,6 @@ def test_date_part_date(part, expected, session):
     LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -1262,7 +1249,6 @@ def test_date_trunc(part, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 def test_date_trunc_negative(session, local_testing_mode):
     df = TestData.datetime_primitives1(session)
 
@@ -1275,7 +1261,6 @@ def test_date_trunc_negative(session, local_testing_mode):
         df.select(date_trunc("dow", "date")).collect()
 
 
-@pytest.mark.localtest
 def test_current_session(session):
     df = TestData.integer1(session)
     rows = df.select(current_session()).collect()
@@ -1287,7 +1272,6 @@ def test_current_session(session):
     ), "All session values should be the same after call to current_session"
 
 
-@pytest.mark.localtest
 def test_current_database(session):
     df = TestData.integer1(session)
     rows = df.select(current_database()).collect()
@@ -1299,13 +1283,11 @@ def test_current_database(session):
     ), "All database values should be the same after call to current_database"
 
 
-@pytest.mark.localtest
 def test_dateadd_negative(session):
     with pytest.raises(ValueError, match="part must be a string"):
         TestData.date1(session).select(dateadd(7, lit(1), "a"))
 
 
-@pytest.mark.localtest
 def test_to_timestamp(session):
     long1 = TestData.long1(session)
     Utils.check_answer(
@@ -1357,7 +1339,6 @@ def test_to_timestamp(session):
     )
 
 
-@pytest.mark.localtest
 def test_to_time(session, local_testing_mode):
     # basic string expr
     df = TestData.time_primitives1(session)
@@ -1436,7 +1417,6 @@ def test_to_time(session, local_testing_mode):
         )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1527,7 +1507,6 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1592,7 +1571,6 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1661,7 +1639,6 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1768,7 +1745,6 @@ def test_to_timestamp_numeric_scale_column(
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1893,7 +1869,6 @@ def test_to_timestamp_variant_column(to_type, expected, session, local_testing_m
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 def test_to_date(session):
     expected1 = expected2 = [
         Row(date(2023, 3, 16)),
@@ -2386,7 +2361,6 @@ def test_split(session):
     )
 
 
-@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).select(contains(col("a"), lit("app"))),
@@ -2401,7 +2375,6 @@ def test_contains(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_startswith(session, col_a):
     Utils.check_answer(
@@ -2411,7 +2384,6 @@ def test_startswith(session, col_a):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_endswith(session, col_a):
     Utils.check_answer(
@@ -2538,7 +2510,6 @@ def test_json_extract_path_text(session):
     )
 
 
-@pytest.mark.localtest
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(
@@ -2585,7 +2556,6 @@ def test_parse_xml(session):
     )
 
 
-@pytest.mark.localtest
 def test_strip_null_value(session):
     df = TestData.null_json1(session)
 
@@ -3157,7 +3127,6 @@ def test_objectagg(session):
     )
 
 
-@pytest.mark.localtest
 def test_object_construct(session):
     Utils.check_answer(
         TestData.object1(session).select(object_construct(col("key"), col("value"))),
@@ -3190,7 +3159,6 @@ def test_object_construct(session):
     )
 
 
-@pytest.mark.localtest
 def test_object_construct_keep_null(session):
     Utils.check_answer(
         TestData.object3(session).select(
@@ -3815,7 +3783,6 @@ def test_timestamp_tz_from_parts(session, local_testing_mode):
         )
 
 
-@pytest.mark.localtest
 def test_convert_timezone(session, local_testing_mode):
     with parameter_override(
         session,
@@ -3911,7 +3878,6 @@ def test_time_from_parts(session):
     )
 
 
-@pytest.mark.localtest
 def test_columns_from_timestamp_parts():
     func_name = "test _columns_from_timestamp_parts"
     y, m, d = _columns_from_timestamp_parts(func_name, "year", "month", 8)
@@ -3930,13 +3896,11 @@ def test_columns_from_timestamp_parts():
     assert s._expression.value == 17
 
 
-@pytest.mark.localtest
 def test_columns_from_timestamp_parts_negative():
     with pytest.raises(ValueError, match="Incorrect number of args passed"):
         _columns_from_timestamp_parts("neg test", "year", "month")
 
 
-@pytest.mark.localtest
 def test_timestamp_from_parts_internal():
     func_name = "test _timestamp_from_parts_internal"
     date_expr, time_expr = _timestamp_from_parts_internal(func_name, "date", "time")
@@ -3993,7 +3957,6 @@ def test_timestamp_from_parts_internal():
     assert s._expression.name == '"S"'
 
 
-@pytest.mark.localtest
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
     with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
@@ -4360,7 +4323,6 @@ def test_get_path(session, v, k):
     )
 
 
-@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
         TestData.object2(session).select(get(col("obj"), col("k"))),
@@ -4486,7 +4448,6 @@ def test_approx_percentile_combine(session, col_a, col_b):
     )
 
 
-@pytest.mark.localtest
 def test_iff(session, local_testing_mode):
     df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
@@ -4549,7 +4510,6 @@ def test_dense_rank(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_lag(session, col_z, local_testing_mode):
     Utils.check_answer(
@@ -4577,7 +4537,6 @@ def test_lag(session, col_z, local_testing_mode):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_lead(session, col_z, local_testing_mode):
     Utils.check_answer(
@@ -4605,7 +4564,6 @@ def test_lead(session, col_z, local_testing_mode):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_last_value(session, col_z):
     Utils.check_answer(
@@ -4617,7 +4575,6 @@ def test_last_value(session, col_z):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_first_value(session, col_z):
     Utils.check_answer(
@@ -4934,7 +4891,6 @@ def test_ascii(session, col_B):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "func,expected",
     [

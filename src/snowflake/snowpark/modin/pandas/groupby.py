@@ -188,9 +188,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=dict(numeric_only=numeric_only),
         )
 
-    def any(self, skipna=True):
+    def any(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="any", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_any,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     @property
     def plot(self):  # pragma: no cover
@@ -731,13 +735,31 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="__len__", class_="GroupBy")
 
-    def all(self, skipna=True):
+    def all(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_all,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     def size(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="size", class_="GroupBy")
+        result = self._wrap_aggregation(
+            type(self._query_compiler).groupby_size,
+            numeric_only=False,
+        )
+        if not isinstance(result, Series):
+            result = result.squeeze(axis=1)
+        if not self._kwargs.get("as_index") and not isinstance(result, Series):
+            result = (
+                result.rename(columns={MODIN_UNNAMED_SERIES_LABEL: "index"})
+                if MODIN_UNNAMED_SERIES_LABEL in result.columns
+                else result
+            )
+        elif isinstance(self._df, Series):
+            result.name = self._df.name
+        return result
 
     def sum(
         self,
@@ -1189,6 +1211,10 @@ class SeriesGroupBy(DataFrameGroupBy):
         ErrorMessage.method_not_implemented_error(
             name="is_monotonic_increasing", class_="GroupBy"
         )
+
+    def size(self):
+        # TODO: Remove this once SNOW-1478924 is fixed
+        return super().size().rename(self._df.columns[-1])
 
     def aggregate(
         self,

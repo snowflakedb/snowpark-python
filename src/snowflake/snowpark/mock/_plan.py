@@ -1612,18 +1612,16 @@ def calculate_expression(
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(
-            data=[bool(data is None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), True),
-        )
+        res = child_column.apply(lambda x: bool(x is None))
+        res.sf_type = ColumnType(BooleanType(), True)
+        return res
     if isinstance(exp, IsNotNull):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
         )
-        return ColumnEmulator(
-            data=[bool(data is not None) for data in child_column],
-            sf_type=ColumnType(BooleanType(), True),
-        )
+        res = child_column.apply(lambda x: bool(x is not None))
+        res.sf_type = ColumnType(BooleanType(), True)
+        return res
     if isinstance(exp, IsNaN):
         child_column = calculate_expression(
             exp.child, input_data, analyzer, expr_to_alias
@@ -1782,11 +1780,12 @@ def calculate_expression(
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
+
         pattern = convert_wildcard_to_regex(
             str(
-                calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)[
-                    0
-                ]
+                calculate_expression(
+                    exp.pattern, input_data, analyzer, expr_to_alias
+                ).iloc[0]
             )
         )
         result = lhs.str.match(pattern)
@@ -1837,8 +1836,7 @@ def calculate_expression(
         return res
     if isinstance(exp, CaseWhen):
         remaining = input_data
-        output_data = ColumnEmulator([None] * len(input_data))
-        output_data.sf_type = None
+        output_data = ColumnEmulator([None] * len(input_data), index=input_data.index)
         for case in exp.branches:
             condition = calculate_expression(
                 case[0], input_data, analyzer, expr_to_alias

@@ -570,7 +570,8 @@ def test_dataframe_mask_with_np_array_cond():
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+# One extra query to convert to native index for dataframe constructor when creating snow_other_df
+@sql_count_checker(query_count=4, join_count=2)
 def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -583,7 +584,7 @@ def test_dataframe_mask_with_np_array_cond_mismatched_labels():
 
     native_df = native_pd.DataFrame(data, columns=["A"])
     native_other_df = native_pd.DataFrame(
-        other, columns=["B"], index=pd.Index([1, 2, 3], name="A")
+        other, columns=["B"], index=native_pd.Index([1, 2, 3], name="A")
     )
 
     eval_snowpark_pandas_result(
@@ -595,7 +596,8 @@ def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# One extra query to convert to native index for dataframe constructor when creating snow_other_df
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -610,7 +612,7 @@ def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     native_df = native_pd.DataFrame(data, columns=["A"])
     native_cond_df = native_pd.DataFrame(cond, columns=["A"])
     native_other_df = native_pd.DataFrame(
-        other, columns=["B"], index=pd.Index([1, 2, 3], name="A")
+        other, columns=["B"], index=native_pd.Index([1, 2, 3], name="A")
     )
 
     eval_snowpark_pandas_result(
@@ -622,7 +624,8 @@ def test_dataframe_mask_with_dataframe_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# One extra query to convert to native index for dataframe constructor when creating snow_other_df
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_mask_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -694,7 +697,8 @@ def test_dataframe_mask_with_duplicated_index_aligned(cond_frame, other):
         )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+# Three extra queries to convert to native index for dataframe constructor when creating the 3 snowpark pandas dataframes
+@sql_count_checker(query_count=4, join_count=2)
 def test_dataframe_mask_with_duplicated_index_unaligned():
     data = [3, 4, 5, 2]
     df_index = pd.Index([2, 1, 2, 3], name="index")
