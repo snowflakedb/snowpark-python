@@ -10,7 +10,6 @@ Input/Output
     :toctree: pandas_api/
 
     read_csv
-    read_excel
     read_json
     read_parquet
 

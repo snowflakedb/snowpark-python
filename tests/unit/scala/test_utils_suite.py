@@ -302,6 +302,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_concat_file1.csv",
                 "resources/test_concat_file2.csv",
                 "resources/test_environment.yml",
+                "resources/test_excel.xlsx",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_sp_dir/test_sp_mod3_file.py",
