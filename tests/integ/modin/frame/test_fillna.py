@@ -573,35 +573,10 @@ def test_df_fillna_method_reindexed_df_reordered_columns(method):
     )
 
 
-@sql_count_checker(query_count=0)
-@pytest.mark.xfail(
-    reason="TODO SNOW-1489309 investigate why it starts to work now on qa"
-)
-def test_df_fillna_method_with_type_coercion_errors_for_variant_column_negative():
-    # Thanks to Snowflake's type coercions, we don't match pandas
-    # behavior when we are using fillna that involves filling values
-    # in differently typed columns.
-    native_df = native_pd.DataFrame(
-        [
-            [True, None, 3, np.nan, False],
-            [None, False, np.nan, 4, None],
-            [7, None, 5, None, True],
-            [None, None, np.nan, np.nan, None],
-        ],
-        columns=["A", "B", "C", "D", "E"],
-    )
-    snow_df = pd.DataFrame(native_df)
-
-    # This fails in Snowpark pandas, but not in vanilla pandas, because Snowpark pandas
-    # attempts to fill the value 7 from the variant column "A" into the boolean column
-    # "B", which fails due to casting errors.
-    with pytest.raises(
-        SnowparkSQLException, match="Failed to cast variant value 7 to BOOLEAN"
-    ):
-        snow_df.fillna(method="ffill", axis=1).to_pandas()
-
-
-def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative():
+@pytest.mark.parametrize("reverse_columns", [True, False])
+def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative(
+    reverse_columns,
+):
     # Thanks to Snowflake's type coercions, we don't match pandas
     # behavior when we are using fillna that involves filling values
     # in differently typed columns.
@@ -620,15 +595,17 @@ def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative():
     # that have mixed values, but Snowpark pandas will convert the int
     # columns to boolean.
     def fillna_helper(df):
+        df = df.iloc[:, ::-1] if reverse_columns else df.iloc[:, :]
         if isinstance(df, native_pd.DataFrame):
-            new_df = df.iloc[:, ::-1].fillna(method="ffill", axis=1)
+            new_df = df.fillna(method="ffill", axis=1)
             # Can't use `astype(bool)` here since that converts missing values
             # (None values) to `False`, but we need to keep the `None` values.
             new_df["B"] = new_df["B"].apply(lambda x: bool(x) if x is not None else x)
             new_df["C"] = new_df["C"].apply(lambda x: bool(x) if x is not None else x)
             new_df["D"] = new_df["D"].apply(lambda x: bool(x) if x is not None else x)
+            new_df["E"] = new_df["E"].apply(lambda x: bool(x) if x is not None else x)
             return new_df
-        return df.iloc[:, ::-1].fillna(method="ffill", axis=1)
+        return df.fillna(method="ffill", axis=1)
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
@@ -640,7 +617,8 @@ def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative():
     # This checks that the same values (positionally) are filled in
     # in the previous test.
     def check_which_values_filled(df):
-        return df.iloc[:, ::-1].fillna(method="ffill", axis=1).isna()
+        df = df.iloc[:, ::-1] if reverse_columns else df.iloc[:, :]
+        return df.fillna(method="ffill", axis=1).isna()
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
