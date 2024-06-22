@@ -477,6 +477,7 @@ def read_clipboard(
         query_compiler=FactoryDispatcher.read_clipboard(**kwargs)
     )
 
+
 @_inherit_docstrings(pandas.read_excel, apilink="pandas.read_excel")
 @snowpark_pandas_telemetry_standalone_function_decorator
 @expanduser_path_arg("io")
