@@ -511,14 +511,23 @@ def test_negate_and_not(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="random is not yet supported in local testing mode.",
-)
 def test_random(session):
-    df = session.create_dataframe([(1,)])
-    df.select(random(123)).collect()
-    df.select(random()).collect()
+    df = session.create_dataframe([(1, 2), (3, 4), (5, 6)])
+    seen = set()
+    rows = df.select(random(123), random(123)).collect()
+    for row in rows:
+        value = row[0]
+        # Each row should have different value
+        assert value not in seen
+        seen |= {value}
+        # Each value in row should be the same
+        assert [v == value for v in row]
+
+    # Different seed should contain different result that are still all different
+    other_rows = df.select(random()).collect()
+    values = {row[0] for row in other_rows}
+    assert len(other_rows) == len(values)
+    assert values & seen == set()
 
 
 def test_sqrt(session):

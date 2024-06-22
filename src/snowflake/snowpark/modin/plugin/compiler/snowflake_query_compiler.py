@@ -110,10 +110,11 @@ from snowflake.snowpark.functions import (
     not_,
     pandas_udf,
     quarter,
+    random,
     rank,
     regexp_replace,
     reverse,
-    round,
+    round as snowpark_round,
     row_number,
     rtrim,
     second,
@@ -124,6 +125,7 @@ from snowflake.snowpark.functions import (
     to_date,
     to_variant,
     trim,
+    uniform,
     upper,
     when,
     year,
@@ -227,6 +229,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     JoinKeyCoalesceConfig,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
+    DataFrameReference,
     OrderedDataFrame,
     OrderingColumn,
 )
@@ -276,6 +279,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
+    SAMPLED_ROW_POSITION_COLUMN_LABEL,
     FillNAMethod,
     TempObjectType,
     append_columns,
@@ -3283,6 +3287,189 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    def _fill_null_values_in_groupby(
+        self, method: str, by_list: list[str]
+    ) -> dict[str, ColumnOrName]:
+        """
+        Fill null values in each column using method within each group.
+
+        Args:
+            method: "bfill" or "ffill"
+                The method to use to fill null values.
+            by_list: list[str]
+                The list of columns to partition by during the fillna.
+
+        Returns:
+            dict: A mapping between column name and the Snowpark Column object with
+                replaced null values.
+        """
+        method = FillNAMethod.get_enum_for_string_method(method)
+        method_is_ffill = method is FillNAMethod.FFILL_METHOD
+        if method_is_ffill:
+            func = last_value
+            window_start = Window.UNBOUNDED_PRECEDING
+            window_end = Window.CURRENT_ROW
+        else:
+            func = first_value
+            window_start = Window.CURRENT_ROW
+            window_end = Window.UNBOUNDED_FOLLOWING
+
+        return {
+            snowflake_quoted_id: coalesce(
+                snowflake_quoted_id,
+                func(snowflake_quoted_id, ignore_nulls=True).over(
+                    Window.partition_by(by_list)
+                    .order_by(
+                        self._modin_frame.row_position_snowflake_quoted_identifier
+                    )
+                    .rows_between(window_start, window_end)
+                ),
+            )
+            for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
+        }
+
+    def _groupby_first_last(
+        self,
+        method: str,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Get the first or last non-null value for each group.
+
+        Args:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns).
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_size`.
+            agg_kwargs: dict
+                The aggregation keyword args, unused in `groupby_size`.
+            drop: bool
+                Drop the `by` column, unused in `groupby_size`.
+
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_first() or groupby_last()
+        """
+        level = groupby_kwargs.get("level", None)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.{method} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
+        # TODO: Support groupby first and last with min_count (SNOW-1482931)
+        if agg_kwargs.get("min_count", -1) > 1:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.{method} does not yet support min_count"
+            )
+        sort = groupby_kwargs.get("sort", True)
+        as_index = groupby_kwargs.get("as_index", True)
+        fillna_method = "bfill" if method == "first" else "ffill"
+        by_list = extract_groupby_column_pandas_labels(self, by, level)
+        by_snowflake_quoted_identifiers_list = [
+            entry[0]
+            for entry in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                by_list
+            )
+        ]
+        if not agg_kwargs.get("skipna", True):
+            # If we don't skip nulls, we don't need to fillna.
+            result = self
+        else:
+            result = SnowflakeQueryCompiler(
+                self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                    self._fill_null_values_in_groupby(
+                        fillna_method, by_snowflake_quoted_identifiers_list
+                    )
+                ).frame
+            )
+        result = result.groupby_agg(
+            by, "head" if method == "first" else "tail", 0, groupby_kwargs, (), {"n": 1}
+        )
+        if sort:
+            result = result.sort_rows_by_column_values(
+                by_list, [True] * len(by_list), "stable", "last", False
+            )
+        # set the index to position the columns correctly.
+        result = result.set_index(by_list)
+        if not as_index:
+            # _groupby_head_tail keeps old positions, so we drop those and generate new ones
+            result = result.reset_index(drop=False)
+        return result
+
+    def groupby_first(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Get the first non-null value for each group.
+
+        Args:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns).
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_size`.
+            agg_kwargs: dict
+                The aggregation keyword args, unused in `groupby_size`.
+            drop: bool
+                Drop the `by` column, unused in `groupby_size`.
+
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_first()
+        """
+        return self._groupby_first_last(
+            "first", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
+        )
+
+    def groupby_last(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Get the last non-null value for each group.
+
+        Args:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns).
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_size`.
+            agg_kwargs: dict
+                The aggregation keyword args, unused in `groupby_size`.
+            drop: bool
+                Drop the `by` column, unused in `groupby_size`.
+
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_last()
+        """
+        return self._groupby_first_last(
+            "last", by, axis, groupby_kwargs, agg_args, agg_kwargs, drop, **kwargs
+        )
+
     def groupby_rank(
         self,
         by: Any,
@@ -6083,7 +6270,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
         )
         partition_expression = (
-            round(
+            snowpark_round(
                 col(row_position_snowflake_quoted_identifier)
                 / pandas_lit(partition_size)
             )
@@ -10601,18 +10788,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if weights is not None:
             ErrorMessage.not_implemented("`weights` is not supported.")
 
-        if replace:
-            ErrorMessage.not_implemented("`replace = True` is not supported.")
-
         if random_state is not None:
             ErrorMessage.not_implemented("`random_state` is not supported.")
 
-        if frac is not None and frac > 1:
-            ErrorMessage.not_implemented("`frac > 1` is not supported.")
-
         assert n is not None or frac is not None
         frame = self._modin_frame
-        sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
+        if replace:
+            snowflake_quoted_identifiers = generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=[
+                    ROW_POSITION_COLUMN_LABEL,
+                    SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                ]
+            )
+
+            pre_sampling_rowcount = self.get_axis_len(axis=0)
+            if n is not None:
+                post_sampling_rowcount = n
+            else:
+                assert frac is not None
+                post_sampling_rowcount = round(frac * pre_sampling_rowcount)
+
+            row_position_col = (
+                row_number()
+                .over(Window.order_by(pandas_lit(1)))
+                .as_(snowflake_quoted_identifiers[0])
+            )
+
+            sampled_row_position_col = uniform(
+                0, pre_sampling_rowcount - 1, random()
+            ).as_(snowflake_quoted_identifiers[1])
+
+            sampled_row_positions_snowpark_frame = pd.session.generator(
+                row_position_col,
+                sampled_row_position_col,
+                rowcount=post_sampling_rowcount,
+            )
+
+            sampled_row_positions_odf = OrderedDataFrame(
+                dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
+                projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+            )
+            sampled_odf = cache_result(
+                sampled_row_positions_odf.join(
+                    right=self._modin_frame.ordered_dataframe,
+                    left_on_cols=[snowflake_quoted_identifiers[1]],
+                    right_on_cols=[
+                        self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                    ],
+                )
+            )
+        else:
+            sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
         logging.warning(
             "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
         )
@@ -11910,10 +12136,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         def round_col(col_name: ColumnOrName) -> SnowparkColumn:
             if is_scalar(decimals):
-                return round(col_name, decimals)
+                return snowpark_round(col_name, decimals)
             elif is_dict_like(decimals):
                 if col_name in id_to_decimal_dict:
-                    return round(col_name, id_to_decimal_dict[col_name])
+                    return snowpark_round(col_name, id_to_decimal_dict[col_name])
                 else:
                     return col(col_name)
 
@@ -14142,6 +14368,130 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.not_implemented(
             "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
         )
+
+    def topn(
+        self, n: int, columns: IndexLabel, keep: str, ascending: bool
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the top 'n' rows ordered by 'columns'..
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+            ascending: {True, False}
+              If True return smallest n values otherwise return largest n values.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        if keep not in ("first", "last", "all"):
+            raise ValueError('keep must be either "first", "last" or "all"')
+        if keep == "all":
+            method_name = "nsmallest" if ascending else "nlargest"
+            # TODO SNOW-1483214: Add support for keep='all'
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't yet support parameter keep='all'"
+            )
+        # Special case handling for unnamed series. 'columns' passed from frontend layer
+        # will be None, replace it with MODIN_UNNAMED_SERIES_LABEL.
+        if self._modin_frame.is_unnamed_series():
+            columns = MODIN_UNNAMED_SERIES_LABEL
+
+        if not is_list_like(columns):
+            columns = [columns]
+
+        # Native pandas returns empty dataframe if n is negative. Set it to zero to
+        # provide same behavior.
+        n = max(0, n)
+        # Native pandas returns empty dataframe if 'columns' is a empty array. Set n
+        # to zero to provide same behavior.
+        if len(columns) == 0:
+            n = 0
+
+        internal_frame = self._modin_frame
+        # Map pandas labels to snowflake identifiers.
+        matched_identifiers = (
+            internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                columns, include_index=False
+            )
+        )
+        ordering_columns = []
+        for label, identifiers in zip(columns, matched_identifiers):
+            if len(identifiers) == 0:
+                raise KeyError(label)
+            if len(identifiers) > 1:
+                raise ValueError(f"The column label '{label}' is not unique.")
+            ordering_columns.append(
+                OrderingColumn(identifiers[0], ascending, na_last=True)
+            )
+
+        # Append existing ordering column to handle duplicates.
+        for ordering_column in internal_frame.ordering_columns:
+            # reverse the sort order if keep is 'last'
+            if keep == "last":
+                ordering_column = OrderingColumn(
+                    ordering_column.snowflake_quoted_identifier,
+                    not ordering_column.ascending,
+                    ordering_column.na_last,
+                )
+            ordering_columns.append(ordering_column)
+
+        ordered_frame = internal_frame.ordered_dataframe.sort(ordering_columns).limit(n)
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=ordered_frame,
+                data_column_pandas_labels=internal_frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
+        )
+
+    def nlargest(
+        self, n: int, columns: IndexLabel, keep: str
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the first 'n' rows ordered by 'columns' in descending order.
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        return self.topn(n, columns, keep, ascending=False)
+
+    def nsmallest(
+        self, n: int, columns: IndexLabel, keep: str
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return the first 'n' rows ordered by 'columns' in ascending order.
+
+        Args:
+            n: Number of rows to return.
+            columns: Column label(s) to order by.
+            keep: {'first', 'last', 'all'}
+              Where there are duplicate values:
+              first : prioritize the first occurrence(s)
+              last : prioritize the last occurrence(s)
+              all : do not drop any duplicates, even it means selecting more than n items.
+
+        Returns:
+            SnowflakeQueryCompiler
+        """
+        return self.topn(n, columns, keep, ascending=True)
 
     def pct_change(
         self,
