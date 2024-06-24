@@ -166,3 +166,72 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
         native_pd.date_range("2000-01-01", periods=3, freq="h")
     )
     eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
+
+
+# unsupported methods for Index
+UNSUPPORTED_INDEX_METHODS = [
+    lambda idx: idx.is_monotonic_increasing(),
+    lambda idx: idx.is_monotonic_decreasing(),
+    lambda idx: idx.nbytes(),
+    lambda idx: idx.memory_usage(),
+    lambda idx: idx.all(),
+    lambda idx: idx.any(),
+    lambda idx: idx.all(),
+    lambda idx: idx.argmin(),
+    lambda idx: idx.argmax(),
+    lambda idx: idx.delete(),
+    lambda idx: idx.all(),
+    lambda idx: idx.drop_duplicates(),
+    lambda idx: idx.factorize(),
+    lambda idx: idx.identical(),
+    lambda idx: idx.insert(),
+    lambda idx: idx.is_(),
+    lambda idx: idx.is_boolean(),
+    lambda idx: idx.is_categorical(),
+    lambda idx: idx.is_floating(),
+    lambda idx: idx.is_integer(),
+    lambda idx: idx.is_interval(),
+    lambda idx: idx.is_numeric(),
+    lambda idx: idx.is_object(),
+    lambda idx: idx.min(),
+    lambda idx: idx.max(),
+    lambda idx: idx.reindex(),
+    lambda idx: idx.rename(),
+    lambda idx: idx.repeat(),
+    lambda idx: idx.where(),
+    lambda idx: idx.take(),
+    lambda idx: idx.putmask(),
+    lambda idx: idx.nunique(),
+    lambda idx: idx.droplevel(),
+    lambda idx: idx.fillna(),
+    lambda idx: idx.dropna(),
+    lambda idx: idx.isna(),
+    lambda idx: idx.notna(),
+    lambda idx: idx.item(),
+    lambda idx: idx.map(),
+    lambda idx: idx.ravel(),
+    lambda idx: idx.to_series(),
+    lambda idx: idx.to_frame(),
+    lambda idx: idx.argsort(),
+    lambda idx: idx.searchsorted(),
+    lambda idx: idx.shift(),
+    lambda idx: idx.append(),
+    lambda idx: idx.join(),
+    lambda idx: idx.symmetric_difference(),
+    lambda idx: idx.asof(),
+    lambda idx: idx.asof_locs(),
+    lambda idx: idx.get_indexer(),
+    lambda idx: idx.get_indexer_non_unique(),
+    lambda idx: idx.get_loc(),
+    lambda idx: idx.get_slice_bound(),
+    lambda idx: idx.isin(),
+    lambda idx: idx.slice_locs(),
+]
+
+
+@pytest.mark.parametrize("func", UNSUPPORTED_INDEX_METHODS)
+@sql_count_checker(query_count=0)
+def test_unsupported_index_methods(func) -> None:
+    index = pd.Index([5, 4, 0, 6, 6, 4])
+    with pytest.raises(NotImplementedError):
+        func(index)

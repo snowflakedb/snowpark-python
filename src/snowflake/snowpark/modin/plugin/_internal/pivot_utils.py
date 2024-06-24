@@ -194,6 +194,62 @@ def pivot_helper(
     if ordered_dataframe.queries.get("post_actions"):
         ordered_dataframe = cache_result(ordered_dataframe)
 
+    if pivot_aggr_groupings is None:
+        # When pivot_aggr_groupings is None, there are no `values` to compute on. In that case, we simply return
+        # a DataFrame with no columns, whose index is the result of grouping by the index columns.
+        ordered_dataframe = get_groups_for_ordered_dataframe(
+            ordered_dataframe, groupby_snowflake_quoted_identifiers
+        )
+        # For the column index labels, pandas preserves the original names, and adds the `columns` arguments to the names.
+        # Take for example, the following DataFrame:
+        # df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        #                    'three'],
+        #            'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        #            'baz': [1, 2, 3, 4, 5, 6],
+        #            'zoo': [1, 2, 3, 1, 3, 5]})
+        # df.columns.names = ['column']
+        # df.columns = pd.MultiIndex.from_tuples([('a', 1), ('a', 2), ('b', 1), ('b', 2)])
+        # df
+        #        a     b
+        #        1  2  1  2
+        # 0    one  A  1  1
+        # 1    one  B  2  2
+        # 2    one  C  3  3
+        # 3    two  A  4  1
+        # 4    two  B  5  3
+        # 5  three  C  6  5
+        #
+        # df.columns.names = ['c1', 'c2']
+        # df
+        # c1      a     b
+        # c2      1  2  1  2
+        # 0     one  A  1  1
+        # 1     one  B  2  2
+        # 2     one  C  3  3
+        # 3     two  A  4  1
+        # 4     two  B  5  3
+        # 5   three  C  6  5
+        #
+        # df.columns
+        # MultiIndex([('a', 1),
+        #             ('a', 2),
+        #             ('b', 1),
+        #             ('b', 2)],
+        #            names=['c1', 'c2'])
+        #
+        # df.pivot_table(index=[('a', 1), ('a', 2)], columns=[('b', 1), ('b', 2)]).columns
+        # MultiIndex([], names=['c1', 'c2', ('b', 1), ('b', 2)])
+        # The columns of the result from `pivot_table` retain the original column labels from the input
+        # DataFrame, as well as the new column labels from the `columns` parameter.
+        return InternalFrame.create(
+            ordered_dataframe=ordered_dataframe,
+            data_column_pandas_index_names=pivot_frame.data_column_pandas_index_names
+            + columns,
+            data_column_pandas_labels=[],
+            data_column_snowflake_quoted_identifiers=[],
+            index_column_pandas_labels=index,
+            index_column_snowflake_quoted_identifiers=groupby_snowflake_quoted_identifiers,
+        )
     data_column_pandas_labels: list[Hashable] = []
     data_column_snowflake_quoted_identifiers: list[str] = []
 
@@ -342,7 +398,43 @@ def pivot_helper(
     # Generate the data column pandas index names
     if not isinstance(columns, list):
         columns = [columns]
-    columns = [None] * len(pivot_aggr_groupings[0].prefix_label) + columns
+    if len(pivot_aggr_groupings[0].prefix_label) != 0:
+        # This handles the case when we have a list of values (even if it is a list of length 1) -
+        # the columns labels for the result is original_df.columns.names +
+        #  None * (num_prefixes - len(original_df.columns.names)) + columns.
+        # e.g.
+        # In [8]: df
+        # Out[8]:
+        # column    A     B       C   D   E   F
+        # 0       foo  on.e    dull   0   1   2
+        # 1       foo  on.e    dull   1   2   3
+        # 2       foo  on.e  shi'ny   2   3   4
+        # 3       foo  tw"o    dull   3   4   5
+        # 4       bar  on.e    dull   4   5   6
+        # 5       bar  on.e  shi'ny   5   6   7
+        # 6       bar  on.e  shi'ny   6   7   8
+        # 7       bar  tw"o    dull   7   8   9
+        # 8       foo  tw"o  shi'ny   8   9  10
+        # 9       foo  tw"o  shi'ny   9  10  11
+        # 10      foo  on.e  shi'ny  10  11  12
+
+        # In [9]: df.pivot_table(**{
+        #    ...:                 "index": ["A"],
+        #    ...:                 "columns": ["B", "C"],
+        #    ...:                 "values": ["D", "E", "F"],
+        #    ...:                 "dropna": False,
+        #    ...:                 "aggfunc": {"D": ["count", "max"], "E": ["mean", "sum"]},
+        #    ...: }).columns.names
+        # Out[9]: FrozenList(['column', None, 'B', 'C'])
+        columns = (
+            pivot_frame.data_column_pandas_index_names
+            + [None]
+            * (
+                len(pivot_aggr_groupings[0].prefix_label)
+                - len(pivot_frame.data_column_pandas_index_names)
+            )
+            + columns
+        )
 
     if expand_with_cartesian_product:
         # Ensure the cartesian product of index / group by rows.  For example, if there are index values

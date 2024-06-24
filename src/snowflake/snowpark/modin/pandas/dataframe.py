@@ -1775,7 +1775,6 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("ne", other, axis=axis, level=level)
 
-    @dataframe_not_implemented()
     def nlargest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in descending order.
@@ -1785,7 +1784,6 @@ class DataFrame(BasePandasDataset):
             query_compiler=self._query_compiler.nlargest(n, columns, keep)
         )
 
-    @dataframe_not_implemented()
     def nsmallest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in ascending order.
@@ -2347,15 +2345,15 @@ class DataFrame(BasePandasDataset):
         len_columns = self._query_compiler.get_axis_len(1)
         if axis == 1 and len_columns == 1:
             return Series(query_compiler=self._query_compiler)
-        # get_axis_len(0) results in a sql query to count number of rows in current
-        # dataframe. We should only compute len_index if axis is 0 or None.
-        len_index = len(self)
-        if axis is None and (len_columns == 1 or len_index == 1):
-            return Series(query_compiler=self._query_compiler).squeeze()
-        if axis == 0 and len_index == 1:
-            return Series(query_compiler=self.T._query_compiler)
-        else:
-            return self.copy()
+        if axis in [0, None]:
+            # get_axis_len(0) results in a sql query to count number of rows in current
+            # dataframe. We should only compute len_index if axis is 0 or None.
+            len_index = len(self)
+            if axis is None and (len_columns == 1 or len_index == 1):
+                return Series(query_compiler=self._query_compiler).squeeze()
+            if axis == 0 and len_index == 1:
+                return Series(query_compiler=self.T._query_compiler)
+        return self.copy()
 
     @dataframe_not_implemented()
     def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
