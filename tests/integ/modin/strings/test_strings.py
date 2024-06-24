@@ -689,3 +689,9 @@ def test_translate_invalid_mappings(table):
     native_ser.str.translate(table)
     with pytest.raises(ValueError):
         snow_ser.str.translate(table)
+
+
+@sql_count_checker(query_count=0)
+def test_translate_coverage_canary():
+    # For some reason code coverage isn't picking up tests, this is a canary to make sure these are being run
+    raise AssertionError()
