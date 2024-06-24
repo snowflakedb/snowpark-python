@@ -27,6 +27,7 @@ registration_modules = ["udf.py", "udtf.py", "udaf.py", "stored_procedure.py"]
 open_telemetry_found = True
 try:
     from opentelemetry import trace
+
 except ImportError:
     open_telemetry_found = False
 
