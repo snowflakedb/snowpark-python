@@ -30,7 +30,7 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([], dtype="object"),
     native_pd.Index([[1, 2], [2, 3], [3, 4]]),
     native_pd.Index([1, 2, 3]),
-    native_pd.Index([3, np.nan, 5]),
+    native_pd.Index([3, np.nan, 5], name="my_index"),
     native_pd.Index([5, None, 7]),
     native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2]),
@@ -312,6 +312,14 @@ def test_index_to_series(native_index):
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_series(native_df):
     snow_df = pd.DataFrame(native_df)
+
+    # Snowpark pandas sets the dtype of df.columns for an empty df as object and native pandas sets it as int,
+    # so we avoid this check on an empty df
+    if native_df.empty:
+        check_dtype = False
+    else:
+        check_dtype = True
+
     assert_series_equal(
         snow_df.index.to_series(),
         native_df.index.to_series(),
@@ -320,6 +328,7 @@ def test_df_index_columns_to_series(native_df):
     assert_series_equal(
         snow_df.columns.to_series(),
         native_df.columns.to_series(),
+        check_dtype=check_dtype,
         check_index_type=False,
     )
 
@@ -331,9 +340,9 @@ def test_df_index_columns_to_series(native_df):
         )
 
     assert_series_equal(
-        native_df.columns.to_series(index=range(len(native_df.columns)), name=True),
         snow_df.columns.to_series(index=range(len(native_df.columns)), name=True),
-        check_dtype=False,
+        native_df.columns.to_series(index=range(len(native_df.columns)), name=True),
+        check_dtype=check_dtype,
         check_index_type=False,
     )
 
@@ -342,7 +351,6 @@ def test_df_index_columns_to_series(native_df):
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index):
     snow_index = pd.Index(native_index)
-    # Extra query to set index
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_index.to_frame(),
         native_index.to_frame(),
