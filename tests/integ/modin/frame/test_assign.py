@@ -36,6 +36,28 @@ def test_assign_basic_series():
     eval_snowpark_pandas_result(snow_df, native_df, assign_func)
 
 
+@sql_count_checker(query_count=7, join_count=1)
+@pytest.mark.parametrize(
+    "index", [[2, 1, 0], [4, 5, 6]], ids=["reversed_index", "different_index"]
+)
+def test_assign_basic_series_mismatched_index(index):
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=pd.Index(list("abc"), name="columns"),
+        index=pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+
+    def assign_func(df):
+        if isinstance(df, pd.DataFrame):
+            return df.assign(new_col=pd.Series([10, 11, 12], index=index))
+        else:
+            return df.assign(new_col=native_pd.Series([10, 11, 12], index=index))
+
+    eval_snowpark_pandas_result(snow_df, native_df, assign_func)
+
+
 @pytest.mark.parametrize("new_col_value", [2, [10, 11, 12], "x"])
 def test_assign_basic_non_pandas_object(new_col_value):
     join_count = 2 if isinstance(new_col_value, list) else 0
@@ -73,6 +95,37 @@ def test_assign_invalid_column_length_negative():
 
     snow_df = snow_df.assign(new_column=[10, 11])
     native_df = native_df.assign(new_column=[10, 11, 11])
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=7, join_count=1)
+def test_assign_short_series():
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=pd.Index(list("abc"), name="columns"),
+        index=pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+    snow_df = snow_df.assign(new_column=pd.Series([10, 11]))
+    native_df = native_df.assign(new_column=native_pd.Series([10, 11]))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=7, join_count=1)
+@pytest.mark.parametrize(
+    "index", [[1, 0], [4, 5]], ids=["reversed_index", "different_index"]
+)
+def test_assign_short_series_mismatched_index(index):
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=pd.Index(list("abc"), name="columns"),
+        index=pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+    snow_df = snow_df.assign(new_column=pd.Series([10, 11], index=index))
+    native_df = native_df.assign(new_column=native_pd.Series([10, 11], index=index))
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
