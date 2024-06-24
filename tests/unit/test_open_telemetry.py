@@ -33,6 +33,14 @@ from snowflake.snowpark.types import (
     StructType,
 )
 
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('enable_cte_optimization', default=False)",
+        reason="UDTF not supported in Local Testing",
+    ),
+]
+
 
 def spans_to_dict(spans):
     res = {}
