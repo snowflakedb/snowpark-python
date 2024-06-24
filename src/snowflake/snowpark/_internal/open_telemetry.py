@@ -27,8 +27,6 @@ registration_modules = ["udf.py", "udtf.py", "udaf.py", "stored_procedure.py"]
 open_telemetry_found = True
 try:
     from opentelemetry import trace
-    from opentelemetry.trace import Status, StatusCode
-
 except ImportError:
     open_telemetry_found = False
 
@@ -59,7 +57,7 @@ def open_telemetry_context_manager(func, dataframe):
                 try:
                     yield
                 except Exception as e:
-                    cur_span.set_status(Status(StatusCode.ERROR, str(e)))
+                    cur_span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                     raise e
 
     else:
