@@ -1490,7 +1490,7 @@ class Index:
         )
 
     @is_lazy_check
-    def item(self) -> None:
+    def item(self) -> Hashable:
         """
         Return the first element of the underlying data as a Python scalar.
 
@@ -1504,18 +1504,17 @@ class Index:
         ValueError
             If the data is not length = 1.
         """
+        # slice the first two elements of the index and materialize them
         item = self._query_compiler.take_2d_positional(
             index=slice(2), columns=[0]
         ).index.to_pandas()
+
+        # return the element as a scalar if the index is exacly one element large
         if len(item) == 1:
             return item[0]
-        raise ValueError("can only convert an array of size 1 to a Python scalar")
 
-    def _convert_index_column_to_data_column(self) -> Any:
-        """
-        Helper method to fill empty data columns with an index column
-        """
-        return self._query_compiler.reset_index()
+        # otherwise raise the same value error as pandas
+        raise ValueError("can only convert an array of size 1 to a Python scalar")
 
     @is_lazy_check
     def to_series(
