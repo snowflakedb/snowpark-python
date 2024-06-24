@@ -270,7 +270,6 @@ class Index:
         return self._index
 
     @property
-    @is_lazy_check
     def values(self) -> ArrayLike:
         """
         Return an array representing the data in the Index.
@@ -294,11 +293,7 @@ class Index:
         >>> idx.values
         array([1, 2, 3])
         """
-        return (
-            self._convert_index_column_to_data_column().to_numpy()
-            # reshape data to a "row vector" to match native pandas behavior
-            .reshape(-1)
-        )
+        return self.to_pandas().values
 
     @property
     @index_not_implemented()
@@ -1510,7 +1505,7 @@ class Index:
             If the data is not length = 1.
         """
         item = self._query_compiler.take_2d_positional(
-            index=slice(0, 2), columns=[0]
+            index=slice(2), columns=[0]
         ).index.to_pandas()
         if len(item) == 1:
             return item[0]
@@ -1554,19 +1549,21 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import Series
 
+        # get the index name if the name is not given
         if name is None:
             name = self.name
-        new_qc = (
-            self._convert_index_column_to_data_column()
-            .set_index(["index"], drop=False)
-            .set_index_names([None])
-        )
+
+        # convert self to a dataframe and get qc
+        # this will give us a df where the index and data columns both have self
+        new_qc = self.to_frame(name=name)._query_compiler
+
+        # if we are given an index, join this index column into qc
         if index is not None:
             new_qc = new_qc.set_index_from_series(Series(index)._query_compiler)
 
+        # create series and set the name
         ser = Series(query_compiler=new_qc)
         ser.name = name
-
         return ser
 
     @is_lazy_check
@@ -1594,10 +1591,29 @@ class Index:
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
         """
-        df = self.to_series(name=name).to_frame(name=name)
-        if not index:
-            df = df.reset_index(drop=True)
-        return df
+        from snowflake.snowpark.modin.pandas import DataFrame
+
+        # save the index name and the given name to be the index name and column name of the new df respectively
+        index_name = self.name
+        column_name = name
+
+        # if we do not have an index name and the given name is also None, we default to a dataframe column name of 0
+        if name is None and index_name is None:
+            column_name = 0
+        # if the index has a name, we set the column name as this name
+        elif name is None:
+            column_name = index_name
+
+        # Do a reset index to create a data column, filling it with the values of self and assigning it column name
+        new_qc = self._query_compiler.reset_index(names=[column_name])
+
+        # if index is true, we want self to be in the index and data columns of the df,
+        # so set the index as the data column and set the name of the index
+        if index:
+            new_qc = new_qc.set_index([new_qc.columns[0]], drop=False).set_index_names(
+                [index_name]
+            )
+        return DataFrame(query_compiler=new_qc)
 
     @index_not_implemented()
     def fillna(self) -> None:
@@ -1712,7 +1728,6 @@ class Index:
         """
         # TODO: SNOW-1458139 implement hasnans
 
-    @is_lazy_check
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -1739,7 +1754,7 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        return self.values.tolist()
+        return self.to_pandas().tolist()
 
     to_list = tolist
 
