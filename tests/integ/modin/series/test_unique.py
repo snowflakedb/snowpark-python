@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from decimal import Decimal
 from typing import Any
 
 import modin.pandas as pd
@@ -26,13 +27,20 @@ HOMOGENEOUS_INPUT_DATA_FOR_SERIES = [
     [12.0, 11.999999, 11.999999],
     ["A", "A", "C", "C", "A"],
     [None, "A", None, "B"],
+    _make_nan_interleaved_float_series(),
+    native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
     pytest.param(
-        native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
+        native_pd.Series([1, 2, -(2**63) - 1, -(2**64)]),
         marks=pytest.mark.xfail(
-            reason="SNOW-1356685: Dtype with unsigned int results in precision error"
+            reason="Represent overflow using float instead of integer",
         ),
     ),
-    _make_nan_interleaved_float_series(),
+    pytest.param(
+        native_pd.Series([Decimal(1.5), Decimal(2**64 - 1)], dtype=object),
+        marks=pytest.mark.xfail(
+            reason="Represent Decimal using float instead of integer as pandas does not recognize it",
+        ),
+    ),
 ]
 
 

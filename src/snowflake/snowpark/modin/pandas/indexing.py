@@ -68,6 +68,7 @@ from snowflake.snowpark.modin.pandas.series import (
 from snowflake.snowpark.modin.pandas.utils import is_scalar
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,
+    TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE,
     TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE,
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -83,7 +84,7 @@ ILOC_SET_INDICES_MUST_BE_INTEGER_OR_BOOL_ERROR_MESSAGE = (
     "arrays used as indices must be of integer (or boolean) type"
 )
 ILOC_GET_REQUIRES_NUMERIC_INDEXERS_ERROR_MESSAGE = (
-    ".iloc requires numeric indexers, got {}"
+    ".{} requires numeric indexers, got {}"
 )
 LOC_SET_INCOMPATIBLE_INDEXER_WITH_DF_ERROR_MESSAGE = (
     "Incompatible indexer with DataFrame"
@@ -253,6 +254,79 @@ def validate_positional_slice(slice_key: Any) -> None:
             raise TypeError(
                 f"cannot do positional indexing with these indexers [{key}] of type {type(key).__name__}"
             )
+
+
+def validate_key_for_single_dim_for_at_iat(
+    modin_df: BasePandasDataset, key: INDEXING_KEY_TYPE, for_at: bool, axis: int
+) -> None:
+    """
+    Validate key is suitable for a single dimension when calling modin_df.at or modin_df.iat.
+
+    Parameters
+    ----------
+    modin_df : BasePandasDataset
+        DataFrame to operate on.
+    key: INDEXING_KEY_TYPE
+        indexing key.
+    for_at: bool
+        True when 'key' is to be passed to the 'at' method.
+        Otherwise, 'key' is to be passed to the 'iat' method.
+    axis: int
+        Specifies the dimension to validate 'key' for.
+    """
+    if for_at and modin_df._query_compiler.has_multiindex(axis=axis):
+        if not isinstance(key, tuple):
+            raise IndexingError(TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE)
+        else:
+            if len(key) < modin_df._query_compiler.nlevels(axis=axis):
+                raise IndexingError(TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE)
+            elif len(key) > modin_df._query_compiler.nlevels(axis=axis):
+                raise IndexingError(TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE)
+    else:
+        if isinstance(key, tuple) and len(key) == 1:
+            key = key[0]
+        if not is_scalar(key):
+            raise KeyError(key)
+
+
+def validate_key_for_at_iat(
+    modin_df: BasePandasDataset, key: INDEXING_KEY_TYPE, for_at: bool
+) -> None:
+    """
+    Validate key is suitable for modin_df.at or modin_df.iat.
+
+    Parameters
+    ----------
+    modin_df : BasePandasDataset
+        DataFrame to operate on.
+    key: INDEXING_KEY_TYPE
+        indexing key.
+    for_at: bool
+        True when 'key' is to be passed to the 'at' method.
+        Otherwise, 'key' is to be passed to the 'iat' method.
+    """
+    if modin_df.ndim == 1:
+        validate_key_for_single_dim_for_at_iat(
+            modin_df=modin_df, key=key, for_at=for_at, axis=0
+        )
+    else:
+        assert modin_df.ndim == 2
+        if not isinstance(key, tuple):
+            raise IndexingError(TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE)
+        else:
+            if len(key) < 2:
+                raise IndexingError(TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE)
+            elif len(key) > 2:
+                raise IndexingError(TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE)
+            else:
+                row_loc = key[0]
+                col_loc = key[1]
+                validate_key_for_single_dim_for_at_iat(
+                    modin_df=modin_df, key=row_loc, for_at=for_at, axis=0
+                )
+                validate_key_for_single_dim_for_at_iat(
+                    modin_df=modin_df, key=col_loc, for_at=for_at, axis=1
+                )
 
 
 class _LocationIndexerBase:
@@ -872,7 +946,7 @@ class _LocIndexer(_LocationIndexerBase):
         # TODO SNOW-962260 support multiindex
         if self.qc.is_multiindex(axis=0) or self.qc.is_multiindex(axis=1):
             ErrorMessage.not_implemented(
-                "loc set for multiindex is not yet implemented"
+                f".{self.api_name} set for multiindex is not yet implemented"
             )
 
         self._validate_item_type(item, row_loc)
@@ -1233,7 +1307,9 @@ class _iLocIndexer(_LocationIndexerBase):
 
         if is_scalar(key) and not is_integer(key):
             raise IndexError(
-                ILOC_GET_REQUIRES_NUMERIC_INDEXERS_ERROR_MESSAGE.format(key)
+                ILOC_GET_REQUIRES_NUMERIC_INDEXERS_ERROR_MESSAGE.format(
+                    self.api_name, key
+                )
             )
 
         # Tuple e.g. (1, 2)
@@ -1318,7 +1394,7 @@ class _iLocIndexer(_LocationIndexerBase):
         if not are_valid:
             raise IndexError(
                 ILOC_GET_REQUIRES_NUMERIC_INDEXERS_ERROR_MESSAGE.format(
-                    key if original_key is None else original_key
+                    self.api_name, key if original_key is None else original_key
                 )
             )
 
@@ -1335,3 +1411,124 @@ class _iLocIndexer(_LocationIndexerBase):
         )
         if not are_valid:
             raise IndexError(ILOC_SET_INDICES_MUST_BE_INTEGER_OR_BOOL_ERROR_MESSAGE)
+
+
+class _AtIndexer(_LocIndexer):
+    """
+    An indexer for modin_df.at[] functionality.
+
+    Parameters
+    ----------
+    modin_df : modin.pandas.DataFrame
+        DataFrame to operate on.
+    """
+
+    api_name = "at"
+
+    def __getitem__(
+        self, key: INDEXING_KEY_TYPE
+    ) -> Union[Scalar, pd.Series, pd.DataFrame]:
+        """
+        Retrieve dataset according to `key`.
+
+        Parameters:
+        -----------
+        key : indexing key type
+
+        Returns:
+        --------
+        DataFrame, Series, or scalar
+            Located dataset.
+
+        See Also:
+        ---------
+        pandas.Series.loc
+        pandas.DataFrame.loc
+        """
+        validate_key_for_at_iat(modin_df=self.df, key=key, for_at=True)
+        res = super().__getitem__(key)
+        if isinstance(res, (DataFrame, Series)):
+            res = res.squeeze()
+        return res
+
+    def __setitem__(
+        self,
+        key: INDEXING_KEY_TYPE,
+        item: INDEXING_ITEM_TYPE,
+    ) -> None:
+        """
+        Assign `item` value to dataset located by label `key`.
+
+        Parameters:
+        -----------
+        key : indexing key type
+        item: indexing item type
+
+        See Also:
+        ---------
+        pandas.Series.loc
+        pandas.DataFrame.loc
+        """
+        validate_key_for_at_iat(modin_df=self.df, key=key, for_at=True)
+        return super().__setitem__(key, item)
+
+
+class _iAtIndexer(_iLocIndexer):
+    """
+    An indexer for modin_df.iat[] functionality.
+
+    Parameters
+    ----------
+    modin_df : modin.pandas.Series or modin.pandas.DataFrame
+        Serires or DataFrame to operate on.
+    """
+
+    api_name = "iat"
+
+    def __getitem__(
+        self,
+        key: INDEXING_KEY_TYPE,
+    ) -> Union[Scalar, pd.DataFrame, pd.Series]:
+        """
+        Retrieve dataset according to positional `key`.
+
+        Parameters:
+        -----------
+        key : indexing key type
+
+        Returns:
+        --------
+        DataFrame, Series, or scalar.
+            Located dataset.
+
+        See Also:
+        ---------
+        pandas.Series.iloc
+        pandas.DataFrame.iloc
+        """
+        validate_key_for_at_iat(modin_df=self.df, key=key, for_at=False)
+        res = super().__getitem__(key)
+        if isinstance(res, (DataFrame, Series)):
+            res = res.squeeze()
+        return res
+
+    def __setitem__(
+        self,
+        key: INDEXING_KEY_TYPE,
+        item: INDEXING_ITEM_TYPE,
+    ) -> None:
+        """
+        Assign `item` value to dataset located by `key`.
+
+        Parameters:
+        -----------
+        key : indexing key type
+        item: indexing item type
+
+        See Also:
+        ---------
+        pandas.Series.iloc
+        pandas.DataFrame.iloc
+        """
+        validate_key_for_at_iat(modin_df=self.df, key=key, for_at=False)
+        return super().__setitem__(key, item)
