@@ -66,6 +66,7 @@ from snowflake.snowpark.types import (
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"
+SAMPLED_ROW_POSITION_COLUMN_LABEL = f"sampled_{ROW_POSITION_COLUMN_LABEL}"
 INDEX_LABEL = "index"
 # label used for data column to create the snowflake quoted identifier when the pandas
 # label for the column is None

@@ -125,6 +125,7 @@ DataFrame
     DataFrame.mean
     DataFrame.median
     DataFrame.min
+    DataFrame.pct_change
     DataFrame.quantile
     DataFrame.rank
     DataFrame.round
@@ -184,6 +185,8 @@ DataFrame
     DataFrame.pivot_table
     DataFrame.sort_values
     DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.smallest
     DataFrame.melt
     DataFrame.squeeze
     DataFrame.T

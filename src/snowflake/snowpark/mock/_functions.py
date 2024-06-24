@@ -13,16 +13,19 @@ import string
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
+from random import randint
 from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
 import snowflake.snowpark
-from snowflake.snowpark.mock._options import pandas
+from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
+    get_coerce_result_type,
 )
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -56,14 +59,127 @@ from ._util import (
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
-_MOCK_FUNCTION_IMPLEMENTATION_MAP = {}
-
 
 _DEFAULT_OUTPUT_FORMAT = {
     DateType: "YYYY-MM-DD",
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+
+class MockedFunction:
+    def __init__(
+        self,
+        name: str,
+        func_implementation: Callable,
+        distinct: Optional["MockedFunction"] = None,
+        pass_column_index: Optional[bool] = None,
+        pass_row_index: Optional[bool] = None,
+        pass_input_data: Optional[bool] = None,
+    ) -> None:
+        self.name = name
+        self.impl = func_implementation
+        self.distinct = distinct or self
+        self._pass_row_index = pass_row_index
+        self._pass_column_index = pass_column_index
+        self._pass_input_data = pass_input_data
+
+    def _check_constant_result(self, input_data, args, result):
+        # This function helps automaticallly fill a column with a constant value in certain
+        # circumstances. Ideally a mocked function would enable pass_index and generate it's own
+        # column filled with constant values, but this works as well as a fallback.
+
+        # If none of the args are column emulators and the function result only has one item
+        # assume that the single value should be repeated instead of Null filled. This allows
+        # constant expressions like current_date or current_database to fill a column instead
+        # of just the first row.
+        if (
+            not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
+            and len(result) == 1
+        ):
+            resized = result.repeat(len(input_data)).reset_index(drop=True)
+            resized.sf_type = result.sf_type
+            return resized
+
+        return result
+
+    def __call__(self, *args, input_data=None, row_number=None, **kwargs):
+
+        if self._pass_input_data:
+            kwargs["raw_input"] = input_data
+        if self._pass_row_index:
+            kwargs["row_index"] = list(input_data.index).index(row_number)
+        if self._pass_column_index:
+            kwargs["column_index"] = input_data.index
+
+        result = self.impl(*args, **kwargs)
+
+        if (
+            input_data is not None
+            and not self._pass_column_index
+            and not self._pass_row_index
+        ):
+            return self._check_constant_result(
+                input_data, args + tuple(kwargs.values()), result
+            )
+
+        return result
+
+
+class MockedFunctionRegistry:
+    _instance = None
+
+    def __init__(self) -> None:
+        self._registry = dict()
+
+    @classmethod
+    def get_or_create(cls) -> "MockedFunctionRegistry":
+        if cls._instance is None:
+            cls._instance = MockedFunctionRegistry()
+        return cls._instance
+
+    def get_function(
+        self, func: Union[FunctionExpression, str]
+    ) -> Optional[MockedFunction]:
+        if isinstance(func, str):
+            func_name = func
+            distinct = False
+        else:
+            func_name = func.name
+            distinct = func.is_distinct
+        func_name = func_name.lower()
+
+        if func_name not in self._registry:
+            return None
+
+        function = self._registry[func_name]
+
+        return function.distinct if distinct else function
+
+    def register(
+        self,
+        snowpark_func: Union[str, Callable],
+        func_implementation: Callable,
+        *args,
+        **kwargs,
+    ) -> MockedFunction:
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
+        self._registry[name] = mocked_function
+        return mocked_function
+
+    def unregister(
+        self,
+        snowpark_func: Union[str, Callable],
+    ):
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+
+        if name in self._registry:
+            del self._registry[name]
 
 
 class LocalTimezone:
@@ -92,33 +208,12 @@ class LocalTimezone:
         return d.replace(tzinfo=cls.LOCAL_TZ)
 
 
-def _register_func_implementation(
-    snowpark_func: Union[str, Callable], func_implementation: Callable
-):
-    try:
-        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__] = func_implementation
-    except AttributeError:
-        _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func] = func_implementation
-
-
-def _unregister_func_implementation(snowpark_func: Union[str, Callable]):
-    try:
-        try:
-            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func.__name__]
-        except AttributeError:
-            del _MOCK_FUNCTION_IMPLEMENTATION_MAP[snowpark_func]
-    except KeyError:
-        pass
-
-
-def patch(function):
+def patch(function, *args, **kwargs):
     def decorator(mocking_function):
-        _register_func_implementation(function, mocking_function)
-
-        def wrapper(*args, **kwargs):
-            return mocking_function(*args, **kwargs)
-
-        return wrapper
+        mocked_function = MockedFunctionRegistry.get_or_create().register(
+            function, mocking_function, *args, **kwargs
+        )
+        return mocked_function
 
     return decorator
 
@@ -151,8 +246,7 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
         return ColumnEmulator(data=res, sf_type=column.sf_type)
 
 
-@patch("sum")
-def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+def _sum(column: ColumnEmulator) -> ColumnEmulator:
     all_item_is_none = True
     res = 0
     for data in column:
@@ -185,6 +279,17 @@ def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
             data=[None], sf_type=ColumnType(new_type, column.sf_type.nullable)
         )
     )
+
+
+@patch("sum_distinct")
+def mock_sum_distinct(column: ColumnEmulator) -> ColumnEmulator:
+    column = ColumnEmulator(data=column.unique(), sf_type=column.sf_type)
+    return _sum(column)
+
+
+@patch("sum", distinct=mock_sum_distinct)
+def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+    return _sum(column)
 
 
 @patch("avg")
@@ -220,15 +325,6 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
-@patch("count")
-def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
-    if isinstance(column, ColumnEmulator):
-        count_column = column.count()
-        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
-    else:  # TableEmulator
-        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
-
-
 @patch("count_distinct")
 def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     """
@@ -243,6 +339,15 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
     combined = df[df.columns].apply(lambda row: tuple(row), axis=1).dropna()
     res = combined.nunique()
     return ColumnEmulator(data=res, sf_type=ColumnType(LongType(), False))
+
+
+@patch("count", distinct=mock_count_distinct)
+def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
+    if isinstance(column, ColumnEmulator):
+        count_column = column.count()
+        return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
+    else:  # TableEmulator # TODO would this branch actually ever happen?
+        return ColumnEmulator(data=len(column), sf_type=ColumnType(LongType(), False))
 
 
 @patch("median")
@@ -336,6 +441,10 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
+
+    if isinstance(column.sf_type.datatype, DateType):
+        return column.copy()
+
     import dateutil.parser
 
     if not isinstance(fmt, ColumnEmulator):
@@ -403,24 +512,28 @@ def mock_to_date(
     return res
 
 
-@patch("current_timestamp")
-def mock_current_timestamp():
+@patch("current_timestamp", pass_column_index=True)
+def mock_current_timestamp(column_index):
     return ColumnEmulator(
-        data=datetime.datetime.now(),
+        data=[datetime.datetime.now()] * len(column_index),
         sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
     )
 
 
-@patch("current_date")
-def mock_current_date():
+@patch("current_date", pass_column_index=True)
+def mock_current_date(column_index):
     now = datetime.datetime.now()
-    return ColumnEmulator(data=now.date(), sf_type=ColumnType(DateType(), False))
+    return ColumnEmulator(
+        data=[now.date()] * len(column_index), sf_type=ColumnType(DateType(), False)
+    )
 
 
-@patch("current_time")
-def mock_current_time():
+@patch("current_time", pass_column_index=True)
+def mock_current_time(column_index):
     now = datetime.datetime.now()
-    return ColumnEmulator(data=now.time(), sf_type=ColumnType(TimeType(), False))
+    return ColumnEmulator(
+        data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
+    )
 
 
 @patch("contains")
@@ -575,6 +688,9 @@ def mock_to_time(
             _time_format,
         )
         return target_datetime.time()
+
+    if isinstance(column.sf_type.datatype, TimeType):
+        return column.copy()
 
     res = []
 
@@ -904,6 +1020,9 @@ def mock_to_char(
     [x] binary_expr: An expression of type BINARY or VARBINARY.
 
     """
+    if isinstance(column.sf_type.datatype, StringType):
+        return column.copy()
+
     source_datatype = column.sf_type.datatype
 
     if not isinstance(fmt, ColumnEmulator):
@@ -1056,6 +1175,8 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
+    if isinstance(column.sf_type.datatype, (FloatType, DoubleType)):
+        return column.copy()
     if fmt is not None:
         LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
             external_feature_name="Using format strings in TO_DOUBLE",
@@ -1063,7 +1184,9 @@ def mock_to_double(
             parameters_info={"fmt": str(fmt)},
             raise_error=NotImplementedError,
         )
-    if isinstance(column.sf_type.datatype, (_NumericType, StringType, VariantType)):
+    if isinstance(
+        column.sf_type.datatype, (_NumericType, StringType, VariantType, NullType)
+    ):
         res = column.apply(lambda x: try_convert(float, try_cast, x))
         res.sf_type = ColumnType(DoubleType(), column.sf_type.nullable or res.hasnans)
         return res
@@ -1098,7 +1221,9 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 
     """
-    if isinstance(column.sf_type, StringType):
+    if isinstance(column.sf_type.datatype, BooleanType):
+        return column.copy()
+    if isinstance(column.sf_type.datatype, StringType):
 
         def convert_str_to_bool(x: Optional[str]):
             if x is None:
@@ -1112,7 +1237,7 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col = column.apply(lambda x: try_convert(convert_str_to_bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
-    elif isinstance(column.sf_type, _NumericType):
+    elif isinstance(column.sf_type.datatype, _NumericType):
 
         def convert_num_to_bool(x: Optional[Real]):
             if x is None:
@@ -1125,6 +1250,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
                 return x != 0
 
         new_col = column.apply(lambda x: try_convert(convert_num_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
     else:
@@ -1141,6 +1270,9 @@ def mock_to_binary(
     [x] TO_BINARY( <string_expr> [, '<format>'] )
     [x] TO_BINARY( <variant_expr> )
     """
+    if isinstance(column.sf_type.datatype, BinaryType):
+        return column.copy()
+
     fmt = fmt.upper() if fmt else "HEX"
     fmt_decoder = {
         "HEX": binascii.unhexlify,
@@ -1158,44 +1290,6 @@ def mock_to_binary(
     else:
         raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BINARY'"
-        )
-
-
-@patch("iff")
-def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
-    assert isinstance(condition.sf_type.datatype, BooleanType)
-    if (
-        all(condition)
-        or all(~condition)
-        or (
-            isinstance(expr1.sf_type.datatype, StringType)
-            and isinstance(expr2.sf_type.datatype, StringType)
-        )
-        or expr1.sf_type.datatype == expr2.sf_type.datatype
-        or isinstance(expr1.sf_type.datatype, NullType)
-        or isinstance(expr2.sf_type.datatype, NullType)
-    ):
-        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
-        if isinstance(expr1.sf_type.datatype, StringType) and isinstance(
-            expr2.sf_type.datatype, StringType
-        ):
-            l1 = expr1.sf_type.datatype.length or StringType._MAX_LENGTH
-            l2 = expr2.sf_type.datatype.length or StringType._MAX_LENGTH
-            sf_data_type = StringType(max(l1, l2))
-        else:
-            sf_data_type = (
-                expr1.sf_type.datatype
-                if any(condition) and not isinstance(expr1.sf_type.datatype, NullType)
-                else expr2.sf_type.datatype
-            )
-        nullability = expr1.sf_type.nullable and expr2.sf_type.nullable
-        res.sf_type = ColumnType(sf_data_type, nullability)
-        res.where(condition, other=expr2, inplace=True)
-        res.where([not x for x in condition], other=expr1, inplace=True)
-        return res
-    else:
-        raise SnowparkLocalTestingException(
-            f"[Local Testing] does not support coercion currently, iff expr1 and expr2 have conflicting data types: {expr1.sf_type} != {expr2.sf_type}"
         )
 
 
@@ -1247,9 +1341,10 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
     return res
 
 
-@patch("row_number")
-def mock_row_number(window: TableEmulator, row_idx: int):
-    return ColumnEmulator(data=[row_idx + 1], sf_type=ColumnType(LongType(), False))
+@patch("row_number", pass_row_index=True)
+def mock_row_number(row_index: int):
+    res = ColumnEmulator(data=[row_index + 1], sf_type=ColumnType(LongType(), False))
+    return res
 
 
 @patch("parse_json")
@@ -1278,8 +1373,8 @@ def mock_to_array(expr: ColumnEmulator):
     [x] For any other value, the result is a single-element array containing this value.
     """
     if isinstance(expr.sf_type.datatype, ArrayType):
-        res = expr.copy()
-    elif isinstance(expr.sf_type.datatype, VariantType):
+        return expr.copy()
+    if isinstance(expr.sf_type.datatype, VariantType):
         from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
 
         def convert_variant_to_array(val):
@@ -1753,19 +1848,21 @@ def mock_convert_timezone(
     )
 
 
-@patch("current_session")
-def mock_current_session():
+@patch("current_session", pass_column_index=True)
+def mock_current_session(column_index):
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
-        data=str(hash(session)), sf_type=ColumnType(StringType(), False)
+        data=[str(hash(session))] * len(column_index),
+        sf_type=ColumnType(StringType(), False),
     )
 
 
-@patch("current_database")
-def mock_current_database():
+@patch("current_database", pass_column_index=True)
+def mock_current_database(column_index):
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
-        data=session.get_current_database(), sf_type=ColumnType(StringType(), False)
+        data=[session.get_current_database()] * len(column_index),
+        sf_type=ColumnType(StringType(), False),
     )
 
 
@@ -1826,3 +1923,75 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
     )
     result.sf_type = ColumnType(StringType(), result.hasnans)
     return result
+
+
+def cast_column_to(
+    col: ColumnEmulator, target_column_type: ColumnType, try_cast: bool = False
+) -> Optional[ColumnEmulator]:
+    # col.sf_type.nullable = target_column_type.nullable
+    target_data_type = target_column_type.datatype
+    if isinstance(target_data_type, DateType):
+        return mock_to_date(col, try_cast=try_cast)
+    if isinstance(target_data_type, TimeType):
+        return mock_to_time(col, try_cast=try_cast)
+    if isinstance(target_data_type, TimestampType):
+        return mock_to_timestamp(col, try_cast=try_cast)
+    if isinstance(target_data_type, DecimalType):
+        return mock_to_decimal(
+            col,
+            precision=target_data_type.precision,
+            scale=target_data_type.scale,
+            try_cast=try_cast,
+        )
+    if isinstance(
+        target_data_type, _IntegralType
+    ):  # includes ByteType, ShortType, IntegerType, LongType
+        res = mock_to_decimal(col, try_cast=try_cast)
+        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        return res
+    if isinstance(target_data_type, BinaryType):
+        return mock_to_binary(col, try_cast=try_cast)
+    if isinstance(target_data_type, BooleanType):
+        return mock_to_boolean(col, try_cast=try_cast)
+    if isinstance(target_data_type, StringType):
+        return mock_to_char(col, try_cast=try_cast)
+    if isinstance(target_data_type, _FractionalType):
+        return mock_to_double(col, try_cast=try_cast)
+    if isinstance(target_data_type, MapType):
+        return mock_to_object(col)
+    if isinstance(target_data_type, ArrayType):
+        return mock_to_array(col)
+    if isinstance(target_data_type, VariantType):
+        return mock_to_variant(col)
+    return None
+
+
+@patch("iff")
+def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
+    assert isinstance(condition.sf_type.datatype, BooleanType)
+
+    coerce_result = get_coerce_result_type(expr1.sf_type, expr2.sf_type)
+    if all(condition) or all(~condition) or coerce_result is not None:
+        res = ColumnEmulator(data=[None] * len(condition), dtype=object)
+        expr1 = cast_column_to(expr1, coerce_result)
+        expr2 = cast_column_to(expr2, coerce_result)
+        res.where(condition, other=expr2, inplace=True)
+        res.where([not x for x in condition], other=expr1, inplace=True)
+        res.sf_type = coerce_result
+        return res
+    else:
+        raise SnowparkLocalTestingException(
+            f"[Local Testing] expr1 and expr2 have conflicting datatypes that cannot be coerced: {expr1.sf_type} <-> {expr2.sf_type}"
+        )
+
+
+@patch("random", pass_column_index=True)
+def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator:
+    rand_min = -(2**63)
+    rand_max = 2**63 - 1
+    seed = seed if seed is not None else randint(rand_min, rand_max)
+    gen = numpy.random.Generator(numpy.random.MT19937(abs(seed)))
+    return ColumnEmulator(
+        data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
+        sf_type=ColumnType(LongType(), False),
+    )
