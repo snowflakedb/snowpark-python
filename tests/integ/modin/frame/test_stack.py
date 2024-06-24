@@ -22,7 +22,7 @@ from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
 @sql_count_checker(query_count=1)
 def test_stack(data, index, columns, dropna, sort):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data, index, columns),
+        *create_test_dfs(data=data, index=index, columns=columns),
         lambda df: df.stack(dropna=dropna, sort=sort),
     )
 
