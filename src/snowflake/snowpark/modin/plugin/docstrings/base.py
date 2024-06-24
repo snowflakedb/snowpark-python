@@ -2663,9 +2663,9 @@ class BasePandasDataset:
         -----
         If `frac` > 1, `replacement` should be set to `True`.
 
-        Snowpark pandas `sample` does not support the following cases: `weights`, `random_state`, or `replace = True`
-        when `axis = 0`. Also, native pandas will raise error if `n` is larger than the length of the DataFrame while
-        Snowpark pandas will return all rows from the DataFrame.
+        Snowpark pandas `sample` does not support the following cases: `weights` or `random_state`
+        when `axis = 0`. Also, when `replace = False`, native pandas will raise error if `n` is larger
+        than the length of the DataFrame while Snowpark pandas will return all rows from the DataFrame.
 
         Examples
         --------
@@ -2690,10 +2690,23 @@ class BasePandasDataset:
 
         A random 50% sample of the ``DataFrame``:
 
-        >>> df.sample(frac=0.5)  # doctest: +SKIP
+        >>> df.sample(frac=0.5, replace=True) with replacement # doctest: +SKIP
               num_legs  num_wings  num_specimen_seen
         dog          4          0                  2
         fish         0          0                  8
+
+        An upsample sample of the DataFrame with replacement: Note that replace parameter has to be True for frac parameter > 1.
+
+        >>> df.sample(frac=2, replace=True) # doctest: +SKIP
+                num_legs  num_wings  num_specimen_seen
+        dog            4          0                  2
+        fish           0          0                  8
+        falcon         2          2                 10
+        falcon         2          2                 10
+        fish           0          0                  8
+        dog            4          0                  2
+        fish           0          0                  8
+        dog            4          0                  2
 
         The exact number of specified rows is returned unless the DataFrame contains fewer rows:
 

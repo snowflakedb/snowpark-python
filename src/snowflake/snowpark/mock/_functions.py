@@ -13,13 +13,14 @@ import string
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
+from random import randint
 from typing import Any, Callable, Optional, Tuple, TypeVar, Union
 
 import pytz
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.analyzer.expression import Expression
-from snowflake.snowpark.mock._options import pandas
+from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
@@ -66,60 +67,6 @@ _DEFAULT_OUTPUT_FORMAT = {
 }
 
 
-class MockedFunctionRegistry:
-    _instance = None
-
-    def __init__(self) -> None:
-        self._registry = dict()
-
-    @classmethod
-    def get_or_create(cls):
-        if cls._instance is None:
-            cls._instance = MockedFunctionRegistry()
-        return cls._instance
-
-    def get_function(self, func: Union[Expression, str]):
-        if isinstance(func, str):
-            func_name = func
-            distinct = False
-        else:
-            func_name = func.name
-            distinct = func.is_distinct
-        func_name = func_name.lower()
-
-        if func_name not in self._registry:
-            return None
-
-        function = self._registry[func_name]
-
-        return function.distinct if distinct else function
-
-    def register(
-        self,
-        snowpark_func: Union[str, Callable],
-        func_implementation: Callable,
-        *args,
-        **kwargs,
-    ):
-        name = (
-            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
-        )
-        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
-        self._registry[name] = mocked_function
-        return mocked_function
-
-    def unregister(
-        self,
-        snowpark_func: Union[str, Callable],
-    ):
-        name = (
-            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
-        )
-
-        if name in self._registry:
-            del self._registry[name]
-
-
 class MockedFunction:
     def __init__(
         self,
@@ -146,7 +93,6 @@ class MockedFunction:
         # assume that the single value should be repeated instead of Null filled. This allows
         # constant expressions like current_date or current_database to fill a column instead
         # of just the first row.
-
         if (
             not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
             and len(result) == 1
@@ -178,6 +124,62 @@ class MockedFunction:
             )
 
         return result
+
+
+class MockedFunctionRegistry:
+    _instance = None
+
+    def __init__(self) -> None:
+        self._registry = dict()
+
+    @classmethod
+    def get_or_create(cls) -> "MockedFunctionRegistry":
+        if cls._instance is None:
+            cls._instance = MockedFunctionRegistry()
+        return cls._instance
+
+    def get_function(
+        self, func: Union[FunctionExpression, str]
+    ) -> Optional[MockedFunction]:
+        if isinstance(func, str):
+            func_name = func
+            distinct = False
+        else:
+            func_name = func.name
+            distinct = func.is_distinct
+        func_name = func_name.lower()
+
+        if func_name not in self._registry:
+            return None
+
+        function = self._registry[func_name]
+
+        return function.distinct if distinct else function
+
+    def register(
+        self,
+        snowpark_func: Union[str, Callable],
+        func_implementation: Callable,
+        *args,
+        **kwargs,
+    ) -> MockedFunction:
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
+        self._registry[name] = mocked_function
+        return mocked_function
+
+    def unregister(
+        self,
+        snowpark_func: Union[str, Callable],
+    ):
+        name = (
+            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
+        )
+
+        if name in self._registry:
+            del self._registry[name]
 
 
 class LocalTimezone:
@@ -1981,3 +1983,15 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
         raise SnowparkLocalTestingException(
             f"[Local Testing] expr1 and expr2 have conflicting datatypes that cannot be coerced: {expr1.sf_type} <-> {expr2.sf_type}"
         )
+
+
+@patch("random", pass_column_index=True)
+def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator:
+    rand_min = -(2**63)
+    rand_max = 2**63 - 1
+    seed = seed if seed is not None else randint(rand_min, rand_max)
+    gen = numpy.random.Generator(numpy.random.MT19937(abs(seed)))
+    return ColumnEmulator(
+        data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
+        sf_type=ColumnType(LongType(), False),
+    )
