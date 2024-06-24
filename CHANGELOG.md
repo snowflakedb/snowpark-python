@@ -12,6 +12,7 @@
 
 - Added support for `to_boolean` function.
 - Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
 
 #### Bug Fixes
 
