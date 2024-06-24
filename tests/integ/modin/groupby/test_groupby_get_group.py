@@ -22,6 +22,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "col8_bool_missing",
         "col9_int_missing",
         "col10_mixed_missing",
+        ["col1_grp"],
         ["col1_grp", "col2_int64"],
         ["col6_mixed", "col7_bool", "col3_int_identical"],
     ],
@@ -67,8 +68,8 @@ def test_groupby_get_group(by):
         }
     )
     pandas_df = snowpark_pandas_df.to_pandas()
-    name = pandas_df[by].iloc[0]
-    if isinstance(by, list):
+    name = pandas_df[by if not isinstance(by, list) else by[0]].iloc[0]
+    if isinstance(by, list) and len(by) > 1:
         with SqlCounter(query_count=0):
             with pytest.raises(
                 NotImplementedError,
