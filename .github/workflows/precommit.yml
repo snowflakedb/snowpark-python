@@ -76,9 +76,33 @@ jobs:
           name: wheel
           path: dist/
 
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      snowpark_pandas: ${{ steps.filter.outputs.snowpark_pandas }}
+      snowpark: ${{ steps.filter.outputs.snowpark }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            snowpark_pandas:
+              - 'src/snowflake/snowpark/modin/**'
+              - 'tests/integ/modin/**'
+            snowpark:
+                - 'src/snowflake/snowpark/**'
+                - 'tests/integ/**'
+                - 'tests/unit/**'
+                - '!src/snowflake/snowpark/modin/**'
+                - '!tests/integ/modin/**'
+                - '!tests/unit/modin/**'
+
   test:
     name: Test py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    needs: build
+    needs: build, changes
+    if: ${{ needs.changes.outputs.snowpark == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -187,7 +211,8 @@ jobs:
 
   test-local-testing:
     name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
-    needs: build
+    needs: build, changes
+    if: ${{ needs.changes.outputs.snowpark == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -245,7 +270,8 @@ jobs:
 
   test-enable-cte-optimization:
     name: Test Enable CTE Optimization py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    needs: build
+    needs: build, changes
+    if: ${{ needs.changes.outputs.snowpark == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -302,7 +328,8 @@ jobs:
 
   test-snowpark-pandas:
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    needs: build
+    needs: build, changes
+    if: ${{ needs.changes.outputs.snowpark_pandas == 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -411,7 +438,8 @@ jobs:
 
   test-modin-extra-without-pandas-extra:
     name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
-    needs: build
+    needs: build, changes
+    if: ${{ needs.changes.outputs.snowpark_pandas == 'true' }}
     runs-on: ${{ matrix.os.image_name }}
     strategy:
       fail-fast: false
