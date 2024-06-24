@@ -91,10 +91,12 @@ jobs:
             snowpark_pandas:
               - 'src/snowflake/snowpark/modin/**'
               - 'tests/integ/modin/**'
+              - '.github/workflows/precommit.yml'
             snowpark:
                 - 'src/snowflake/snowpark/**'
                 - 'tests/integ/**'
                 - 'tests/unit/**'
+                - '.github/workflows/precommit.yml'
                 - '!src/snowflake/snowpark/modin/**'
                 - '!tests/integ/modin/**'
                 - '!tests/unit/modin/**'
