@@ -16,6 +16,9 @@ CONNECTION_PARAMETERS = {
     "warehouse": "REGRESS",
 }
 session = Session.builder.configs(CONNECTION_PARAMETERS).create()
+session.sql(
+    "alter session set xp_tracing = 'Snowflake*=low,Snowpark=highest'"
+).collect()
 df = session.table("ttab")
 df = df.filter("C1 < 20")
 df.show()
