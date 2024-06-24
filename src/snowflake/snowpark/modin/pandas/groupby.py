@@ -422,9 +422,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="dtypes", class_="GroupBy")
 
-    def first(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="first", class_="GroupBy")
+    def first(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_first,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     _internal_by_cache = no_default
 
@@ -653,9 +656,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     agg = aggregate
 
-    def last(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="last", class_="GroupBy")
+    def last(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_last,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     def rank(
         self,
