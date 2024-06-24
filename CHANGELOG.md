@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added open telemetry tracing on UDxF functions in snowpark.
+- Added open telemetry tracing on stored procedure registration in snowpark.
 
 #### New Features
 
