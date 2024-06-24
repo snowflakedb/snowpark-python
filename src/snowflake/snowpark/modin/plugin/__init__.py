@@ -64,6 +64,26 @@ from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E
 
 DocModule.put(docstrings.__name__)
 
+# Configure Modin engine so it detects our Snowflake I/O classes.
+# This is necessary to run even basic code like Series/DataFrame constructors,
+# as these factories define the `from_pandas` method for each Modin backend.
+
+from modin.config import Engine  # isort: skip  # noqa: E402
+
+# Secretly insert our factory class into Modin so the dispatcher can find it
+from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
+    factories as modin_factories,
+)
+
+from snowflake.snowpark.modin.core.execution.dispatching.factories.factories import (  # isort: skip  # noqa: E402
+    PandasOnSnowflakeFactory,
+)
+
+modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
+
+Engine.add_option("Snowflake")
+Engine.put("Snowflake")
+
 
 # We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
 # that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
