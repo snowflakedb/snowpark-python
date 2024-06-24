@@ -3701,7 +3701,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         ast = stmt.expr.sp_dataframe_first
         if statement_params is not None:
-            ast.statement_params = statement_params
+            ast.statement_params.append((k, v) for k, v in statement_params)
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
         ast.block = block
@@ -3769,7 +3769,7 @@ class DataFrame:
                 ),
                 ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan)
+        return self._with_plan(sample_plan, ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -4159,7 +4159,8 @@ class DataFrame:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
             )
-        ast.weights = weights
+        for w in weights:
+            ast.weights.append(w)
         if seed:
             ast.seed = seed
         if statement_params:
