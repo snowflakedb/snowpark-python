@@ -82,6 +82,7 @@ ILOC_INT_ONLY_INDEXING_ERROR_MESSAGE = (
 "INCLUDED, END point is EXCLUDED), list-like of integers, boolean array] types."
 
 MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE = "indexer may only contain one '...' entry"
+TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE = "Too few indexers"
 TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE = "Too many indexers"
 CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE = (
     "cannot reindex on an axis with duplicate labels"

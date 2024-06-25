@@ -3050,10 +3050,6 @@ def test_to_local_iterator(session):
         break
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: function random not supported",
-)
 def test_random_split(session):
     row_count = 10000
     df1 = session.range(row_count)
