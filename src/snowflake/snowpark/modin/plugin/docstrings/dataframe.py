@@ -903,23 +903,23 @@ class DataFrame:
         >>> df = pd.DataFrame({'temp_c': [17.0, 25.0]},
         ...                   index=['Portland', 'Berkeley'])
         >>> df
-                temp_c
+                  temp_c
         Portland    17.0
         Berkeley    25.0
 
         >>> df.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
-                temp_c  temp_f
+                  temp_c  temp_f
         Portland    17.0    62.6
         Berkeley    25.0    77.0
 
         >>> df.assign(temp_f=df['temp_c'] * 9 / 5 + 32)
-                temp_c  temp_f
+                  temp_c  temp_f
         Portland    17.0    62.6
         Berkeley    25.0    77.0
 
         >>> df.assign(temp_f=lambda x: x['temp_c'] * 9 / 5 + 32,
-                      temp_k=lambda x: (x['temp_f'] + 459.67) * 5 / 9)
-                temp_c  temp_f  temp_k
+        ...           temp_k=lambda x: (x['temp_f'] + 459.67) * 5 / 9)
+                  temp_c  temp_f  temp_k
         Portland    17.0    62.6  290.15
         Berkeley    25.0    77.0  298.15
 
