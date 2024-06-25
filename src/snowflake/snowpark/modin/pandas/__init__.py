@@ -168,29 +168,6 @@ from snowflake.snowpark.modin.pandas.series import (  # isort: skip  # noqa: E40
     Series as DONOTEXPORTMESeries,
 )
 
-series_need_to_copy_paste = [
-    "groupby",
-    "_to_pandas",
-    "cat",
-    "str",  # seems to be issues with CachedAccessor from upstream
-    "dt",
-    "__repr__",  # modin uses basepandasdataset build_repr_df instead of QC
-    # indexing
-    "iat",
-    "__getitem__",
-    "__setitem__",
-    "iloc",
-    "loc",
-]
-
-
-from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
-    register_series_accessor,
-)
-
-for name in series_need_to_copy_paste:
-    register_series_accessor(name)(getattr(DONOTEXPORTMESeries, name))
-
 
 def __getattr__(name: str) -> Any:
     """
@@ -320,6 +297,7 @@ __all__ = [  # noqa: F405
     "Float32Dtype",
     "Float64Dtype",
     "from_dummies",
+    "DONOTEXPORTMESeries",
 ]
 
 del pandas
@@ -368,7 +346,20 @@ for name in _EXTENSION_ATTRS:
 
 temporary_heritance_do_not_keep_this_in_final_pr = [
     "align",
+    "groupby",
+    "_to_pandas",
+    "cat",
+    "str",  # seems to be issues with CachedAccessor from upstream
+    "dt",
+    "__repr__",  # modin uses basepandasdataset build_repr_df instead of QC
+    # indexing
+    "iat",
+    "__getitem__",
+    "__setitem__",
+    "iloc",
+    "loc",
 ]
+
 
 for name in temporary_heritance_do_not_keep_this_in_final_pr:
     _ext.register_series_accessor(name)(getattr(DONOTEXPORTMESeries, name))
