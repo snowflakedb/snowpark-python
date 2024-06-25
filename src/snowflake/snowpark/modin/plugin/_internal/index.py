@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Hashable, Iterator, Literal
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
@@ -38,12 +38,17 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
+if TYPE_CHECKING:
+    from snowflake.snowpark.modin.pandas import DataFrame, Series
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
 
 class Index:
     def __init__(
         self,
-        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any = None,
+        data: ArrayLike | SnowflakeQueryCompiler = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -109,8 +114,7 @@ class Index:
 
     def set_query_compiler(
         self,
-        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any = None,
+        data: ArrayLike | SnowflakeQueryCompiler = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -140,8 +144,7 @@ class Index:
 
     def set_local_index(
         self,
-        # TODO: SNOW-1481037 : Fix typehints for index constructor, set_query_compiler and set_local_index
-        data: ArrayLike | Any = None,
+        data: ArrayLike | SnowflakeQueryCompiler = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -1516,11 +1519,8 @@ class Index:
 
     @is_lazy_check
     def to_series(
-        self,
-        index: Index | None = None,
-        name: Hashable | None = None
-        # TODO: SNOW-1481037 : Fix typehints
-    ) -> Any:
+        self, index: Index | None = None, name: Hashable | None = None
+    ) -> Series:
         """
         Create a Series with both index and values equal to the index keys.
 
@@ -1564,8 +1564,7 @@ class Index:
         return ser
 
     @is_lazy_check
-    # TODO: SNOW-1481037 : Fix typehints
-    def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
+    def to_frame(self, index: bool = True, name: Hashable | None = None) -> DataFrame:
         """
         Create a DataFrame with a column containing the Index.
 
