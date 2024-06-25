@@ -9,7 +9,7 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
