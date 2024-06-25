@@ -41,6 +41,9 @@ def test_nlargest_nsmallest_negative_n(snow_series, native_series, method):
     )
 
 
+@pytest.mark.skip(
+    reason="SNOW-1502286: native pandas nlargest output is not consistent between local and CI"
+)
 @sql_count_checker(query_count=1)
 def test_nlargest_nsmallest_large_n(snow_series, native_series, method):
     eval_snowpark_pandas_result(
