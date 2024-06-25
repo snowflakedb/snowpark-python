@@ -240,7 +240,6 @@ def test_df_index_columns_values(native_df):
 @sql_count_checker(query_count=1)
 def test_index_item(native_index):
     snow_index = pd.Index(native_index)
-    # 1 query to check length in item method, if length is 1, issue another query to get item
     if len(native_index) == 1:
         assert snow_index.item() == native_index.item()
     else:
@@ -347,51 +346,35 @@ def test_df_index_columns_to_series(native_df):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_to_frame(native_index):
+def test_index_to_frame(native_index, name, index):
     snow_index = pd.Index(native_index)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_index.to_frame(),
-        native_index.to_frame(),
-        check_index_type=False,
-        check_column_type=False,
-    )
-
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_index.to_frame(index=False, name="name"),
-        native_index.to_frame(index=False, name="name"),
+        snow_index.to_frame(index=index, name=name),
+        native_index.to_frame(index=index, name=name),
         check_index_type=False,
         check_column_type=False,
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
+@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
-def test_df_index_columns_to_frame(native_df):
+def test_df_index_columns_to_frame(native_df, index, name):
     snow_df = pd.DataFrame(native_df)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_df.index.to_frame(),
-        native_df.index.to_frame(),
+        snow_df.index.to_frame(index=index, name=name),
+        native_df.index.to_frame(index=index, name=name),
         check_index_type=False,
         check_column_type=False,
     )
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_df.columns.to_frame(),
-        native_df.columns.to_frame(),
-        check_index_type=False,
-        check_column_type=False,
-    )
-
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_df.index.to_frame(index=False, name=1),
-        native_df.index.to_frame(index=False, name=1),
-        check_index_type=False,
-        check_column_type=False,
-    )
-    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-        snow_df.columns.to_frame(index=False, name=True),
-        native_df.columns.to_frame(index=False, name=True),
+        snow_df.columns.to_frame(index=index, name=name),
+        native_df.columns.to_frame(index=index, name=name),
         check_index_type=False,
         check_column_type=False,
     )

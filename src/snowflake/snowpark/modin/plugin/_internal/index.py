@@ -1506,7 +1506,7 @@ class Index:
         """
         # slice the first two elements of the index and materialize them
         item = self._query_compiler.take_2d_positional(
-            index=slice(2), columns=[0]
+            index=slice(2), columns=[]
         ).index.to_pandas()
 
         # return the element as a scalar if the index is exacly one element large
@@ -1592,26 +1592,31 @@ class Index:
         """
         from snowflake.snowpark.modin.pandas import DataFrame
 
-        # save the index name and the given name to be the index name and column name of the new df respectively
-        index_name = self.name
-        column_name = name
-
-        # if we do not have an index name and the given name is also None, we default to a dataframe column name of 0
-        if name is None and index_name is None:
-            column_name = 0
-        # if the index has a name, we set the column name as this name
-        elif name is None:
-            column_name = index_name
-
-        # Do a reset index to create a data column, filling it with the values of self and assigning it column name
-        new_qc = self._query_compiler.reset_index(names=[column_name])
-
+        # Do a reset index to convert the index column to a data column,
+        # the index column becomes the pandas default index of row position
+        # Example:
+        # before
+        # index columns:    data columns (empty):
+        #      100
+        #      200
+        #      300
+        # after
+        # index columns:    data columns (name=column_name):
+        #       0               100
+        #       1               200
+        #       2               300
         # if index is true, we want self to be in the index and data columns of the df,
         # so set the index as the data column and set the name of the index
         if index:
-            new_qc = new_qc.set_index([new_qc.columns[0]], drop=False).set_index_names(
-                [index_name]
+            new_qc = self._query_compiler.reset_index()
+            new_qc = (
+                new_qc.set_index([new_qc.columns[0]], drop=False)
+                .set_columns([name])
+                .set_index_names([self.name])
             )
+        else:
+            new_qc = self._query_compiler.reset_index(names=[name])
+
         return DataFrame(query_compiler=new_qc)
 
     @index_not_implemented()
