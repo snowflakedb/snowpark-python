@@ -3168,7 +3168,6 @@ class DataFrame:
         Parameters
         ----------
         level : int, str, list, default -1
-            level != -1 and MultiIndex dataframes are not yet supported by Snowpark pandas.
             Level(s) to stack from the column axis onto the index axis,
             defined as one index or label, or a list of indices or labels.
 
@@ -3187,6 +3186,10 @@ class DataFrame:
         -------
         DataFrame or Series
             Stacked dataframe or series.
+
+        Notes
+        -----
+        level != -1 and MultiIndex dataframes are not yet supported by Snowpark pandas.
 
         See Also
         --------
