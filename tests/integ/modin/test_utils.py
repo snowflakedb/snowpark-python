@@ -131,7 +131,7 @@ def test_ensure_index(data):
         ensure_index_test_helper(data, 1)
         # convert to pd.Index to test on pd.Index later
         data = pd.Index(data)
-        qc = 5
+        qc = 4
     elif isinstance(data, native_pd.Series):
         # test on native_pd.Series
         ensure_index_test_helper(data, 1)

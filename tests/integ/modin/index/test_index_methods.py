@@ -372,3 +372,20 @@ def test_df_index_columns_to_frame(native_df, index, name):
         check_index_type=False,
         check_column_type=False,
     )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+def test_index_dtype(native_index):
+    snow_index = pd.Index(native_index)
+    assert snow_index.dtype == native_index.dtype
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("native_df", TEST_DFS)
+def test_df_index_columns_dtype(native_df):
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.index.dtype == native_df.index.dtype
+    # do not check columns type for empty df
+    if not native_df.empty:
+        assert snow_df.columns.dtype == native_df.columns.dtype
