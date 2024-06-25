@@ -161,6 +161,7 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort:
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 
 
 def __getattr__(name: str) -> Any:

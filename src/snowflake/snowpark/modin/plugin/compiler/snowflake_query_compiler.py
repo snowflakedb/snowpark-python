@@ -1251,17 +1251,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
-    @property
-    def columns(self) -> "pd.Index":
-        """
-        Get pandas column labels.
-
-        Returns:
-            an index containing all pandas column labels
-        """
-        # TODO SNOW-837664: add more tests for df.columns
-        return self._modin_frame.data_columns_index
-
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
         Set pandas column labels with the new column labels
@@ -1312,6 +1301,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    # TODO SNOW-837664: add more tests for df.columns
+    columns = property(
+        lambda self: self._modin_frame.data_columns_index,
+        lambda self, labels: self.set_columns(labels),
+    )
 
     def _shift_values(
         self, periods: int, axis: Union[Literal[0], Literal[1]], fill_value: Hashable
