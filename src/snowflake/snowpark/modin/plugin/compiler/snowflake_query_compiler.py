@@ -3859,8 +3859,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas GroupBy.get_group does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
             )
-        if is_list_like(by):  # pragma: no cover
-           ErrorMessage.not_implemented(
+        if is_list_like(by):
+            ErrorMessage.not_implemented(
                 "Snowpark pandas GroupBy.get_group does not yet support multiple by columns."
             )
         name = agg_kwargs.get("name")
