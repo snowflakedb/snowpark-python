@@ -7,7 +7,7 @@ from typing import Union
 import pandas as native_pd
 from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
 
-from snowflake.snowpark.functions import any_value, get
+from snowflake.snowpark.functions import min as snowpark_min, get
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -88,10 +88,10 @@ def prepare_and_unpivot_for_transpose(
             if identifier == row_position_snowflake_quoted_identifier:
                 new_columns.append((pandas_lit(-1)).as_(identifier))
             else:
-                # We use any_value to select any value in the dummy column to make sure its dtypes are
+                # We use min to select a value in the dummy column to make sure its dtypes are
                 # the same as the column in the original dataframe. This helps avoid type incompatibility
-                # issues in union_all.
-                new_columns.append(any_value(identifier).as_(identifier))
+                # issues in union_all.  Note that we do not use any_value to ensure the results are deterministic.
+                new_columns.append(snowpark_min(identifier).as_(identifier))
         dummy_df = ordered_dataframe.agg(new_columns)
         ordered_dataframe = ordered_dataframe.union_all(dummy_df)
 
