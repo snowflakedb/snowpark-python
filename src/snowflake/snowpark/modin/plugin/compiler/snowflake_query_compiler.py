@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
@@ -6979,8 +6980,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # groupby (index) nor pivot columns as the aggregation columns.  For example, a dataframe with
             # index=['A','B'], data=['C','E'] and if 'A' is used in groupby, and 'C' used as pivot, then 'E' would be
             # used as the values column, and unused index column 'B' would be dropped.
-            full_columns_and_index = (
-                list(columns) if columns else [] + list(index) if index else []
+            full_columns_and_index = (list(columns) if columns else []) + (
+                list(index) if index else []
             )
             values = self._modin_frame.data_column_pandas_labels.copy()
             for pandas_label_tuple in full_columns_and_index:
@@ -6989,43 +6990,83 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if is_list_like(values):
             values = list(values)
 
-        values_label_to_identifier_pairs_list = (
-            generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
+        if len(values) > 0:
+            values_label_to_identifier_pairs_list = generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings(
                 values, self._modin_frame
             )
-        )
-        multiple_agg_funcs_single_values = (
-            isinstance(aggfunc, list) and len(aggfunc) > 1
-        ) and not isinstance(values, list)
-        include_aggr_func_in_label = (
-            len(groupby_snowflake_quoted_identifiers) != 0
-            or multiple_agg_funcs_single_values
-        )
-        pivot_aggr_groupings = list(
-            generate_single_pivot_labels(
-                values_label_to_identifier_pairs_list,
-                aggfunc,
-                len(pivot_snowflake_quoted_identifiers) > 0,
-                isinstance(values, list)
-                and (not margins or len(values) > 1)
-                and include_aggr_func_in_label,
-                sort,
+            multiple_agg_funcs_single_values = (
+                isinstance(aggfunc, list) and len(aggfunc) > 1
+            ) and not isinstance(values, list)
+            include_aggr_func_in_label = (
+                len(groupby_snowflake_quoted_identifiers) != 0
+                or multiple_agg_funcs_single_values
             )
-        )
+            pivot_aggr_groupings = list(
+                generate_single_pivot_labels(
+                    values_label_to_identifier_pairs_list,
+                    aggfunc,
+                    len(pivot_snowflake_quoted_identifiers) > 0,
+                    isinstance(values, list)
+                    and (not margins or len(values) > 1)
+                    and include_aggr_func_in_label,
+                    sort,
+                )
+            )
+        else:
+            # If there are no values, we simply return an empty DataFrame with no columns
+            # whose index is the result of grouping by the index columns. We pass
+            # pivot_aggr_groupings = None to signify that case in the `pivot_helper`
+            # function.
+            pivot_aggr_groupings = None
 
         # When aggfunc is not a list, we should sort the outer level of pandas labels.
-        pivotted_frame = pivot_helper(
-            self._modin_frame,
-            pivot_aggr_groupings,
-            not dropna,
-            not isinstance(aggfunc, list),
-            columns,
-            groupby_snowflake_quoted_identifiers,
-            pivot_snowflake_quoted_identifiers,
-            (isinstance(aggfunc, list) and len(aggfunc) > 1),
-            (isinstance(values, list) and len(values) > 1),
-            index,
-        )
+        try:
+            pivotted_frame = pivot_helper(
+                self._modin_frame,
+                pivot_aggr_groupings,
+                not dropna,
+                not isinstance(aggfunc, list),
+                columns,
+                groupby_snowflake_quoted_identifiers,
+                pivot_snowflake_quoted_identifiers,
+                (isinstance(aggfunc, list) and len(aggfunc) > 1),
+                (isinstance(values, list) and len(values) > 1),
+                index,
+            )
+        except SnowparkSQLException as e:
+            # `pivot_table` is implemented on the server side via the dynamic pivot
+            # feature. The dynamic pivot issues a query in order to determine
+            # what the pivot values are. If there are no pivot values, and no groupby
+            # columns are specified, we raise an error on the server side.
+            # Error Code 1146 corresponds to the Snowflake Exception when
+            # a dynamic pivot is called and there are no pivot values and no
+            # groupby columns specified.
+            # This error is raised eagerly, since we have a
+            # describe call on the client side in order to determine the schema of the output.
+            # If we hit this error, that means that we have attempted a pivot on an empty
+            # DataFrame, so we catch the exception and return an empty DataFrame.
+            if e.sql_error_code == 1146:
+                from snowflake.snowpark.modin.pandas.utils import from_pandas
+
+                native_df = native_pd.DataFrame(index=self.index, columns=self.columns)
+                native_df.index.names = self.index.names
+                native_df.columns.names = self.columns.names
+                return from_pandas(
+                    native_df.pivot_table(
+                        index=index,
+                        values=values,
+                        columns=columns,
+                        margins=margins,
+                        margins_name=margins_name,
+                        dropna=dropna,
+                        aggfunc=aggfunc,
+                        fill_value=fill_value,
+                        observed=observed,
+                        sort=sort,
+                    )
+                )._query_compiler
+            else:
+                raise e
 
         pivot_qc = SnowflakeQueryCompiler(pivotted_frame)
 
@@ -7042,8 +7083,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Add margins if specified, note this will also add the row position since the margin row needs to be fixed
         # as the last row of the dataframe.  If no margins, then we order by the group by columns.
         # The final condition checks to see if there are any columns in the pivot result. If there are no columns,
-        # this means that we pivoted on an empty table - in that case, we can skip adding margins, since the result
-        # will still be an empty DataFrame (but we will have increased the join and union count) for no reason.
+        # this means that we pivoted on an empty table - in that case, we can skip adding margins. We may need to add
+        # an additional layer to the columns Index (since margins is True), but the expand_pivot_result_with_pivot_table_margins
+        # codepath will add additional joins and unions to our query that aren't necessary, since the DataFrame is empty either way.
         if (
             margins
             and pivot_aggr_groupings
@@ -7074,6 +7116,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         margins_name,
                     )
                 )
+        elif (
+            margins
+            and len(pivot_qc.columns) == 0
+            and len(pivot_qc.columns.names) != (len(columns) + len(self.columns.names))
+        ):
+            # If `margins` is True, and our result is empty, the results columns must retain the names
+            # from the input DataFrame's columns. One caveat is when there are no values columns - in that case
+            # pandas retains the names from the input DataFrame's columns Index regardless of if margins is True or not
+            # (which we handle in pivot_utils.py), so in that case, we shouldn't add the original names to the columns
+            # Index for a second time.
+            levels: list[list] = [[]] * (
+                len(pivot_qc.columns.names) + len(self.columns.names)
+            )
+            codes: list[list] = levels
+            pivot_qc = pivot_qc.set_columns(
+                pd.MultiIndex(
+                    levels=levels,
+                    codes=codes,
+                    names=self.columns.names + pivot_qc.columns.names,
+                )
+            )
+
+        if len(pivot_qc.columns) == 0 and len(pivot_qc.columns.names) == len(
+            columns
+        ) + len(self.columns.names):
+            pivot_qc.columns.names = self.columns.names + columns
 
         # Rename the data column snowflake quoted identifiers to be closer to pandas labels given we
         # may have done unwrapping of surrounding quotes, ie. so will unwrap single quotes in snowflake identifiers.
@@ -9086,6 +9154,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofweek")
 
+    def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        year_col = self.dt_property("yearofweekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "year"}
+        )
+        week_col = self.dt_property("weekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "week"}
+        )
+        day_col = self.dt_property("dayofweekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "day"}
+        )
+        return year_col.concat(axis=1, other=[week_col, day_col])
+
     def dt_weekday(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("weekday")
 
@@ -9162,6 +9242,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "minute": minute,
             "second": second,
             "day": dayofmonth,
+            "weekiso": (lambda column: builtin("weekiso")(col(column))),
+            "dayofweekiso": (lambda column: builtin("dayofweekiso")(col(column))),
+            "yearofweekiso": (lambda column: builtin("yearofweekiso")(col(column))),
             "month": month,
             "year": year,
             "quarter": quarter,

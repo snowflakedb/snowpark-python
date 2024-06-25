@@ -1321,6 +1321,27 @@ class CombinedDatetimelikeProperties:
         dtype: int8
         """
 
+    def isocalendar():
+        """
+        Calculate year, week, and day according to the ISO 8601 standard.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            With columns year, week, and day.
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.date_range("2020-05-01", periods=5, freq="4D"))
+        >>> ser.dt.isocalendar()
+           year  week  day
+        0  2020    18    5
+        1  2020    19    2
+        2  2020    19    6
+        3  2020    20    3
+        4  2020    20    7
+        """
+
     @property
     def is_month_start():
         pass

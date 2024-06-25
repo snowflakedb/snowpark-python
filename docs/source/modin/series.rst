@@ -196,7 +196,7 @@ Series
     Series.sort_values
     Series.sort_index
     Series.nlargest
-    Series.smallest
+    Series.nsmallest
     Series.squeeze
 
 .. rubric:: Combining / comparing / joining / merging
@@ -252,6 +252,7 @@ Series
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
+    Series.dt.isocalendar
 
 
 .. rubric:: String accessor methods
