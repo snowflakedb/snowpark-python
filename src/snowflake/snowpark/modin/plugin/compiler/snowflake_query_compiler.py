@@ -14718,6 +14718,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         index_names = ["index"]
         # Stack is equivalent to doing df.melt() with index reset, sorting the values, then setting the index
+        # Note that we always use sort_rows_by_column_values even if sort is False
         qc = (
             self.reset_index()
             .melt(
