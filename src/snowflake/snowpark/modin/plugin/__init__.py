@@ -93,6 +93,10 @@ snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_previ
 
 
 # TODO: SNOW-1504302: Modin upgrade - use Snowpark pandas DataFrame for isocalendar
+# OSS Modin's DatetimeProperties frontend class wraps the returned query compiler with `modin.pandas.DataFrame`.
+# Since we currently replace `pd.DataFrame` with our own Snowpark pandas DataFrame object, this causes errors
+# since OSS Modin explicitly imports its own DataFrame class here. This override can be removed once the frontend
+# DataFrame class is removed from our codebase.
 def isocalendar(self):  # type: ignore
     from snowflake.snowpark.modin.pandas import DataFrame
 
