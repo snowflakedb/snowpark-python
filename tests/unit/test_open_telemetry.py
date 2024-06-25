@@ -76,6 +76,30 @@ def dict_exporter():
     dict_exporter.shutdown()
 
 
+def test_without_open_telemetry(monkeypatch, dict_exporter):
+    from snowflake.snowpark._internal import open_telemetry
+
+    monkeypatch.setattr(open_telemetry, "open_telemetry_found", False)
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    _add_session(session)
+    session._conn._telemetry_client = mock.MagicMock()
+    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert len(spans) == 0
+    dict_exporter.clear()
+
+    @udf(name="minus", session=session)
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert len(spans) == 0
+    dict_exporter.clear()
+
+
 def test_register_udaf_from_file(dict_exporter):
     test_file = os.path.normpath(
         os.path.join(
