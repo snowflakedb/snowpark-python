@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import copy
 import functools
 import importlib
 import inspect
@@ -60,6 +60,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
+from snowflake.snowpark._internal.analyzer.common_subdataframe_elimination import CommonSubDataframeElimination
 
 if TYPE_CHECKING:
     try:
@@ -561,7 +562,10 @@ class ServerConnection:
     ]:
         action_id = plan.session._generate_new_action_id()
         # potentially optimize the query using CTEs
-        plan = plan.replace_repeated_subquery_with_cte()
+        plan = copy.deepcopy(plan)
+        subDataframeEliminator = CommonSubDataframeElimination(plan)
+        plan = subDataframeEliminator.common_subdataframe_elimination()
+        # plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
         try:
             placeholders = {}

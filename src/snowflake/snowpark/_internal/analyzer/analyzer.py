@@ -99,6 +99,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
+    WithQueryBlock,
+    WithObjectRef
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -160,12 +162,13 @@ if TYPE_CHECKING:
 
 
 class Analyzer:
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: "snowflake.snowpark.session.Session", skip_schema_query: bool = False) -> None:
         self.session = session
-        self.plan_builder = SnowflakePlanBuilder(self.session)
+        self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=skip_schema_query)
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        self.skip_schema_query = skip_schema_query
 
     def analyze(
         self,
@@ -1212,6 +1215,20 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             return self.plan_builder.select_statement(logical_plan)
+
+        if isinstance(logical_plan, WithObjectRef):
+            return self.plan_builder.with_object_ref(
+                logical_plan.children[0].name,
+                resolved_children[logical_plan.children[0]],
+                logical_plan
+            )
+
+        if isinstance(logical_plan, WithQueryBlock):
+            return self.plan_builder.with_query_block(
+                logical_plan.name,
+                resolved_children[logical_plan.children[0]],
+                logical_plan
+            )
 
         raise TypeError(
             f"Cannot resolve type logical_plan of {type(logical_plan).__name__} to a SnowflakePlan"

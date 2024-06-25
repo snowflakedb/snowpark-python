@@ -29,6 +29,7 @@ class LogicalPlan:
         self.children = []
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
+
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.OTHERS
@@ -244,3 +245,22 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+
+
+class WithQueryBlock(LogicalPlan):
+    def __init__(self, name: str, child: LogicalPlan):
+        super().__init__()
+        self.name = name
+        self.children.append(child)
+
+    def to_sql(self):
+        return f"WITH {self.name} AS({self.children[0].queries[-1].sql})"
+
+
+class WithObjectRef(LogicalPlan):
+    def __init__(self, with_query_block: WithQueryBlock):
+        super().__init__()
+        self.children.append(with_query_block)
+
+    def to_sql(self):
+        return f"SELECT * FROM {self.children[0].name}"

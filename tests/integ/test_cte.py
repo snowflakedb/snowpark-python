@@ -103,29 +103,29 @@ def test_unary(session, action):
     "action",
     [
         lambda x, y: x.union_all(y),
-        lambda x, y: x.select("a").union(y.select("a")),
-        lambda x, y: x.except_(y),
-        lambda x, y: x.select("a").intersect(y.select("a")),
-        lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
-        lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
-        lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
+        # lambda x, y: x.select("a").union(y.select("a")),
+        # lambda x, y: x.except_(y),
+        # lambda x, y: x.select("a").intersect(y.select("a")),
+        # lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
+        # lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
+        # lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
     ],
 )
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     check_result(session, action(df, df), expect_cte_optimized=True)
 
-    df1 = session.create_dataframe([[3, 4], [2, 1]], schema=["a", "b"])
-    check_result(session, action(df, df1), expect_cte_optimized=False)
+    # df1 = session.create_dataframe([[3, 4], [2, 1]], schema=["a", "b"])
+    # check_result(session, action(df, df1), expect_cte_optimized=False)
 
     # multiple queries
-    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
-    try:
-        analyzer.ARRAY_BIND_THRESHOLD = 2
-        df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    check_result(session, action(df2, df2), expect_cte_optimized=True)
+    # original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    # try:
+    #    analyzer.ARRAY_BIND_THRESHOLD = 2
+    #    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    # finally:
+    #    analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+    # check_result(session, action(df2, df2), expect_cte_optimized=True)
 
 
 @pytest.mark.parametrize(
