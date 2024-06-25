@@ -55,12 +55,7 @@ def open_telemetry_context_manager(func, dataframe):
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
-                try:
-                    yield
-                except Exception as e:
-                    cur_span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                    raise e
-
+                yield
     else:
         yield
 
@@ -105,11 +100,9 @@ def open_telemetry_udf_context_manager(
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
-                try:
-                    yield
-                except Exception as e:
-                    cur_span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
-                    raise e
+                yield
+    else:
+        yield
 
 
 def decorator_count(func):
