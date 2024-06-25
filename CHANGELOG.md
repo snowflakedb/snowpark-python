@@ -12,7 +12,6 @@
 #### New Features
 
 - Added support for `to_boolean` function.
-- Added documentation pages for `Index` and its APIs.
 
 #### Bug Fixes
 
@@ -70,6 +69,8 @@
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
 - Added support for `Series.dt.isocalendar`.
 - Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
 
 #### Bug Fixes
 

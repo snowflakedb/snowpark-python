@@ -666,7 +666,6 @@ class DataFrame(BasePandasDataset):
             fill_value=fill_value,
         )
 
-    @dataframe_not_implemented()
     def assign(self, **kwargs):  # noqa: PR01, RT01, D200
         """
         Assign new columns to a ``DataFrame``.
