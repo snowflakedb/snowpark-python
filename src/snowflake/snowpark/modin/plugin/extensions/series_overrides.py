@@ -9,22 +9,14 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import Any
-
 import pandas as native_pd
-from modin.pandas import Series as ModinSeries
-from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import Axis, IndexLabel
+from modin.pandas import Series
 
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
-from snowflake.snowpark.modin.utils import (
-    MODIN_UNNAMED_SERIES_LABEL,
-    _inherit_docstrings,
-)
+from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 # These methods are not implemented by Snowpark pandas and raise errors at the frontend layer
 frontend_not_implemented = [
@@ -54,7 +46,6 @@ frontend_not_implemented = [
     "factorize",
     "filter",
     "hist",
-    "iat",
     "infer_objects",
     "interpolate",
     "item",
@@ -200,168 +191,15 @@ def isin(self, values: set | ListLike) -> Series:
     return super(Series, self).isin(values)
 
 
-@register_series_accessor("groupby")
-def groupby(
-    self,
-    by=None,
-    axis: Axis = 0,
-    level: IndexLabel | None = None,
-    as_index: bool = True,
-    sort: bool = True,
-    group_keys: bool = True,
-    observed: bool | NoDefault = no_default,
-    dropna: bool = True,
-):
-    """
-    Group Series using a mapper or by a Series of columns.
-    """
-    from snowflake.snowpark.modin.pandas.groupby import (
-        SeriesGroupBy,
-        validate_groupby_args,
-    )
-
-    validate_groupby_args(by, level, observed)
-
-    if not as_index:
-        raise TypeError("as_index=False only valid with DataFrame")
-
-    axis = self._get_axis_number(axis)
-    return SeriesGroupBy(
-        self,
-        by,
-        axis,
-        level,
-        as_index,
-        sort,
-        group_keys,
-        idx_name=None,
-        observed=observed,
-        dropna=dropna,
-    )
-
-
-@register_series_accessor("cat")
-@property
-def cat(self):  # noqa: RT01, D200
-    """
-    Accessor object for categorical properties of the Series values.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.pandas.series_utils import CategoryMethods
-
-    return CategoryMethods(self)
-
-
-@register_series_accessor("_to_pandas")
-def _to_pandas(
-    self,
-    *,
-    statement_params: dict[str, str] | None = None,
-    **kwargs: Any,
-):
-    """
-    Convert Snowpark pandas Series to pandas Series
-
-    Args:
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
-
-    Returns:
-        pandas series
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    df = self._query_compiler.to_pandas(statement_params=statement_params, **kwargs)
-    if len(df.columns) == 0:
-        return native_pd.Series([])
-    series = df[df.columns[0]]
-    # special case when series is wrapped as dataframe, but has not label.
-    # This is indicated with MODIN_UNNAMED_SERIES_LABEL
-    if self._query_compiler.columns[0] == MODIN_UNNAMED_SERIES_LABEL:
-        series.name = None
-
-    return series
-
-
-# seems to be issues with CachedAccessor from upstream
-
-
-@register_series_accessor("dt")
-@property
-def dt(self):
-    from modin.pandas.series_utils import DatetimeProperties
-
-    return DatetimeProperties(self)
-
-
-@register_series_accessor("str")
-@property
-def str(self):
-    from modin.pandas.series_utils import StringMethods
-
-    return StringMethods(self)
-
-
 # modin 0.28.1 doesn't define type annotations on properties, so we override this
 # to satisfy test_type_annotations.py
-_old_empty_fget = ModinSeries.empty.fget
+_old_empty_fget = Series.empty.fget
 
 
 @register_series_accessor("empty")
 @property
 def empty(self) -> bool:
     return _old_empty_fget(self)
-
-
-# modin uses basepandasdataset build_repr_df instead
-@register_series_accessor("__repr__")
-def __repr__(self):
-    """
-    Return a string representation for a particular Series.
-
-    Returns
-    -------
-    str
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    pandas = native_pd
-    num_rows = pandas.get_option("display.max_rows") or 60
-    num_cols = pandas.get_option("display.max_columns") or 20
-
-    (
-        row_count,
-        col_count,
-        temp_df,
-    ) = self._query_compiler.build_repr_df(num_rows, num_cols)
-    if isinstance(temp_df, pandas.DataFrame) and not temp_df.empty:
-        temp_df = temp_df.iloc[:, 0]
-    temp_str = repr(temp_df)
-    freq_str = (
-        f"Freq: {temp_df.index.freqstr}, "
-        if isinstance(temp_df.index, pandas.DatetimeIndex)
-        else ""
-    )
-    if self.name is not None:
-        name_str = f"Name: {str(self.name)}, "
-    else:
-        name_str = ""
-    if row_count > num_rows:
-        len_str = f"Length: {row_count}, "
-    else:
-        len_str = ""
-    dtype_str = "dtype: {}".format(
-        str(self.dtype) + ")" if temp_df.empty else temp_str.rsplit("dtype: ", 1)[-1]
-    )
-    if row_count == 0:
-        return f"Series([], {freq_str}{name_str}{dtype_str}"
-    maxsplit = 1
-    if (
-        isinstance(temp_df, pandas.Series)
-        and temp_df.name is not None
-        and temp_df.dtype == "category"
-    ):
-        maxsplit = 2
-    return temp_str.rsplit("\n", maxsplit)[0] + "\n{}{}{}{}".format(
-        freq_str, name_str, len_str, dtype_str
-    )
 
 
 @register_series_accessor("_prepare_inter_op")

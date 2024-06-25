@@ -164,6 +164,32 @@ import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: ski
 import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 
 
+from snowflake.snowpark.modin.pandas.series import (  # isort: skip  # noqa: E402,F401
+    Series as DONOTEXPORTMESeries,
+)
+
+series_need_to_copy_paste = [
+    "groupby",
+    "_to_pandas",
+    "cat",
+    "str",  # seems to be issues with CachedAccessor from upstream
+    "dt",
+    "__repr__",  # modin uses basepandasdataset build_repr_df instead of QC
+    # indexing
+    "iat",
+    "__getitem__",
+    "__setitem__",
+]
+
+
+from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
+    register_series_accessor,
+)
+
+for name in series_need_to_copy_paste:
+    register_series_accessor(name)(getattr(DONOTEXPORTMESeries, name))
+
+
 def __getattr__(name: str) -> Any:
     """
     Overrides getattr on the module to enable extensions.
@@ -184,10 +210,6 @@ def __getattr__(name: str) -> Any:
             f"module 'snowflake.snowpark.modin.pandas' has no attribute '{name}'"
         )
 
-
-from snowflake.snowpark.modin.pandas.series import (  # noqa: E402
-    Series as DONOTEXPORTMESeries,
-)
 
 __all__ = [  # noqa: F405
     "DataFrame",
