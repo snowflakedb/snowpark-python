@@ -70,6 +70,7 @@
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
 - Added support for `Series.dt.isocalendar`.
 - Added support for `Series.case_when` except when condition or replacement is callable.
+- Added support for `pd.crosstab`.
 
 #### Bug Fixes
 

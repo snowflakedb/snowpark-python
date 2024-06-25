@@ -11,6 +11,7 @@ General functions
     :toctree: pandas_api/
 
     melt
+    crosstab
     pivot_table
     cut
     qcut
