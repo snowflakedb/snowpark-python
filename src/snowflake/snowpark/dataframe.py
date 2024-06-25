@@ -1096,7 +1096,11 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
-        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            print(self._explain_string())
+            raise NotImplementedError(f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging.")
+        elif self._ast_id is not None:        
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
         set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"
@@ -1184,7 +1188,7 @@ class DataFrame:
                 if ast:
                     if e._ast is None and FAIL_ON_MISSING_AST:
                         raise NotImplementedError(
-                            f'Column({e._expression}) does not have a logged AST in Column._ast, likely due to the use of a Snowpark API which does not support AST logging yet.'
+                            f'Column({e._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet.'
                         )
                     elif e._ast is not None:
                         ast.cols.append(e._ast)
