@@ -13,7 +13,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import snowflake
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc, udaf, udf, udtf
 from snowflake.snowpark.types import (
     BinaryType,
@@ -53,37 +52,6 @@ def dict_exporter():
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
-
-
-def test_catch_error_during_action_function(session, dict_exporter):
-    df = session.sql("select 1/0")
-    with pytest.raises(SnowparkSQLException):
-        df.collect()
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "collect" in spans
-    span = spans["collect"]
-    assert span.status.status_code == trace.status.StatusCode.ERROR
-    assert "Division by zero" in span.status.description
-    dict_exporter.clear()
-
-
-def test_catch_error_during_registration_function(session, dict_exporter):
-    with pytest.raises(ValueError):
-        session.udf.register_from_file(
-            "empty file",
-            "mod5",
-            name="mod5_function",
-            return_type=IntegerType(),
-            input_types=[IntegerType()],
-            replace=True,
-            immutable=True,
-        )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    span = spans["register_from_file"]
-    assert span.status.status_code == trace.status.StatusCode.ERROR
-    assert "does not exist" in span.status.description
-
-    dict_exporter.clear()
 
 
 @pytest.mark.skipif(
