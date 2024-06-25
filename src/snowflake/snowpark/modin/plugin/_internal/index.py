@@ -457,9 +457,7 @@ class Index:
         >>> idx.dtype
         dtype('int64')
         """
-        # TODO: SNOW-1458123 implement dtype
-        WarningMessage.index_to_pandas_warning("dtype")
-        return self.to_pandas().dtype
+        return self._query_compiler.index_dtypes[0]
 
     @property
     def shape(self) -> tuple:
