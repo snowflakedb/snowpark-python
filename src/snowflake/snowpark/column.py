@@ -1032,7 +1032,12 @@ class Column:
             TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
         """
         if isinstance(value, cls):
-            return ast.CopyFrom(value._ast)
+            if value._ast is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                            f'Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet.'
+                        )
+            elif value._ast is not None:
+                ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             build_const_from_python_val(value, ast)
         elif isinstance(value, Expression):
