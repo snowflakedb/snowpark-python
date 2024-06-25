@@ -37,7 +37,7 @@ pytestmark = [
     pytest.mark.udf,
     pytest.mark.skipif(
         "config.getoption('enable_cte_optimization', default=False)",
-        reason="UDTF not supported in Local Testing",
+        reason="Flaky in CTE mode",
     ),
 ]
 
