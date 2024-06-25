@@ -11,6 +11,7 @@ from functools import reduce
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
+import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 
@@ -133,7 +134,7 @@ def build_fn_apply(
     ast: proto.Expr,
     builtin_name: str,
     *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]]
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
 ) -> None:
     """
     Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
@@ -158,6 +159,9 @@ def build_fn_apply(
     for arg in args:
         if isinstance(arg, proto.Expr):
             expr.pos_args.append(arg)
+        elif isinstance(arg, snowflake.snowpark.Column):
+            assert arg._ast, f"Column object {arg} has no _ast member set."
+            expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
             build_const_from_python_val(arg, pos_arg)
@@ -168,6 +172,9 @@ def build_fn_apply(
         kwarg._1 = name
         if isinstance(arg, proto.Expr):
             kwarg._2.CopyFrom(arg)
+        elif isinstance(arg, snowflake.snowpark.Column):
+            assert arg._ast, f"Column object {name}={arg} has no _ast member set."
+            kwarg._2.CopyFrom(arg._ast)
         else:
             build_const_from_python_val(arg, kwarg._2)
         expr.named_args.append(kwarg)
