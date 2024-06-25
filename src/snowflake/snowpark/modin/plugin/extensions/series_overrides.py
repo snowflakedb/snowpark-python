@@ -362,3 +362,9 @@ def __repr__(self):
     return temp_str.rsplit("\n", maxsplit)[0] + "\n{}{}{}{}".format(
         freq_str, name_str, len_str, dtype_str
     )
+
+
+@register_series_accessor("_prepare_inter_op")
+def _prepare_inter_op(self, other):
+    # override prevents extra queries from occurring during binary operations
+    return self, other
