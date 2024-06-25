@@ -891,12 +891,12 @@ class DataFrame:
         Notes
         -----
         - Assigning multiple columns within the same assign is possible. Later items in `**kwargs`
-        may refer to newly created or modified columns in `df`; items are computed and assigned into `df` in order.
+          may refer to newly created or modified columns in `df`; items are computed and assigned into `df` in order.
 
         - If an array that of the wrong length is passed in to assign, Snowpark pandas will either truncate the array, if it is too long,
-        or broadcast the last element of the array until the array is the correct length if it is too short. This differs from native pandas,
-        which will error out with a ValueError if the length of the array does not match the length of `df`.
-        This is done to preserve Snowpark pandas' lazy evaluation paradigm.
+          or broadcast the last element of the array until the array is the correct length if it is too short. This differs from native pandas,
+          which will error out with a ValueError if the length of the array does not match the length of `df`.
+          This is done to preserve Snowpark pandas' lazy evaluation paradigm.
 
         Examples
         --------
