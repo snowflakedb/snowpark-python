@@ -21,8 +21,8 @@ from tests.integ.modin.utils import (
 def test_assign_basic_series():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -43,8 +43,8 @@ def test_assign_basic_series():
 def test_assign_basic_series_mismatched_index(index):
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -64,8 +64,8 @@ def test_assign_basic_non_pandas_object(new_col_value):
     with SqlCounter(query_count=7, join_count=join_count):
         snow_df, native_df = create_test_dfs(
             [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-            columns=pd.Index(list("abc"), name="columns"),
-            index=pd.Index([0, 1, 2], name="index"),
+            columns=native_pd.Index(list("abc"), name="columns"),
+            index=native_pd.Index([0, 1, 2], name="index"),
         )
         native_df.columns.names = ["columns"]
         native_df.index.names = ["index"]
@@ -82,8 +82,8 @@ def test_assign_invalid_long_column_length_negative():
     # and error otherwise.
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -106,8 +106,8 @@ def test_assign_invalid_short_column_length_negative():
     # and error otherwise.
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -126,8 +126,8 @@ def test_assign_invalid_short_column_length_negative():
 def test_assign_short_series():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -143,8 +143,8 @@ def test_assign_short_series():
 def test_assign_short_series_mismatched_index(index):
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -162,8 +162,8 @@ def test_assign_short_series_mismatched_index(index):
 def test_assign_basic_callable(callable_fn):
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -176,8 +176,8 @@ def test_assign_basic_callable(callable_fn):
 def test_assign_chained_callable():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -194,8 +194,8 @@ def test_assign_chained_callable():
 def test_assign_chained_callable_wrong_order():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -216,8 +216,8 @@ def test_assign_chained_callable_wrong_order():
 def test_assign_self_columns():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
@@ -230,8 +230,8 @@ def test_assign_self_columns():
 def test_overwrite_columns_via_assign():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-        columns=pd.Index(list("abc"), name="columns"),
-        index=pd.Index([0, 1, 2], name="index"),
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
     )
     native_df.columns.names = ["columns"]
     native_df.index.names = ["index"]
