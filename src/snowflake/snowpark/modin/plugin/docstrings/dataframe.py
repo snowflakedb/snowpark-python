@@ -3160,10 +3160,10 @@ class DataFrame:
 
         Return a reshaped DataFrame or Series having a multi-level index with one
         or more new inner-most levels compared to the current DataFrame. The new inner-most
-        levels are created by pivoting the columns of the current dataframe:
-            - if the columns have a single level, the output is a Series.
-            - if the columns have multiple levels, the new index level(s) is (are)
-              taken from the prescribed level(s) and the output is a DataFrame.
+        levels are created by pivoting the columns of the current dataframe.
+        If the columns have a single level, the output is a Series.
+        If the columns have multiple levels, the new index level(s) is (are)
+        taken from the prescribed level(s) and the output is a DataFrame.
 
         Parameters
         ----------
