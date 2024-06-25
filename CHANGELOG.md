@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added open telemetry tracing on UDxF functions in snowpark.
+- Added open telemetry tracing on stored procedure registration in snowpark.
 
 #### New Features
 
@@ -75,6 +76,7 @@
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
 - Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
 
@@ -85,6 +87,8 @@
 - Added support for `Index.copy()`
 - For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
+- Initial work to support an Index directly in Snowpark pandas. Currently, this class is a simple wrapper for a pandas index. Support for Index as a first-class component of Snowpark pandas is coming soon.
+- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 
 ## 1.18.0 (2024-05-28)
 
