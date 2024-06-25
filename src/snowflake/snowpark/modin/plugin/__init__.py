@@ -5,6 +5,7 @@
 import sys
 import warnings
 
+from modin.pandas.series_utils import DatetimeProperties  # type: ignore
 from packaging import version
 
 import snowflake.snowpark._internal.utils
@@ -89,3 +90,13 @@ modin.utils._inherit_docstrings(
 snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
     False
 )
+
+
+# TODO: SNOW-1504302: Modin upgrade - use Snowpark pandas DataFrame for isocalendar
+def isocalendar(self):  # type: ignore
+    from snowflake.snowpark.modin.pandas import DataFrame
+
+    return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
+
+
+DatetimeProperties.isocalendar = isocalendar
