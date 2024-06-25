@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
+from snowflake.snowpark._internal.ast_utils import set_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -1860,6 +1861,13 @@ class Session:
         t = Table(name, self)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
+        # Begin AST
+        stmt = self._ast_batch.assign()
+        # DO NOT SUBMIT. Is sp_table the right variant to use?
+        ast = stmt.expr.sp_table
+        ast.table = name
+        set_src_position(ast.src)
+        # End AST
         return t
 
     def table_function(
