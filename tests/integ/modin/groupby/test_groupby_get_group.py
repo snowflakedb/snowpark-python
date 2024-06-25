@@ -3,6 +3,7 @@
 #
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -28,7 +29,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
     ],
 )
 def test_groupby_get_group(by):
-    snowpark_pandas_df = pd.DataFrame(
+    pandas_df = native_pd.DataFrame(
         {
             "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
             "col2_int64": np.arange(9, dtype="int64") // 3,
@@ -67,7 +68,7 @@ def test_groupby_get_group(by):
             ),
         }
     )
-    pandas_df = snowpark_pandas_df.to_pandas()
+    snowpark_pandas_df = pd.DataFrame(pandas_df)
     name = pandas_df[by if not isinstance(by, list) else by[0]].iloc[0]
     if isinstance(by, list) and len(by) > 1:
         with SqlCounter(query_count=0):
