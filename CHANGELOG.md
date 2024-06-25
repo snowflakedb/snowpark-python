@@ -69,6 +69,7 @@
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
 - Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
 - Added support for `DataFrame.stack`.
 
 #### Bug Fixes
@@ -85,10 +86,10 @@
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 - Initial work to support an Index directly in Snowpark pandas. Support for Index as a first-class component of Snowpark pandas is coming soon.
 - Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. 
-- Added support for `Index.copy()`
 - For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
-- Initial work to support an Index directly in Snowpark pandas. Currently, this class is a simple wrapper for a pandas index. Support for Index as a first-class component of Snowpark pandas is coming soon.
+- Added support for `Index.copy()`
+- Added support for Index APIs: `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 
 ## 1.18.0 (2024-05-28)
