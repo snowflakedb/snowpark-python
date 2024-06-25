@@ -7,7 +7,7 @@ from typing import Union
 import pandas as native_pd
 from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
 
-from snowflake.snowpark.functions import min as snowpark_min, get
+from snowflake.snowpark.functions import get, min as snowpark_min
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
