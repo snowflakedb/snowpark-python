@@ -9,6 +9,8 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as native_pd
 from modin.pandas import Series as ModinSeries
 from pandas._libs.lib import NoDefault, no_default
@@ -19,7 +21,10 @@ from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import series_not_implemented
-from snowflake.snowpark.modin.utils import _inherit_docstrings
+from snowflake.snowpark.modin.utils import (
+    MODIN_UNNAMED_SERIES_LABEL,
+    _inherit_docstrings,
+)
 
 # These methods are not implemented by Snowpark pandas and raise errors at the frontend layer
 frontend_not_implemented = [
@@ -245,6 +250,35 @@ def cat(self):  # noqa: RT01, D200
     from snowflake.snowpark.modin.pandas.series_utils import CategoryMethods
 
     return CategoryMethods(self)
+
+
+@register_series_accessor("_to_pandas")
+def _to_pandas(
+    self,
+    *,
+    statement_params: dict[str, str] | None = None,
+    **kwargs: Any,
+):
+    """
+    Convert Snowpark pandas Series to pandas Series
+
+    Args:
+        statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+    Returns:
+        pandas series
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    df = self._query_compiler.to_pandas(statement_params=statement_params, **kwargs)
+    if len(df.columns) == 0:
+        return native_pd.Series([])
+    series = df[df.columns[0]]
+    # special case when series is wrapped as dataframe, but has not label.
+    # This is indicated with MODIN_UNNAMED_SERIES_LABEL
+    if self._query_compiler.columns[0] == MODIN_UNNAMED_SERIES_LABEL:
+        series.name = None
+
+    return series
 
 
 # seems to be issues with CachedAccessor from upstream
