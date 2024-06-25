@@ -273,7 +273,7 @@ def test_pivot_empty_frame_snow_1013918(index, columns, margins, named_columns):
     snow_df, native_df = create_test_dfs(columns=cols)
     if named_columns:
         native_df.columns.names = snow_df.columns.names
-    query_count = 3 if index is None or (len(columns) == 3 and margins) else 1
+    query_count = 2 if index is None or (len(columns) == 3 and margins) else 1
     join_count = 1 if index is not None and len(columns) == 1 else 0
     with SqlCounter(query_count=query_count, join_count=join_count):
         snow_df = snow_df.pivot_table(index=index, columns=columns, margins=margins)
