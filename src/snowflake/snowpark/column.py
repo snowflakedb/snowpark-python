@@ -717,8 +717,8 @@ class Column:
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
         ast = Column._create_ast(
-            property="string_like",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_like",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"pattern": pattern},
         )
         return Column(
@@ -743,8 +743,8 @@ class Column:
 
         """
         ast = Column._create_ast(
-            property="string_regexp",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_regexp",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"pattern": pattern},
         )
         return Column(
@@ -763,8 +763,8 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         ast = Column._create_ast(
-            property="string_starts_with",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_starts_with",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"prefix": other},
         )
         other = snowflake.snowpark.functions.lit(other)
@@ -780,8 +780,8 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         ast = Column._create_ast(
-            property="string_ends_with",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_ends_with",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"suffix": other},
         )
         other = snowflake.snowpark.functions.lit(other)
@@ -803,8 +803,8 @@ class Column:
         :meth:`substring` is an alias of :meth:`substr`.
         """
         ast = Column._create_ast(
-            property="string_substr",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_substr",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"pos": start_pos, "len": length},
         )
         return Column(
@@ -819,10 +819,11 @@ class Column:
         For details, see the Snowflake documentation on
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
+
         ast = Column._create_ast(
-            property="string_collate",
-            copy_messages={"str": self._ast},
-            assign_fields={"collation_spec": collation_spec},
+            property="sp_column_string_collate",
+            copy_messages={"col": self._ast},
+            fill_expr_asts={"collation_spec": collation_spec},
         )
         return Column(Collate(self._expression, collation_spec), ast=ast)
 
@@ -833,8 +834,8 @@ class Column:
             string: the string to search for in this column.
         """
         ast = Column._create_ast(
-            property="string_contains",
-            copy_messages={"str": self._ast},
+            property="sp_column_string_contains",
+            copy_messages={"col": self._ast},
             fill_expr_asts={"pattern": string},
         )
         return Column(

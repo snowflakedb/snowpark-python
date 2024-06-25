@@ -261,8 +261,13 @@ def col(name1: str, name2: Optional[str] = None) -> Column:
         else {"col_name": name1}
     )
 
+    # To replicate Snowpark behavior (overloads do NOT seem to work atm)
+    # use args.
+    args = tuple(kwargs.values())
+    kwargs = {}
+
     expr = proto.Expr()
-    build_fn_apply(expr, "col", **kwargs)
+    build_fn_apply(expr, "col", *args, **kwargs)
 
     if name2 is None:
         return Column(name1, ast=expr)
@@ -303,8 +308,13 @@ def column(name1: str, name2: Optional[str] = None) -> Column:
         else {"col_name": name1}
     )
 
+    # To replicate Snowpark behavior (overloads do NOT seem to work atm)
+    # use args.
+    args = tuple(kwargs.values())
+    kwargs = {}
+
     expr = proto.Expr()
-    build_fn_apply(expr, "column", **kwargs)
+    build_fn_apply(expr, "column", *args, **kwargs)
 
     if name2 is None:
         return Column(name1, ast=expr)
