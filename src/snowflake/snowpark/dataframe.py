@@ -1567,7 +1567,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_filter
+        ast = stmt.expr.sp_dataframe_alias
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
         ast.name = name

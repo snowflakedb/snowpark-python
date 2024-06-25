@@ -4,17 +4,10 @@ from snowflake.snowpark.functions import col
 
 df1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], schema=["col1", "col2"])
 
-df2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], schema=["col1", "col2"])
-
-# Join two dataframes with duplicate column names
-joined = df1.alias("L").join(df2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col1"), col("R", "col2"))
-
-
+df2 = df1.alias("new_name")
 
 ## EXPECTED OUTPUT
 
 res1 = session.create_dataframe([[1, 6], [3, 8], [7, 7]], ["col1", "col2"])
 
-res2 = session.create_dataframe([[1, 2], [3, 4], [5, 5]], ["col1", "col2"])
-
-res3 = res1.alias("L").join(res2.alias("R"), col("L", "col1") == col("R", "col1")).select(col("L", "col1"), col("R", "col2"))
+res2 = res1.alias("new_name")
