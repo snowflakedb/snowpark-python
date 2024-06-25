@@ -252,6 +252,7 @@ Series
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
+    Series.dt.isocalendar
 
 
 .. rubric:: String accessor methods

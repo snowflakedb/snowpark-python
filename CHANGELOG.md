@@ -68,6 +68,7 @@
 - Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
+- Added support for `Series.dt.isocalendar`.
 
 #### Bug Fixes
 
