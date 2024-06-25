@@ -6,7 +6,6 @@
 
 #### Improvements
 
-- When instrumenting open telemetry span in dataframe action functions, exceptions thrown in action functions will be recorded now.
 - Added open telemetry tracing on UDxF functions in snowpark.
 - Added open telemetry tracing on stored procedure registration in snowpark.
 
