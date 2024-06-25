@@ -136,7 +136,7 @@ class Index:
                     tupleize_cols=tupleize_cols,
                 )
             )._query_compiler
-        self._query_compiler = qc
+        self._query_compiler = qc.drop(columns=qc.columns)
 
     def set_local_index(
         self,
@@ -208,6 +208,19 @@ class Index:
                         Index(returned_value[0], convert_to_lazy=False),
                         returned_value[1],
                     )
+                # For methods that return a series, convert this series to snowpark pandas
+                # an example is to_series
+                elif isinstance(returned_value, native_pd.Series):
+                    from snowflake.snowpark.modin.pandas import Series
+
+                    returned_value = Series(returned_value)
+
+                # for methods that return a dataframe, convert this dataframe to snowpark pandas
+                elif isinstance(returned_value, native_pd.DataFrame):
+                    from snowflake.snowpark.modin.pandas import DataFrame
+
+                    returned_value = DataFrame(returned_value)
+
                 return returned_value
 
         return check_lazy
@@ -257,7 +270,6 @@ class Index:
         return self._index
 
     @property
-    @is_lazy_check
     def values(self) -> ArrayLike:
         """
         Return an array representing the data in the Index.
@@ -281,7 +293,6 @@ class Index:
         >>> idx.values
         array([1, 2, 3])
         """
-        # TODO: SNOW-1458117 implement values
         return self.to_pandas().values
 
     @property
@@ -1478,8 +1489,8 @@ class Index:
             dropna=dropna,
         )
 
-    @index_not_implemented()
-    def item(self) -> None:
+    @is_lazy_check
+    def item(self) -> Hashable:
         """
         Return the first element of the underlying data as a Python scalar.
 
@@ -1493,10 +1504,25 @@ class Index:
         ValueError
             If the data is not length = 1.
         """
-        # TODO: SNOW-1458117 implement item
+        # slice the first two elements of the index and materialize them
+        item = self._query_compiler.take_2d_positional(
+            index=slice(2), columns=[]
+        ).index.to_pandas()
 
-    @index_not_implemented()
-    def to_series(self) -> None:
+        # return the element as a scalar if the index is exacly one element large
+        if len(item) == 1:
+            return item[0]
+
+        # otherwise raise the same value error as pandas
+        raise ValueError("can only convert an array of size 1 to a Python scalar")
+
+    @is_lazy_check
+    def to_series(
+        self,
+        index: Index | None = None,
+        name: Hashable | None = None
+        # TODO: SNOW-1481037 : Fix typehints
+    ) -> Any:
         """
         Create a Series with both index and values equal to the index keys.
 
@@ -1520,10 +1546,28 @@ class Index:
         Index.to_frame : Convert an Index to a DataFrame.
         Series.to_frame : Convert Series to DataFrame.
         """
-        # TODO: SNOW-1458117 implement to_series
+        from snowflake.snowpark.modin.pandas import Series
 
-    @index_not_implemented()
-    def to_frame(self) -> None:
+        # get the index name if the name is not given
+        if name is None:
+            name = self.name
+
+        # convert self to a dataframe and get qc
+        # this will give us a df where the index and data columns both have self
+        new_qc = self.to_frame(name=name)._query_compiler
+
+        # if we are given an index, join this index column into qc
+        if index is not None:
+            new_qc = new_qc.set_index_from_series(Series(index)._query_compiler)
+
+        # create series and set the name
+        ser = Series(query_compiler=new_qc)
+        ser.name = name
+        return ser
+
+    @is_lazy_check
+    # TODO: SNOW-1481037 : Fix typehints
+    def to_frame(self, index: bool = True, name: Hashable | None = None) -> Any:
         """
         Create a DataFrame with a column containing the Index.
 
@@ -1546,7 +1590,34 @@ class Index:
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
         """
-        # TODO: SNOW-1458117 implement to_frame
+        from snowflake.snowpark.modin.pandas import DataFrame
+
+        # Do a reset index to convert the index column to a data column,
+        # the index column becomes the pandas default index of row position
+        # Example:
+        # before
+        # index columns:    data columns (empty):
+        #      100
+        #      200
+        #      300
+        # after
+        # index columns:    data columns (name=column_name):
+        #       0               100
+        #       1               200
+        #       2               300
+        # if index is true, we want self to be in the index and data columns of the df,
+        # so set the index as the data column and set the name of the index
+        if index:
+            new_qc = self._query_compiler.reset_index()
+            new_qc = (
+                new_qc.set_index([new_qc.columns[0]], drop=False)
+                .set_columns([name])
+                .set_index_names([self.name])
+            )
+        else:
+            new_qc = self._query_compiler.reset_index(names=[name])
+
+        return DataFrame(query_compiler=new_qc)
 
     @index_not_implemented()
     def fillna(self) -> None:
@@ -1661,7 +1732,6 @@ class Index:
         """
         # TODO: SNOW-1458139 implement hasnans
 
-    @is_lazy_check
     def tolist(self) -> list:
         """
         Return a list of the values.
@@ -1688,7 +1758,6 @@ class Index:
         >>> idx.to_list()
         [1, 2, 3]
         """
-        # TODO: SNOW-1458117 implement tolist
         return self.to_pandas().tolist()
 
     to_list = tolist
