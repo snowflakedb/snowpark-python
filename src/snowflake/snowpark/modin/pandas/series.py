@@ -454,57 +454,6 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return self.rpow(left)
 
-    def __repr__(self):
-        """
-        Return a string representation for a particular Series.
-
-        Returns
-        -------
-        str
-        """
-        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        num_rows = pandas.get_option("display.max_rows") or 60
-        num_cols = pandas.get_option("display.max_columns") or 20
-
-        (
-            row_count,
-            col_count,
-            temp_df,
-        ) = self._query_compiler.build_repr_df(num_rows, num_cols)
-        if isinstance(temp_df, pandas.DataFrame) and not temp_df.empty:
-            temp_df = temp_df.iloc[:, 0]
-        temp_str = repr(temp_df)
-        freq_str = (
-            f"Freq: {temp_df.index.freqstr}, "
-            if isinstance(temp_df.index, pandas.DatetimeIndex)
-            else ""
-        )
-        if self.name is not None:
-            name_str = f"Name: {str(self.name)}, "
-        else:
-            name_str = ""
-        if row_count > num_rows:
-            len_str = f"Length: {row_count}, "
-        else:
-            len_str = ""
-        dtype_str = "dtype: {}".format(
-            str(self.dtype) + ")"
-            if temp_df.empty
-            else temp_str.rsplit("dtype: ", 1)[-1]
-        )
-        if row_count == 0:
-            return f"Series([], {freq_str}{name_str}{dtype_str}"
-        maxsplit = 1
-        if (
-            isinstance(temp_df, pandas.Series)
-            and temp_df.name is not None
-            and temp_df.dtype == "category"
-        ):
-            maxsplit = 2
-        return temp_str.rsplit("\n", maxsplit)[0] + "\n{}{}{}{}".format(
-            freq_str, name_str, len_str, dtype_str
-        )
-
     def __round__(self, decimals=0):
         """
         Round each value in a Series to the given number of decimals.
