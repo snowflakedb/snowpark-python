@@ -1514,9 +1514,15 @@ def get_file_format_spec(
     return file_format_str
 
 
+def single_cte_statement(source: str, table_name: str) -> str:
+    result = f"{table_name}{AS}{LEFT_PARENTHESIS}{source}{RIGHT_PARENTHESIS}"
+    return f"{WITH}{result}"
+
+
 def cte_statement(queries: List[str], table_names: List[str]) -> str:
     result = COMMA.join(
         f"{table_name}{AS}{LEFT_PARENTHESIS}{query}{RIGHT_PARENTHESIS}"
         for query, table_name in zip(queries, table_names)
     )
     return f"{WITH}{result}"
+

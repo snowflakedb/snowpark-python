@@ -214,6 +214,22 @@ class Selectable(LogicalPlan, ABC):
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
 
+    def __deepcopy__(self, memodict={}):
+        new_selectable = Selectable(
+            analyzer=self.analyzer,
+            api_calls=deepcopy(self._api_calls)
+        )
+        new_selectable.pre_actions = deepcopy(self.pre_actions)
+        new_selectable.post_actions = deepcopy(self.post_actions)
+        new_selectable.flatten_disabled = self.flatten_disabled
+        new_selectable._column_states = deepcopy(self._column_states)
+        new_selectable._snowflake_plan = deepcopy(self._snowflake_plan)
+        new_selectable.expr_to_alias = deepcopy(self.expr_to_alias)
+        new_selectable.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
+        new_selectable._cumulative_node_complexity = deepcopy(self._cumulative_node_complexity)
+        return new_selectable
+
+
     @property
     @abstractmethod
     def sql_query(self) -> str:
@@ -279,6 +295,37 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 placeholder_query=self.placeholder_query,
+            )
+            # set api_calls to self._snowflake_plan outside of the above constructor
+            # because the constructor copy api_calls.
+            # We want Selectable and SnowflakePlan to share the same api_calls.
+            self._snowflake_plan.api_calls = self.api_calls
+        return self._snowflake_plan
+
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        pass
+
+    def get_snowflake_plan(self, skip_schema_query):
+        if self._snowflake_plan is None:
+            with_block_queries = [with_plan.queries[-1].sql for with_plan in self.with_query_block_plans]
+            with_query = ','.join(with_block_queries)
+            query = Query(self.sql_query, params=self.query_params, with_sql=with_query)
+            queries = [*self.pre_actions, query] if self.pre_actions else [query]
+            if skip_schema_query is True:
+                schema_query = None
+            else:
+                schema_query = self.schema_query
+            self._snowflake_plan = SnowflakePlan(
+                queries,
+                schema_query,
+                post_actions=self.post_actions,
+                session=self.analyzer.session,
+                expr_to_alias=self.expr_to_alias,
+                df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
+                source_plan=self,
+                placeholder_query=self.placeholder_query,
+                with_query_block_plans=self.with_query_block_plans.copy(),
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -374,6 +421,10 @@ class SelectableEntity(Selectable):
     def query_params(self) -> Optional[Sequence[Any]]:
         return None
 
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        return set()
+
 
 class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
@@ -451,6 +502,10 @@ class SelectSQL(Selectable):
         new._api_calls = self._api_calls
         return new
 
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        return set()
+
 
 class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
@@ -474,6 +529,21 @@ class SelectSnowflakePlan(Selectable):
         for query in self._snowflake_plan.queries:
             if query.params:
                 self._query_params.extend(query.params)
+
+    def __deepcopy__(self, memodict={}):
+        new_plan = SelectSnowflakePlan(
+            snowflake_plan=deepcopy(self._snowflake_plan),
+            analyzer=self.analyzer
+        )
+        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
+        new_plan.expr_to_alias = deepcopy(self.expr_to_alias)
+        new_plan.pre_actions = deepcopy(self.pre_actions)
+        new_plan.post_actions = deepcopy(self.post_actions)
+        new_plan._api_calls = deepcopy(self._api_calls)
+        new_plan._query_params = deepcopy(self._query_params)
+
+        return new_plan
+
 
     @property
     def snowflake_plan(self):
@@ -502,6 +572,10 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
+
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        return self._snowflake_plan.with_query_block_plans
 
 
 class SelectStatement(Selectable):
@@ -566,6 +640,37 @@ class SelectStatement(Selectable):
         )
 
         return new
+
+    def __deepcopy__(self, memodict={}):
+        new = SelectStatement(
+            projection=deepcopy(self.projection),
+            from_=deepcopy(self.from_),
+            where=deepcopy(self.where),
+            order_by=deepcopy(self.order_by),
+            limit_=deepcopy(self.limit_),
+            offset=self.offset,
+            analyzer=self.analyzer,
+            schema_query=self.schema_query,
+        )
+        # The following values will change if they're None in the newly copied one so reset their values here
+        # to avoid problems.
+        new._projection_in_str = None
+        new._schema_query = None
+        new._column_states = None
+        new._snowflake_plan = None
+        new.flatten_disabled = False  # by default a SelectStatement can be flattened.
+        new._api_calls = deepcopy(self._api_calls) if self._api_calls is not None else None
+        new.df_aliased_col_name_to_real_col_name = (
+            self.df_aliased_col_name_to_real_col_name
+        )
+
+        return new
+
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        from_plan = self.from_.get_snowflake_plan(skip_schema_query=True)
+        return from_plan.with_query_block_plans
+
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -1057,6 +1162,10 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        return self.snowflake_plan.with_query_block_plans
+
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -1082,6 +1191,29 @@ class SetStatement(Selectable):
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
             self._nodes.append(operand.selectable)
+
+    def __deepcopy__(self, memodict={}):
+        new_set_statement = SetStatement(
+            *deepcopy(self.set_operands),
+            analyzer=self.analyzer
+        )
+        new_set_statement._sql_query = deepcopy(self._sql_query)
+        new_set_statement._placeholder_query = deepcopy(self._placeholder_query)
+        new_set_statement._nodes = deepcopy(self._nodes)
+        new_set_statement.pre_actions = deepcopy(self.pre_actions)
+        new_set_statement.post_actions = deepcopy(self.post_actions)
+
+        return new_set_statement
+
+    @property
+    def with_query_block_plans(self) -> Set[SnowflakePlan]:
+        with_block_plans = set()
+        for operand in self.set_operands:
+            operand_plan = operand.selectable.get_snowflake_plan(skip_schema_query=True)
+            with_block_plans = with_block_plans.union(operand_plan.with_query_block_plans)
+
+        return with_block_plans
+
 
     @property
     def sql_query(self) -> str:
