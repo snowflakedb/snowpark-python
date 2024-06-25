@@ -69,6 +69,7 @@
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
 - Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
 
 #### Bug Fixes
 
