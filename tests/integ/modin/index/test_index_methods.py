@@ -289,27 +289,27 @@ def test_df_index_columns_to_list(native_df):
     assert_equal(native_df.columns.to_list(), snow_df.columns.to_list())
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_to_series(native_index):
+def test_index_to_series(native_index, generate_extra_index, name):
+    if generate_extra_index:
+        index = range(len(native_index))
+    else:
+        index = None
     snow_index = pd.Index(native_index)
-    assert_series_equal(
-        snow_index.to_series(), native_index.to_series(), check_index_type=False
-    )
-
-    with SqlCounter(join_count=1):
+    with SqlCounter(query_count=1, join_count=1 if generate_extra_index else 0):
         assert_series_equal(
-            native_index.to_series(
-                index=range(10, 10 + len(native_index)), name="name"
-            ),
-            snow_index.to_series(index=range(10, 10 + len(snow_index)), name="name"),
+            snow_index.to_series(index=index, name=name),
+            native_index.to_series(index=index, name=name),
             check_index_type=False,
         )
 
 
-@sql_count_checker(query_count=4, join_count=1)
+@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
-def test_df_index_columns_to_series(native_df):
+def test_df_index_columns_to_series(native_df, generate_extra_index, name):
     snow_df = pd.DataFrame(native_df)
 
     # Snowpark pandas sets the dtype of df.columns for an empty df as object and native pandas sets it as int,
@@ -319,31 +319,25 @@ def test_df_index_columns_to_series(native_df):
     else:
         check_dtype = True
 
-    assert_series_equal(
-        snow_df.index.to_series(),
-        native_df.index.to_series(),
-        check_index_type=False,
-    )
-    assert_series_equal(
-        snow_df.columns.to_series(),
-        native_df.columns.to_series(),
-        check_dtype=check_dtype,
-        check_index_type=False,
-    )
+    if generate_extra_index:
+        row_index = range(len(native_df))
+        col_index = range(len(native_df.columns))
+    else:
+        row_index = None
+        col_index = None
 
-    with SqlCounter(join_count=1):
+    with SqlCounter(query_count=2, join_count=1 if generate_extra_index else 0):
         assert_series_equal(
-            snow_df.index.to_series(index=range(len(native_df.index)), name=1),
-            native_df.index.to_series(index=range(len(native_df.index)), name=1),
+            snow_df.index.to_series(index=row_index, name=name),
+            native_df.index.to_series(index=row_index, name=name),
             check_index_type=False,
         )
-
-    assert_series_equal(
-        snow_df.columns.to_series(index=range(len(native_df.columns)), name=True),
-        native_df.columns.to_series(index=range(len(native_df.columns)), name=True),
-        check_dtype=check_dtype,
-        check_index_type=False,
-    )
+        assert_series_equal(
+            snow_df.columns.to_series(index=col_index),
+            native_df.columns.to_series(index=col_index),
+            check_dtype=check_dtype,
+            check_index_type=False,
+        )
 
 
 @sql_count_checker(query_count=1)
