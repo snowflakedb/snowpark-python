@@ -179,6 +179,8 @@ series_need_to_copy_paste = [
     "iat",
     "__getitem__",
     "__setitem__",
+    "iloc",
+    "loc",
 ]
 
 
