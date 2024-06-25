@@ -57,7 +57,7 @@ def dict_exporter():
 
 def test_catch_error_during_action_function(session, dict_exporter):
     df = session.sql("select 1/0")
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(SnowparkSQLException, match="Division by zero"):
         df.collect()
     spans = spans_to_dict(dict_exporter.get_finished_spans())
     assert "collect" in spans
@@ -68,7 +68,7 @@ def test_catch_error_during_action_function(session, dict_exporter):
 
 
 def test_catch_error_during_registration_function(session, dict_exporter):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="does not exist"):
         session.udf.register_from_file(
             "empty file",
             "mod5",
