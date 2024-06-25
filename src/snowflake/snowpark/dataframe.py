@@ -1097,7 +1097,7 @@ class DataFrame:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
         if self._ast_id is None and FAIL_ON_MISSING_AST:
-            print(self._explain_string())
+            _logger.debug(self._explain_string())
             raise NotImplementedError(f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging.")
         elif self._ast_id is not None:        
             col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
