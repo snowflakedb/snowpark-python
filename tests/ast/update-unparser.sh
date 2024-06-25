@@ -32,9 +32,11 @@ LOCAL_TARGET_FILENAME="unparser-assembly-0.1.jar"
 
 
 # Step 1: Build the Unparser JAR using sbt if it does not exist
-ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark/unparser:unparser'"
-JAR_HOME=$(ssh $HOST "bash -c 'cd Snowflake/trunk;bazel cquery --output=files //Snowpark/unparser:unparser.jar'")
-JAR_HOME=$REMOTE_HOME/Snowflake/trunk/$JAR_HOME
+ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark/unparser:unparser;cd Snowpark/unparser;sbt assembly'"
+# Bazel does not build a far JAR. Therefore above build again using sbt assembly.
+# Commented should the path from bazel for the thin JAR, to be more portable we use the sbt assembly far jar.
+# JAR_HOME=$(ssh $HOST "bash -c 'cd Snowflake/trunk;bazel cquery --output=files //Snowpark/unparser:unparser.jar'")
+#JAR_HOME=$REMOTE_HOME/Snowflake/trunk/$JAR_HOME
 echo "Remote JAR_HOME=$JAR_HOME"
 
 # Step 2: Copy file to local
