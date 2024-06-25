@@ -10,7 +10,7 @@ from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 
 # Methods that, for whatever reason, need to be overridden in both Series and DF.
 
-methods = ["_binary_op"]
+methods = ["_binary_op", "resample", "expanding", "rolling"]
 
 for method in methods:
     base_method = getattr(BasePandasDataset, method)
