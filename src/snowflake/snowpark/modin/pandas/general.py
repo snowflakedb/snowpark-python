@@ -22,7 +22,7 @@
 """Implement pandas general API."""
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, tzinfo
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal, Union
@@ -47,7 +47,7 @@ from pandas.core.arrays.datetimes import (
     _infer_tz_from_endpoints,
     _maybe_normalize_endpoints,
 )
-from pandas.core.dtypes.common import is_list_like
+from pandas.core.dtypes.common import is_list_like, is_nested_list_like
 from pandas.core.dtypes.inference import is_array_like
 from pandas.core.tools.datetimes import (
     ArrayConvertible,
@@ -1769,7 +1769,6 @@ def melt(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.crosstab, apilink="pandas.crosstab")
 def crosstab(
     index,
@@ -1786,20 +1785,134 @@ def crosstab(
     """
     Compute a simple cross tabulation of two (or more) factors.
     """
-    # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    pandas_crosstab = pandas.crosstab(
-        index,
-        columns,
-        values,
-        rownames,
-        colnames,
-        aggfunc,
-        margins,
-        margins_name,
-        dropna,
-        normalize,
+    if values is None and aggfunc is not None:
+        raise ValueError("aggfunc cannot be used without values.")
+
+    if values is not None and aggfunc is None:
+        raise ValueError("values cannot be used without an aggfunc.")
+
+    if not is_nested_list_like(index):
+        index = [index]
+    if not is_nested_list_like(columns):
+        columns = [columns]
+
+    from pandas.core.reshape.pivot import _build_names_mapper, _get_names
+
+    rownames = _get_names(index, rownames, prefix="row")
+    colnames = _get_names(columns, colnames, prefix="col")
+
+    (
+        rownames_mapper,
+        unique_rownames,
+        colnames_mapper,
+        unique_colnames,
+    ) = _build_names_mapper(rownames, colnames)
+
+    common_idx = None
+    pass_objs = [x for x in index + columns if isinstance(x, (Series, DataFrame))]
+    if pass_objs:
+        if len(pass_objs) == 1:
+            common_idx = pass_objs[0]
+        else:
+            common_idx = pass_objs[0].intersection(pass_objs[1:])
+
+    data = {
+        **dict(zip(unique_rownames, index)),
+        **dict(zip(unique_colnames, columns)),
+    }
+    df = DataFrame(data, index=common_idx)
+
+    if values is None:
+        df["__dummy__"] = 0
+        kwargs = {"aggfunc": "count"}
+    else:
+        df["__dummy__"] = values
+        kwargs = {"aggfunc": aggfunc}
+
+    table = df.pivot_table(
+        "__dummy__",
+        index=unique_rownames,
+        columns=unique_colnames,
+        margins=margins,
+        margins_name=margins_name,
+        dropna=dropna,
+        # observed=dropna,
+        **kwargs,  # type: ignore[arg-type]
     )
-    return DataFrame(pandas_crosstab)
+
+    if aggfunc is None:
+        # If no aggfunc is provided, we are computing frequencies. Since we use
+        # pivot_table above, pairs that are not observed will get a NaN value,
+        # so we need to fill all NaN values with 0.
+        table = table.fillna(0)
+
+    # We must explicitly check that the value of normalize is not False here,
+    # as a valid value of normalize is `0` (for normalizing index).
+    if normalize is not False:
+        if normalize not in [0, 1, "index", "columns", "all", True]:
+            raise ValueError(f"Not a valid normalize argument: {normalize}")
+        if normalize is True:
+            normalize = "all"
+        normalize = {0: "index", 1: "columns"}.get(normalize, normalize)
+
+        # Actual Normalizations
+        normalizers: dict[bool | str, Callable] = {
+            "all": lambda x: x / x.sum(axis=0).sum(),
+            "columns": lambda x: x / x.sum(),
+            "index": lambda x: x.div(x.sum(axis=1), axis=0),
+        }
+
+        if margins is False:
+
+            f = normalizers[normalize]
+
+            table = f(table)
+            table = table.fillna(0)
+        else:
+            # keep index and column of pivoted table
+            table_index = table.index
+            table_columns = table.columns
+
+            column_margin = table.iloc[:-1, -1]
+            index_margin = table.iloc[-1, :-1]
+
+            # keep the core table
+            table = table.iloc[:-1, :-1]
+
+            # Normalize core
+            f = normalizers[normalize]
+
+            table = f(table)
+            table = table.fillna(0)
+
+            # Fix Margins
+            if normalize == "columns":
+                column_margin = column_margin / column_margin.sum()
+                table = pd.concat([table, column_margin], axis=1)
+                table = table.fillna(0)
+                table.columns = table_columns
+
+            elif normalize == "index":
+                index_margin = index_margin / index_margin.sum()
+                table = table.append(index_margin, ignore_index=True)
+                table = table.fillna(0)
+                table.index = table_index
+
+            elif normalize == "all":
+                column_margin = column_margin / column_margin.sum()
+                index_margin = index_margin / index_margin.sum()
+                index_margin.loc[margins_name] = 1
+                table = pd.concat([table, column_margin], axis=1)
+                table = table.append(index_margin, ignore_index=True)
+
+                table = table.fillna(0)
+                table.index = table_index
+                table.columns = table_columns
+
+    table = table.rename_axis(index=rownames_mapper, axis=0)
+    table = table.rename_axis(columns=colnames_mapper, axis=1)
+
+    return table
 
 
 # Adding docstring since pandas docs don't have web section for this function.
