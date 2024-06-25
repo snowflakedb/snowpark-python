@@ -1108,7 +1108,6 @@ class Series(BasePandasDataset):
             use_na_sentinel=use_na_sentinel,
         )
 
-    @series_not_implemented()
     def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
         """
         Replace values where the conditions are True.
