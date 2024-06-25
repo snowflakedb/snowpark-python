@@ -9,7 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 dt_properties = pytest.mark.parametrize(
@@ -70,6 +70,22 @@ def test_date(datetime_index_value):
     native_ser = native_pd.Series(native_pd.DatetimeIndex(datetime_index_value))
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
+
+
+def test_isocalendar():
+    with SqlCounter(query_count=1):
+        date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
+        native_ser = native_pd.Series(date_range)
+        snow_ser = pd.Series(native_ser)
+        eval_snowpark_pandas_result(
+            snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
+        )
+    with SqlCounter(query_count=1):
+        native_ser = native_pd.to_datetime(native_pd.Series(["2010-01-01", None]))
+        snow_ser = pd.Series(native_ser)
+        eval_snowpark_pandas_result(
+            snow_ser, native_ser, lambda ser: ser.dt.isocalendar()
+        )
 
 
 @sql_count_checker(query_count=1)

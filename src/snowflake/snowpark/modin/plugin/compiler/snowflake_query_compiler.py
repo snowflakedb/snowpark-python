@@ -9154,6 +9154,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofweek")
 
+    def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        year_col = self.dt_property("yearofweekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "year"}
+        )
+        week_col = self.dt_property("weekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "week"}
+        )
+        day_col = self.dt_property("dayofweekiso").rename(
+            columns_renamer={MODIN_UNNAMED_SERIES_LABEL: "day"}
+        )
+        return year_col.concat(axis=1, other=[week_col, day_col])
+
     def dt_weekday(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("weekday")
 
@@ -9230,6 +9242,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "minute": minute,
             "second": second,
             "day": dayofmonth,
+            "weekiso": (lambda column: builtin("weekiso")(col(column))),
+            "dayofweekiso": (lambda column: builtin("dayofweekiso")(col(column))),
+            "yearofweekiso": (lambda column: builtin("yearofweekiso")(col(column))),
             "month": month,
             "year": year,
             "quarter": quarter,
