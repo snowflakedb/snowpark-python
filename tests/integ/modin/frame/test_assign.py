@@ -75,7 +75,31 @@ def test_assign_basic_non_pandas_object(new_col_value):
 
 
 @sql_count_checker(query_count=7, join_count=2)
-def test_assign_invalid_column_length_negative():
+def test_assign_invalid_long_column_length_negative():
+    # pandas errors out in this test, since we are attempting to assign a column of length 5 to a DataFrame with length 3.
+    # Snowpark pandas on the other hand, just truncates the last element of the new column so that it is the correct length. If we wanted
+    # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame in order to confirm lengths are correct
+    # and error otherwise.
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=pd.Index(list("abc"), name="columns"),
+        index=pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Length of values (5) does not match length of index (3)"),
+    ):
+        native_df = native_df.assign(new_column=[10, 11, 12, 13, 14])
+
+    snow_df = snow_df.assign(new_column=[10, 11, 12, 13, 14])
+    native_df = native_df.assign(new_column=[10, 11, 12])
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=7, join_count=2)
+def test_assign_invalid_short_column_length_negative():
     # pandas errors out in this test, since we are attempting to assign a column of length 2 to a DataFrame with length 3.
     # Snowpark pandas on the other hand, just broadcasts the last element of the new column so that it is filled. If we wanted
     # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame in order to confirm lengths are correct
