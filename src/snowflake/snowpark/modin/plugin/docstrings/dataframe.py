@@ -2187,7 +2187,7 @@ class DataFrame:
         """
         Return reshaped DataFrame organized by given index / column values.
 
-        Reshape data (produce a “pivot” table) based on column values. Uses unique values from
+        Reshape data (produce a "pivot" table) based on column values. Uses unique values from
         specified index / columns to form axes of the resulting DataFrame. This function does not
         support data aggregation, multiple values will result in a MultiIndex in the columns.
 
@@ -2204,11 +2204,10 @@ class DataFrame:
         Returns
         -------
         DataFrame
-            Returns reshaped DataFrame.
 
         Notes
         -----
-        Calls pivot_table with `columns`, `values`, index` and aggregation `min`.
+        Calls pivot_table with columns, values, index and aggregation "min".
 
         See Also
         --------
