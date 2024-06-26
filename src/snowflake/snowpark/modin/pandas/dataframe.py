@@ -2366,15 +2366,15 @@ class DataFrame(BasePandasDataset):
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         if future_stack is not False:
-            WarningMessage.ignored_argument(
+            WarningMessage.ignored_argument(  # pragma: no cover
                 operation="DataFrame.stack",
                 argument="future_stack",
                 message="future_stack parameter has been ignored with Snowflake execution engine",
             )
         if dropna is NoDefault:
-            dropna = True
+            dropna = True  # pragma: no cover
         if sort is NoDefault:
-            sort = True
+            sort = True  # pragma: no cover
 
         # This ensures that non-pandas MultiIndex objects are caught.
         is_multiindex = len(self.columns.names) > 1
