@@ -12,7 +12,6 @@
 #### New Features
 
 - Added support for `to_boolean` function.
-- Added documentation pages for `Index` and its APIs.
 
 #### Bug Fixes
 
@@ -70,6 +69,8 @@
 - Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
 - Added support for `Series.dt.isocalendar`.
 - Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
 - Added support for `DataFrame.stack`.
 
 #### Bug Fixes
@@ -89,7 +90,7 @@
 - For `df.index`, Snowpark pandas creates a lazy index object. 
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
 - Added support for `Index.copy()`
-- Added support for Index APIs: `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 
 ## 1.18.0 (2024-05-28)

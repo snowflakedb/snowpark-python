@@ -53,6 +53,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.assign
     DataFrame.head
     DataFrame.loc
     DataFrame.iloc
