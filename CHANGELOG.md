@@ -15,8 +15,6 @@
 
 #### Improvements
 
-- Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
-  - _execute_and_get_query_id
 - Added open telemetry tracing on UDxF functions in snowpark.
 - Added open telemetry tracing on stored procedure registration in snowpark.
 
