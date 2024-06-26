@@ -666,7 +666,6 @@ class DataFrame(BasePandasDataset):
             fill_value=fill_value,
         )
 
-    @dataframe_not_implemented()
     def assign(self, **kwargs):  # noqa: PR01, RT01, D200
         """
         Assign new columns to a ``DataFrame``.
@@ -1775,7 +1774,6 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("ne", other, axis=axis, level=level)
 
-    @dataframe_not_implemented()
     def nlargest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in descending order.
@@ -1785,7 +1783,6 @@ class DataFrame(BasePandasDataset):
             query_compiler=self._query_compiler.nlargest(n, columns, keep)
         )
 
-    @dataframe_not_implemented()
     def nsmallest(self, n, columns, keep="first"):  # noqa: PR01, RT01, D200
         """
         Return the first `n` rows ordered by `columns` in ascending order.
@@ -2347,33 +2344,49 @@ class DataFrame(BasePandasDataset):
         len_columns = self._query_compiler.get_axis_len(1)
         if axis == 1 and len_columns == 1:
             return Series(query_compiler=self._query_compiler)
-        # get_axis_len(0) results in a sql query to count number of rows in current
-        # dataframe. We should only compute len_index if axis is 0 or None.
-        len_index = len(self)
-        if axis is None and (len_columns == 1 or len_index == 1):
-            return Series(query_compiler=self._query_compiler).squeeze()
-        if axis == 0 and len_index == 1:
-            return Series(query_compiler=self.T._query_compiler)
-        else:
-            return self.copy()
+        if axis in [0, None]:
+            # get_axis_len(0) results in a sql query to count number of rows in current
+            # dataframe. We should only compute len_index if axis is 0 or None.
+            len_index = len(self)
+            if axis is None and (len_columns == 1 or len_index == 1):
+                return Series(query_compiler=self._query_compiler).squeeze()
+            if axis == 0 and len_index == 1:
+                return Series(query_compiler=self.T._query_compiler)
+        return self.copy()
 
-    @dataframe_not_implemented()
-    def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
+    def stack(
+        self,
+        level: int | str | list = -1,
+        dropna: bool | NoDefault = no_default,
+        sort: bool | NoDefault = no_default,
+        future_stack: bool = False,  # ignored
+    ):
         """
         Stack the prescribed level(s) from columns to index.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not isinstance(self.columns, pandas.MultiIndex) or (
-            isinstance(self.columns, pandas.MultiIndex)
-            and is_list_like(level)
-            and len(level) == self.columns.nlevels
+        if future_stack is not False:
+            WarningMessage.ignored_argument(  # pragma: no cover
+                operation="DataFrame.stack",
+                argument="future_stack",
+                message="future_stack parameter has been ignored with Snowflake execution engine",
+            )
+        if dropna is NoDefault:
+            dropna = True  # pragma: no cover
+        if sort is NoDefault:
+            sort = True  # pragma: no cover
+
+        # This ensures that non-pandas MultiIndex objects are caught.
+        is_multiindex = len(self.columns.names) > 1
+        if not is_multiindex or (
+            is_multiindex and is_list_like(level) and len(level) == self.columns.nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
 
     def sub(

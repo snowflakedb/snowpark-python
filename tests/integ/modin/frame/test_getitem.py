@@ -22,7 +22,6 @@ from tests.integ.modin.utils import (
 )
 
 
-@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "key",
     [
@@ -40,27 +39,30 @@ from tests.integ.modin.utils import (
 def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
-    if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
+    # one added query to convert to native pandas and 2 added queries for series initialization
+    with SqlCounter(
+        query_count=4 if isinstance(key, native_pd.Index) else 1, join_count=1
+    ):
+        # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
+        if isinstance(key, native_pd.Index):
+            key = pd.Index(key)
 
-    def get_helper(df):
-        if isinstance(df, pd.DataFrame):
-            return df[key]
-        # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
-        _key = try_convert_index_to_native(key)
-        _df = df.iloc[: len(key)]
-        _key = _key[: _df.shape[1]]
-        return _df[_key]
+        def get_helper(df):
+            if isinstance(df, pd.DataFrame):
+                return df[key]
+            # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
+            _key = try_convert_index_to_native(key)
+            _df = df.iloc[: len(key)]
+            _key = _key[: _df.shape[1]]
+            return _df[_key]
 
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_df,
-        default_index_native_df,
-        get_helper,
-    )
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_df,
+            default_index_native_df,
+            get_helper,
+        )
 
 
-@sql_count_checker(query_count=1, join_count=0)
 @pytest.mark.parametrize(
     "key",
     [
@@ -74,23 +76,25 @@ def test_df_getitem_with_string_list_like(
 ):
     # df[string list-like key] is the same as df.loc[:, string list-like key]
     if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
+        snow_key = pd.Index(key)
+    else:
+        snow_key = key
 
     def get_helper(df):
         if isinstance(df, pd.DataFrame):
-            return df[key]
+            return df[snow_key]
         else:
-            _key = try_convert_index_to_native(key)
-            return df[_key]
+            return df[key]
 
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_df,
-        default_index_native_df,
-        get_helper,
-    )
+    # 5 extra queries for iter
+    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_df,
+            default_index_native_df,
+            get_helper,
+        )
 
 
-@sql_count_checker(query_count=1, join_count=0)
 @pytest.mark.parametrize(
     "key",
     [
@@ -102,25 +106,28 @@ def test_df_getitem_with_string_list_like(
 def test_df_getitem_with_int_list_like(key):
     # df[int list-like key] is the same as df.loc[:, int list-like key]
     if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
+        snow_key = pd.Index(key)
+    else:
+        snow_key = key
 
     def get_helper(df):
         if isinstance(df, pd.DataFrame):
-            return df[key]
+            return df[snow_key]
         else:
-            _key = try_convert_index_to_native(key)
-            return df[_key]
+            return df[key]
 
     # Generate a dict that maps from int -> list of random ints
     data = {i: [random.choice(range(10)) for _ in range(5)] for i in range(7)}
     native_df = native_pd.DataFrame(data)
     snowpark_df = pd.DataFrame(native_df)
 
-    eval_snowpark_pandas_result(
-        snowpark_df,
-        native_df,
-        get_helper,
-    )
+    # 5 extra queries for iter
+    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+        eval_snowpark_pandas_result(
+            snowpark_df,
+            native_df,
+            get_helper,
+        )
 
 
 def _powerset(iterable):
@@ -183,13 +190,13 @@ def test_df_getitem_with_none_nan_columns():
     # an Index with dtype=object will keep them as separate values. If dtype=object is not explicitly specified
     # (either in the columns of the DF constructor or in the indexing key), then None is implicitly coerced
     # to nan.
-    key = pd.Index([None, np.nan], dtype=object)
+    key = native_pd.Index([None, np.nan], dtype=object)
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df[try_convert_index_to_native(key)],
+        lambda df: df[key],
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="Cannot mask with non-boolean array containing NA / NaN values",
@@ -209,15 +216,13 @@ def test_df_getitem_with_none_nan_columns():
 def test_df_getitem_with_labels_two_columns_with_index(key):
     snow_df = pd.DataFrame(DATA, columns=LABEL_COLLECTION)
     native_df = native_pd.DataFrame(DATA, columns=LABEL_COLLECTION)
-    if isinstance(key, native_pd.Index):
-        key = pd.Index(key)
 
     def helper(df):
         ans_df = df[key]
         # because columns is returned as an index object, and the missing value mapping is not 100% pandas,
         # cast here to_pandas with columns' index object type to compare and explicitly convert
         # Na to None to allow comparison
-        columns = pd.Index(
+        columns = native_pd.Index(
             [None if isna(val) else val for val in ans_df.columns.values], "object"
         )
         if isinstance(ans_df, (pd.Series, pd.DataFrame)):

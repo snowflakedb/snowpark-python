@@ -34,14 +34,18 @@ GroupBy
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrameGroupBy.all
+    DataFrameGroupBy.any
     DataFrameGroupBy.count
     DataFrameGroupBy.cumcount
     DataFrameGroupBy.cummax
     DataFrameGroupBy.cummin
     DataFrameGroupBy.cumsum
+    DataFrameGroupBy.first
     DataFrameGroupBy.head
     DataFrameGroupBy.idxmax
     DataFrameGroupBy.idxmin
+    DataFrameGroupBy.last
     DataFrameGroupBy.max
     DataFrameGroupBy.mean
     DataFrameGroupBy.median
@@ -50,6 +54,7 @@ GroupBy
     DataFrameGroupBy.quantile
     DataFrameGroupBy.rank
     DataFrameGroupBy.shift
+    DataFrameGroupBy.size
     DataFrameGroupBy.std
     DataFrameGroupBy.sum
     DataFrameGroupBy.tail
@@ -60,14 +65,18 @@ GroupBy
 .. autosummary::
     :toctree: pandas_api/
 
+    SeriesGroupBy.all
+    SeriesGroupBy.any
     SeriesGroupBy.count
     SeriesGroupBy.cumcount
     SeriesGroupBy.cummax
     SeriesGroupBy.cummin
     SeriesGroupBy.cumsum
+    SeriesGroupBy.first
     SeriesGroupBy.head
     SeriesGroupBy.idxmax
     SeriesGroupBy.idxmin
+    SeriesGroupBy.last
     SeriesGroupBy.max
     SeriesGroupBy.mean
     SeriesGroupBy.median
@@ -76,6 +85,7 @@ GroupBy
     SeriesGroupBy.quantile
     SeriesGroupBy.rank
     SeriesGroupBy.shift
+    SeriesGroupBy.size
     SeriesGroupBy.std
     SeriesGroupBy.sum
     SeriesGroupBy.tail

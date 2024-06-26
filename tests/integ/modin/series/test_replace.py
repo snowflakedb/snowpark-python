@@ -29,7 +29,7 @@ def snow_series():
         ("one", None),  # scalar -> None
         (pd.NA, "ONE"),  # NULL -> scalar
         (pd.NaT, "ONE"),  # NULL -> scalar
-        (np.NaN, "ONE"),  # NULL -> scalar
+        (np.nan, "ONE"),  # NULL -> scalar
         (["one"], ["ONE"]),  # list -> list
         ("four", "FOUR"),  # no matching value
         (["one", "two"], ["two", "one"]),  # swap values

@@ -23,9 +23,7 @@ from tests.integ.modin.utils import (
 
 @pytest.fixture
 def empty_df():
-    return pd.DataFrame(
-        columns=["A", "B"], dtype="int64", index=native_pd.Index([], name="i")
-    )
+    return pd.DataFrame(columns=["A", "B"], dtype="int64", index=pd.Index([], name="i"))
 
 
 @pytest.fixture
@@ -34,10 +32,10 @@ def left_df():
         {
             "A": [3, 2, 1, 4, 4],
             "B": [2, 3, 1, 2, 1],
-            "left_c": [1.0, 2.0, 3.0, 4.0, np.NaN],
+            "left_c": [1.0, 2.0, 3.0, 4.0, np.nan],
             "left_d": [None, "d", "a", "c", "b"],
         },
-        index=native_pd.Index([0, 1, 3, 2, 4], name="left_i"),
+        index=pd.Index([0, 1, 3, 2, 4], name="left_i"),
     )
 
 
@@ -63,10 +61,10 @@ def right_df():
         {
             "A": [4, 3, 1, 4, 4],
             "B": [3, 4, 2, 1, 1],
-            "right_c": [2.0, 1.0, 4.0, 0.0, np.NaN],
+            "right_c": [2.0, 1.0, 4.0, 0.0, np.nan],
             "right_d": ["c", "d", "a", "b", None],
         },
-        index=native_pd.Index([8, 4, 2, 9, 1], name="right_i"),
+        index=pd.Index([8, 4, 2, 9, 1], name="right_i"),
     )
 
 
@@ -337,7 +335,7 @@ def test_join_type_mismatch_negative(index1, index2):
             [3, 4],
             [True, False],
             native_pd.DataFrame(
-                {"A": [np.NaN, 1.0, 2.0], "B": [4, 3, 3]},
+                {"A": [np.nan, 1.0, 2.0], "B": [4, 3, 3]},
                 index=native_pd.Index([False, True, True]),
             ),
         ),
@@ -347,7 +345,7 @@ def test_join_type_mismatch_negative(index1, index2):
             ["a", "b"],
             [True, False],
             native_pd.DataFrame(
-                {"A": [1.0, 2.0, np.NaN, np.NaN], "B": [np.NaN, np.NaN, 4.0, 3.0]},
+                {"A": [1.0, 2.0, np.nan, np.nan], "B": [np.nan, np.nan, 4.0, 3.0]},
                 index=native_pd.Index(["a", "b", "false", "true"]),
             ),
         ),
@@ -924,7 +922,8 @@ def test_merge_outer_with_nan(dtype):
     _verify_merge(right, left, "outer", on="key")
 
 
-@sql_count_checker(query_count=3, join_count=1)
+# Two extra queries to convert to native index for dataframe constructor when creating left and right
+@sql_count_checker(query_count=5, join_count=1)
 def test_merge_different_index_names():
     left = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="c"))
     right = pd.DataFrame({"a": [1]}, index=pd.Index([1], name="d"))

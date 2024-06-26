@@ -135,6 +135,10 @@ series_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="Series"
 )
 
+index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="Index"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )

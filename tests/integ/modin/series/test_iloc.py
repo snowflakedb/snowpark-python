@@ -55,7 +55,7 @@ def test_series_iloc_snowpark_pandas_input_return_dataframe(
     default_index_snowpark_pandas_series,
     default_index_native_series,
 ):
-    expected_query_count = 1 if "Index" in key else 2
+    expected_query_count = 3 if key.startswith("Index") else 1 if "Index" in key else 2
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
@@ -197,12 +197,15 @@ def test_series_iloc_get_key_bool(
         return _ser.iloc[_key]
 
     expected_join_count = 1
+
+    # 1 extra query for converting to series
+    expected_query_count = 2 if "index" in key_type else 1
     if key == [] and key_type in ["list", "ndarray"]:
         expected_join_count += 1
 
     default_index_int_series = pd.Series(default_index_native_int_series)
     # test ser with non-default index
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             default_index_int_series,
             default_index_native_int_series,
@@ -214,7 +217,7 @@ def test_series_iloc_get_key_bool(
         native_int_series_with_non_default_index
     )
     # test ser with non default index
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             int_series_with_non_default_index,
             native_int_series_with_non_default_index,
@@ -223,7 +226,7 @@ def test_series_iloc_get_key_bool(
 
     # test ser with MultiIndex
     int_series_with_multiindex = pd.Series(multiindex_native_int_series)
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             int_series_with_multiindex,
             multiindex_native_int_series,
@@ -286,9 +289,12 @@ def test_series_iloc_get_key_numeric(
         # Index objects have dtype object when empty
         return
 
+    # 1 extra query for converting to series
+    query_count = 2 if "index" in key_type else 1
+
     default_index_int_series = pd.Series(default_index_native_int_series)
     # test ser with default index
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=query_count, join_count=2):
         eval_snowpark_pandas_result(
             default_index_int_series,
             default_index_native_int_series,
@@ -300,7 +306,7 @@ def test_series_iloc_get_key_numeric(
         native_int_series_with_non_default_index
     )
     # test ser with non default index
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=query_count, join_count=2):
         eval_snowpark_pandas_result(
             int_series_with_non_default_index,
             native_int_series_with_non_default_index,
@@ -310,7 +316,7 @@ def test_series_iloc_get_key_numeric(
     # test ser with MultiIndex
     # Index dtype is different between Snowpark and native pandas if key produces empty df.
     int_series_with_multiindex = pd.Series(multiindex_native_int_series)
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=query_count, join_count=2):
         eval_snowpark_pandas_result(
             int_series_with_multiindex,
             multiindex_native_int_series,
@@ -468,7 +474,6 @@ def test_series_iloc_get_invalid_slice_key_negative(
         np.array([1.2, None, "hi"]),
     ],
 )
-@sql_count_checker(query_count=0)
 def test_series_iloc_get_non_numeric_key_negative(key, default_index_native_int_series):
     # Check whether invalid non-numeric keys passed in raise TypeError.
     # list-like objects need to be numeric, scalar keys can only be integers.
@@ -477,8 +482,10 @@ def test_series_iloc_get_non_numeric_key_negative(key, default_index_native_int_
         key = pd.Index(key)
     snowpark_index_int_series = pd.Series(default_index_native_int_series)
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    with pytest.raises(IndexError, match=error_msg):
-        _ = snowpark_index_int_series.iloc[key]
+    # 2 extra queries for repr
+    with SqlCounter(query_count=2 if isinstance(key, pd.Index) else 0):
+        with pytest.raises(IndexError, match=error_msg):
+            _ = snowpark_index_int_series.iloc[key]
 
 
 @sql_count_checker(query_count=0)

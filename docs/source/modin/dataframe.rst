@@ -53,6 +53,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.assign
     DataFrame.head
     DataFrame.loc
     DataFrame.iloc
@@ -125,6 +126,7 @@ DataFrame
     DataFrame.mean
     DataFrame.median
     DataFrame.min
+    DataFrame.pct_change
     DataFrame.quantile
     DataFrame.rank
     DataFrame.round
@@ -181,11 +183,14 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
-    DataFrame.pivot_table
-    DataFrame.sort_values
-    DataFrame.sort_index
     DataFrame.melt
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.pivot_table
+    DataFrame.sort_index
+    DataFrame.sort_values
     DataFrame.squeeze
+    DataFrame.stack
     DataFrame.T
     DataFrame.transpose
 

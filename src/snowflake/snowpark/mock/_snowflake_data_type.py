@@ -7,6 +7,7 @@ from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
+    ArrayType,
     BooleanType,
     DataType,
     DateType,
@@ -15,6 +16,13 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     LongType,
+    MapType,
+    NullType,
+    StringType,
+    TimestampType,
+    TimeType,
+    VariantType,
+    _FractionalType,
     _IntegralType,
     _NumericType,
 )
@@ -150,7 +158,7 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     """op, left, right decide what's next."""
     t1, t2 = c1.datatype, c2.datatype
     nullable = c1.nullable or c2.nullable
-    decimal_types = (IntegerType, LongType, DecimalType)
+    decimal_types = (_IntegralType, DecimalType)
     if isinstance(t1, decimal_types) and isinstance(t2, decimal_types):
         p1, s1 = get_number_precision_scale(t1)
         p2, s2 = get_number_precision_scale(t2)
@@ -234,6 +242,78 @@ def calculate_type(c1: ColumnType, c2: Optional[ColumnType], op: Union[str]):
     )
 
 
+def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
+    """Based on result of SELECT system$typeof("RES") FROM (SELECT CASE WHEN (<pred>) THEN <t1> ELSE <t2> END AS "RES")"""
+    if t1 == t2:
+        return t2
+    elif isinstance(t1, NullType):
+        return t2
+    if isinstance(t1, StringType):
+        if isinstance(t2, StringType):
+            l1 = t1.length or StringType._MAX_LENGTH
+            l2 = t2.length or StringType._MAX_LENGTH
+            return StringType(max(l1, l2))
+        elif isinstance(
+            t2,
+            (
+                _FractionalType,
+                _IntegralType,
+                DateType,
+                TimeType,
+                TimestampType,
+                VariantType,
+            ),
+        ):
+            return t2
+    elif isinstance(t1, _IntegralType):
+        if isinstance(t2, _IntegralType):
+            res = calculate_type(ColumnType(t1, True), ColumnType(t2, True), "+")
+            return res.datatype
+        elif isinstance(t2, (_FractionalType, VariantType, BooleanType)):
+            return t2
+    elif isinstance(t1, _FractionalType):
+        if isinstance(t2, _FractionalType):
+            res = calculate_type(ColumnType(t1, True), ColumnType(t2, True), "+")
+            return res.datatype
+        elif isinstance(t2, (BooleanType, VariantType)):
+            return t2
+    elif isinstance(t1, BooleanType):
+        if isinstance(t2, (StringType, VariantType)):
+            return t2
+    elif isinstance(t1, DateType):
+        if isinstance(t2, (TimestampType, VariantType)):
+            return t2
+    elif isinstance(t1, ArrayType):
+        if isinstance(t2, ArrayType):
+            if t1.element_type == t2.element_type:
+                return t2
+            else:
+                return ArrayType(VariantType())
+        elif isinstance(t2, VariantType):
+            return t2
+    elif isinstance(t1, MapType):
+        if isinstance(t2, MapType):
+            if t1.key_type == t2.key_type and t2.value_type == t1.value_type:
+                return t2
+            else:
+                return MapType(key_type=VariantType(), value_type=VariantType())
+        elif isinstance(t2, VariantType):
+            return t2
+    elif isinstance(t1, (TimeType, TimestampType, MapType, ArrayType)):
+        if isinstance(t2, VariantType):
+            return t2
+    return None
+
+
+def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
+    nullability = c1.nullable or c2.nullable
+    if sf_datatype := coerce_t1_into_t2(c1.datatype, c2.datatype):
+        return ColumnType(sf_datatype, nullability)
+    if sf_datatype := coerce_t1_into_t2(c2.datatype, c1.datatype):
+        return ColumnType(sf_datatype, nullability)
+    return None
+
+
 class TableEmulator(PandasDataframeType):
     _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
 
@@ -291,7 +371,7 @@ class TableEmulator(PandasDataframeType):
 
 
 def get_number_precision_scale(t: DataType):
-    if isinstance(t, (IntegerType, LongType)):
+    if isinstance(t, _IntegralType):
         return 38, 0
     if isinstance(t, DecimalType):
         return t.precision, t.scale
