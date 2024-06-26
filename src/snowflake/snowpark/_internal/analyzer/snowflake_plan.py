@@ -292,7 +292,7 @@ class SnowflakePlan(LogicalPlan):
 
         # all other parts of query are unchanged, but just replace the original query
         plan = copy.copy(self)
-        plan.queries[-1].sql = final_query
+        plan.queries[-1].base_sql = final_query
         return plan
 
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
@@ -763,6 +763,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
+        logical_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
 
@@ -779,7 +780,7 @@ class SnowflakePlanBuilder:
             column_definition_with_hidden_columns,
         )
 
-        child = child.replace_repeated_subquery_with_cte()
+        # child = child.replace_repeated_subquery_with_cte()
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
@@ -811,7 +812,7 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                None,
+                logical_plan,
                 api_calls=child.api_calls,
                 session=self.session,
             )
@@ -825,7 +826,7 @@ class SnowflakePlanBuilder:
                         column_names=column_names,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -836,7 +837,7 @@ class SnowflakePlanBuilder:
                         full_table_name, x, [x.name for x in child.attributes], True
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return self.build(
@@ -850,7 +851,7 @@ class SnowflakePlanBuilder:
                         comment=comment,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -864,7 +865,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -891,7 +892,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
 
     def limit(
@@ -952,7 +953,7 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str]
+        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str], source_plan: Optional[LogicalPlan]
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -960,11 +961,11 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
-        child = child.replace_repeated_subquery_with_cte()
+        # child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
-            None,
+            source_plan,
         )
 
     def create_or_replace_dynamic_table(
@@ -974,6 +975,7 @@ class SnowflakePlanBuilder:
         lag: str,
         comment: Optional[str],
         child: SnowflakePlan,
+        logical_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -981,13 +983,13 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_SELECT_ONLY()
 
-        child = child.replace_repeated_subquery_with_cte()
+        # child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
                 name, warehouse, lag, comment, x
             ),
             child,
-            None,
+            logical_plan,
         )
 
     def create_temp_table(
@@ -1282,9 +1284,10 @@ class SnowflakePlanBuilder:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         header: bool = False,
+        source_plan: Optional[LogicalPlan] = None,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
-        query = query.replace_repeated_subquery_with_cte()
+        # query = query.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: copy_into_location(
                 query=x,
@@ -1297,7 +1300,7 @@ class SnowflakePlanBuilder:
                 **copy_options,
             ),
             query,
-            None,
+            source_plan,
             query.schema_query,
         )
 
@@ -1310,7 +1313,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
+            # source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: update_statement(
                     table_name,
@@ -1340,7 +1343,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
+            # source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: delete_statement(
                     table_name,
@@ -1368,7 +1371,7 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        source_data = source_data.replace_repeated_subquery_with_cte()
+       #  source_data = source_data.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,

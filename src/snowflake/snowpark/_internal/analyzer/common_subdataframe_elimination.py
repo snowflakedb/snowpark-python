@@ -31,10 +31,14 @@ class CommonSubDataframeElimination:
         self._node_parents_map = defaultdict(set)
         self._duplicated_nodes = set()
         self._analyzer = Analyzer(plan.session, skip_schema_query=True)
+        self._analyzer.alias_maps_to_use = plan.session._analyzer.alias_maps_to_use
 
     def common_subdataframe_elimination(self) -> SnowflakePlan:
         self._find_duplicate_subtrees()
-        return self._cte_transformation()
+        if len(self._duplicated_nodes) > 0:
+            return self._cte_transformation()
+        else:
+            return self._plan
 
     def _find_duplicate_subtrees(self) -> None:
         """

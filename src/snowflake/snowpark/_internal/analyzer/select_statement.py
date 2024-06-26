@@ -724,31 +724,31 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
-            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
-            self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
-        else:
-            where_clause = (
-                f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
-                if self.where is not None
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            order_by_clause = (
-                f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
-                if self.order_by
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            limit_clause = (
-                f"{analyzer_utils.LIMIT}{self.limit_}"
-                if self.limit_ is not None
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            offset_clause = (
-                f"{analyzer_utils.OFFSET}{self.offset}"
-                if self.offset
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        # if self.analyzer.session._cte_optimization_enabled and self.from_._id:
+        #    placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        #    self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
+        # else:
+        where_clause = (
+            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
+            if self.where is not None
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        order_by_clause = (
+            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
+            if self.order_by
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        limit_clause = (
+            f"{analyzer_utils.LIMIT}{self.limit_}"
+            if self.limit_ is not None
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        offset_clause = (
+            f"{analyzer_utils.OFFSET}{self.offset}"
+            if self.offset
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
 
     @property
