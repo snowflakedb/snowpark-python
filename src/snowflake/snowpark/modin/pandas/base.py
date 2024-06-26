@@ -3135,7 +3135,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             axis=axis,
             level=level,
             ascending=ascending,
-            inplace=inplace,
             kind=kind,
             na_position=na_position,
             sort_remaining=sort_remaining,
