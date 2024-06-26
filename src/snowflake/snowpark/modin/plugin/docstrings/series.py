@@ -1099,7 +1099,89 @@ class Series:
 
     def equals():
         """
-        Test whether two objects contain the same elements.
+        Test whether two series contain the same elements.
+
+        This function allows two Series to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns and
+        index must be of the same dtype.
+
+        Parameters
+        ----------
+        other : Series
+            The other Series to be compared with the first.
+
+        Returns
+        -------
+        bool
+            True if all elements are the same in both series, False
+            otherwise.
+
+        See Also
+        --------
+        Series.eq : Compare two Series objects of the same length
+            and return a Series where each element is True if the element
+            in each Series is equal, False otherwise.
+        DataFrame.eq : Compare two DataFrame objects of the same shape and
+            return a DataFrame where each element is True if the respective
+            element in each DataFrame is equal, False otherwise.
+        testing.assert_series_equal : Raises an AssertionError if left and
+            right are not equal. Provides an easy interface to ignore
+            inequality in dtypes, indexes and precision among others.
+        testing.assert_frame_equal : Like assert_series_equal, but targets
+            DataFrames.
+        numpy.array_equal : Return True if two arrays have the same shape
+            and elements, False otherwise.
+
+        Examples
+        --------
+        >>> series = pd.Series([1, 2, 3], name=99)
+        >>> series
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+
+        Series 'series' and 'exactly_equal' have the same types and values for
+        their elements and names, which will return True.
+
+        >>> exactly_equal = pd.Series([1, 2, 3], name=99)
+        >>> exactly_equal
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+        >>> series.equals(exactly_equal)
+        True
+
+        Series 'series' and 'different_column_type' have the same element
+        types and values, but have different types for names,
+        which will still return True.
+
+        >>> different_column_type = pd.Series([1, 2, 3], name=99.0)
+        >>> different_column_type
+        0    1
+        1    2
+        2    3
+        Name: 99.0, dtype: int64
+        >>> series.equals(different_column_type)
+        True
+
+        Series 'series' and 'different_data_type' have different types for the
+        same values for their elements, and will return False even though
+        their names are the same values and types.
+
+        >>> different_data_type = pd.Series([1.0, 2.0, 3.0], name=99)
+        >>> different_data_type
+        0    1.0
+        1    2.0
+        2    3.0
+        Name: 99, dtype: float64
+        >>> series.equals(different_data_type)
+        False
         """
 
     def explode():
