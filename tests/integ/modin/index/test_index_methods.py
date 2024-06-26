@@ -389,7 +389,3 @@ def test_df_index_columns_dtype(native_df):
     # do not check columns type for empty df
     if not native_df.empty:
         assert snow_df.columns.dtype == native_df.columns.dtype
-
-
-def test_type():
-    print(type(pd.Index([1, 2, 3])))
