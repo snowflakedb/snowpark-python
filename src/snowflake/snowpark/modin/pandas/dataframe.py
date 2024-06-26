@@ -2354,23 +2354,39 @@ class DataFrame(BasePandasDataset):
                 return Series(query_compiler=self.T._query_compiler)
         return self.copy()
 
-    @dataframe_not_implemented()
-    def stack(self, level=-1, dropna=True):  # noqa: PR01, RT01, D200
+    def stack(
+        self,
+        level: int | str | list = -1,
+        dropna: bool | NoDefault = no_default,
+        sort: bool | NoDefault = no_default,
+        future_stack: bool = False,  # ignored
+    ):
         """
         Stack the prescribed level(s) from columns to index.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not isinstance(self.columns, pandas.MultiIndex) or (
-            isinstance(self.columns, pandas.MultiIndex)
-            and is_list_like(level)
-            and len(level) == self.columns.nlevels
+        if future_stack is not False:
+            WarningMessage.ignored_argument(  # pragma: no cover
+                operation="DataFrame.stack",
+                argument="future_stack",
+                message="future_stack parameter has been ignored with Snowflake execution engine",
+            )
+        if dropna is NoDefault:
+            dropna = True  # pragma: no cover
+        if sort is NoDefault:
+            sort = True  # pragma: no cover
+
+        # This ensures that non-pandas MultiIndex objects are caught.
+        is_multiindex = len(self.columns.names) > 1
+        if not is_multiindex or (
+            is_multiindex and is_list_like(level) and len(level) == self.columns.nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.stack(level, dropna)
+                query_compiler=self._query_compiler.stack(level, dropna, sort)
             )
 
     def sub(

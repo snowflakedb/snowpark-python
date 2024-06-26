@@ -3227,6 +3227,59 @@ class DataFrame:
     def stack():
         """
         Stack the prescribed level(s) from columns to index.
+
+        Return a reshaped DataFrame or Series having a multi-level index with one
+        or more new inner-most levels compared to the current DataFrame. The new inner-most
+        levels are created by pivoting the columns of the current dataframe.
+        If the columns have a single level, the output is a Series.
+        If the columns have multiple levels, the new index level(s) is (are)
+        taken from the prescribed level(s) and the output is a DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) to stack from the column axis onto the index axis,
+            defined as one index or label, or a list of indices or labels.
+
+        dropna : bool, default True
+            Whether to drop rows in the resulting Frame/Series with missing values. Stacking a
+            column level onto the index axis can create combinations of index and column values
+            that are missing from the original dataframe.
+
+        sort : bool, default True
+            Whether to sort the levels of the resulting MultiIndex.
+
+        future_stack : bool, default False
+            This argument is ignored in Snowpark pandas.
+
+        Returns
+        -------
+        DataFrame or Series
+            Stacked dataframe or series.
+
+        Notes
+        -----
+        level != -1 and MultiIndex dataframes are not yet supported by Snowpark pandas.
+
+        See Also
+        --------
+        DataFrame.unstack : Unstack prescribed level(s) from index axis onto column axis.
+        DataFrame.pivot : Reshape dataframe from long format to wide format.
+        DataFrame.pivot_table : Create a spreadsheet-style pivot table as a DataFrame.
+
+        Examples
+        --------
+        >>> df_single_level_cols = pd.DataFrame([[0, 1], [2, 3]], index=['cat', 'dog'], columns=['weight', 'height'])
+        >>> df_single_level_cols
+             weight  height
+        cat       0       1
+        dog       2       3
+        >>> df_single_level_cols.stack()
+        cat  weight    0
+             height    1
+        dog  weight    2
+             height    3
+        dtype: int64
         """
 
     def sub():
