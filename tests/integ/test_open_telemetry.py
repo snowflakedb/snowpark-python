@@ -55,6 +55,23 @@ def dict_exporter():
     dict_exporter.shutdown()
 
 
+def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
+    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
+    df._execute_and_get_query_id()
+    lineno = inspect.currentframe().f_lineno - 1
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "_execute_and_get_query_id" in spans
+    span = spans["_execute_and_get_query_id"]
+    assert (
+        span.attributes["method.chain"]
+        == "DataFrame.to_df()._execute_and_get_query_id()"
+    )
+    assert "test_open_telemetry.py" in span.attributes["code.filepath"]
+    assert span.attributes["code.lineno"] == lineno
+    print(span.attributes)
+
+
 def test_catch_error_during_action_function(session, dict_exporter):
     df = session.sql("select 1/0")
     with pytest.raises(SnowparkSQLException, match="Division by zero"):
