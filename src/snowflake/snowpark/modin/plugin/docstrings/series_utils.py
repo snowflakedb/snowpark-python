@@ -38,7 +38,7 @@ class StringMethods:
 
         Returns
         -------
-        Series, Index, DataFrame or MultiIndex
+        :class:`~snowflake.snowpark.modin.pandas.Series`, Index, :class:`~snowflake.snowpark.modin.pandas.DataFrame` or MultiIndex
             Type matches caller unless expand=True (see Notes).
 
         See also
@@ -192,7 +192,7 @@ class StringMethods:
         --------
         Returning a Series of booleans using only a literal pattern.
 
-        >>> s1 = pd.Series(['Mouse', 'dog', 'house and parrot', '23', np.NaN])
+        >>> s1 = pd.Series(['Mouse', 'dog', 'house and parrot', '23', np.nan])
         >>> s1.str.contains('og', regex=False)
         0    False
         1     True
@@ -203,9 +203,9 @@ class StringMethods:
 
         Returning an Index of booleans using only a literal pattern.
 
-        >>> ind = pd.Index(['Mouse', 'dog', 'house and parrot', '23.0', np.NaN])
+        >>> ind = pd.Index(['Mouse', 'dog', 'house and parrot', '23.0', np.nan])
         >>> ind.str.contains('23', regex=False)
-        Index([False, False, False, True, nan], dtype='object')
+        Index([False, False, False, True, None], dtype='object')
 
         Specifying case sensitivity using case.
 
@@ -609,7 +609,42 @@ class StringMethods:
         pass
 
     def match():
-        pass
+        """
+        Determine if each string starts with a match of a regular expression.
+
+        Parameters
+        ----------
+        pat : str
+            Character sequence.
+        case : bool, default True
+            If True, case sensitive.
+        flags : int, default 0 (no flags)
+            Regex module flags, e.g. re.IGNORECASE.
+        na : scalar, optional
+            Fill value for missing values. The default depends on dtype of the array. For object-dtype, numpy.nan is used. For StringDtype, pandas.NA is used.
+
+        Returns
+        -------
+        Series/Index/array of boolean values
+
+        See also
+        --------
+        fullmatch
+            Stricter matching that requires the entire string to match.
+        contains
+            Analogous, but less strict, relying on re.search instead of re.match.
+        extract
+            Extract matched groups.
+
+        Examples
+        --------
+        >>> ser = pd.Series(["horse", "eagle", "donkey"])
+        >>> ser.str.match("e")
+        0    False
+        1     True
+        2    False
+        dtype: bool
+        """
 
     def extract():
         pass
@@ -1284,6 +1319,27 @@ class CombinedDatetimelikeProperties:
         1    2
         2    3
         dtype: int8
+        """
+
+    def isocalendar():
+        """
+        Calculate year, week, and day according to the ISO 8601 standard.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            With columns year, week, and day.
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.date_range("2020-05-01", periods=5, freq="4D"))
+        >>> ser.dt.isocalendar()
+           year  week  day
+        0  2020    18    5
+        1  2020    19    2
+        2  2020    19    6
+        3  2020    20    3
+        4  2020    20    7
         """
 
     @property

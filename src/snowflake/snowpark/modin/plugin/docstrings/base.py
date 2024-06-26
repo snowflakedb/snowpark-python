@@ -1053,6 +1053,18 @@ class BasePandasDataset:
     def expanding():
         """
         Provide expanding window calculations.
+        Currently, ``axis = 1`` is not supported.
+
+        Parameters
+        ----------
+        min_periods: int, default 1.
+            Minimum number of observations in window required to have a value; otherwise, result is np.nan.
+        axis: int or str, default 0
+            If 0 or 'index', roll across the rows.
+            If 1 or 'columns', roll across the columns.
+            For Series this parameter is unused and defaults to 0.
+        method: str {‘single’, ‘table’}, default ‘single’
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def ffill():
@@ -2558,8 +2570,7 @@ class BasePandasDataset:
         step: int, default None
             Evaluate the window at every step result, equivalent to slicing as [::step]. window must be an integer. Using a step argument other than None or 1 will produce a result with a different shape than the input.
         method: str {‘single’, ‘table’}, default ‘single’
-            Execute the rolling operation per single column or row ('single') or over the entire object ('table').
-            This argument is only implemented when specifying engine='numba' in the method call.
+            **This parameter is ignored in Snowpark pandas since the execution engine will always be Snowflake.**
         """
 
     def round():
@@ -2652,9 +2663,9 @@ class BasePandasDataset:
         -----
         If `frac` > 1, `replacement` should be set to `True`.
 
-        Snowpark pandas `sample` does not support the following cases: `weights`, `random_state`, or `replace = True`
-        when `axis = 0`. Also, native pandas will raise error if `n` is larger than the length of the DataFrame while
-        Snowpark pandas will return all rows from the DataFrame.
+        Snowpark pandas `sample` does not support the following cases: `weights` or `random_state`
+        when `axis = 0`. Also, when `replace = False`, native pandas will raise error if `n` is larger
+        than the length of the DataFrame while Snowpark pandas will return all rows from the DataFrame.
 
         Examples
         --------
@@ -2679,10 +2690,23 @@ class BasePandasDataset:
 
         A random 50% sample of the ``DataFrame``:
 
-        >>> df.sample(frac=0.5)  # doctest: +SKIP
+        >>> df.sample(frac=0.5, replace=True) with replacement # doctest: +SKIP
               num_legs  num_wings  num_specimen_seen
         dog          4          0                  2
         fish         0          0                  8
+
+        An upsample sample of the DataFrame with replacement: Note that replace parameter has to be True for frac parameter > 1.
+
+        >>> df.sample(frac=2, replace=True) # doctest: +SKIP
+                num_legs  num_wings  num_specimen_seen
+        dog            4          0                  2
+        fish           0          0                  8
+        falcon         2          2                 10
+        falcon         2          2                 10
+        fish           0          0                  8
+        dog            4          0                  2
+        fish           0          0                  8
+        dog            4          0                  2
 
         The exact number of specified rows is returned unless the DataFrame contains fewer rows:
 

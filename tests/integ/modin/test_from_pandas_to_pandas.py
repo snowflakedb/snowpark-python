@@ -175,9 +175,9 @@ def test_value_type_mismatch_index_type(name, indices_dict):
 @sql_count_checker(query_count=1)
 def test_basic_type_data():
     check_result_from_and_to_pandas(
-        [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2],
+        # Excluded the first int value since Snowflake may map integers to different size, e.g., int8 or int64
+        [BASIC_TYPE_DATA1[1:], BASIC_TYPE_DATA2[1:]],
         expected_dtypes=[
-            "int64",  # snowflake maps all integer type back to int64
             "object",
             "float64",
             "object",
@@ -195,6 +195,7 @@ def test_base_index():
         [1, 2, 3],
         index=native_pd.Index([8, 9, 9]),
         columns="base-index-homogeneous-type",
+        check_dtype=False,
     )
 
 
@@ -222,13 +223,16 @@ def test_column_name(col_name):
     check_result_from_and_to_pandas(
         [[1, 2], [2, 3]],
         columns=["5", col_name],
+        check_dtype=False,
     )
 
 
 @pytest.mark.parametrize("index_name", VALID_PANDAS_LABELS)
 @sql_count_checker(query_count=1)
 def test_index_name(index_name):
-    check_result_from_and_to_pandas([1, 2], index=pd.RangeIndex(2, name=index_name))
+    check_result_from_and_to_pandas(
+        [1, 2], index=pd.RangeIndex(2, name=index_name), check_dtype=False
+    )
 
 
 @pytest.mark.parametrize("pandas_label", [None, *VALID_PANDAS_LABELS])
@@ -246,7 +250,10 @@ def test_column_index_names(pandas_label):
 @pytest.mark.parametrize("name", [None, *VALID_PANDAS_LABELS])
 @sql_count_checker(query_count=1)
 def test_to_pandas_column_index_names(name):
-    df = pd.DataFrame(data=[[1] * 2, [2] * 2], columns=pd.Index([1, 2], name=name))
+    df = pd.DataFrame(
+        data=[[1] * 2, [2] * 2],
+        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+    )
     assert df.columns.names == [name]
     pdf = df.to_pandas()
     assert pdf.columns.names == [name]
@@ -476,7 +483,7 @@ def test_from_to_pandas_datetime64_multi_timezone_current_behavior(session, time
         session.sql("alter session unset timezone").collect()
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_from_pandas_duplicate_labels():
     # Duplicate data labels
     native_df = native_pd.DataFrame({"a": [1, 2], "b": [3, 4], "c": [5, 6]})
@@ -575,12 +582,12 @@ def test_series_to_pandas():
 def test_single_row_frame_to_series_to_pandas():
     # create a Snowpark pandas with single row
     native_df = native_pd.DataFrame(
-        {"A": [0], "B": [1], "C": [2]}, index=pd.Index(["value"], name="index")
+        {"A": [0], "B": [1], "C": [2]}, index=native_pd.Index(["value"], name="index")
     )
     snow_df = pd.DataFrame(native_df)
     snow_series = pd.Series(query_compiler=snow_df._query_compiler)
     expected_series = native_df.squeeze()
-    assert_series_equal(snow_series.to_pandas(), expected_series, check_dtype=False)
+    assert_series_equal(snow_series, expected_series, check_dtype=False)
 
 
 @sql_count_checker(query_count=3)
@@ -639,4 +646,4 @@ def test_create_df_from_series():
     native_df = native_pd.DataFrame(native_data)
     snow_df = pd.DataFrame(data)
 
-    assert_frame_equal(snow_df, native_df)
+    assert_frame_equal(snow_df, native_df, check_dtype=False)

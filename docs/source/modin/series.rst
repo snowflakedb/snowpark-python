@@ -133,6 +133,7 @@ Series
     Series.mean
     Series.median
     Series.min
+    Series.pct_change
     Series.quantile
     Series.rank
     Series.skew
@@ -150,6 +151,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.case_when
     Series.drop
     Series.drop_duplicates
     Series.get
@@ -194,6 +196,8 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.nlargest
+    Series.nsmallest
     Series.squeeze
 
 .. rubric:: Combining / comparing / joining / merging
@@ -222,5 +226,63 @@ Series
     Series.str
     Series.dt
 
-.. rubric:: :doc:`All supported Series str APIs <supported/series_str_supported>`
-.. rubric:: :doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. Series.str and Series.dt are imported from upstream modin.pandas, so we need to swap
+.. the current module here.
+
+.. currentmodule:: modin.pandas
+
+
+.. rubric:: Datetime accessor properties
+
+:doc:`All supported Series dt APIs <supported/series_dt_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_attribute.rst
+
+    Series.dt.date
+    Series.dt.year
+    Series.dt.month
+    Series.dt.day
+    Series.dt.hour
+    Series.dt.minute
+    Series.dt.second
+    Series.dt.dayofweek
+    Series.dt.day_of_week
+    Series.dt.dayofyear
+    Series.dt.day_of_year
+    Series.dt.quarter
+    Series.dt.isocalendar
+
+
+.. rubric:: String accessor methods
+
+:doc:`All supported Series str APIs <supported/series_str_supported>`
+
+.. autosummary::
+    :toctree: pandas_api/
+    :template: autosummary/modin_accessor_method.rst
+
+    Series.str.capitalize
+    Series.str.casefold
+    Series.str.center
+    Series.str.contains
+    Series.str.count
+    Series.str.endswith
+    Series.str.get
+    Series.str.isdigit
+    Series.str.islower
+    Series.str.istitle
+    Series.str.isupper
+    Series.str.len
+    Series.str.lower
+    Series.str.lstrip
+    Series.str.match
+    Series.str.replace
+    Series.str.rstrip
+    Series.str.slice
+    Series.str.split
+    Series.str.startswith
+    Series.str.strip
+    Series.str.upper

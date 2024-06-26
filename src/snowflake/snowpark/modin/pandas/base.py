@@ -1137,16 +1137,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         new_query_compiler = self._query_compiler.astype(col_dtypes, errors=errors)
         return self._create_or_update_from_compiler(new_query_compiler, not copy)
 
-    @base_not_implemented()
     @property
     def at(self, axis=None):  # noqa: PR01, RT01, D200
         """
         Get a single value for a row/column label pair.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from .indexing import _LocIndexer
+        from .indexing import _AtIndexer
 
-        return _LocIndexer(self)
+        return _AtIndexer(self)
 
     @base_not_implemented()
     def at_time(self, time, asof=False, axis=None):  # noqa: PR01, RT01, D200
@@ -1735,16 +1734,38 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method=method,
         )
 
-    @base_not_implemented()
     def expanding(
         self, min_periods=1, axis=0, method="single"
     ):  # noqa: PR01, RT01, D200
         """
         Provide expanding window calculations.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "expanding",
+        from .window import Expanding
+
+        if axis is not lib.no_default:
+            axis = self._get_axis_number(axis)
+            name = "expanding"
+            if axis == 1:
+                warnings.warn(
+                    f"Support for axis=1 in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + f"Use obj.T.{name}(...) instead",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+            else:
+                warnings.warn(
+                    f"The 'axis' keyword in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + "Call the method without the axis keyword instead.",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+        else:
+            axis = 0
+
+        return Expanding(
+            self,
             min_periods=min_periods,
             axis=axis,
             method=method,
@@ -1948,16 +1969,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         """
         return self.iloc[:n]
 
-    @base_not_implemented()
     @property
     def iat(self, axis=None):  # noqa: PR01, RT01, D200
         """
         Get a single value for a row/column pair by integer position.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from .indexing import _iLocIndexer
+        from .indexing import _iAtIndexer
 
-        return _iLocIndexer(self)
+        return _iAtIndexer(self)
 
     def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
         """
@@ -3115,7 +3135,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             axis=axis,
             level=level,
             ascending=ascending,
-            inplace=inplace,
             kind=kind,
             na_position=na_position,
             sort_remaining=sort_remaining,

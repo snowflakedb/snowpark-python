@@ -44,7 +44,7 @@ def test_series_empty(args, kwargs):
     )
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=7)
 def test_empty_series_type():
     def check_dtype(series):
         assert series.to_pandas().dtype == series.dtype

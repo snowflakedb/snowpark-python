@@ -155,8 +155,8 @@ def create_multiindex() -> pd.MultiIndex:
            names=['first', 'second'])
     """
 
-    major_axis = pd.Index(["foo", "bar", "baz", "qux"])
-    minor_axis = pd.Index(["one", "two"])
+    major_axis = pandas.Index(["foo", "bar", "baz", "qux"])
+    minor_axis = pandas.Index(["one", "two"])
 
     major_codes = np.array([0, 0, 1, 2, 3, 3])
     minor_codes = np.array([0, 1, 0, 1, 0, 1])
@@ -311,8 +311,8 @@ def float_frame() -> pandas.DataFrame:
     """
     return pandas.DataFrame(
         np.random.default_rng(2).standard_normal((30, 4)),
-        index=pd.Index([f"foo_{i}" for i in range(30)], dtype=object),
-        columns=pd.Index(list("ABCD"), dtype=object),
+        index=pandas.Index([f"foo_{i}" for i in range(30)], dtype=object),
+        columns=pandas.Index(list("ABCD"), dtype=object),
     )
 
 
@@ -437,7 +437,7 @@ def loc_snowpark_pandas_input_map():
         "series[bool]_col": (
             pd.Series(
                 [True, True, True, False, False, True, True],
-                index=pandas.Index(["A", "B", "x", "D", "F", "E", "C"]),
+                index=["A", "B", "x", "D", "F", "E", "C"],
             ),
             pandas.Series(
                 [True, True, True, False, False, True, True],
@@ -455,7 +455,7 @@ def loc_snowpark_pandas_input_map():
                     True,
                     True,
                 ],
-                index=pandas.Index([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+                index=[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
             ),
             pandas.Series(
                 [

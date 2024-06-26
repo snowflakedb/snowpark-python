@@ -7,9 +7,12 @@ import math
 import pytest
 
 from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark._internal.type_utils import ColumnOrName
+from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (  # count,; is_null,;
     abs,
     asc,
+    builtin,
     col,
     contains,
     count,
@@ -21,9 +24,10 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     to_char,
     to_date,
 )
+from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 
 
-@pytest.mark.localtest
 def test_col(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -38,7 +42,6 @@ def test_col(session):
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
 
 
-@pytest.mark.localtest
 def test_max(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -59,7 +62,6 @@ def test_max(session):
     assert math.isnan(origin_df.select(max("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
 def test_min(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -81,7 +83,6 @@ def test_min(session):
     assert math.isnan(origin_df.select(min("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
 def test_to_date(session):
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
@@ -94,7 +95,6 @@ def test_to_date(session):
     ]
 
 
-@pytest.mark.localtest
 def test_contains(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -133,7 +133,6 @@ def test_contains(session):
     ]
 
 
-@pytest.mark.localtest
 def test_abs(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -146,7 +145,6 @@ def test_abs(session):
     assert origin_df.select(abs(col("m"))).collect() == [Row(1), Row(1), Row(2)]
 
 
-@pytest.mark.localtest
 def test_asc_and_desc(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -165,7 +163,6 @@ def test_asc_and_desc(session):
     assert origin_df.sort(desc(col("v"))).collect() == expected
 
 
-@pytest.mark.localtest
 def test_count(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -181,7 +178,6 @@ def test_count(session):
     assert origin_df.select(count("v")).collect() == [Row(6)]
 
 
-@pytest.mark.localtest
 def test_is_null(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -202,7 +198,6 @@ def test_is_null(session):
     ]
 
 
-@pytest.mark.localtest
 def test_take_first(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -244,7 +239,6 @@ def test_take_first(session):
     assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
 
 
-@pytest.mark.localtest
 def test_show(session):
     origin_df: DataFrame = session.create_dataframe(
         [
@@ -289,3 +283,47 @@ def test_to_char_is_row_index_agnostic(session):
     assert df.filter(col("a") > 3).select(to_char(col("a")), col("b")).collect() == [
         Row("5", 6)
     ]
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=True)",
+    reason="Only test local testing code in local testing mode.",
+)
+def test_function_mock_and_call_neg(session):
+    def foobar(e: ColumnOrName) -> Column:
+        c = _to_col_if_str(e, "foobar")
+        return builtin("foobar")(c)
+
+    # Patching function that does not exist will fail when called
+    @patch("foobar")
+    def mock_foobar(column: ColumnEmulator):
+        return column
+
+    with pytest.raises(NotImplementedError):
+        df = session.create_dataframe([[1]]).to_df(["a"])
+        df.select(foobar("a")).collect()
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=True)",
+    reason="Only test local testing code in local testing mode.",
+)
+def test_function_register_unregister(session):
+    registry = MockedFunctionRegistry()
+
+    def _abs(x):
+        return math.abs(x)
+
+    # Try register/unregister using actual function
+    assert registry.get_function("abs") is None
+    mocked = registry.register(abs, _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister(abs)
+    assert registry.get_function("abs") is None
+
+    # Try register/unregister using function name
+    assert registry.get_function("abs") is None
+    mocked = registry.register("abs", _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister("abs")
+    assert registry.get_function("abs") is None
