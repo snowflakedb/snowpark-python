@@ -1,5 +1,14 @@
 # Release History
 
+## 1.19.1 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
+  - _execute_and_get_query_id
+
 ## 1.19.0 (TBD)
 
 ### Snowpark Python API Updates
