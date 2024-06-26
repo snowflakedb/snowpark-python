@@ -658,7 +658,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
 
     Parameters
     ----------
-    data : DataFrame
+    data : :class:`~snowflake.snowpark.modin.pandas.DataFrame`
     columns : str or object or a list of str
         Column to use to make new frame’s columns.
     index : str or object or a list of str, optional
@@ -669,7 +669,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
 
     Returns
     -------
-    DataFrame
+    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
     Notes
     -----
