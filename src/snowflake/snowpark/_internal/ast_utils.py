@@ -13,6 +13,11 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.type_utils import (
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    ColumnOrLiteral,
+)
 
 
 def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
@@ -159,7 +164,7 @@ def build_fn_apply(
     for arg in args:
         if isinstance(arg, proto.Expr):
             expr.pos_args.append(arg)
-        elif isinstance(arg, snowflake.snowpark.Column):
+        elif hasattr(arg, "_ast"):
             assert arg._ast, f"Column object {arg} has no _ast member set."
             expr.pos_args.append(arg._ast)
         else:
@@ -239,3 +244,90 @@ def set_src_position(ast: proto.SrcPosition) -> None:
 def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
     if val is not None:
         setattr(obj, attr, val)
+
+
+def _fill_column_ast(ast: proto.Expr, value: ColumnOrLiteral) -> None:
+    """Copy from a Column object's AST, or copy a literal value into an AST expression.
+
+    Args:
+        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        return ast.CopyFrom(value._ast)
+    elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        build_const_from_python_val(value, ast)
+    elif isinstance(value, Expression):
+        pass  # TODO: clean this up
+    else:
+        raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
+
+
+def create_ast_for_column_method(
+    property: Optional[str] = None,
+    assign_fields: Dict[str, Any] = {},  # noqa: B006
+    assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
+    copy_messages: Dict[str, Any] = {},  # noqa: B006
+    fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
+) -> proto.SpColumnExpr:
+    """General purpose function to generate the AST representation for a new Snowpark Column instance
+
+    Args:
+        property (str, optional): The protobuf property name of a subtype of the SpColumnExpr IR entity. Defaults to None.
+        assign_fields (Dict[str, Any], optional): Subtype fields with well known protobuf types that support direct assignment. Defaults to {}.
+        copy_messages (Dict[str, Any], optional): Subtype message fields which must be copied into (do not support assignment). Defaults to {}.
+        fill_expr_asts (Dict[str, ColumnOrLiteral], optional): Subtype Expr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
+
+    Returns:
+        proto.SpColumnExpr: Returns fully populated SpColumnExpr AST from given arguments
+    """
+
+    ast = proto.Expr()
+    if property is not None:
+        prop_ast = getattr(ast, property)
+        for attr, value in assign_fields.items():
+            setattr_if_not_none(prop_ast, attr, value)
+        for attr, value in assign_opt_fields.items():
+            setattr_if_not_none(getattr(prop_ast, attr), "value", value)
+        for attr, msg in copy_messages.items():
+            if msg is not None:
+                getattr(prop_ast, attr).CopyFrom(msg)
+        for attr, other in fill_expr_asts.items():
+            _fill_column_ast(getattr(prop_ast, attr), other)
+    return ast
+
+
+def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
+    # When name2 is None, corresponds to col(col_name: str).
+    # Else, corresponds to col(df_alias: str, col_name: str)
+
+    # Handle special case * (as sql column expr)
+    if name2 == "*":
+        return create_ast_for_column_method(
+            property="sp_column_sql_expr",
+            assign_fields={"sql": "*"},
+            assign_opt_fields={"df_alias": name1},
+        )
+    if name1 == "*" and name2 is None:
+        return create_ast_for_column_method(
+            property="sp_column_sql_expr", assign_fields={"sql": "*"}
+        )
+
+    # Regular, build as function ApplyExpr:
+    kwargs = (
+        {"df_alias": name1, "col_name": name2}
+        if name2 is not None
+        else {"col_name": name1}
+    )
+
+    # To replicate Snowpark behavior (overloads do NOT seem to work at the moment)
+    # - use args.
+    args = tuple(kwargs.values())
+    kwargs = {}
+
+    expr = proto.Expr()
+    build_fn_apply(expr, fn_name, *args, **kwargs)
+    return expr

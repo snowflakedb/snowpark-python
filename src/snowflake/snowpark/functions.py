@@ -182,7 +182,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     LastValue,
     Lead,
 )
-from snowflake.snowpark._internal.ast_utils import build_fn_apply
+from snowflake.snowpark._internal.ast_utils import build_fn_apply, create_ast_for_column
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -253,26 +253,12 @@ def col(df_alias: str, col_name: str) -> Column:
 
 
 def col(name1: str, name2: Optional[str] = None) -> Column:
-    # When name2 is None, corresponds to col(col_name: str).
-    # Else, corresponds to col(df_alias: str, col_name: str)
-    kwargs = (
-        {"df_alias": name1, "col_name": name2}
-        if name2 is not None
-        else {"col_name": name1}
-    )
-
-    # To replicate Snowpark behavior (overloads do NOT seem to work atm)
-    # use args.
-    args = tuple(kwargs.values())
-    kwargs = {}
-
-    expr = proto.Expr()
-    build_fn_apply(expr, "col", *args, **kwargs)
+    ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, ast=expr)
+        return Column(name1, ast=ast)
     else:
-        return Column(name1, name2, ast=expr)
+        return Column(name1, name2, ast=ast)
 
 
 @overload
@@ -300,26 +286,12 @@ def column(df_alias: str, col_name: str) -> Column:
 
 
 def column(name1: str, name2: Optional[str] = None) -> Column:
-    # When name2 is None, corresponds to col(col_name: str).
-    # Else, corresponds to col(df_alias: str, col_name: str)
-    kwargs = (
-        {"df_alias": name1, "col_name": name2}
-        if name2 is not None
-        else {"col_name": name1}
-    )
-
-    # To replicate Snowpark behavior (overloads do NOT seem to work atm)
-    # use args.
-    args = tuple(kwargs.values())
-    kwargs = {}
-
-    expr = proto.Expr()
-    build_fn_apply(expr, "column", *args, **kwargs)
+    ast = create_ast_for_column(name1, name2, "column")
 
     if name2 is None:
-        return Column(name1, ast=expr)
+        return Column(name1, ast=ast)
     else:
-        return Column(name1, name2, ast=expr)
+        return Column(name1, name2, ast=ast)
 
 
 def lit(literal: LiteralType) -> Column:
