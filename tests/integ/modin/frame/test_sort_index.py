@@ -14,8 +14,9 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("na_position", ["first", "last"])
 @pytest.mark.parametrize("ignore_index", [True, False])
+@pytest.mark.parametrize("inplace", [True, False])
 @sql_count_checker(query_count=1)
-def test_sort_index_dataframe(ascending, na_position, ignore_index):
+def test_sort_index_dataframe(ascending, na_position, ignore_index, inplace):
     native_df = native_pd.DataFrame(
         [1, 2, np.nan, 4, 5], index=[np.nan, 29, 234, 1, 150], columns=["A"]
     )
@@ -27,7 +28,9 @@ def test_sort_index_dataframe(ascending, na_position, ignore_index):
             ascending=ascending,
             na_position=na_position,
             ignore_index=ignore_index,
+            inplace=inplace,
         ),
+        inplace=inplace,
     )
 
 
@@ -38,15 +41,6 @@ def test_sort_index_dataframe_axis_1_unsupported():
     )
     with pytest.raises(NotImplementedError):
         snow_df.sort_index(axis=1)
-
-
-@sql_count_checker(query_count=0)
-def test_sort_index_dataframe_inplace_unsupported():
-    snow_df = pd.DataFrame(
-        [1, 2, np.nan, 4, 5], index=[np.nan, 29, 234, 1, 150], columns=["A"]
-    )
-    with pytest.raises(NotImplementedError):
-        snow_df.sort_index(inplace=True)
 
 
 @sql_count_checker(query_count=0)

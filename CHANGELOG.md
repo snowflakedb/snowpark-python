@@ -71,6 +71,7 @@
 - Added support for `Series.case_when` except when condition or replacement is callable.
 - Added documentation pages for `Index` and its APIs.
 - Added support for `DataFrame.assign`.
+- Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 
 #### Bug Fixes
@@ -92,6 +93,7 @@
 - Added support for `Index.copy()`
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
+- Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 
 ## 1.18.0 (2024-05-28)
 
