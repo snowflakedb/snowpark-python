@@ -2503,7 +2503,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             na_position: Puts NaNs at the beginning if 'first'; 'last' puts NaNs at the end. Defaults to 'last'
             ignore_index: If True, existing index is ignored and new index is generated which is a gap free
                 sequence from 0 to n-1. Defaults to False.
-            key: Apply the key function to the values before sorting. Fallback to native pandas if key is provided.
+            key: Apply the key function to the values before sorting.
 
         Returns:
             A new SnowflakeQueryCompiler instance after applying the sort.
@@ -14815,3 +14815,71 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     }
                 ).frame
             )
+
+    def stack(
+        self,
+        level: Union[int, str, list] = -1,
+        dropna: bool = True,
+        sort: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Stack the prescribed level(s) from columns to index.
+
+        Return a reshaped DataFrame or Series having a multi-level index with one
+        or more new inner-most levels compared to the current DataFrame. The new inner-most
+        levels are created by pivoting the columns of the current dataframe:
+            - if the columns have a single level, the output is a Series.
+            - if the columns have multiple levels, the new index level(s) is (are)
+              taken from the prescribed level(s) and the output is a DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) to stack from the column axis onto the index axis,
+            defined as one index or label, or a list of indices or labels.
+
+        dropna : bool, default True
+            Whether to drop rows in the resulting Frame/Series with missing values. Stacking a
+            column level onto the index axis can create combinations of index and column values
+            that are missing from the original dataframe.
+
+        sort : bool, default True
+            Whether to sort the levels of the resulting MultiIndex.
+        """
+        if level != -1:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas doesn't yet support 'level != -1' in stack API",
+            )
+        if self._modin_frame.is_multiindex(axis=1):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas doesn't support multiindex columns in stack API"
+            )
+
+        index_names = ["index"]
+        # Stack is equivalent to doing df.melt() with index reset, sorting the values, then setting the index
+        # Note that we always use sort_rows_by_column_values even if sort is False
+        qc = (
+            self.reset_index()
+            .melt(
+                id_vars=index_names,
+                value_vars=self.columns,
+                var_name="index_second_level",
+                value_name=MODIN_UNNAMED_SERIES_LABEL,
+                ignore_index=False,
+            )
+            .sort_rows_by_column_values(
+                columns=index_names,  # type: ignore
+                ascending=[True],
+                kind="stable",
+                na_position="last",
+                ignore_index=False,
+            )
+            .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
+            .set_index_from_columns(index_names + ["index_second_level"])  # type: ignore
+            .set_index_names([None, None])
+        )
+
+        if dropna:
+            return qc.dropna(axis=0, how="any", thresh=None)
+        else:
+            return qc
