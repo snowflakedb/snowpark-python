@@ -514,10 +514,40 @@ def test_session_builder_app_name_no_existing_query_tag():
         assert builder.app_name(app_name) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == f"APPNAME={app_name}"
+        assert created_session.query_tag == f'{{"APPNAME": "{app_name}"}}'
 
 
-def test_session_builder_app_name_existing_query_tag():
+def test_session_builder_app_name_existing_valid_query_tag():
+    mocked_session = Session(
+        ServerConnection(
+            {"": ""},
+            mock.Mock(
+                spec=SnowflakeConnection,
+                _telemetry=mock.Mock(),
+                _session_parameters=mock.Mock(),
+                is_closed=mock.Mock(return_value=False),
+                expired=False,
+            ),
+        ),
+    )
+
+    existing_query_tag = '{"key1": "value1"}'
+
+    mocked_session._get_remote_query_tag = MagicMock(return_value=existing_query_tag)
+
+    builder = Session.builder
+
+    with mock.patch.object(
+        builder, "_create_internal", return_value=mocked_session
+    ) as m:
+        app_name = "my_app_name"
+        assert builder.app_name(app_name) is builder
+        created_session = builder.getOrCreate()
+        m.assert_called_once()
+        assert created_session.query_tag == '{"key1": "value1", "APPNAME": "my_app_name"}'
+
+
+def test_session_builder_app_name_existing_invalid_query_tag():
     mocked_session = Session(
         ServerConnection(
             {"": ""},
@@ -539,9 +569,10 @@ def test_session_builder_app_name_existing_query_tag():
 
     with mock.patch.object(
         builder, "_create_internal", return_value=mocked_session
-    ) as m:
+    ), pytest.raises(
+        ValueError, match="Expected query tag to be valid json. Current query tag: tag",
+    ):
         app_name = "my_app_name"
         assert builder.app_name(app_name) is builder
-        created_session = builder.getOrCreate()
-        m.assert_called_once()
-        assert created_session.query_tag == f"tag,APPNAME={app_name}"
+        builder.getOrCreate()
+

@@ -17,6 +17,9 @@
 
 - Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
+#### Behavior Changes
+- When a new session is created, the `Session.SessionBuilder.app_name` will be set in the `Session.query_tag` in JSON format, instead of the key=value format used in previous versions.
+
 ### Snowpark pandas API Updates
 
 #### New Features
