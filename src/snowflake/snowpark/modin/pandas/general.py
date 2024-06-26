@@ -670,11 +670,10 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     Returns
     -------
     DataFrame
-        Returns reshaped DataFrame.
 
     Notes
     -----
-    Calls pivot_table with `columns`, `values`, index` and aggregation `min`.
+    Calls pivot_table with columns, values, index and aggregation "min".
 
     See Also
     --------

@@ -1821,7 +1821,7 @@ class DataFrame(BasePandasDataset):
         values: Any | NoDefault = no_default,
     ):
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         if index is no_default:
