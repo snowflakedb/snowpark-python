@@ -6810,6 +6810,47 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO SNOW-864083: look into why len(self.index) == 1 is also considered as series-like
         return self.get_axis_len(axis=1) == 1 or self.get_axis_len(axis=0) == 1
 
+    def pivot(
+        self,
+        columns: Any,
+        index: Optional[Any] = None,
+        values: Optional[Any] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a “pivot” table) based on column values. Uses unique values from
+        specified index / columns to form axes of the resulting DataFrame. This function does not
+        support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+        Parameters
+        ----------
+        columns : str or object or a list of str
+            Column to use to make new frame’s columns.
+        index : str or object or a list of str, optional
+            Column to use to make new frame’s index. If not given, uses existing index.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+            will be used and the result will have hierarchically indexed columns.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+        """
+        # Call pivot_table which is a more generalized version of pivot with `min` aggregation
+        return self.pivot_table(
+            columns=columns,
+            index=index,
+            values=values,
+            aggfunc="min",
+            fill_value=None,
+            margins=False,
+            dropna=True,
+            margins_name="All",
+            observed=False,
+            sort=True,
+        )
+
     def pivot_table(
         self,
         index: Any,

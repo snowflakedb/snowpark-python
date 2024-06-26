@@ -183,6 +183,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.pivot
     DataFrame.pivot_table
     DataFrame.sort_values
     DataFrame.sort_index
