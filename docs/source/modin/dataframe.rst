@@ -183,14 +183,15 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
-    DataFrame.pivot
-    DataFrame.pivot_table
-    DataFrame.sort_values
-    DataFrame.sort_index
+    DataFrame.melt
     DataFrame.nlargest
     DataFrame.nsmallest
-    DataFrame.melt
+    DataFrame.pivot
+    DataFrame.pivot_table
+    DataFrame.sort_index
+    DataFrame.sort_values
     DataFrame.squeeze
+    DataFrame.stack
     DataFrame.T
     DataFrame.transpose
 
