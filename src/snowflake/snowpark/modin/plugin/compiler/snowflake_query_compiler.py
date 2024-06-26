@@ -2389,7 +2389,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         level: list[Union[str, int]],
         ascending: Union[bool, list[bool]],
-        inplace: bool,
         kind: SortKind,
         na_position: NaPosition,
         sort_remaining: bool,
@@ -2404,7 +2403,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             level: If not None, sort on values in specified index level(s).
             ascending: A list of bools to represent ascending vs descending sort. Defaults to True.
                 When the index is a MultiIndex the sort direction can be controlled for each level individually.
-            inplace: Whether to modify the DataFrame rather than creating a new one.
             kind: Choice of sorting algorithm. Perform stable sort if 'stable'. Defaults to unstable sort.
                 Snowpark pandas ignores choice of sorting algorithm except 'stable'.
             na_position: Puts NaNs at the beginning if 'first'; 'last' puts NaNs at the end. Defaults to 'last'
@@ -2444,10 +2442,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if axis in (1, "index"):
             ErrorMessage.not_implemented(
                 "sort_index is not supported yet on axis=1 in Snowpark pandas."
-            )
-        if inplace:
-            ErrorMessage.not_implemented(
-                "sort_index is not supported yet with inplace=True in Snowpark pandas."
             )
         if key:
             ErrorMessage.not_implemented(
