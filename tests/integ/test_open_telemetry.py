@@ -12,7 +12,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-
 import snowflake
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc, udaf, udf, udtf
@@ -68,6 +67,11 @@ def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
         span.attributes["method.chain"]
         == "DataFrame.to_df()._execute_and_get_query_id()"
     )
+    assert "test_open_telemetry.py" in span.attributes["code.filepath"]
+    assert span.attributes["code.lineno"] == lineno
+    print(span.attributes)
+
+
 def test_catch_error_during_action_function(session, dict_exporter):
     df = session.sql("select 1/0")
     with pytest.raises(SnowparkSQLException, match="Division by zero"):
