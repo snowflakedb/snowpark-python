@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterator, Literal
+from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
@@ -31,18 +31,16 @@ from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 
+from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    SnowflakeQueryCompiler,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-
-if TYPE_CHECKING:
-    from snowflake.snowpark.modin.pandas import DataFrame, Series
-    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-        SnowflakeQueryCompiler,
-    )
 
 
 class Index:
@@ -123,11 +121,6 @@ class Index:
         """
         Helper method to find and save query compiler when index should be lazy
         """
-        from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-            SnowflakeQueryCompiler,
-        )
-
         if isinstance(data, SnowflakeQueryCompiler):
             qc = data
         else:
@@ -153,10 +146,6 @@ class Index:
         """
         Helper method to create and save local index when index should not be lazy
         """
-        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-            SnowflakeQueryCompiler,
-        )
-
         if isinstance(data, SnowflakeQueryCompiler):
             index = data._modin_frame.index_columns_pandas_index
         else:
@@ -214,14 +203,10 @@ class Index:
                 # For methods that return a series, convert this series to snowpark pandas
                 # an example is to_series
                 elif isinstance(returned_value, native_pd.Series):
-                    from snowflake.snowpark.modin.pandas import Series
-
                     returned_value = Series(returned_value)
 
                 # for methods that return a dataframe, convert this dataframe to snowpark pandas
                 elif isinstance(returned_value, native_pd.DataFrame):
-                    from snowflake.snowpark.modin.pandas import DataFrame
-
                     returned_value = DataFrame(returned_value)
 
                 return returned_value
@@ -1544,8 +1529,6 @@ class Index:
         Index.to_frame : Convert an Index to a DataFrame.
         Series.to_frame : Convert Series to DataFrame.
         """
-        from snowflake.snowpark.modin.pandas import Series
-
         # get the index name if the name is not given
         if name is None:
             name = self.name
@@ -1587,8 +1570,6 @@ class Index:
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
         """
-        from snowflake.snowpark.modin.pandas import DataFrame
-
         # Do a reset index to convert the index column to a data column,
         # the index column becomes the pandas default index of row position
         # Example:
