@@ -43,10 +43,66 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
+def is_lazy_check(func: Callable) -> Callable:
+    """
+    Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
+    """
+
+    def check_lazy(*args: Any, **kwargs: Any) -> Any:
+        func_name = func.__name__
+
+        # If the index is lazy, call the method and return
+        if args[0].is_lazy:
+            returned_value = func(*args, **kwargs)
+            return returned_value
+        else:
+            # If the index is not lazy, get the cached native index and call the function
+            native_index = args[0]._index
+            native_func = getattr(native_index, func_name)
+
+            # If the function is a property, we will get a non-callable, so we just return it
+            # Examples of this are values or dtype
+            if not callable(native_func):
+                return native_func
+
+            # Remove the first argument in args, because it is `self` and we don't need it
+            args = args[1:]
+            args = tuple(try_convert_index_to_native(a) for a in args)
+            for k, v in kwargs.items():
+                kwargs[k] = try_convert_index_to_native(v)
+            returned_value = native_func(*args, **kwargs)
+
+            # If we return a native Index, we need to convert this to a modin index but keep it locally.
+            # Examples of this are `astype` and `copy`
+            if isinstance(returned_value, native_pd.Index):
+                returned_value = Index(returned_value, convert_to_lazy=False)
+            # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
+            # Examples of this are `_get_indexer_strict` and `sort_values`
+            elif isinstance(returned_value, tuple) and isinstance(
+                returned_value[0], native_pd.Index
+            ):
+                returned_value = (
+                    Index(returned_value[0], convert_to_lazy=False),
+                    returned_value[1],
+                )
+            # For methods that return a series, convert this series to snowpark pandas
+            # an example is to_series
+            elif isinstance(returned_value, native_pd.Series):
+                returned_value = Series(returned_value)
+
+            # for methods that return a dataframe, convert this dataframe to snowpark pandas
+            elif isinstance(returned_value, native_pd.DataFrame):
+                returned_value = DataFrame(returned_value)
+
+            return returned_value
+
+    return check_lazy
+
+
 class Index:
     def __init__(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler = None,
+        data: ArrayLike | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -112,7 +168,7 @@ class Index:
 
     def set_query_compiler(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler = None,
+        data: ArrayLike | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -137,7 +193,7 @@ class Index:
 
     def set_local_index(
         self,
-        data: ArrayLike | SnowflakeQueryCompiler = None,
+        data: ArrayLike | SnowflakeQueryCompiler | None = None,
         dtype: str | np.dtype | ExtensionDtype | None = None,
         copy: bool = False,
         name: object = None,
@@ -157,61 +213,6 @@ class Index:
                 tupleize_cols=tupleize_cols,
             )
         self._index = index
-
-    def is_lazy_check(func: Any) -> Any:
-        """
-        Decorator method for separating function calls for lazy indexes and non-lazy (column) indexes
-        """
-
-        def check_lazy(*args: Any, **kwargs: Any) -> Any:
-            func_name = func.__name__
-
-            # If the index is lazy, call the method and return
-            if args[0].is_lazy:
-                returned_value = func(*args, **kwargs)
-                return returned_value
-            else:
-                # If the index is not lazy, get the cached native index and call the function
-                native_index = args[0]._index
-                native_func = getattr(native_index, func_name)
-
-                # If the function is a property, we will get a non-callable, so we just return it
-                # Examples of this are values or dtype
-                if not callable(native_func):
-                    return native_func
-
-                # Remove the first argument in args, because it is `self` and we don't need it
-                args = args[1:]
-                args = tuple(try_convert_index_to_native(a) for a in args)
-                for k, v in kwargs.items():
-                    kwargs[k] = try_convert_index_to_native(v)
-                returned_value = native_func(*args, **kwargs)
-
-                # If we return a native Index, we need to convert this to a modin index but keep it locally.
-                # Examples of this are `astype` and `copy`
-                if isinstance(returned_value, native_pd.Index):
-                    returned_value = Index(returned_value, convert_to_lazy=False)
-                # Some methods also return a tuple with a pandas Index, so convert the tuple's first item to a modin Index
-                # Examples of this are `_get_indexer_strict` and `sort_values`
-                elif isinstance(returned_value, tuple) and isinstance(
-                    returned_value[0], native_pd.Index
-                ):
-                    returned_value = (
-                        Index(returned_value[0], convert_to_lazy=False),
-                        returned_value[1],
-                    )
-                # For methods that return a series, convert this series to snowpark pandas
-                # an example is to_series
-                elif isinstance(returned_value, native_pd.Series):
-                    returned_value = Series(returned_value)
-
-                # for methods that return a dataframe, convert this dataframe to snowpark pandas
-                elif isinstance(returned_value, native_pd.DataFrame):
-                    returned_value = DataFrame(returned_value)
-
-                return returned_value
-
-        return check_lazy
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -933,7 +934,7 @@ class Index:
         # TODO: SNOW-1458147 implement drop_duplicates
 
     @is_lazy_check
-    def duplicated(self, keep: Literal["first", "last", False] = "first") -> Any:
+    def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
         Indicate duplicate index values.
 
@@ -2271,7 +2272,7 @@ class Index:
         raise TypeError("Index does not support mutable operations")
 
     @property
-    def str(self) -> str:
+    def str(self) -> native_pd.core.strings.accessor.StringMethods:
         """
         Vectorized string functions for Series and Index.
 
