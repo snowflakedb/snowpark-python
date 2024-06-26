@@ -6838,6 +6838,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
         """
         # Call pivot_table which is a more generalized version of pivot with `min` aggregation
+        # Note we differ from pandas by not checking for duplicates and raising a ValueError as that would require an eager query
         return self.pivot_table(
             columns=columns,
             index=index,
