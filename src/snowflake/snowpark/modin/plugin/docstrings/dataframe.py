@@ -2203,7 +2203,7 @@ class DataFrame:
 
         Returns
         -------
-        DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         Notes
         -----
