@@ -356,6 +356,19 @@ class Session:
         def app_name(self, app_name: str) -> "Session.SessionBuilder":
             """
             Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
+
+            Note:
+                Since version ``1.19.1``, the app name is set to the query tag in JSON format. For example:
+
+                >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                {"APPNAME": "my_app"}
+
+                In previous versions it is set using a key=value format. For example:
+
+                >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                APPNAME=my_app
             """
             self._app_name = app_name
             return self
@@ -392,8 +405,8 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f"APPNAME={self._app_name}"
-                session.append_query_tag(app_name_tag)
+                app_name_tag = {"APPNAME": self._app_name}
+                session.update_query_tag(app_name_tag)
 
             return session
 

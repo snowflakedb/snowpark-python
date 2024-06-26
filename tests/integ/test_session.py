@@ -378,7 +378,7 @@ def test_create_session_from_connection_with_noise_parameters(
 def test_session_builder_app_name(session, db_parameters):
     builder = session.builder
     app_name = "my_app"
-    expected_query_tag = f"APPNAME={app_name}"
+    expected_query_tag = f'{{"APPNAME": "{app_name}"}}'
     same_session = builder.app_name(app_name).getOrCreate()
     new_session = builder.app_name(app_name).configs(db_parameters).create()
     try:
