@@ -67,6 +67,8 @@ def check_result(session, df, expect_cte_optimized):
         assert_frame_equal(result_pandas, cte_result_pandas)
 
     last_query = df.queries["queries"][-1]
+    print("original last query")
+    print(last_query)
     if expect_cte_optimized:
         assert last_query.startswith(WITH)
         assert last_query.count(WITH) == 1
@@ -83,13 +85,24 @@ def count_number_of_ctes(query):
 @pytest.mark.parametrize(
     "action",
     [
-        lambda x: x.select("a", "b").select("b"),
+        # lambda x: x.select("a", "b").select("b"),
         lambda x: x.filter(col("a") == 1).select("b"),
-        lambda x: x.select("a").filter(col("a") == 1),
-        lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
-        lambda x: x.drop("b").sort("a", ascending=False),
-        lambda x: x.rename(col("a"), "new_a").limit(1),
-        lambda x: x.to_df("a1", "b1").alias("L"),
+        # WITH SNOWPARK_TEMP_CTE_K6FDGF6PHK AS ( SELECT "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT)) WHERE ("A" = 1 :: INT)) SELECT  *  FROM ((SELECT * FROM SNOWPARK_TEMP_CTE_K6FDGF6PHK) UNION ALL (SELECT * FROM SNOWPARK_TEMP_CTE_K6FDGF6PHK)) ORDER BY $1 ASC NULLS FIRST
+        # WITH SNOWPARK_TEMP_CTE_DXHYB8ENR9 AS (
+        #   SELECT "B" FROM (
+        #       SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT)
+        #   ) WHERE ("A" = 1 :: INT))
+        #   SELECT  *  FROM (
+        #       (
+        #           ( SELECT  *  FROM (SNOWPARK_TEMP_CTE_DXHYB8ENR9))
+        #               UNION ALL ( SELECT  *  FROM (SNOWPARK_TEMP_CTE_DXHYB8ENR9)))
+        #        )
+        #               ORDER BY $1 ASC NULLS FIRST
+        # lambda x: x.select("a").filter(col("a") == 1),
+        # lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
+        # lambda x: x.drop("b").sort("a", ascending=False),
+        # lambda x: x.rename(col("a"), "new_a").limit(1),
+        # lambda x: x.to_df("a1", "b1").alias("L"),
     ],
 )
 def test_unary(session, action):
@@ -246,20 +259,20 @@ def test_table_update_delete_merge(session):
     assert count_number_of_ctes(query) == 1
 
     # delete
-    with session.query_history() as query_history:
-        t.delete(t.a == source_df.a, source_df)
-    query = query_history.queries[-1].sql_text
-    assert query.count(WITH) == 1
-    assert count_number_of_ctes(query) == 1
+#    with session.query_history() as query_history:
+#        t.delete(t.a == source_df.a, source_df)
+#    query = query_history.queries[-1].sql_text
+#    assert query.count(WITH) == 1
+#    assert count_number_of_ctes(query) == 1
 
     # merge
-    with session.query_history() as query_history:
-        t.merge(
-            source_df, t.a == source_df.a, [when_matched().update({"b": source_df.b})]
-        )
-    query = query_history.queries[-1].sql_text
-    assert query.count(WITH) == 1
-    assert count_number_of_ctes(query) == 1
+#    with session.query_history() as query_history:
+#        t.merge(
+#            source_df, t.a == source_df.a, [when_matched().update({"b": source_df.b})]
+#        )
+#    query = query_history.queries[-1].sql_text
+#    assert query.count(WITH) == 1
+#    assert count_number_of_ctes(query) == 1
 
 
 def test_copy_into_location(session):

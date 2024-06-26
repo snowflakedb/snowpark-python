@@ -984,6 +984,7 @@ class Analyzer:
                 ],
                 logical_plan.comment,
                 resolved_children[logical_plan.children[0]],
+                logical_plan,
             )
 
         if isinstance(logical_plan, Limit):
@@ -1112,6 +1113,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 is_temp,
                 logical_plan.comment,
+                logical_plan
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
@@ -1121,6 +1123,7 @@ class Analyzer:
                 logical_plan.lag,
                 logical_plan.comment,
                 resolved_children[logical_plan.child],
+                logical_plan
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
@@ -1166,6 +1169,7 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
+                source_plan = logical_plan,
                 **logical_plan.copy_options,
             )
 
