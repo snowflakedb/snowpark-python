@@ -8,9 +8,14 @@ import itertools
 import json
 import sys
 import uuid
-from typing import Any, Sequence, Tuple
+from decimal import Decimal
+from inspect import signature
+from typing import Any, Callable, Sequence, Tuple
 
 from google.protobuf.json_format import ParseDict
+from numpy import datetime64, float64, int32, int64
+from pandas import Timestamp
+from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector.arrow_context import ArrowConverterContext
@@ -26,6 +31,60 @@ def expr_to_dataframe_expr(expr):
     variant = expr.WhichOneof("variant")
     getattr(dfe, variant).CopyFrom(getattr(expr, variant))
     return dfe
+
+
+# Map from python type to its corresponding IR entity. The entities below all have the 'v' attribute.
+TYPE_TO_IR_TYPE_NAME = {
+    bytes: "binary_val",
+    bool: "bool_val",
+    datetime64: "date_val",
+    Decimal: "big_decimal_val",
+    float64: "float_64_val",
+    int32: "int_32_val",
+    int64: "int_64_val",
+    str: "string_val",
+    Timestamp: "timestamp_val",
+}
+
+
+def ast_expr_from_python_val(expr, val):
+    """
+    Converts a Python value to an IR expression.
+    This IR expression is set to an attribute of `expr`.
+
+    Parameters
+    ----------
+    expr : IR entity protobuf builder
+    val : Python value that needs to be converted to IR expression.
+    """
+    if val is None:
+        expr.none_val = val
+    val_type = type(val)
+    if val_type not in TYPE_TO_IR_TYPE_NAME:
+        # Modin is imported here to prevent circular import issues.
+        from snowflake.snowpark.modin.pandas import DataFrame, Series
+
+        if isinstance(val, Callable):
+            for item in signature(val).parameters:
+                item_expr = expr.fn_val.params.add()
+                item_expr.v = item
+            expr.fn_val.body = val
+        if isinstance(val, slice):
+            expr.slice_val.start.v = val.start
+            expr.slice_val.stop.v = val.stop
+            expr.slice_val.step.v = val.step
+        elif not isinstance(val, Series) and is_list_like(val):
+            # Checking that val is not a Series since Series objects are considered list-like.
+            for item in val:
+                item_expr = expr.list_val.add()
+                item_expr.v = item
+        elif isinstance(val, Series):
+            expr.series_val.ref = val
+        elif isinstance(val, DataFrame):
+            expr.series_val.ref = val
+    else:
+        ir_type_name = TYPE_TO_IR_TYPE_NAME[val_type]
+        setattr(getattr(expr, ir_type_name), "v", val)  # noqa: B010
 
 
 def check_response(response: Any) -> None:

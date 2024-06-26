@@ -250,11 +250,11 @@ def col(df_alias: str, col_name: str) -> Column:
     ...  # pragma: no cover
 
 
-def col(name1: str, name2: Optional[str] = None) -> Column:
+def col(name1: str, name2: Optional[str] = None, ast=None) -> Column:
     if name2 is None:
-        return Column(name1)
+        return Column(name1, ast=ast)
     else:
-        return Column(name1, name2)
+        return Column(name1, name2, ast=ast)
 
 
 @overload

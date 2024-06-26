@@ -90,8 +90,8 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    set_src_position,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages

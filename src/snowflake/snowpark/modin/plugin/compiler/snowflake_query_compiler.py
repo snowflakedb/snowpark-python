@@ -59,6 +59,7 @@ from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
@@ -1250,7 +1251,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO SNOW-837664: add more tests for df.columns
         return self._modin_frame.data_columns_index
 
-    def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
+    def set_columns(
+        self,
+        new_pandas_labels: Axes,
+        ast_stmt: Optional[proto.Expr] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Set pandas column labels with the new column labels
 
@@ -1288,7 +1293,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         renamed_frame = self._modin_frame.rename_snowflake_identifiers(
-            renamed_quoted_identifier_mapping
+            renamed_quoted_identifier_mapping,
+            ast_stmt=ast_stmt,
         )
 
         new_internal_frame = InternalFrame.create(
