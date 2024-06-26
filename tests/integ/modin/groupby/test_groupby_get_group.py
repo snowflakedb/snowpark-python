@@ -23,7 +23,6 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         "col8_bool_missing",
         "col9_int_missing",
         "col10_mixed_missing",
-        ["col1_grp"],
         ["col1_grp", "col2_int64"],
         ["col6_mixed", "col7_bool", "col3_int_identical"],
     ],
@@ -70,26 +69,35 @@ def test_groupby_get_group(by):
     )
     snowpark_pandas_df = pd.DataFrame(pandas_df)
     name = pandas_df[by if not isinstance(by, list) else by[0]].iloc[0]
-    if isinstance(by, list) and len(by) > 1:
-        with SqlCounter(query_count=0):
-            with pytest.raises(
-                NotImplementedError,
-                match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
-            ):
-                snowpark_pandas_df.groupby(by).get_group(name)
-    else:
-        with SqlCounter(query_count=1):
-            eval_snowpark_pandas_result(
-                snowpark_pandas_df,
-                pandas_df,
-                lambda df: df.groupby(by).get_group(name),
-            )
-        # DataFrame with __getitem__
+
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snowpark_pandas_df,
+            pandas_df,
+            lambda df: df.groupby(by).get_group(name),
+        )
+    # DataFrame with __getitem__
+    with pytest.raises(
+        NotImplementedError,
+        match="get_group is not yet implemented for SeriesGroupBy",
+    ):
+        snowpark_pandas_df.groupby(by)["col5_int16"].get_group(name)
+
+
+@sql_count_checker(query_count=0)
+def test_groupby_get_group_with_list():
+    snowpark_pandas_df = pd.DataFrame({"a": [1, 2, 3], "b": [1, 2, 3], "c": [1, 2, 3]})
+    by = ["a", "b"]
+    name = 1
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas SeriesGroupBy.get_group does not yet support Series.",
+    ):
         with pytest.raises(
             NotImplementedError,
-            match="get_group is not yet implemented for SeriesGroupBy",
+            match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
         ):
-            snowpark_pandas_df.groupby(by)["col5_int16"].get_group(name)
+            snowpark_pandas_df.groupby(by).get_group(name)
 
 
 @sql_count_checker(query_count=0)
