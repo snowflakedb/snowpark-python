@@ -161,6 +161,7 @@ def plot(
 
 
 @register_series_accessor("transform")
+@snowpark_pandas_telemetry_method_decorator
 @series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
