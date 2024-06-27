@@ -224,4 +224,68 @@ df108 = df.select(reverse("A"))
 
 df109 = df.select(soundex("A"))
 
+df110 = df.select(trim("A"), trim("A", None), trim(col("A"), "B"), trim(col("A"), lit("B")))
+
+df111 = df = df.select(upper("A"))
+
+df112 = df.select(strtok_to_array("A"), strtok_to_array(col("A"), None), strtok_to_array(col("A"), col("B")), strtok_to_array("A", "B"))
+
+df113 = df.select(struct("A", col("A"), col("B")))
+
+df114 = df.select(log("A", 10), log(col("B"), 4.3), log("A", "B"))
+
+df115 = df.select(pow("A", 10), pow(col("B"), 4.3), pow("A", "B"))
+
+df116 = df.select(round("A"), round("A", 0), round(col("B"), 4.7))
+
+df117 = df.select(sign("A"))
+
+df118 = df.select(split("A", "B"), split(col("A"), lit("asfdg")))
+
+df119 = df.select(substring("A", col("A"), col("A")), substring(col("A"), 0, 10), substring(col("A"), 20, col("B")))
+
+df120 = df.select(substring_index("A", "abc", 3), substring_index(col("A"), col("B"), 2))
+
+df121 = df.select(regexp_count("A", "B", col("A")), regexp_count(col("A"), col("B"), col("C"), 1, 2, "test"))
+
+df122 = df.select(regexp_extract("A", "B", 2))
+
+df123 = df.select(regexp_replace("A", "B", "", 1, 0), regexp_replace(col("A"), col("B"), col("C"), col("D"), col("E"), col("F"), 1, "sgh", 99.9))
+
+df124 = df.select(replace(col("A"), "", ""), replace("A", "B", "ahsgj"))
+
+df125 = df.select(charindex(col("A"), col("B")), charindex("A", "B", None), charindex("A", "B", 20), charindex("A", "B", col("C")))
+
+df126 = df.select(collate(col("A"), "sp-upper"))
+
+df127 = df.select(collation("A"))
+
+df128 = df.select(concat("A", col("B"), "A"), concat())
+
+df129 = df.select(concat_ws("A", col("B"), "A"))
+
+df130 = df.select(translate("A", "B", "B"), translate(col("A"), col("B"), lit("ashg")))
+
+df131 = df.select(contains("A", "B"))
+
+df132 = df.select(startswith("A", "B"))
+
+df133 = df.select(endswith("A", "B"))
+
+df134 = df.select(insert(col("A"), col("B"), col("C"), "D"), insert("A", 12, 13, col("D")))
+
+df135 = df.select(left("A", col("B")), left(col("A"), 10))
+
+df136 = df.select(right("A", col("B")), right(col("A"), 10))
+
+df137 = df.select(char("A"))
+
+df138 = df.select(to_char("A"), to_char(col("B"), None), to_char("A", "bcd"))
+
+df139 = df.select(date_format(col("A"), col("B")), date_format("A", "YYYY"))
+
+df140 = df.select(to_time("A"), to_time("A", "YYYY"), to_time(col("A"), col("B")))
+
+df141 = df.select(to_timestamp("A"), to_timestamp("C", None), to_timestamp(col("A"), col("B")))
+
 ## EXPECTED OUTPUT
