@@ -89,13 +89,9 @@ def test_groupby_get_group_with_list():
     name = 1
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas SeriesGroupBy.get_group does not yet support Series.",
+        match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
     ):
-        with pytest.raises(
-            NotImplementedError,
-            match="Snowpark pandas GroupBy.get_group does not yet support multiple by columns.",
-        ):
-            snowpark_pandas_df.groupby(by).get_group(name)
+        snowpark_pandas_df.groupby(by).get_group(name)
 
 
 @sql_count_checker(query_count=0)
