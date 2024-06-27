@@ -12,6 +12,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=1)
 def test_title():
     s = pd.Series(["FOO", "BAR", "Blah", "blurg"], dtype=object)
