@@ -396,6 +396,19 @@ class SelectableEntity(Selectable):
         super().__init__(analyzer)
         self.entity_name = entity_name
 
+    def __deepcopy__(self, memodict={}):
+        new_plan = SelectableEntity(
+            entity_name=self.entity_name,
+            analyzer=self.analyzer
+        )
+        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
+        new_plan.expr_to_alias = deepcopy(self.expr_to_alias)
+        new_plan.pre_actions = deepcopy(self.pre_actions)
+        new_plan.post_actions = deepcopy(self.post_actions)
+        new_plan._api_calls = deepcopy(self._api_calls)
+
+        return new_plan
+
     @property
     def sql_query(self) -> str:
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
@@ -654,9 +667,9 @@ class SelectStatement(Selectable):
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
-        new._projection_in_str = None
-        new._schema_query = None
-        new._column_states = None
+        new._projection_in_str = copy(self._projection_in_str)
+        # new._schema_query = None
+        new._column_states = deepcopy(self._column_states)
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         new._api_calls = deepcopy(self._api_calls) if self._api_calls is not None else None
