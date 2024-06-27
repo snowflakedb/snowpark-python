@@ -169,6 +169,7 @@ import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
+    Expression,
     FunctionExpression,
     ListAgg,
     Literal,
@@ -186,6 +187,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_fn_apply,
     create_ast_for_column,
     create_ast_for_column_method,
+    snowpark_expression_to_ast,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -739,9 +741,14 @@ def count_distinct(*cols: ColumnOrName) -> Column:
         <BLANKLINE>
         >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
     """
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "count_distinct", *cols)
+
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        FunctionExpression("count", [c._expression for c in cs], is_distinct=True)
+        FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
+        ast=ast,
     )
 
 
@@ -8199,7 +8206,17 @@ def _call_function(
 
     args_list = parse_positional_args_to_list(*args)
     ast = proto.Expr()
-    build_fn_apply(ast, name, *tuple(args_list))
+
+    # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
+    #       Python objects are passed.
+    build_fn_apply(
+        ast,
+        name,
+        *tuple(
+            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+            for arg in args_list
+        ),
+    )
 
     expressions = [Column._to_expr(arg) for arg in args_list]
     return Column(

@@ -13,7 +13,12 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.snowpark._internal.analyzer.expression import Expression
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    Literal,
+    UnresolvedAttribute,
+)
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -331,3 +336,33 @@ def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
     expr = proto.Expr()
     build_fn_apply(expr, fn_name, *args, **kwargs)
     return expr
+
+
+def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
+    """
+    Converts Snowpark expression expr to protobuf ast.
+    Args:
+        expr: A Snowpark expression (or instance of a derived class from Expression).
+
+    Returns:
+        protobuf expression.
+    """
+    if hasattr(expr, "_ast"):
+        return expr._ast
+
+    if isinstance(expr, Attribute):
+        return create_ast_for_column(expr.name, None)
+    elif isinstance(expr, Literal):
+        ast = proto.Expr()
+        build_const_from_python_val(expr.value, ast)
+        return ast
+    elif isinstance(expr, UnresolvedAttribute):
+        # Unresolved means treatment as sql expression
+        return create_ast_for_column_method(
+            property="sp_column_sql_expr",
+            assign_fields={"sql": expr.sql},
+        )
+    else:
+        raise NotImplementedError(
+            f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
+        )

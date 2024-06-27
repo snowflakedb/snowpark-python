@@ -62,4 +62,22 @@ df27 = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshift
 
 df28 = df.select(bround("A", scale=10), bround("A", 2), bround(col("A"), scale=col("B")))
 
+df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A","B",None), convert_timezone("A", "B", "A"))
+
+df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
+
+df31 = df.select(approx_count_distinct("A"), approx_count_distinct(col("A")))
+
+df32 = df.select(avg("A"), avg(col("B")))
+
+df33 = df.select(corr("A", "B"))
+
+df34 = df.select(count("*"), count("A"), count(col("A")))
+
+df35 = df.select(count_distinct(), count_distinct(col("*")), count_distinct("A", "B", "C", "D", col("E")))
+
+df36 = df.select(covar_pop("A", col("B")))
+
+df37 = df.select(covar_samp("A", "B"))
+
 ## EXPECTED OUTPUT

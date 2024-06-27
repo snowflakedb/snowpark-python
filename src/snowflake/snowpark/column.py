@@ -30,7 +30,6 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Subtract,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
-    Attribute,
     CaseWhen,
     Collate,
     Expression,
@@ -66,9 +65,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    build_const_from_python_val,
     create_ast_for_column,
     create_ast_for_column_method,
+    snowpark_expression_to_ast,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -282,15 +281,8 @@ class Column:
             if self._ast is None:
                 if hasattr(expr1, "_ast"):
                     self._ast = expr1._ast
-                elif isinstance(expr1, Attribute):
-                    self._ast = create_ast_for_column(expr1.name, None)
-                elif isinstance(expr1, Literal):
-                    self._ast = proto.Expr()
-                    build_const_from_python_val(expr1.value, self._ast)
                 else:
-                    raise NotImplementedError(
-                        f"expr1 {expr1} is an expression with missing AST or for which an AST can not be auto-generated."
-                    )
+                    self._ast = snowpark_expression_to_ast(expr1)
 
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
