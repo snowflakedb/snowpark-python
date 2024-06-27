@@ -91,7 +91,7 @@ def prepare_and_unpivot_for_transpose(
                 # We use any_value to select a value in the dummy column to make sure its dtypes are
                 # the same as the column in the original dataframe. This helps avoid type incompatibility
                 # issues in union_all.  To ensure the results are deterministic we filter the results to
-                # the first row position, if the dataset is empty it will be all null instead.
+                # empty (WHERE false) so any_value returns null values but preserves the data type information.
                 new_columns.append(any_value(identifier).as_(identifier))
         dummy_df = ordered_dataframe.filter(lit(False)).agg(new_columns)
         ordered_dataframe = ordered_dataframe.union_all(dummy_df)
