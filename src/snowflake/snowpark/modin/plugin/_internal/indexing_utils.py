@@ -82,6 +82,7 @@ ILOC_INT_ONLY_INDEXING_ERROR_MESSAGE = (
 "INCLUDED, END point is EXCLUDED), list-like of integers, boolean array] types."
 
 MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE = "indexer may only contain one '...' entry"
+TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE = "Too few indexers"
 TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE = "Too many indexers"
 CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE = (
     "cannot reindex on an axis with duplicate labels"
@@ -775,8 +776,8 @@ def _extract_loc_set_col_info(
             label for label in columns if label not in frame_data_columns
         ]
         columns = [label for label in columns if label in frame_data_columns]
-        before = frame_data_columns.value_counts()
-        after = union_data_columns.value_counts()
+        before = frame_data_columns.to_pandas().value_counts()
+        after = union_data_columns.to_pandas().value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
         for label in after.index:
             if label in frame_data_columns:
