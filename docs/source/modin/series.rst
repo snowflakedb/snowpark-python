@@ -151,6 +151,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.case_when
     Series.drop
     Series.drop_duplicates
     Series.get
@@ -252,6 +253,7 @@ Series
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
+    Series.dt.isocalendar
 
 
 .. rubric:: String accessor methods

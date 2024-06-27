@@ -14,8 +14,9 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("na_position", ["first", "last"])
 @pytest.mark.parametrize("ignore_index", [True, False])
+@pytest.mark.parametrize("inplace", [True, False])
 @sql_count_checker(query_count=1)
-def test_sort_index_series(ascending, na_position, ignore_index):
+def test_sort_index_series(ascending, na_position, ignore_index, inplace):
     native_series = native_pd.Series(["a", "b", np.nan, "d"], index=[3, 2, 1, np.nan])
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
@@ -25,15 +26,10 @@ def test_sort_index_series(ascending, na_position, ignore_index):
             ascending=ascending,
             na_position=na_position,
             ignore_index=ignore_index,
+            inplace=inplace,
         ),
+        inplace=inplace,
     )
-
-
-@sql_count_checker(query_count=0)
-def test_sort_index_series_inplace_unsupported():
-    snow_series = pd.Series(["a", "b", np.nan, "d"], index=[3, 2, 1, np.nan])
-    with pytest.raises(NotImplementedError):
-        snow_series.sort_index(inplace=True)
 
 
 @sql_count_checker(query_count=0)

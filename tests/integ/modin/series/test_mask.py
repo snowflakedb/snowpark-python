@@ -160,7 +160,7 @@ def test_series_mask_with_duplicated_index_aligned():
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_series_mask_with_lambda_cond():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])
@@ -175,7 +175,7 @@ def test_series_mask_with_lambda_cond():
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_series_mask_with_lambda_returns_singleton_should_fail():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])

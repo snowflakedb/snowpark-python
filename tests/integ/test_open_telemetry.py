@@ -12,7 +12,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from snowflake.snowpark.functions import udaf, udf, udtf
+import snowflake
+from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import sproc, udaf, udf, udtf
 from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
@@ -23,6 +25,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
     pytest.mark.udf,
@@ -50,6 +53,134 @@ def dict_exporter():
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
+
+
+def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
+    df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
+    df._execute_and_get_query_id()
+    lineno = inspect.currentframe().f_lineno - 1
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "_execute_and_get_query_id" in spans
+    span = spans["_execute_and_get_query_id"]
+    assert (
+        span.attributes["method.chain"]
+        == "DataFrame.to_df()._execute_and_get_query_id()"
+    )
+    assert "test_open_telemetry.py" in span.attributes["code.filepath"]
+    assert span.attributes["code.lineno"] == lineno
+    print(span.attributes)
+
+
+def test_catch_error_during_action_function(session, dict_exporter):
+    df = session.sql("select 1/0")
+    with pytest.raises(SnowparkSQLException, match="Division by zero"):
+        df.collect()
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "collect" in spans
+    span = spans["collect"]
+    assert span.status.status_code == trace.status.StatusCode.ERROR
+    assert "Division by zero" in span.status.description
+    dict_exporter.clear()
+
+
+def test_catch_error_during_registration_function(session, dict_exporter):
+    with pytest.raises(ValueError, match="does not exist"):
+        session.udf.register_from_file(
+            "empty file",
+            "mod5",
+            name="mod5_function",
+            return_type=IntegerType(),
+            input_types=[IntegerType()],
+            replace=True,
+            immutable=True,
+        )
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    span = spans["register_from_file"]
+    assert span.status.status_code == trace.status.StatusCode.ERROR
+    assert "does not exist" in span.status.description
+
+    dict_exporter.clear()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
+def test_register_stored_procedure_from_file(session, dict_exporter):
+    session.add_packages("snowflake-snowpark-python")
+    test_file = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "../resources",
+            "test_sp_dir",
+            "test_sp_file.py",
+        )
+    )
+
+    lineno = inspect.currentframe().f_lineno + 1
+    session.sproc.register_from_file(
+        test_file,
+        "mod5",
+        name="register_stored_proc_from_file",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        replace=True,
+    )
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register_from_file" in spans
+    span = spans["register_from_file"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["snow.executable.name"] == "register_stored_proc_from_file"
+    assert span.attributes["snow.executable.handler"] == "mod5"
+    dict_exporter.clear()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Cannot create session in SP",
+)
+def test_inline_register_stored_procedure(session, dict_exporter):
+    session.add_packages("snowflake-snowpark-python")
+    # test register with sproc.register
+
+    def add_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+        return session_.sql(f"select {x} + {y}").collect()[0][0]
+
+    lineno = inspect.currentframe().f_lineno + 1
+    session.sproc.register(
+        add_sp,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        name="add_stored_proc",
+    )
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["code.lineno"] == lineno
+    assert span.attributes["snow.executable.name"] == "add_stored_proc"
+    assert span.attributes["snow.executable.handler"] == "add_sp"
+
+    # test register with @sproc
+    @sproc(name="minus_stored_proc")
+    def minus_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
+        return session_.sql(f"select {x} - {y}").collect()[0][0]
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert "register" in spans
+    span = spans["register"]
+    assert (
+        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    )
+    assert span.attributes["snow.executable.name"] == "minus_stored_proc"
+    assert span.attributes["snow.executable.handler"] == "minus_sp"
+    dict_exporter.clear()
 
 
 def test_register_udaf_from_file(session, dict_exporter):

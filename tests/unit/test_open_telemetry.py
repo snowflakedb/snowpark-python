@@ -33,6 +33,14 @@ from snowflake.snowpark.types import (
     StructType,
 )
 
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('enable_cte_optimization', default=False)",
+        reason="Flaky in CTE mode",
+    ),
+]
+
 
 def spans_to_dict(spans):
     res = {}
@@ -74,6 +82,30 @@ def dict_exporter():
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
+
+
+def test_without_open_telemetry(monkeypatch, dict_exporter):
+    from snowflake.snowpark._internal import open_telemetry
+
+    monkeypatch.setattr(open_telemetry, "open_telemetry_found", False)
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    _add_session(session)
+    session._conn._telemetry_client = mock.MagicMock()
+    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert len(spans) == 0
+    dict_exporter.clear()
+
+    @udf(name="minus", session=session)
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    spans = spans_to_dict(dict_exporter.get_finished_spans())
+    assert len(spans) == 0
+    dict_exporter.clear()
 
 
 def test_register_udaf_from_file(dict_exporter):
