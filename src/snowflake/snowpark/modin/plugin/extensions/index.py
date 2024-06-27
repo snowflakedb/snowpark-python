@@ -27,7 +27,7 @@ from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
-from pandas._typing import ArrayLike, DtypeObj, NaPosition, Self
+from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 
@@ -569,7 +569,7 @@ class Index:
 
     def set_names(
         self, names: Any, level: Any = None, inplace: bool = False
-    ) -> Self | None:
+    ) -> Index | None:
         """
         Set Index name.
 
