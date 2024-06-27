@@ -81,6 +81,7 @@
 - Added documentation pages for `Index` and its APIs.
 - Added support for `DataFrame.assign`.
 - Added support for `DataFrame.stack`.
+- Added support for `DataFrame.unstack` and `Series.unstack`.
 
 #### Bug Fixes
 
