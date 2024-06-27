@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
 import sys
 from typing import Any, Dict, Optional, Union
 
@@ -65,7 +66,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    FAIL_ON_MISSING_AST,
     build_const_from_python_val,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -993,12 +996,24 @@ class Column:
         ast = proto.Expr()
         if property is not None:
             prop_ast = getattr(ast, property)
+            set_src_position(prop_ast.src)
             for attr, value in assign_fields.items():
                 setattr_if_not_none(prop_ast, attr, value)
             for attr, value in assign_opt_fields.items():
                 setattr_if_not_none(getattr(prop_ast, attr), "value", value)
             for attr, msg in copy_messages.items():
-                if msg is not None:
+                if msg is None and FAIL_ON_MISSING_AST:
+                    call_stack = inspect.stack()
+                    curr_frame = call_stack.pop(0)
+                    while call_stack and __file__ == curr_frame.filename:
+                        column_api = curr_frame.function
+                        curr_frame = call_stack.pop(0)
+                    raise NotImplementedError(
+                        f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
+                        f"\t{curr_frame.code_context[0].strip()}\n"
+                        f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
+                    )
+                elif msg is not None:
                     getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
                 Column._fill_ast(getattr(prop_ast, attr), other)
@@ -1016,7 +1031,12 @@ class Column:
             TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
         """
         if isinstance(value, cls):
-            return ast.CopyFrom(value._ast)
+            if value._ast is None and FAIL_ON_MISSING_AST:
+                raise NotImplementedError(
+                    f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
+                )
+            elif value._ast is not None:
+                ast.CopyFrom(value._ast)
         elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
             build_const_from_python_val(value, ast)
         elif isinstance(value, Expression):
