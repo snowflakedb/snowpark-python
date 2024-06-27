@@ -2,16 +2,26 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark.functions import col, current_warehouse, sql_expr  # noqa: F401
+from snowflake.snowpark.functions import (  # noqa: F401
+    col,
+    create_map,
+    current_warehouse,
+    sql_expr,
+)
 from snowflake.snowpark.session import Session
 
 
 def test_example():
     session = Session.builder.getOrCreate()
     # df = session.createDataFrame([1, 2, 3], schema=["A"])
-    df = session.table("test_table")
+    # df = session.table("test_table")
+    #
+    # df = df.select(sql_expr("current_warehouse()"))
 
-    df = df.select(sql_expr("current_warehouse()"))
+    df = session.create_dataframe(
+        [("Paris", "France"), ("Tokyo", "Japan")], ("city", "country")
+    )
+    df.select(create_map("city", "country").alias("map"))
 
     # variadic = df.to_df("one", "two")
     #

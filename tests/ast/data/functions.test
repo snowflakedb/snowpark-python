@@ -80,4 +80,64 @@ df36 = df.select(covar_pop("A", col("B")))
 
 df37 = df.select(covar_samp("A", "B"))
 
+df38 = df.select(create_map(["A", "B"]))
+
+df39 = df.select(create_map({"A", "B", "A", "B"}))
+
+df40 = df.select(create_map("A", "B"))
+
+df41 = df.select(create_map("A", "B", "C", "D"))
+
+df42 = df.select(kurtosis("A"))
+
+df43 = df.select(max("*"), max("A"), max(col("A")))
+
+df44 = df.select(mean("A"))
+
+df45 = df.select(median("A"))
+
+df46 = df.select(min("A"))
+
+df47 = df.select(mode("A"))
+
+df48 = df.select(skew("A"))
+
+df49 = df.select(stddev("A"))
+
+df50 = df.select(stddev_samp("A"))
+
+df51 = df.select(stddev_pop("A"))
+
+df52 = df.select(sum("A"))
+
+df53 = df.select(sum_distinct("A"))
+
+df54 = df.select(variance("A"))
+
+df55 = df.select(var_samp("A"))
+
+df56 = df.select(var_pop("A"))
+
+df57 = df.select(approx_percentile("A", 0.6), approx_percentile(col("B"), 0.0))
+
+df58 = df.select(approx_percentile_accumulate("A"))
+
+df59 = df.select(approx_percentile_estimate("A", 0.3))
+
+df60 = df.select(approx_percentile_combine("A"))
+
+df61 = df.select(grouping("A"), grouping("A", "B"))
+
+df62 = df.select(coalesce(), coalesce(col("A"), lit(10)))
+
+df63 = df.select(equal_nan("A"))
+
+df64 = df.select(is_null("A"))
+
+df65 = df.select(negate("A"))
+
+df66 = df.select(not_("A"))
+
+df67 = df.select(random(), random(None), random(10))
+
 ## EXPECTED OUTPUT

@@ -102,11 +102,11 @@ df = df.select(sum_distinct(e: ColumnOrName) -> Column:
 df = df.select(variance(e: ColumnOrName) -> Column:
 df = df.select(var_samp(e: ColumnOrName) -> Column:
 df = df.select(var_pop(e: ColumnOrName) -> Column:
+
 df = df.select(approx_percentile(col: ColumnOrName, percentile: float) -> Column:
 df = df.select(approx_percentile_accumulate(col: ColumnOrName) -> Column:
 df = df.select(approx_percentile_estimate(state: ColumnOrName, percentile: float) -> Column:
 df = df.select(approx_percentile_combine(state: ColumnOrName) -> Column:
-df = df.select(explode(col: ColumnOrName) -> "snowflake.snowpark.table_function.TableFunctionCall":
 df = df.select(explode_outer(
 df = df.select(flatten(
 df = df.select(grouping(*cols: ColumnOrName) -> Column:
@@ -116,6 +116,7 @@ df = df.select(is_null(e: ColumnOrName) -> Column:
 df = df.select(negate(e: ColumnOrName) -> Column:
 df = df.select(not_(e: ColumnOrName) -> Column:
 df = df.select(random(seed: Optional[int] = None) -> Column:
+
 df = df.select(uniform(
 df = df.select(def convert_limit_to_col(limit):
 df = df.select(seq1(sign: int = 0) -> Column:
@@ -137,6 +138,7 @@ df = df.select(cosh(e: ColumnOrName) -> Column:
 df = df.select(exp(e: ColumnOrName) -> Column:
 df = df.select(factorial(e: ColumnOrName) -> Column:
 df = df.select(floor(e: ColumnOrName) -> Column:
+
 df = df.select(format_number(col: ColumnOrName, d: Union[Column, int]):
 df = df.select(sin(e: ColumnOrName) -> Column:
 df = df.select(sinh(e: ColumnOrName) -> Column:

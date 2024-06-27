@@ -832,6 +832,9 @@ def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
         -----------------------
         <BLANKLINE>
     """
+
+    # Note: The type hint seems wrong here, hard to infer what the correct API here is.
+
     if len(cols) == 1 and isinstance(cols[0], (list, set)):
         cols = cols[0]
 
@@ -841,7 +844,12 @@ def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
             f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
         )
 
-    return object_construct_keep_null(*cols)
+    col = object_construct_keep_null(*cols)
+
+    # Alias to create_map
+    col._ast.apply_expr.fn.builtin_fn.name = "create_map"
+
+    return col
 
 
 def kurtosis(e: ColumnOrName) -> Column:
@@ -1033,7 +1041,12 @@ def sum_distinct(e: ColumnOrName) -> Column:
         [Row(SUM( DISTINCT "N")=6)]
     """
     c = _to_col_if_str(e, "sum_distinct")
-    return _call_function("sum", True, c)
+    col = _call_function("sum", True, c)
+
+    # alias to keep sum_distinct
+    col._ast.apply_expr.fn.builtin_fn.name = "sum_distinct"
+
+    return col
 
 
 def variance(e: ColumnOrName) -> Column:
@@ -1546,8 +1559,17 @@ def random(seed: Optional[int] = None) -> Column:
         >>> df = session.sql("select 1")
         >>> df = df.select(random(123).alias("result"))
     """
+
+    # Create AST here to encode whether a seed was supplied by the user or not.
+    ast = proto.Expr()
+    args = (seed,) if seed is not None else ()
+    build_fn_apply(ast, "random", *args)
+
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
-    return builtin("random")(Literal(s))
+    col = builtin("random")(Literal(s))
+    col._ast = ast
+
+    return col
 
 
 def uniform(
