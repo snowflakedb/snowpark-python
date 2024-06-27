@@ -1856,6 +1856,45 @@ class Series:
     def unstack():
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        Returns
+        -------
+        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Supports only integer ``level``.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3, 4],
+        ...               index=pd.MultiIndex.from_product([['one', 'two'],
+        ...                                                 ['a', 'b']]))
+        >>> s
+        one  a    1
+             b    2
+        two  a    3
+             b    4
+        dtype: int64
+        >>> s.unstack(level=-1)
+             a  b
+        one  1  2
+        two  3  4
+        >>> s.unstack(level=0)
+           one  two
+        a    1    3
+        b    2    4
         """
 
     @property

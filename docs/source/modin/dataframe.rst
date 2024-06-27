@@ -193,6 +193,7 @@ DataFrame
     DataFrame.stack
     DataFrame.T
     DataFrame.transpose
+    DataFrame.unstack
 
 .. rubric:: Combining / comparing / joining / merging
 

@@ -14890,6 +14890,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         fill_value: Optional[Union[int, str, dict]] = None,
         sort: bool = True,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Pivot a level of the (necessarily hierarchical) index labels.
+
+        Returns a DataFrame having a new level of column labels whose
+        inner-most level consists of the pivoted index labels.
+
+        If the index is not a MultiIndex, the output will be a Series
+        (the analogue of stack when the columns are not a MultiIndex).
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+        """
         level = level if is_list_like(level) else [level]
 
         # Check to see if we have a MultiIndex, if we do, make sure we remove
