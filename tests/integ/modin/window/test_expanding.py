@@ -8,11 +8,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 agg_func = pytest.mark.parametrize(
-    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max"]
+    "agg_func", ["count", "sum", "mean", "var", "std", "min", "max", "sem"]
 )
 min_periods = pytest.mark.parametrize("min_periods", [None, 0, 1, 2, 10])
 
@@ -72,6 +72,33 @@ def test_expanding_series(agg_func, min_periods):
     )
 
 
+@pytest.mark.parametrize("ddof", [-1, 0, 0.5, 1, 2])
+def test_expanding_sem_ddof(ddof):
+    with SqlCounter(query_count=1):
+        native_df = native_pd.DataFrame(
+            {"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]}
+        )
+        snow_df = pd.DataFrame(native_df)
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.expanding().sem(numeric_only=True, ddof=ddof),
+        )
+    with SqlCounter(query_count=1):
+        native_df = native_pd.DataFrame(
+            {
+                "A": ["h", np.nan, "l", "l", "o"],
+                "B": [np.nan, np.nan, np.nan, np.nan, np.nan],
+            }
+        )
+        snow_df = pd.DataFrame(native_df)
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.expanding(0).sem(numeric_only=True, ddof=ddof),
+        )
+
+
 @sql_count_checker(query_count=1)
 def test_expanding_min_periods_default():
     native_df = native_pd.DataFrame(
@@ -118,7 +145,6 @@ def test_expanding_min_periods_negative():
         ("apply", "min"),
         ("aggregate", "min"),
         ("quantile", 0.5),
-        ("sem", 1),
         ("rank", None),
     ],
 )
@@ -140,7 +166,6 @@ def test_expanding_aggregation_dataframe_unsupported(agg_func, agg_func_kwargs):
         ("apply", "min"),
         ("aggregate", "min"),
         ("quantile", 0.5),
-        ("sem", 1),
         ("rank", None),
     ],
 )

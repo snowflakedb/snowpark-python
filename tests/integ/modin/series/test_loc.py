@@ -968,7 +968,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
 @pytest.mark.parametrize(
     "start, stop, step, pandas_fail", [[1, -1, None, True], [10, None, None, False]]
 )
-@sql_count_checker(query_count=3, join_count=4)
+@sql_count_checker(query_count=2, join_count=4)
 def test_series_loc_set_key_slice_with_series_item_pandas_bug(
     start, stop, step, pandas_fail
 ):

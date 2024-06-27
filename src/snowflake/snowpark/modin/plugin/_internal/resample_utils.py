@@ -51,6 +51,8 @@ IMPLEMENTED_AGG_METHODS = [
     "var",
     "count",
     "size",
+    "first",
+    "last",
 ]
 IMPLEMENTED_MISC_METHODS = ["ffill"]
 
