@@ -195,6 +195,7 @@ df = df.select(to_char(c: ColumnOrName, format: Optional[str] = None) -> Column:
 df = df.select(date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
 df = df.select(to_time(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
 df = df.select(to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+
 df = df.select(to_timestamp_ntz(
 df = df.select(to_timestamp_ltz(
 df = df.select(to_timestamp_tz(
