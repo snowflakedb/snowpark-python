@@ -278,7 +278,12 @@ class Column:
             self._expression = expr1
 
             if self._ast is None:
-                raise NotImplementedError("missing case for col???")
+                if hasattr(expr1, "_ast"):
+                    self._ast = expr1._ast
+                else:
+                    raise NotImplementedError(
+                        "expr1 is an expression with missing AST."
+                    )
 
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")

@@ -90,8 +90,9 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    set_src_position,
+    create_ast_for_column,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1177,17 +1178,21 @@ class DataFrame:
         table_func = None
         join_plan = None
 
+        if ast is None:
+            raise ValueError("Need to pass ast to fill.")
+
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                if ast:
-                    ast.cols.append(e._ast)
+                ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                if ast:
-                    col_expr_ast = ast.cols.add()
+                col_expr_ast = create_ast_for_column(e, None)
+                ast.cols.append(col_expr_ast)
+
                 col = Column(e, ast=col_expr_ast)
-                col_expr_ast.sp_column.name = col.get_name()
+                # For the ast, we do not need to carry the name of the column.
+                # col_expr_ast.sp_column.name = col.get_name()
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):

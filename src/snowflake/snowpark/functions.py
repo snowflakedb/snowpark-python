@@ -318,7 +318,10 @@ def lit(literal: LiteralType) -> Column:
         ---------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-    return literal if isinstance(literal, Column) else Column(Literal(literal))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lit", literal)
+    return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast)
 
 
 def sql_expr(sql: str) -> Column:
