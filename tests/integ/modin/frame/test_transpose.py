@@ -128,9 +128,8 @@ def test_dataframe_transpose_set_columns_multi_index_mixed_types(
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_both_multi_index(
-    transpose_operation, expected_query_count, score_test_data, session
+    transpose_operation, expected_query_count, score_test_data
 ):
-    session._cte_optimization_enabled = True
     native_df = native_pd.DataFrame(score_test_data)
     snow_df = pd.DataFrame(score_test_data)
 
