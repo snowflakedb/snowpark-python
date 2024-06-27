@@ -63,12 +63,21 @@ DocModule.put(docstrings.__name__)
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
-modin.utils._inherit_docstrings(
+# TODO: https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
+# Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
+_inherit_docstrings = snowflake.snowpark.modin.utils._inherit_docstrings
+
+_inherit_docstrings(
+    docstrings.base.BasePandasDataset,
+    overwrite_existing=True,
+)(modin.pandas.base.BasePandasDataset)
+
+_inherit_docstrings(
     docstrings.series_utils.StringMethods,
     overwrite_existing=True,
 )(modin.pandas.series_utils.StringMethods)
 
-modin.utils._inherit_docstrings(
+_inherit_docstrings(
     docstrings.series_utils.CombinedDatetimelikeProperties,
     overwrite_existing=True,
 )(modin.pandas.series_utils.DatetimeProperties)
