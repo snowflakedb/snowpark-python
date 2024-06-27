@@ -433,7 +433,7 @@ class _LocationIndexerBase:
             # squeeze col is always False for Series
             return False
 
-        not_dataset = not isinstance(locator, BasePandasDataset)
+        not_dataset = not isinstance(locator, (BasePandasDataset, pd.Series))
         is_scalar_loc = not_dataset and is_scalar(locator)
         is_tuple_loc = not_dataset and isinstance(locator, tuple)
 
@@ -696,7 +696,7 @@ class _LocIndexer(_LocationIndexerBase):
         if do_squeeze is not None:
             return do_squeeze
 
-        not_dataset = not isinstance(locator, BasePandasDataset)
+        not_dataset = not isinstance(locator, (BasePandasDataset, pd.Series))
         is_scalar_loc = not_dataset and is_scalar(locator)
         is_tuple_loc = not_dataset and isinstance(locator, tuple)
 
@@ -962,22 +962,26 @@ class _LocIndexer(_LocationIndexerBase):
         matching_item_rows_by_label = not item_is_2d_array
 
         index_is_bool_indexer = isinstance(
-            row_loc, BasePandasDataset
+            row_loc, (BasePandasDataset, pd.Series)
         ) and is_bool_dtype(row_loc.dtypes)
 
         index = (
             row_loc._query_compiler
-            if isinstance(row_loc, BasePandasDataset)
+            if isinstance(row_loc, (BasePandasDataset, pd.Series))
             else row_loc
         )
         columns = (
             col_loc._query_compiler
-            if isinstance(col_loc, BasePandasDataset)
+            if isinstance(col_loc, (BasePandasDataset, pd.Series))
             else col_loc
         )
         if item_is_2d_array:
             item = pd.DataFrame(item)
-        item = item._query_compiler if isinstance(item, BasePandasDataset) else item
+        item = (
+            item._query_compiler
+            if isinstance(item, (BasePandasDataset, pd.Series))
+            else item
+        )
         new_qc = self.qc.set_2d_labels(
             index,
             columns,
@@ -1082,7 +1086,7 @@ class _iLocIndexer(_LocationIndexerBase):
         if do_squeeze is not None:
             return do_squeeze
 
-        not_dataset = not isinstance(locator, BasePandasDataset)
+        not_dataset = not isinstance(locator, (BasePandasDataset, pd.Series))
         is_scalar_loc = not_dataset and is_scalar(locator)
         if is_scalar_loc:
             return True
@@ -1241,7 +1245,7 @@ class _iLocIndexer(_LocationIndexerBase):
 
         is_item_series = isinstance(item, pd.Series)
 
-        if not isinstance(item, BasePandasDataset) and is_list_like(item):
+        if not isinstance(item, (BasePandasDataset, pd.Series)) and is_list_like(item):
             if isinstance(self.df, pd.Series) and is_scalar(row_loc):
                 ErrorMessage.not_implemented(
                     SET_CELL_WITH_LIST_LIKE_VALUE_ERROR_MESSAGE
@@ -1280,12 +1284,14 @@ class _iLocIndexer(_LocationIndexerBase):
 
         new_qc = self.qc.set_2d_positional(
             row_loc._query_compiler
-            if isinstance(row_loc, BasePandasDataset)
+            if isinstance(row_loc, (BasePandasDataset, pd.Series))
             else row_loc,
             col_loc._query_compiler
-            if isinstance(col_loc, BasePandasDataset)
+            if isinstance(col_loc, (BasePandasDataset, pd.Series))
             else col_loc,
-            item._query_compiler if isinstance(item, BasePandasDataset) else item,
+            item._query_compiler
+            if isinstance(item, (BasePandasDataset, pd.Series))
+            else item,
             set_as_coords,
             is_item_series,
         )
