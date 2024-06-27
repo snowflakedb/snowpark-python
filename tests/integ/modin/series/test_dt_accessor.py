@@ -72,6 +72,7 @@ def test_date(datetime_index_value):
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.dt.date)
 
 
+@pytest.mark.modin_sp_precommit
 def test_isocalendar():
     with SqlCounter(query_count=1):
         date_range = native_pd.date_range("2020-05-01", periods=5, freq="4D")
