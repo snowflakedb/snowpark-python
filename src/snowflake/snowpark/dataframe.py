@@ -90,8 +90,9 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    set_src_position,
+    FAIL_ON_MISSING_AST,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -959,6 +960,7 @@ class DataFrame:
         ast.variadic = is_variadic
         set_src_position(ast.src)
 
+        # TODO: SNOW-1507432 (currently to_df expectation test will fail due to incomplete AST logging)
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
@@ -1095,7 +1097,15 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
-        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
+        elif self._ast_id is not None:
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
         set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"
@@ -1181,7 +1191,12 @@ class DataFrame:
             if isinstance(e, Column):
                 names.append(e._named())
                 if ast:
-                    ast.cols.append(e._ast)
+                    if e._ast is None and FAIL_ON_MISSING_AST:
+                        raise NotImplementedError(
+                            f"Column({e._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
+                        )
+                    elif e._ast is not None:
+                        ast.cols.append(e._ast)
 
             elif isinstance(e, str):
                 if ast:
@@ -3369,7 +3384,13 @@ class DataFrame:
 
         # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
         repr = self._session._ast_batch.assign()
-        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
+        elif self._ast_id is not None:
+            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
 
         if self._session._conn.is_phase1_enabled():
