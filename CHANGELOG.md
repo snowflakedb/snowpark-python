@@ -69,6 +69,7 @@
 - Added support for `DataFrameGroupBy.size` and `SeriesGroupBy.size`.
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, `var`, and `sem` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
+- Added support for `DataFrameGroupBy.get_group`.
 - Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `Series.str.match`.
 - Added support for `DataFrame.resample` and `Series.resample` for aggregations `size`, `first`, and `last`.
