@@ -259,20 +259,20 @@ def test_table_update_delete_merge(session):
     assert count_number_of_ctes(query) == 1
 
     # delete
-#    with session.query_history() as query_history:
-#        t.delete(t.a == source_df.a, source_df)
-#    query = query_history.queries[-1].sql_text
-#    assert query.count(WITH) == 1
-#    assert count_number_of_ctes(query) == 1
+    with session.query_history() as query_history:
+        t.delete(t.a == source_df.a, source_df)
+    query = query_history.queries[-1].sql_text
+    assert query.count(WITH) == 1
+    assert count_number_of_ctes(query) == 1
 
     # merge
-#    with session.query_history() as query_history:
-#        t.merge(
-#            source_df, t.a == source_df.a, [when_matched().update({"b": source_df.b})]
-#        )
-#    query = query_history.queries[-1].sql_text
-#    assert query.count(WITH) == 1
-#    assert count_number_of_ctes(query) == 1
+    with session.query_history() as query_history:
+        t.merge(
+            source_df, t.a == source_df.a, [when_matched().update({"b": source_df.b})]
+        )
+    query = query_history.queries[-1].sql_text
+    assert query.count(WITH) == 1
+    assert count_number_of_ctes(query) == 1
 
 
 def test_copy_into_location(session):
