@@ -108,7 +108,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset):
+class DONOTEXPORTMESeries(BasePandasDataset):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 
@@ -735,7 +735,7 @@ class Series(BasePandasDataset):
         level: Level | None = None,
         inplace: bool = False,
         errors: IgnoreRaise = "raise",
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         """
         Drop specified labels from `BasePandasDataset`.
         """
@@ -839,7 +839,7 @@ class Series(BasePandasDataset):
         keep_shape: bool = False,
         keep_equal: bool = False,
         result_names: tuple = ("self", "other"),
-    ) -> Series:  # noqa: PR01, RT01, D200
+    ) -> DONOTEXPORTMESeries:  # noqa: PR01, RT01, D200
         """
         Compare to another Series and show the differences.
         """
@@ -965,7 +965,7 @@ class Series(BasePandasDataset):
         percentiles: ListLike | None = None,
         include: ListLike | Literal["all"] | None = None,
         exclude: ListLike | None = None,
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Generate descriptive statistics.
         """
@@ -1108,7 +1108,7 @@ class Series(BasePandasDataset):
             use_na_sentinel=use_na_sentinel,
         )
 
-    def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
+    def case_when(self, caselist) -> DONOTEXPORTMESeries:  # noqa: PR01, RT01, D200
         """
         Replace values where the conditions are True.
         """
@@ -1133,7 +1133,7 @@ class Series(BasePandasDataset):
         inplace: bool = False,
         limit: int | None = None,
         downcast: dict | None = None,
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         if isinstance(value, BasePandasDataset) and not isinstance(value, Series):
             raise TypeError(
@@ -1409,7 +1409,7 @@ class Series(BasePandasDataset):
         self,
         arg: Callable | Mapping | Series,
         na_action: Literal["ignore"] | None = None,
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Map values of Series according to input correspondence.
         """
@@ -1695,7 +1695,7 @@ class Series(BasePandasDataset):
         axis=0,
         copy=True,
         inplace=False,
-    ) -> Series | None:  # noqa: PR01, RT01, D200
+    ) -> DONOTEXPORTMESeries | None:  # noqa: PR01, RT01, D200
         """
         Set the name of the axis for the index or columns.
         """
@@ -1712,7 +1712,7 @@ class Series(BasePandasDataset):
         inplace: bool = False,
         level: Level | None = None,
         errors: IgnoreRaise = "ignore",
-    ) -> Series | None:
+    ) -> DONOTEXPORTMESeries | None:
         """
         Alter Series index labels or name.
         """
@@ -2537,7 +2537,7 @@ class Series(BasePandasDataset):
             query_compiler=self._query_compiler.series_to_datetime(**kwargs)
         )
 
-    def _to_numeric(self, **kwargs: Any) -> Series:
+    def _to_numeric(self, **kwargs: Any) -> DONOTEXPORTMESeries:
         """
         Convert `self` to numeric.
 
@@ -2562,7 +2562,7 @@ class Series(BasePandasDataset):
         q: int | ListLike,
         retbins: bool = False,
         duplicates: Literal["raise", "drop"] = "raise",
-    ) -> Series:
+    ) -> DONOTEXPORTMESeries:
         """
         Quantile-based discretization function.
 
