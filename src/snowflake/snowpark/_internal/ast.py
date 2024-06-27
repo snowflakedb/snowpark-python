@@ -8,7 +8,6 @@ import itertools
 import json
 import sys
 import uuid
-from itertools import count
 from typing import Any, Sequence, Tuple
 from uuid import UUID
 
@@ -121,7 +120,7 @@ def decode_ast_response_from_snowpark(res: dict, session_parameters: Any) -> Any
 class AstBatch:
     _request: proto.Request
     _request_id: UUID
-    _id_gen: count[int]
+    _id_gen: Any
 
     def __init__(self, session) -> None:
         self._session = session
