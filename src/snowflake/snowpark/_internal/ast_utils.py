@@ -9,13 +9,14 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
 FAIL_ON_MISSING_AST = True
+
 
 def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance

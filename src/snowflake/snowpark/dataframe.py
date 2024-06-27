@@ -91,8 +91,8 @@ from snowflake.snowpark._internal.ast import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
-    set_src_position,
     get_symbol,
+    set_src_position,
     setattr_if_not_none,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1099,9 +1099,13 @@ class DataFrame:
         col_expr_ast = proto.Expr()
         if self._ast_id is None and FAIL_ON_MISSING_AST:
             _logger.debug(self._explain_string())
-            raise NotImplementedError(f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging.")
-        elif self._ast_id is not None:        
-            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
+        elif self._ast_id is not None:
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
         set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"
@@ -1189,7 +1193,7 @@ class DataFrame:
                 if ast:
                     if e._ast is None and FAIL_ON_MISSING_AST:
                         raise NotImplementedError(
-                            f'Column({e._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet.'
+                            f"Column({e._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
                         )
                     elif e._ast is not None:
                         ast.cols.append(e._ast)
@@ -3382,7 +3386,9 @@ class DataFrame:
         repr = self._session._ast_batch.assign()
         if self._ast_id is None and FAIL_ON_MISSING_AST:
             _logger.debug(self._explain_string())
-            raise NotImplementedError(f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging.")
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
         elif self._ast_id is not None:
             repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
