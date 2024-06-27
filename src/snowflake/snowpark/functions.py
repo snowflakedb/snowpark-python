@@ -4051,6 +4051,19 @@ def arrays_to_object(
     return builtin("arrays_to_object")(keys_c, values_c)
 
 
+def arrays_zip(*cols: ColumnOrName) -> Column:
+    """Returns an array of structured objects, where the N-th object contains the N-th elements of the input arrays.
+
+    Args:
+        cols: The columns to zip together.
+
+    Returns:
+        A new array of structured objects.
+    """
+    cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
+    return builtin("arrays_zip")(*cols)
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
