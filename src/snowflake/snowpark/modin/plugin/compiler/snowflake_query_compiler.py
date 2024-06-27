@@ -3825,6 +3825,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    def groupby_get_group(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Get all rows that match a given group name in the `by` column.
+
+        Arguments:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns)
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_get_group`.
+            agg_kwargs: dict
+                The aggregation keyword args, holds the name parameter.
+            drop: bool
+                Drop the `by` column, unused in `groupby_get_group`.
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_get_group().
+        """
+        level = groupby_kwargs.get("level", None)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:  # pragma: no cover
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.get_group does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
+        if is_list_like(by):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.get_group does not yet support multiple by columns."
+            )
+        name = agg_kwargs.get("name")
+        return self.take_2d_labels(
+            self.take_2d_labels(slice(None), by).binary_op("eq", name, 0),
+            slice(None),
+        )
+
     def groupby_size(
         self,
         by: Any,
