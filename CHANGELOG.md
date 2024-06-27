@@ -9,7 +9,7 @@
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 
-## 1.19.0 (TBD)
+## 1.19.0 (2024-06-25)
 
 ### Snowpark Python API Updates
 
@@ -95,10 +95,10 @@
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
-- Initial work to support an Index directly in Snowpark pandas. Support for Index as a first-class component of Snowpark pandas is coming soon.
-- Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. 
+- Initial work to support an `pd.Index` directly in Snowpark pandas. Support for `pd.Index` as a first-class component of Snowpark pandas is coming soon.
+- Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.index`, Snowpark pandas creates a lazy index object. 
-- For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
+- For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
 - Added support for `Index.copy()`
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
