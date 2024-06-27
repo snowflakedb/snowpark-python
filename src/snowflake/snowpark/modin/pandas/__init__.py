@@ -359,6 +359,7 @@ temporary_heritance_do_not_keep_this_in_final_pr = [
     "__setitem__",
     "iloc",
     "loc",
+    "_to_datetime",  # uses a different QC routing path
     # we use a different from_pandas (revisit later)
     "__init__",
 ]
