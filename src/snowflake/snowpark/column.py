@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     Subtract,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
     CaseWhen,
     Collate,
     Expression,
@@ -273,7 +274,10 @@ class Column:
 
             if self._ast is None:
                 self._ast = create_ast_for_column(expr1, None)
-
+        elif isinstance(expr1, Attribute):
+            self._expression = expr1
+            if self._ast is None:
+                self._ast = create_ast_for_column(expr1.name, None)
         elif isinstance(expr1, Expression):
             self._expression = expr1
 
@@ -282,7 +286,7 @@ class Column:
                     self._ast = expr1._ast
                 else:
                     raise NotImplementedError(
-                        "expr1 is an expression with missing AST."
+                        f"expr1 {expr1} is an expression with missing AST."
                     )
 
         else:  # pragma: no cover
