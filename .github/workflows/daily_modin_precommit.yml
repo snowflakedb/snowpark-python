@@ -3,8 +3,9 @@
 name: Daily Snowpark pandas API test
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: '**'
   #schedule:
     # 9 AM UTC
   #  - cron: "0 9 * * *"
