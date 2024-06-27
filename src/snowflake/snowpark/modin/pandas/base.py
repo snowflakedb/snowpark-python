@@ -282,7 +282,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             If any validation checks fail.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        if isinstance(other, BasePandasDataset):
+        if isinstance(other, (BasePandasDataset, pd.Series)):
             return other._query_compiler
         if not is_list_like(other):
             # We skip dtype checking if the other is a scalar. Note that pandas
@@ -944,7 +944,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     **kwargs,
                 )
             )
-            if isinstance(result, BasePandasDataset):
+            if isinstance(result, (BasePandasDataset, pd.Series)):
                 return result.all(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -986,7 +986,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                     **kwargs,
                 )
             )
-            if isinstance(result, BasePandasDataset):
+            if isinstance(result, (BasePandasDataset, pd.Series)):
                 return result.any(
                     axis=axis, bool_only=bool_only, skipna=skipna, **kwargs
                 )
@@ -1025,7 +1025,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             if axis == 1:
                 kwds["axis"] = axis
             result = self._string_function(func, *args, **kwds)
-            if isinstance(result, BasePandasDataset):
+            if isinstance(result, (BasePandasDataset, pd.Series)):
                 return result._query_compiler
             return result
         # TODO SNOW-856682: Support dict in series.apply and df.apply
@@ -1596,7 +1596,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if isinstance(other, Series):
             other._query_compiler._shape_hint = "column"
 
-        if not isinstance(cond, BasePandasDataset):
+        if not isinstance(cond, (BasePandasDataset, pd.Series)):
             cond = get_as_shape_compatible_dataframe_or_series(cond, self)
             cond._query_compiler._shape_hint = "array"
 
@@ -1611,7 +1611,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 )
                 other._query_compiler._shape_hint = "array"
 
-            if isinstance(other, BasePandasDataset):
+            if isinstance(other, (BasePandasDataset, pd.Series)):
                 other = other._query_compiler
 
         query_compiler = self._query_compiler.mask(
@@ -1655,7 +1655,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if isinstance(other, Series):
             other._query_compiler._shape_hint = "column"
 
-        if not isinstance(cond, BasePandasDataset):
+        if not isinstance(cond, (BasePandasDataset, pd.Series)):
             cond = get_as_shape_compatible_dataframe_or_series(cond, self)
             cond._query_compiler._shape_hint = "array"
 
@@ -1670,7 +1670,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 )
                 other._query_compiler._shape_hint = "array"
 
-            if isinstance(other, BasePandasDataset):
+            if isinstance(other, (BasePandasDataset, pd.Series)):
                 other = other._query_compiler
 
         query_compiler = self._query_compiler.where(
@@ -2079,7 +2079,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
 
         # Pass as query compiler if values is BasePandasDataset.
-        if isinstance(values, BasePandasDataset):
+        if isinstance(values, (BasePandasDataset, pd.Series)):
             values = values._query_compiler
 
         # Convert non-dict values to List if values is neither List[Any] nor np.ndarray. SnowflakeQueryCompiler
@@ -2527,7 +2527,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             # result is either a scalar or Series
             result = self._reduce_dimension(query_compiler.transpose_single_row())
-            if isinstance(result, BasePandasDataset):
+            if isinstance(result, (BasePandasDataset, pd.Series)):
                 result.name = q
             return result
 
@@ -2683,7 +2683,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 else:
 
                     def _get_rename_function(mapper):
-                        if isinstance(mapper, (dict, BasePandasDataset)):
+                        if isinstance(mapper, (dict, (BasePandasDataset, pd.Series))):
 
                             def f(x):
                                 if x in mapper:

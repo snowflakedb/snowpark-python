@@ -580,11 +580,11 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         # Error Checking:
         # Currently do not support Series[scalar key] = Series item/DataFrame item since this results in a nested series
         # or df.
-        if is_scalar(key) and isinstance(value, BasePandasDataset):
+        if is_scalar(key) and isinstance(value, (BasePandasDataset, pd.Series)):
             raise ValueError(
                 SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE.format(
                     "Snowpark pandas " + value.__class__.__name__
-                    if isinstance(value, BasePandasDataset)
+                    if isinstance(value, (BasePandasDataset, pd.Series))
                     else value.__class__.__name__
                 )
             )
@@ -656,7 +656,9 @@ class DONOTEXPORTMESeries(BasePandasDataset):
                 index_is_bool_indexer = True  # pragma: no cover
 
             new_qc = self._query_compiler.set_2d_labels(
-                key._query_compiler if isinstance(key, BasePandasDataset) else key,
+                key._query_compiler
+                if isinstance(key, (BasePandasDataset, pd.Series))
+                else key,
                 slice(None),  # column key is not applicable to Series objects
                 value._query_compiler,
                 matching_item_columns_by_label=False,
@@ -999,7 +1001,7 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         Compute the dot product between the Series and the columns of `other`.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if isinstance(other, BasePandasDataset):
+        if isinstance(other, (BasePandasDataset, pd.Series)):
             common = self.index.union(other.index)
             if len(common) > len(self) or len(common) > len(other):  # pragma: no cover
                 raise ValueError("Matrices are not aligned")
@@ -1135,7 +1137,9 @@ class DONOTEXPORTMESeries(BasePandasDataset):
         downcast: dict | None = None,
     ) -> DONOTEXPORTMESeries | None:
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        if isinstance(value, BasePandasDataset) and not isinstance(value, Series):
+        if isinstance(value, (BasePandasDataset, pd.Series)) and not isinstance(
+            value, Series
+        ):
             raise TypeError(
                 '"value" parameter must be a scalar, dict or Series, but '
                 + f'you passed a "{type(value).__name__}"'

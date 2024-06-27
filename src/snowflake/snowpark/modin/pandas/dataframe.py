@@ -816,7 +816,7 @@ class DataFrame(BasePandasDataset):
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
 
-        if isinstance(other, BasePandasDataset):
+        if isinstance(other, (BasePandasDataset, pd.Series)):
             common = self.columns.union(other.index)
             if len(common) > len(self.columns) or len(common) > len(
                 other
@@ -2942,7 +2942,7 @@ class DataFrame(BasePandasDataset):
                         "setitem with a 2D key does not support Series values."
                     )
 
-                if isinstance(value, BasePandasDataset):
+                if isinstance(value, (BasePandasDataset, pd.Series)):
                     value = value._query_compiler
 
             query_compiler = self._query_compiler.mask(
@@ -2985,10 +2985,14 @@ class DataFrame(BasePandasDataset):
 
         # The reason we do not call loc directly is that setitem has different behavior compared to loc in this case
         # we have to explicitly set matching_item_columns_by_label to False for setitem.
-        index = index._query_compiler if isinstance(index, BasePandasDataset) else index
+        index = (
+            index._query_compiler
+            if isinstance(index, (BasePandasDataset, pd.Series))
+            else index
+        )
         columns = (
             columns._query_compiler
-            if isinstance(columns, BasePandasDataset)
+            if isinstance(columns, (BasePandasDataset, pd.Series))
             else columns
         )
         from .indexing import is_2d_array
@@ -2996,7 +3000,11 @@ class DataFrame(BasePandasDataset):
         matching_item_rows_by_label = not is_2d_array(value)
         if is_2d_array(value):
             value = DataFrame(value)
-        item = value._query_compiler if isinstance(value, BasePandasDataset) else value
+        item = (
+            value._query_compiler
+            if isinstance(value, (BasePandasDataset, pd.Series))
+            else value
+        )
         new_qc = self._query_compiler.set_2d_labels(
             index,
             columns,

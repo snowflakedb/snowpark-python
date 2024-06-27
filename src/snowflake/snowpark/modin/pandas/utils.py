@@ -174,7 +174,7 @@ def is_scalar(obj):
 
     from .base import BasePandasDataset
 
-    return not isinstance(obj, BasePandasDataset) and pandas_is_scalar(obj)
+    return not isinstance(obj, (BasePandasDataset, pd.Series)) and pandas_is_scalar(obj)
 
 
 def is_full_grab_slice(slc, sequence_len=None):

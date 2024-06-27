@@ -122,7 +122,10 @@ def where_mapper(
 # We also need to convert everything to booleans, since numpy will
 # do this implicitly on logical operators and pandas does not.
 def map_to_bools(inputs: Any) -> Any:
-    return (v.astype("bool") if isinstance(v, BasePandasDataset) else v for v in inputs)
+    return (
+        v.astype("bool") if isinstance(v, (BasePandasDataset, pd.Series)) else v
+        for v in inputs
+    )
 
 
 # Map that associates a numpy general function (np.where) with

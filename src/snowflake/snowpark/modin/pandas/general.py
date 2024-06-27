@@ -106,7 +106,7 @@ def isna(obj):  # noqa: PR01, RT01, D200
     Detect missing values for an array-like object.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(obj, BasePandasDataset):
+    if isinstance(obj, (BasePandasDataset, pd.Series)):
         return obj.isna()
     else:
         return pandas.isna(obj)
@@ -122,7 +122,7 @@ def notna(obj):  # noqa: PR01, RT01, D200
     Detect non-missing values for an array-like object.
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
-    if isinstance(obj, BasePandasDataset):
+    if isinstance(obj, (BasePandasDataset, pd.Series)):
         return obj.notna()
     else:
         return pandas.notna(obj)
