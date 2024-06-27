@@ -31,6 +31,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas.accessor import CachedAccessor, SparseAccessor
+from modin.pandas.base import BasePandasDataset
 from modin.pandas.iterator import PartitionIterator
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
@@ -51,12 +52,12 @@ from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.core.series import _coerce_method
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import (
     from_pandas,
     is_scalar,
     try_convert_index_to_native,
 )
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -96,6 +97,30 @@ SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE = (
 _SERIES_EXTENSIONS_ = {}
 
 
+# Do not look up certain attributes in columns or index, as they're used for some
+# special purposes, like serving remote context
+_ATTRS_NO_LOOKUP = {
+    "____id_pack__",
+    "__name__",
+    "_cache",
+    "_ipython_canary_method_should_not_exist_",
+    "_ipython_display_",
+    "_repr_html_",
+    "_repr_javascript_",
+    "_repr_jpeg_",
+    "_repr_json_",
+    "_repr_latex_",
+    "_repr_markdown_",
+    "_repr_mimebundle_",
+    "_repr_pdf_",
+    "_repr_png_",
+    "_repr_svg_",
+    "__array_struct__",
+    "__array_interface__",
+    "_typ",
+}
+
+
 @_inherit_docstrings(
     pandas.Series,
     excluded=[
@@ -108,7 +133,7 @@ _SERIES_EXTENSIONS_ = {}
     ],
     apilink="pandas.Series",
 )
-class Series(BasePandasDataset):
+class Series(BasePandasDataset, metaclass=TelemetryMeta):
     _pandas_class = pandas.Series
     __array_priority__ = pandas.Series.__array_priority__
 
