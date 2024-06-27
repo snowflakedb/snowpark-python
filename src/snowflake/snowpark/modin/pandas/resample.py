@@ -153,7 +153,7 @@ class Resampler(metaclass=TelemetryMeta):
             resampler = type(self)(subset, **self.resample_kwargs)
             return resampler
 
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         if isinstance(key, (list, tuple, Series, pandas.Index, np.ndarray)):
             if len(self._dataframe.columns.intersection(key)) != len(set(key)):

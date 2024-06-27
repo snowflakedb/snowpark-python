@@ -28,6 +28,9 @@ import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
 import pandas.core.groupby
+
+# Snowpark pandas API version
+from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import AggFuncType, Axis, IndexLabel
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
@@ -37,9 +40,6 @@ from pandas.util._validators import validate_bool_kwarg
 
 # the following import is used in doctests
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-
-# Snowpark pandas API version
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.utils import (
     extract_validate_and_try_convert_named_aggs_from_kwargs,
     raise_if_native_pandas_objects,

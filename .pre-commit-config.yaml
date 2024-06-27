@@ -80,7 +80,7 @@ repos:
           - flake8-init-return == 1.0.0
           - flake8-print
         args:
-          - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+          - --per-file-ignores=tests/*.py:T201,src/snowflake/snowpark/modin/pandas/series.py:F821  # prints are allowed in test files
     # Use mypy for static type checking.
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: 'v0.991'

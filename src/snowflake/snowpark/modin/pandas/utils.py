@@ -174,7 +174,7 @@ def is_scalar(obj):
 
     from .base import BasePandasDataset
 
-    return not isinstance(obj, BasePandasDataset) and pandas_is_scalar(obj)
+    return not isinstance(obj, (BasePandasDataset, pd.Series)) and pandas_is_scalar(obj)
 
 
 def is_full_grab_slice(slc, sequence_len=None):
@@ -534,7 +534,8 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
         A dictionary mapping columns to a tuple containing the aggregation to perform, as well
         as the pandas label to give the aggregated column.
     """
-    from snowflake.snowpark.modin.pandas import Series
+    from modin.pandas import Series
+
     from snowflake.snowpark.modin.pandas.groupby import SeriesGroupBy
 
     is_series_like = isinstance(obj, (Series, SeriesGroupBy))

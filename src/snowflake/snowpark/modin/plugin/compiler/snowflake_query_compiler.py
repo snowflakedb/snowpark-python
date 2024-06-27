@@ -362,6 +362,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
+    # When lazy_execution=True, upstream Modin elides some length checks that would incur queries.
+    lazy_execution = True
+
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
         assert frame is not None and isinstance(frame, InternalFrame)
@@ -1251,17 +1254,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
-    @property
-    def columns(self) -> "pd.Index":
-        """
-        Get pandas column labels.
-
-        Returns:
-            an index containing all pandas column labels
-        """
-        # TODO SNOW-837664: add more tests for df.columns
-        return self._modin_frame.data_columns_index
-
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
         Set pandas column labels with the new column labels
@@ -1312,6 +1304,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_snowflake_quoted_identifiers=renamed_frame.index_column_snowflake_quoted_identifiers,
         )
         return SnowflakeQueryCompiler(new_internal_frame)
+
+    # TODO SNOW-837664: add more tests for df.columns
+    columns = property(
+        lambda self: self._modin_frame.data_columns_index,
+        lambda self, labels: self.set_columns(labels),
+    )
 
     def _shift_values(
         self, periods: int, axis: Union[Literal[0], Literal[1]], fill_value: Hashable
@@ -1733,7 +1731,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from snowflake.snowpark.modin.pandas.series import Series
+        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -1874,8 +1872,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
+        from modin.pandas import Series
+
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-        from snowflake.snowpark.modin.pandas.series import Series
         from snowflake.snowpark.modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -8062,7 +8061,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             New QueryCompiler that contains specified rows.
         """
 
-        from snowflake.snowpark.modin.pandas import Series
+        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None

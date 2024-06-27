@@ -119,35 +119,6 @@ def register_dataframe_accessor(name: str):
     )
 
 
-def register_series_accessor(name: str):
-    """
-    Registers a series attribute with the name provided.
-    This is a decorator that assigns a new attribute to Series. It can be used
-    with the following syntax:
-    ```
-    @register_series_accessor("new_method")
-    def my_new_series_method(*args, **kwargs):
-        # logic goes here
-        return
-    ```
-    The new attribute can then be accessed with the name provided:
-    ```
-    s.new_method(*my_args, **my_kwargs)
-    ```
-    Parameters
-    ----------
-    name : str
-        The name of the attribute to assign to Series.
-    Returns
-    -------
-    decorator
-        Returns the decorator function.
-    """
-    import snowflake.snowpark.modin.pandas as pd
-
-    return _set_attribute_on_obj(name, pd.series._SERIES_EXTENSIONS_, pd.series.Series)
-
-
 def register_pd_accessor(name: str):
     """
     Registers a pd namespace attribute with the name provided.

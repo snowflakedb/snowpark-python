@@ -88,6 +88,7 @@ with warnings.catch_warnings():
     )
 
 # TODO: SNOW-851745 make sure add all Snowpark pandas API general functions
+from modin.pandas import Series  # type: ignore[import]
 from modin.pandas import plotting  # type: ignore[import]
 
 from snowflake.snowpark.modin.pandas.dataframe import DataFrame
@@ -142,7 +143,6 @@ from snowflake.snowpark.modin.pandas.io import (
     read_xml,
     to_pickle,
 )
-from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionHolder
 
 # The extensions assigned to this module
@@ -161,6 +161,12 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort:
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
+
+
+from snowflake.snowpark.modin.pandas.series import (  # isort: skip  # noqa: E402,F401
+    DONOTEXPORTMESeries,
+)
 
 
 def __getattr__(name: str) -> Any:
@@ -291,6 +297,7 @@ __all__ = [  # noqa: F405
     "Float32Dtype",
     "Float64Dtype",
     "from_dummies",
+    "DONOTEXPORTMESeries",
 ]
 
 del pandas
@@ -312,6 +319,8 @@ _SKIP_TOP_LEVEL_ATTRS = [
     # would override register_pd_accessor and similar methods defined in our own modin.pandas.extensions
     # module.
     "api",
+    # We're already using the upstream copy of the Series class, so there's no need to re-export it.
+    "Series",
 ]
 
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
@@ -335,6 +344,29 @@ for name in __all__ + _ADDITIONAL_ATTRS:
 for name in _EXTENSION_ATTRS:
     _ext.register_pd_accessor(name)(getattr(pd_extensions, name))
 
+temporary_heritance_do_not_keep_this_in_final_pr = [
+    "align",
+    "groupby",
+    "set_axis",
+    "_to_pandas",
+    "cat",
+    "str",  # seems to be issues with CachedAccessor from upstream
+    "dt",
+    "__repr__",  # modin uses basepandasdataset build_repr_df instead of QC
+    # indexing
+    "iat",
+    "__getitem__",
+    "__setitem__",
+    "iloc",
+    "loc",
+    "_to_datetime",  # uses a different QC routing path
+    # we use a different from_pandas (revisit later)
+    "__init__",
+]
+
+
+for name in temporary_heritance_do_not_keep_this_in_final_pr:
+    _ext.register_series_accessor(name)(getattr(DONOTEXPORTMESeries, name))
 
 # TODO: https://github.com/modin-project/modin/issues/7233
 # Upstream Modin does not properly render property names in default2pandas warnings, so we need

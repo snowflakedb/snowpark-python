@@ -9,6 +9,7 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
+import modin.pandas
 from typing_extensions import ParamSpec
 
 import snowflake.snowpark.session
@@ -495,11 +496,58 @@ TELEMETRY_PRIVATE_METHODS = {
 }
 
 
+def register_series_telemetry() -> None:
+    # Registers telemetry on an upstream modin Series object
+    # This should be run after extension initialization
+    import modin.pandas as pd
+    from modin.pandas.api.extensions import register_series_accessor
+
+    attrs = map(lambda x: (x, getattr(pd.Series, x)), dir(pd.Series))
+    for attr_name, attr_value in attrs:
+        if callable(attr_value) and (
+            not attr_name.startswith("_") or (attr_name in TELEMETRY_PRIVATE_METHODS)
+        ):
+            register_series_accessor(attr_name)(
+                snowpark_pandas_telemetry_method_decorator(attr_value)
+            )
+        elif isinstance(attr_value, property):
+            # wrap on getter and setter
+            prop = property(
+                snowpark_pandas_telemetry_method_decorator(
+                    cast(
+                        # add a cast because mypy doesn't recognize that
+                        # non-None fget and __get__ are both callable
+                        # arguments to snowpark_pandas_telemetry_method_decorator.
+                        Callable,
+                        attr_value.__get__  # pragma: no cover: we don't encounter this case in pandas or modin because every property has an fget method.
+                        if attr_value.fget is None
+                        else attr_value.fget,
+                    ),
+                    property_name=attr_name,
+                    property_method_type=PropertyMethodType.FGET,
+                ),
+                snowpark_pandas_telemetry_method_decorator(
+                    attr_value.__set__ if attr_value.fset is None else attr_value.fset,
+                    property_name=attr_name,
+                    property_method_type=PropertyMethodType.FSET,
+                ),
+                snowpark_pandas_telemetry_method_decorator(
+                    attr_value.__delete__
+                    if attr_value.fdel is None
+                    else attr_value.fdel,
+                    property_name=attr_name,
+                    property_method_type=PropertyMethodType.FDEL,
+                ),
+                doc=attr_value.__doc__,
+            )
+            register_series_accessor(attr_name)(prop)
+
+
 class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
-        "snowflake.snowpark.modin.pandas.series.Series",
+        "modin.pandas.Series",
         "snowflake.snowpark.modin.pandas.dataframe.DataFrame",
         "snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy",
         "snowflake.snowpark.modin.pandas.resample.Resampler",
@@ -513,7 +561,7 @@ class TelemetryMeta(type):
         This metaclass decorates callable class/instance methods which are public or are ``TELEMETRY_PRIVATE_METHODS``
         with ``snowpark_pandas_telemetry_api_usage`` telemetry decorator.
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
-        TelemetryMeta is only set as the metaclass of: snowflake.snowpark.modin.pandas.series.Series,
+        TelemetryMeta is only set as the metaclass of: modin.pandas.Series,
          snowflake.snowpark.modin.pandas.dataframe.DataFrame,
          snowflake.snowpark.modin.pandas.groupby.DataFrameGroupBy,
          snowflake.snowpark.modin.pandas.resample.Resampler,
