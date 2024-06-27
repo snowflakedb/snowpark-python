@@ -66,6 +66,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
     create_ast_for_column,
     create_ast_for_column_method,
 )
@@ -274,19 +275,21 @@ class Column:
 
             if self._ast is None:
                 self._ast = create_ast_for_column(expr1, None)
-        elif isinstance(expr1, Attribute):
-            self._expression = expr1
-            if self._ast is None:
-                self._ast = create_ast_for_column(expr1.name, None)
+
         elif isinstance(expr1, Expression):
             self._expression = expr1
 
             if self._ast is None:
                 if hasattr(expr1, "_ast"):
                     self._ast = expr1._ast
+                elif isinstance(expr1, Attribute):
+                    self._ast = create_ast_for_column(expr1.name, None)
+                elif isinstance(expr1, Literal):
+                    self._ast = proto.Expr()
+                    build_const_from_python_val(expr1.value, self._ast)
                 else:
                     raise NotImplementedError(
-                        f"expr1 {expr1} is an expression with missing AST."
+                        f"expr1 {expr1} is an expression with missing AST or for which an AST can not be auto-generated."
                     )
 
         else:  # pragma: no cover
@@ -984,8 +987,8 @@ class Column:
             return Literal(expr)
 
     @classmethod
-    def _expr(cls, e: str) -> "Column":
-        return cls(UnresolvedAttribute(e, is_sql_text=True))
+    def _expr(cls, e: str, ast: Optional[proto.Expr] = None) -> "Column":
+        return cls(UnresolvedAttribute(e, is_sql_text=True), ast=ast)
 
     # Add these alias for user code migration
     isin = in_
