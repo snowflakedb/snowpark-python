@@ -140,4 +140,44 @@ df66 = df.select(not_("A"))
 
 df67 = df.select(random(), random(None), random(10))
 
+df68 = df.select(uniform("A", "B", "A"), uniform(10, 13., col("A")), uniform(0.2, 2, 0.2))
+
+df69 = df.select(seq1(0), seq1(10), seq1(-10))
+
+df70 = df.select(seq2(1))
+
+df71 = df.select(seq4(12))
+
+df72 = df.select(seq8(324))
+
+df73 = df.select(to_decimal("A", 10, 3), to_decimal(col("B"), 12, 3))
+
+df74 = df.select(to_double(col("A")), to_double("A", None), to_double("A", "999.9"), to_double(col("A"), col("B")))
+
+df75 = df.select(div0(0, 1), div0(1.2, 9.3), div0(10, 89.2), div0("A", 1), div0(0.2, "A"), div0(0.3, col("B")))
+
+df76 = df.select(sqrt("A"))
+
+df77 = df.select(abs("A"))
+
+df78 = df.select(acos("A"))
+
+df79 = df.select(asin("A"))
+
+df80 = df.select(atan("A"))
+
+df81 = df.select(atan2("A", "B"))
+
+df82 = df.select(ceil("A"))
+
+df83 = df.select(cos("A"))
+
+df84 = df.select(cosh("A"))
+
+df85 = df.select(exp("A"))
+
+df86 = df.select(factorial("A"))
+
+df87 = df.select(floor("A"))
+
 ## EXPECTED OUTPUT
