@@ -699,17 +699,17 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     3  two   A    4   q
     4  two   B    5   w
     5  two   C    6   t
-    >>> pd.pivot(data=df, index='foo', columns='bar', values='baz')
+    >>> pd.pivot(data=df, index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
     bar  A  B  C
     foo
     one  1  2  3
     two  4  5  6
-    >>> pd.pivot(data=df, index='foo', columns='bar')['baz']
+    >>> pd.pivot(data=df, index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
     bar  A  B  C
     foo
     one  1  2  3
     two  4  5  6
-    >>> pd.pivot(data=df, index='foo', columns='bar', values=['baz', 'zoo'])
+    >>> pd.pivot(data=df, index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
         baz       zoo
     bar   A  B  C   A  B  C
     foo
@@ -729,13 +729,13 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     3     2     1     2     4       3
     4     2     1     1     5       4
     5     2     2     2     6       5
-    >>> pd.pivot(data=df, index="lev1", columns=["lev2", "lev3"], values="values")
+    >>> pd.pivot(data=df, index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
     lev2  1       2
     lev3  1  2    1    2
     lev1
     1     0  1  2.0  NaN
     2     4  3  NaN  5.0
-    >>> pd.pivot(data=df, index=["lev1", "lev2"], columns=["lev3"], values="values")
+    >>> pd.pivot(data=df, index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
     lev3         1    2
     lev1 lev2
     1    1     0.0  1.0
