@@ -38,6 +38,7 @@ from snowflake.snowpark.functions import (
     array_to_string,
     array_unique_agg,
     arrays_overlap,
+    arrays_zip,
     as_array,
     as_binary,
     as_char,
@@ -1394,6 +1395,44 @@ def test_array_flatten(session):
     Utils.check_answer(
         df,
         [Row(FLATTEN_A=None)],
+    )
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (
+            [([1, 2], ["a", "b"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b", "c"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  },\n  {\n    "$1": null,\n    "$2": "c"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b"], [10.1, 10.2])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a",\n    "$3": 10.1\n  },\n  {\n    "$1": 2,\n    "$2": "b",\n    "$3": 10.2\n  }\n]'
+                )
+            ],
+        ),
+    ],
+)
+def test_arrays_zip(session, data, expected):
+    df = session.create_dataframe(data)
+    df = df.select(arrays_zip(*df.columns).as_("zipped"))
+
+    Utils.check_answer(
+        df, expected, statement_params={"enable_arrays_zip_function": "TRUE"}
     )
 
 
