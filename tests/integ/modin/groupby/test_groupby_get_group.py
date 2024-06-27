@@ -98,4 +98,4 @@ def test_groupby_get_group_with_list():
 def test_error_checking():
     s = pd.Series(list("abc") * 4)
     with pytest.raises(NotImplementedError):
-        s.groupby(s).get_group("b")
+        s.groupby(pd.Grouper("b")).get_group("b")
