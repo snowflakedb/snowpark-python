@@ -14883,3 +14883,76 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return qc.dropna(axis=0, how="any", thresh=None)
         else:
             return qc
+
+    def unstack(
+        self,
+        level: Union[int, str, list] = -1,
+        fill_value: Optional[Union[int, str, dict]] = None,
+        sort: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        level = level if is_list_like(level) else [level]
+
+        # Check to see if we have a MultiIndex, if we do, make sure we remove
+        # the appropriate level(s), and we pivot accordingly.
+        index_cols = [f"level_{i}" for i in range(self.index.nlevels)]
+        if len(index_cols) > 1:
+            pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
+            index_cols = [
+                index_cols[i]
+                for i in range(len(index_cols))
+                if index_cols[i] not in pivot_cols
+            ]
+            vals = [
+                c for c in self.columns if c not in index_cols and c not in pivot_cols
+            ]
+            qc = (
+                self.reset_index()
+                .pivot_table(
+                    columns=pivot_cols,
+                    index=index_cols,
+                    values=vals,
+                    aggfunc="min",
+                    fill_value=None,
+                    margins=False,
+                    dropna=True,
+                    margins_name="All",
+                    observed=False,
+                    sort=True,
+                )
+                .set_index_names([None])
+            )
+
+            from snowflake.snowpark.modin.pandas.dataframe import DataFrame
+
+            qc = (
+                DataFrame(query_compiler=qc)
+                .rename_axis([None] * len(qc.columns), axis=1)
+                ._query_compiler
+            )
+        else:
+            # N.B. normally non-MultiIndex cases would throw an error in pandas
+            # for series objects. However, pandas seems to handle this for DFs
+            # by doing a transposed stack! Strange behavior, but since we throw
+            # an error in the modin API layer for Series without MultiIndex indices,
+            # we can assume that this must be a DataFrame. This assumption might
+            # change in the future, so this code should be changed along with it.
+            index_names = ["index"]
+
+            qc = (
+                self.reset_index()
+                .melt(
+                    id_vars=index_names,
+                    value_vars=self.columns,
+                    var_name="index_second_level",
+                    value_name=MODIN_UNNAMED_SERIES_LABEL,
+                    ignore_index=False,
+                )
+                .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
+                .set_index_from_columns(["index_second_level"] + index_names)  # type: ignore
+                .set_index_names([None, None])
+            )
+
+        # Do something for the fill_value
+        if fill_value:
+            qc = qc.fillna(value=fill_value, self_is_series=False)
+        return qc

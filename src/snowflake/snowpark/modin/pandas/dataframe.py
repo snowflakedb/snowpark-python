@@ -1794,23 +1794,27 @@ class DataFrame(BasePandasDataset):
             )
         )
 
-    @dataframe_not_implemented()
-    def unstack(self, level=-1, fill_value=None):  # noqa: PR01, RT01, D200
+    def unstack(
+        self,
+        level: int | str | list = -1,
+        fill_value: int | str | dict = None,
+        sort: bool = True,
+    ):
         """
         Pivot a level of the (necessarily hierarchical) index labels.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not isinstance(self.index, pandas.MultiIndex) or (
-            isinstance(self.index, pandas.MultiIndex)
-            and is_list_like(level)
-            and len(level) == self.index.nlevels
+        # This ensures that non-pandas MultiIndex objects are caught.
+        is_multiindex = len(self.index.names) > 1
+        if not is_multiindex or (
+            is_multiindex and is_list_like(level) and len(level) == self.index.nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.unstack(level, fill_value)
+                query_compiler=self._query_compiler.unstack(level, fill_value, sort)
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.unstack(level, fill_value)
+                query_compiler=self._query_compiler.unstack(level, fill_value, sort)
             )
 
     @dataframe_not_implemented()
