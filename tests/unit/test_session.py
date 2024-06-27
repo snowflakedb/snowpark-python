@@ -544,7 +544,9 @@ def test_session_builder_app_name_existing_valid_query_tag():
         assert builder.app_name(app_name) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
-        assert created_session.query_tag == '{"key1": "value1", "APPNAME": "my_app_name"}'
+        assert (
+            created_session.query_tag == '{"key1": "value1", "APPNAME": "my_app_name"}'
+        )
 
 
 def test_session_builder_app_name_existing_invalid_query_tag():
@@ -570,9 +572,9 @@ def test_session_builder_app_name_existing_invalid_query_tag():
     with mock.patch.object(
         builder, "_create_internal", return_value=mocked_session
     ), pytest.raises(
-        ValueError, match="Expected query tag to be valid json. Current query tag: tag",
+        ValueError,
+        match="Expected query tag to be valid json. Current query tag: tag",
     ):
         app_name = "my_app_name"
         assert builder.app_name(app_name) is builder
         builder.getOrCreate()
-
