@@ -245,7 +245,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         BooleanType: bool,
         ByteType: numpy.int8 if not col.sf_type.nullable else "Int8",
         DateType: object,
-        DecimalType: numpy.int64 if not col.sf_type.nullable else "Int64",
+        DecimalType: numpy.float64,
         DoubleType: numpy.float64,
         FloatType: numpy.float64,
         IntegerType: numpy.int64 if not col.sf_type.nullable else "Int64",
@@ -259,7 +259,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         MapType: object,
     }
     fixed_type = sf_type_to_dtype.get(type(col.sf_type.datatype), object)
-    col = col.astype(fixed_type)
+    col = col.astype(fixed_type, errors="ignore")
     return col
 
 
