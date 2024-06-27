@@ -180,4 +180,48 @@ df86 = df.select(factorial("A"))
 
 df87 = df.select(floor("A"))
 
+df88 = df.select(format_number("A", col("B")), format_number("A", 10))
+
+df89 = df.select(sin("A"))
+
+df90 = df.select(sinh("A"))
+
+df91 = df.select(tan("A"))
+
+df92 = df.select(tanh("A"))
+
+df93 = df.select(degrees("A"))
+
+df94 = df.select(radians("A"))
+
+df95 = df.select(md5("A"))
+
+df96 = df.select(sha1("A"))
+
+df97 = df.select(sha2(col("B"), 0), sha2("A", 224))
+
+df98 = df.select(hash(lit(None), lit(10), col("A"), "B"))
+
+df99 = df.select(ascii("A"))
+
+df100 = df.select(initcap("A"), initcap("A", None), initcap("A", "B"), initcap(col("A"), lit("123")))
+
+df101 = df.select(length("A"))
+
+df102 = df.select(lower("A"))
+
+df103 = df.select(lpad("A", col("B"), "B"), lpad("A", 100, "B"), lpad(col("A"), col("B"), col("B")))
+
+df104 = df.select(ltrim("A"), ltrim("A", None), ltrim(col("A"), "B"), ltrim(col("A"), lit("B")))
+
+df105 = df.select(rpad("A", col("B"), "B"), rpad("A", 100, "B"), rpad(col("A"), col("B"), col("B")))
+
+df106 = df.select(rtrim("A"), rtrim("A", None), rtrim(col("A"), "B"), rtrim(col("A"), lit("B")))
+
+df107 = df.select(repeat("A", 1), repeat(col("A"), 20), repeat("B", col("A")))
+
+df108 = df.select(reverse("A"))
+
+df109 = df.select(soundex("A"))
+
 ## EXPECTED OUTPUT

@@ -161,6 +161,8 @@ df = df.select(rtrim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None
 df = df.select(repeat(s: ColumnOrName, n: Union[Column, int]) -> Column:
 df = df.select(reverse(col: ColumnOrName) -> Column:
 df = df.select(soundex(e: ColumnOrName) -> Column:
+
+
 df = df.select(trim(e: ColumnOrName, trim_string: Optional[ColumnOrName] = None) -> Column:
 df = df.select(upper(e: ColumnOrName) -> Column:
 df = df.select(strtok_to_array(
