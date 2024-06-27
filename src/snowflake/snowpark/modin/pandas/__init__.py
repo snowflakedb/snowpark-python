@@ -165,7 +165,7 @@ import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip 
 
 
 from snowflake.snowpark.modin.pandas.series import (  # isort: skip  # noqa: E402,F401
-    Series as DONOTEXPORTMESeries,
+    DONOTEXPORTMESeries,
 )
 
 
@@ -347,6 +347,7 @@ for name in _EXTENSION_ATTRS:
 temporary_heritance_do_not_keep_this_in_final_pr = [
     "align",
     "groupby",
+    "set_axis",
     "_to_pandas",
     "cat",
     "str",  # seems to be issues with CachedAccessor from upstream
@@ -358,6 +359,8 @@ temporary_heritance_do_not_keep_this_in_final_pr = [
     "__setitem__",
     "iloc",
     "loc",
+    # we use a different from_pandas (revisit later)
+    "__init__",
 ]
 
 
