@@ -37,6 +37,7 @@ from typing import IO, Any, Callable, Literal
 import numpy as np
 import pandas
 from modin.pandas.accessor import CachedAccessor, SparseFrameAccessor
+from modin.pandas.base import BasePandasDataset
 
 # from . import _update_engine
 from modin.pandas.iterator import PartitionIterator
@@ -73,12 +74,11 @@ from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin import pandas as pd
-from snowflake.snowpark.modin.pandas.base import _ATTRS_NO_LOOKUP, BasePandasDataset
 from snowflake.snowpark.modin.pandas.groupby import (
     DataFrameGroupBy,
     validate_groupby_args,
 )
-from snowflake.snowpark.modin.pandas.series import Series
+from snowflake.snowpark.modin.pandas.series import _ATTRS_NO_LOOKUP, Series
 from snowflake.snowpark.modin.pandas.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )
@@ -91,6 +91,7 @@ from snowflake.snowpark.modin.pandas.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
 )
+from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin._internal.utils import is_repr_truncated
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.utils.error_message import (
@@ -136,7 +137,7 @@ _DATAFRAME_EXTENSIONS_ = {}
     ],
     apilink="pandas.DataFrame",
 )
-class DataFrame(BasePandasDataset):
+class DataFrame(BasePandasDataset, metaclass=TelemetryMeta):
     _pandas_class = pandas.DataFrame
 
     def __init__(

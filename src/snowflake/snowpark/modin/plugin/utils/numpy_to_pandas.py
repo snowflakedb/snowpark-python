@@ -3,8 +3,9 @@
 #
 from typing import Any, Optional, Union
 
+from modin.pandas.base import BasePandasDataset
+
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
 from snowflake.snowpark.modin.pandas.utils import is_scalar
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 

@@ -147,10 +147,9 @@ from snowflake.snowpark.modin.plugin._internal.session import SnowpandasSessionH
 # The extensions assigned to this module
 _PD_EXTENSIONS_: dict = {}
 
-# base needs to be re-exported in order to properly override docstrings for BasePandasDataset
-# moving this import higher prevents sphinx from building documentation (??)
-from snowflake.snowpark.modin.pandas import base  # isort: skip  # noqa: E402,F401
 
+import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.base_not_implemented  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions as pd_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.pd_overrides  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.plugin.extensions.pd_overrides import (  # isort: skip  # noqa: E402,F401
@@ -220,7 +219,6 @@ __all__ = [  # noqa: F405
     "date_range",
     "Index",
     "MultiIndex",
-    "Series",
     "bdate_range",
     "period_range",
     "DatetimeIndex",
@@ -318,8 +316,7 @@ _SKIP_TOP_LEVEL_ATTRS = [
 # Manually re-export the members of the pd_extensions namespace, which are not declared in __all__.
 _EXTENSION_ATTRS = ["read_snowflake", "to_snowflake", "to_snowpark", "to_pandas"]
 # We also need to re-export native_pd.offsets, since modin.pandas doesn't re-export it.
-# snowflake.snowpark.pandas.base also needs to be re-exported to make docstring overrides for BasePandasDataset work.
-_ADDITIONAL_ATTRS = ["offsets", "base"]
+_ADDITIONAL_ATTRS = ["offsets"]
 
 # This code should eventually be moved into the `snowflake.snowpark.modin.plugin` module instead.
 # Currently, trying to do so would result in incorrect results because `snowflake.snowpark.modin.pandas`
