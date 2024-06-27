@@ -3921,7 +3921,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         level = groupby_kwargs.get("level", None)
         is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
-        if not is_supported:
+        if not is_supported:  # pragma: no cover
             ErrorMessage.not_implemented(
                 "Snowpark pandas GroupBy.size does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
             )
