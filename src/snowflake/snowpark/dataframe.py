@@ -1178,17 +1178,16 @@ class DataFrame:
         table_func = None
         join_plan = None
 
-        if ast is None:
-            raise ValueError("Need to pass ast to fill.")
-
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                ast.cols.append(e._ast)
+                if ast:
+                    ast.cols.append(e._ast)
 
             elif isinstance(e, str):
                 col_expr_ast = create_ast_for_column(e, None)
-                ast.cols.append(col_expr_ast)
+                if ast:
+                    ast.cols.append(col_expr_ast)
 
                 col = Column(e, ast=col_expr_ast)
                 # For the ast, we do not need to carry the name of the column.

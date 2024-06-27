@@ -8,10 +8,14 @@ from snowflake.snowpark.session import Session
 
 def test_example():
     session = Session.builder.getOrCreate()
-    df = session.createDataFrame([1, 2, 3], schema=["A"])
-    df.select("A", col("A"))
+    # df = session.createDataFrame([1, 2, 3], schema=["A"])
+    df = session.table("test_table")
 
-    # df = df.select(col("A").regexp("test"))
+    variadic = df.to_df("one", "two")
+
+    df = df.select(col("A").regexp("test"))
+
+    assert df and variadic
     #
     # df = df.select(col("A").startswith("test"))
     #
