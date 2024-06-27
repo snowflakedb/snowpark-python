@@ -1825,7 +1825,7 @@ class DataFrame(BasePandasDataset):
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         if index is no_default:
-            index = None
+            index = None  # pragma: no cover
         if values is no_default:
             values = None
 
