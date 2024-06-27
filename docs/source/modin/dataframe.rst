@@ -188,6 +188,9 @@ DataFrame
     DataFrame.nsmallest
     DataFrame.pivot_table
     DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.melt
     DataFrame.sort_values
     DataFrame.squeeze
     DataFrame.stack
