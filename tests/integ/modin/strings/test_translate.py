@@ -104,22 +104,25 @@ def test_translate_without_maketrans():
 
 
 @pytest.mark.parametrize(
-    "table",
+    "table, error",
     [
-        {"😶‍🌫️": "a"},  # This emoji key is secretly 4 code points
-        {"aa": "a"},  # Key is 2 chars
+        ({"😶‍🌫️": "a"}, ValueError),  # This emoji key is secretly 4 code points
+        ({"aa": "a"}, ValueError),  # Key is 2 chars
         # Mapping 1 char to multiple is valid in vanilla pandas, but we don't support this
-        {ord("a"): "😶‍🌫️"},  # This emoji value is secretly 4 code points
-        {ord("a"): "aa"},  # Value is 2 chars
+        (
+            {ord("a"): "😶‍🌫️"},
+            NotImplementedError,
+        ),  # This emoji value is secretly 4 code points
+        ({ord("a"): "aa"}, NotImplementedError),  # Value is 2 chars
     ],
 )
 @sql_count_checker(query_count=0)
-def test_translate_invalid_mappings(table):
+def test_translate_invalid_mappings(table, error):
     data = ["aaaaa", "fjkdsajk", "cjghgjqk", "yubikey"]
     # native pandas silently treats all of these cases as no-ops. However, since Snowflake SQL uses
     # strings as mappings instead of a dict construct, passing these arguments to the equivalent
     # SQL argument would either cause an inscrutable error or unexpected changes to the output series.
     snow_ser, native_ser = create_test_series(data)
     native_ser.str.translate(table)
-    with pytest.raises(ValueError):
+    with pytest.raises(error):
         snow_ser.str.translate(table)

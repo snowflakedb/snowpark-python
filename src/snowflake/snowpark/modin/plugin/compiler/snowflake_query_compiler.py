@@ -13976,7 +13976,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Invalid mapping key '{key}'. String keys in translate table must be of length 1."
                 )
             if value is not None and len(value) > 1:
-                raise ValueError(
+                raise NotImplementedError(
                     f"Invalid mapping value '{value}' for key '{key}'. Snowpark pandas currently only "
                     "supports unicode ordinals or 1-codepoint strings as values in str.translate mappings. "
                     "Consider using Series.str.replace to replace multiple characters."
