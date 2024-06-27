@@ -182,7 +182,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     LastValue,
     Lead,
 )
-from snowflake.snowpark._internal.ast_utils import build_fn_apply, create_ast_for_column
+from snowflake.snowpark._internal.ast_utils import (
+    build_fn_apply,
+    create_ast_for_column,
+    create_ast_for_column_method,
+)
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrLiteralStr,
@@ -333,7 +337,13 @@ def sql_expr(sql: str) -> Column:
         >>> df.filter("a > 1").collect()  # use SQL expression
         [Row(A=3, B=4)]
     """
-    return Column._expr(sql)
+
+    ast = create_ast_for_column_method(
+        property="sp_column_sql_expr",
+        assign_fields={"sql": sql},
+    )
+
+    return Column._expr(sql, ast=ast)
 
 
 def current_session() -> Column:
@@ -8189,7 +8199,7 @@ def _call_function(
 
     args_list = parse_positional_args_to_list(*args)
     ast = proto.Expr()
-    build_fn_apply(ast, name, *tuple(arg._ast for arg in args_list))
+    build_fn_apply(ast, name, *tuple(args_list))
 
     expressions = [Column._to_expr(arg) for arg in args_list]
     return Column(

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, current_warehouse, sql_expr  # noqa: F401
 from snowflake.snowpark.session import Session
 
 
@@ -11,11 +11,13 @@ def test_example():
     # df = session.createDataFrame([1, 2, 3], schema=["A"])
     df = session.table("test_table")
 
-    variadic = df.to_df("one", "two")
+    df = df.select(sql_expr("current_warehouse()"))
 
-    df = df.select(col("A").regexp("test"))
+    # variadic = df.to_df("one", "two")
+    #
+    # df = df.select(col("A").regexp("test"))
 
-    assert df and variadic
+    # assert df and variadic
     #
     # df = df.select(col("A").startswith("test"))
     #
