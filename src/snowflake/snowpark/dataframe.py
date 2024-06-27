@@ -3380,7 +3380,11 @@ class DataFrame:
 
         # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
         repr = self._session._ast_batch.assign()
-        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging.")
+        elif self._ast_id is not None:
+            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
 
         if self._session._conn.is_phase1_enabled():
