@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import pytest
 
+import snowflake.snowpark.context
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     schema_expression,
     to_sql,
@@ -54,7 +55,11 @@ def timezone(request):
     return request.param
 
 
-def test_to_sql():
+@pytest.mark.parametrize(
+    "enable_eliminating_numeric_sql_value_cast", [True, False],
+)
+def test_to_sql(enable_eliminating_numeric_sql_value_cast):
+    snowflake.snowpark.context.enable_eliminating_numeric_sql_value_cast = enable_eliminating_numeric_sql_value_cast
     # Test nulls
     assert to_sql(None, NullType()) == "NULL"
     assert to_sql(None, ArrayType(DoubleType())) == "NULL"
@@ -63,14 +68,17 @@ def test_to_sql():
     assert to_sql(None, GeographyType()) == "NULL"
     assert to_sql(None, GeometryType()) == "NULL"
 
-    assert to_sql(None, IntegerType()) == "NULL :: INT"
-    assert to_sql(None, ShortType()) == "NULL :: INT"
-    assert to_sql(None, ByteType()) == "NULL :: INT"
-    assert to_sql(None, LongType()) == "NULL :: INT"
-    assert to_sql(None, FloatType()) == "NULL :: FLOAT"
+    expected_int_postfix = "" if enable_eliminating_numeric_sql_value_cast else " :: INT"
+    expected_float_postfix = "" if enable_eliminating_numeric_sql_value_cast else " :: FLOAT"
+    assert to_sql(None, IntegerType()) == f"NULL{expected_int_postfix}"
+    assert to_sql(None, ShortType()) == f"NULL{expected_int_postfix}"
+    assert to_sql(None, ByteType()) == f"NULL{expected_int_postfix}"
+    assert to_sql(None, LongType()) == f"NULL{expected_int_postfix}"
+    assert to_sql(None, FloatType()) == f"NULL{expected_float_postfix}"
     assert to_sql(None, StringType()) == "NULL :: STRING"
-    assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
+    assert to_sql(None, DoubleType()) == f"NULL{expected_float_postfix}"
     assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
+    assert to_sql(None, IntegerType(), from_values_statement=True) == f"NULL :: INT"
 
     assert to_sql(None, "Not any of the previous types") == "NULL"
 
@@ -80,28 +88,32 @@ def test_to_sql():
         to_sql("\\ '  ' abc \n \\", StringType(), True)
         == "'\\\\ ''  '' abc \\n \\\\' :: STRING"
     )
-    assert to_sql(1, ByteType()) == "1 :: INT"
-    assert to_sql(1, ShortType()) == "1 :: INT"
-    assert to_sql(1, IntegerType()) == "1 :: INT"
-    assert to_sql(1, LongType()) == "1 :: INT"
+    assert to_sql(1, ByteType()) == f"1{expected_int_postfix}"
+    assert to_sql(1, ShortType()) == f"1{expected_int_postfix}"
+    assert to_sql(1, IntegerType()) == f"1{expected_int_postfix}"
+    assert to_sql(1, LongType()) == f"1{expected_int_postfix}"
     assert to_sql(1, BooleanType()) == "1 :: BOOLEAN"
-    assert to_sql(0, ByteType()) == "0 :: INT"
-    assert to_sql(0, ShortType()) == "0 :: INT"
-    assert to_sql(0, IntegerType()) == "0 :: INT"
-    assert to_sql(0, LongType()) == "0 :: INT"
+    assert to_sql(0, ByteType()) == f"0{expected_int_postfix}"
+    assert to_sql(0, ShortType()) == f"0{expected_int_postfix}"
+    assert to_sql(0, IntegerType()) == f"0{expected_int_postfix}"
+    assert to_sql(0, LongType()) == f"0{expected_int_postfix}"
     assert to_sql(0, BooleanType()) == "0 :: BOOLEAN"
 
     assert to_sql(float("nan"), FloatType()) == "'NAN' :: FLOAT"
     assert to_sql(float("inf"), FloatType()) == "'INF' :: FLOAT"
     assert to_sql(float("-inf"), FloatType()) == "'-INF' :: FLOAT"
-    assert to_sql(1.2, FloatType()) == "'1.2' :: FLOAT"
+    expected_float_sql = "1.2" if enable_eliminating_numeric_sql_value_cast else f"'1.2'{expected_float_postfix}"
+    assert to_sql(1.2, FloatType()) == expected_float_sql
+    assert to_sql(1.2, FloatType(), from_values_statement=True) == "'1.2' :: FLOAT"
 
     assert to_sql(float("nan"), DoubleType()) == "'NAN' :: FLOAT"
     assert to_sql(float("inf"), DoubleType()) == "'INF' :: FLOAT"
     assert to_sql(float("-inf"), DoubleType()) == "'-INF' :: FLOAT"
-    assert to_sql(1.2, DoubleType()) == "'1.2' :: FLOAT"
+    assert to_sql(1.2, DoubleType()) == expected_float_sql
 
     assert to_sql(Decimal(0.5), DecimalType(2, 1)) == "0.5 ::  NUMBER (2, 1)"
+
+    assert to_sql('abc', StringType()) == "'abc'"
 
     assert to_sql(397, DateType()) == "DATE '1971-02-02'"
     # value type must be int

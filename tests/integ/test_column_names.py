@@ -7,7 +7,10 @@ import math
 
 import pytest
 
-from snowflake.snowpark import Column, Window
+from typing import List, Optional
+from snowflake.snowpark import Column, Window, Row, Session
+from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.types import DataType, BooleanType, StringType, VariantType, LongType
 from snowflake.snowpark._internal.analyzer.expression import Interval
 from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.functions import (
@@ -39,45 +42,81 @@ def get_metadata_names(session, df):
     return [quote_name(metadata.name) for metadata in description]
 
 
+def get_result_metadata(session: Session, df: DataFrame):
+    if isinstance(session._conn, MockServerConnection):
+        return session._conn.get_result_and_metadata(df._plan)[1]
+
+    return session._conn.get_result_attributes(df.queries["queries"][-1])
+
+
+def verify_column_result(
+        session: Session,
+        df: DataFrame,
+        expected_column_names: List[str],
+        expected_dtypes: List[DataType],
+        expected_rows: Optional[List[Row]],
+):
+    df_metadata = get_result_metadata(session, df)
+    metadata_column_names = [col.name for col in df_metadata]
+    metadata_column_dtypes = [col.datatype for col in df_metadata]
+    output_names = [output.name for output in df._output]
+    assert (output_names == df.columns == metadata_column_names == expected_column_names)
+    for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
+        if isinstance(expected_type, StringType):
+            assert isinstance(datatype, StringType)
+        else:
+            assert datatype == expected_type
+
+    if expected_rows is not None:
+        res = df.collect()
+        assert(res == expected_rows)
+
+
 def test_like(session):
     df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].like(lit("v%")))
 
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C"" LIKE \'V%\'"'
+    verify_column_result(
+        session,
+        df2,
+        ['"""C"" LIKE \'V%\'"'],
+        [BooleanType()],
+        [Row(True)]
     )
 
     df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1["c c"].like(lit("v%")))
 
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C C"" LIKE \'V%\'"'
+    verify_column_result(
+        session,
+        df2,
+        ['"""C C"" LIKE \'V%\'"'],
+        [BooleanType()],
+        [Row(True)]
     )
 
 
 def test_regexp(session):
     df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].regexp(lit("v%")))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C"" REGEXP \'V%\'"'
+
+    verify_column_result(
+        session,
+        df2,
+        ['"""C"" REGEXP \'V%\'"'],
+        [BooleanType()],
+        [Row(False)]
     )
 
     df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1['"c c"'].regexp(lit("v%")))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C C"" REGEXP \'V%\'"'
+
+    verify_column_result(
+        session,
+        df2,
+        ['"""C C"" REGEXP \'V%\'"'],
+        [BooleanType()],
+        [Row(False)]
     )
 
 
@@ -88,20 +127,24 @@ def test_regexp(session):
 def test_collate(session):
     df1 = session.sql("select 'v' as c")
     df2 = df1.select(df1["c"].collate("en"))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C"" COLLATE \'EN\'"'
+
+    verify_column_result(
+        session,
+        df2,
+        ['"""C"" COLLATE \'EN\'"'],
+        [StringType(1)],
+        [Row('v')]
     )
 
     df1 = session.sql("select 'v' as \"c c\"")
     df2 = df1.select(df1["c c"].collate("en"))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"""C C"" COLLATE \'EN\'"'
+
+    verify_column_result(
+        session,
+        df2,
+        ['"""C C"" COLLATE \'EN\'"'],
+        [StringType(1)],
+        [Row('v')]
     )
 
 
@@ -110,44 +153,49 @@ def test_subfield(session):
         data=[[[1, 2, 3], {"a": "b"}]], schema=["c", '"c c"']
     )
     df2 = df1.select(df1["C"][0], df1["c c"]["a"])
-    assert (
-        [x.name for x in df2._output]
-        == df2.columns
-        == get_metadata_names(session, df2)
-        == ['"""C""[0]"', '"""C C""[\'A\']"']
+
+    verify_column_result(
+        session,
+        df2,
+        ['"""C""[0]"', '"""C C""[\'A\']"'],
+        [VariantType(), VariantType()],
+        None
     )
 
 
 def test_case_when(session):
     df1 = session.create_dataframe([[1, 2]], schema=["c", '"c c"'])
     df2 = df1.select(when(df1["c"] == 1, lit(True)).when(df1["c"] == 2, lit("abc")))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"CASE  WHEN (""C"" = 1 :: INT) THEN TRUE :: BOOLEAN WHEN (""C"" = 2 :: INT) THEN \'ABC\' ELSE NULL END"'
+    verify_column_result(
+        session,
+        df2,
+        ['"CASE  WHEN (""C"" = 1 :: INT) THEN TRUE :: BOOLEAN WHEN (""C"" = 2 :: INT) THEN \'ABC\' ELSE NULL END"'],
+        [BooleanType()],
+        [Row(True)]
     )
 
 
 def test_multiple_expression(session):
     df1 = session.create_dataframe([[1, "v"]], schema=["c", '"c c"'])
     df2 = df1.select(in_(["c", "c c"], [[lit(1), lit("v")]]))
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"(""C"", ""C C"") IN ((1 :: INT, \'V\'))"'
+    verify_column_result(
+        session,
+        df2,
+        ['"(""C"", ""C C"") IN ((1 :: INT, \'V\'))"'],
+        [BooleanType()],
+        [Row(True)]
     )
 
 
 def test_in_expression(session):
     df1 = session.create_dataframe([[1, "v"]], schema=["c", '"c c"'])
     df2 = df1.select(df1["c"].in_(1, 2, 3), df1["c c"].in_("v"))
-    assert (
-        [x.name for x in df2._output]
-        == df2.columns
-        == get_metadata_names(session, df2)
-        == ['"""C"" IN (1 :: INT, 2 :: INT, 3 :: INT)"', '"""C C"" IN (\'V\')"']
+    verify_column_result(
+        session,
+        df2,
+        ['"""C"" IN (1 :: INT, 2 :: INT, 3 :: INT)"', '"""C C"" IN (\'V\')"'],
+        [BooleanType(), BooleanType()],
+        [Row(True, True)]
     )
 
 
@@ -172,11 +220,12 @@ def test_specified_window_frame(session):
     assert df1._output[0].name == '" a"'
     assert df1.columns[0] == '" a"'
     df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
+    verify_column_result(
+        session,
+        df2,
+        ['"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'],
+        [LongType()],
+        [Row(0)]
     )
 
 
@@ -188,15 +237,16 @@ def test_cast(session):
         df1[" a"].try_cast("integer"),
         upper(df1[" a"]).cast("string"),
     )
-    assert (
-        [x.name for x in df2._output]
-        == df2.columns
-        == get_metadata_names(session, df2)
-        == [
+    verify_column_result(
+        session,
+        df2,
+        [
             '"CAST (""A"" AS STRING(23))"',
             '"TRY_CAST ("" A"" AS INT)"',
             '"CAST (UPPER("" A"") AS STRING)"',
-        ]
+        ],
+        [StringType(), LongType(), StringType()],
+        [Row('1', None, 'V')]
     )
 
 
@@ -206,18 +256,20 @@ def test_cast(session):
 )
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
-    assert (
-        df1._output[0].name
-        == df1.columns[0]
-        == get_metadata_names(session, df1)[0]
-        == '" a"'
+    verify_column_result(
+        session,
+        df1,
+        ['" a"'],
+        [StringType()],
+        [Row('v')]
     )
     df2 = df1.select(any_value(df1[" a"]).over())
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"ANY_VALUE("" A"") OVER (  )"'
+    verify_column_result(
+        session,
+        df2,
+        ['"ANY_VALUE("" A"") OVER (  )"'],
+        [StringType()],
+        [Row('v')]
     )
 
 
@@ -237,11 +289,13 @@ def test_special_frame_boundry(session):
         )
         - 1
     )
-    assert (
-        df2._output[0].name
-        == df2.columns[0]
-        == get_metadata_names(session, df2)[0]
-        == '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'
+
+    verify_column_result(
+        session,
+        df2,
+        ['"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'],
+        [LongType()],
+        [Row(0)]
     )
 
 
@@ -254,6 +308,7 @@ def test_rank_related_function_expression(session):
         first_value(df1[" a"]).over(window),
         last_value(df1[" a"]).over(window),
     )
+    
     assert (
         [x.name for x in df2._output]
         == df2.columns
@@ -293,11 +348,13 @@ def test_literal(session):
         == get_metadata_names(session, df2)
         == [
             "\"'A'\"",
-            '"1 :: INT"',
+            '"1"',
             '"TRUE :: BOOLEAN"',
             "\"PARSE_JSON('[1]') :: ARRAY\"",
         ]
     )
+    res = df2.collect()
+    assert(res == [Row('a', 1, True, '[\n  1\n]')])
 
 
 @pytest.mark.skipif(
