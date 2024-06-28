@@ -186,6 +186,7 @@ DataFrame
     DataFrame.melt
     DataFrame.nlargest
     DataFrame.nsmallest
+    DataFrame.pivot
     DataFrame.pivot_table
     DataFrame.sort_index
     DataFrame.nlargest
