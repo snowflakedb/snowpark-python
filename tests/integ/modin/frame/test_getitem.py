@@ -39,9 +39,9 @@ from tests.integ.modin.utils import (
 def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    # one added query to convert to native pandas, 2 added queries for dtype and 2 added queries for series initialization
+    # one added query to convert to native pandas and 2 added queries for series initialization
     with SqlCounter(
-        query_count=6 if isinstance(key, native_pd.Index) else 1, join_count=1
+        query_count=4 if isinstance(key, native_pd.Index) else 1, join_count=1
     ):
         # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
         if isinstance(key, native_pd.Index):
@@ -86,8 +86,8 @@ def test_df_getitem_with_string_list_like(
         else:
             return df[key]
 
-    # 2 extra queries for dtype, 5 extra queries for iter
-    with SqlCounter(query_count=8 if isinstance(key, native_pd.Index) else 1):
+    # 5 extra queries for iter
+    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -121,8 +121,8 @@ def test_df_getitem_with_int_list_like(key):
     native_df = native_pd.DataFrame(data)
     snowpark_df = pd.DataFrame(native_df)
 
-    # 2 extra queries for dtype, 5 extra queries for iter
-    with SqlCounter(query_count=8 if isinstance(key, native_pd.Index) else 1):
+    # 5 extra queries for iter
+    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,

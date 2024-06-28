@@ -960,7 +960,74 @@ class StringMethods:
         pass
 
     def translate():
-        pass
+        """
+        Map all characters in the string through the given mapping table.
+
+        Equivalent to standard :meth:`str.translate`.
+
+        Parameters
+        ----------
+        table : dict
+            Table is a mapping of Unicode ordinals to Unicode ordinals, strings, or
+            None. Unmapped characters are left untouched.
+            Characters mapped to None are deleted. :meth:`str.maketrans` is a
+            helper function for making translation tables.
+
+        Returns
+        -------
+        Series
+
+        Examples
+        --------
+        >>> ser = pd.Series(["El niño", "Françoise"])
+        >>> mytable = str.maketrans({'ñ': 'n', 'ç': 'c'})
+        >>> ser.str.translate(mytable)  # doctest: +NORMALIZE_WHITESPACE
+        0   El nino
+        1   Francoise
+        dtype: object
+
+        Notes
+        -----
+        Snowpark pandas internally uses the Snowflake SQL `TRANSLATE` function to implement this
+        operation. Since this function uses strings instead of unicode codepoints, it will accept
+        mappings containing string keys that would be invalid in pandas.
+
+        The following example fails silently in vanilla pandas without `str.maketrans`:
+
+        >>> import pandas
+        >>> pandas.Series("aaa").str.translate({"a": "A"})
+        0    aaa
+        dtype: object
+        >>> pandas.Series("aaa").str.translate(str.maketrans({"a": "A"}))
+        0    AAA
+        dtype: object
+
+        The same code works in Snowpark pandas without `str.maketrans`:
+
+        >>> pd.Series("aaa").str.translate({"a": "A"})
+        0    AAA
+        dtype: object
+        >>> pd.Series("aaa").str.translate(str.maketrans({"a": "A"}))
+        0    AAA
+        dtype: object
+
+        Furthermore, due to restrictions in the underlying SQL, Snowpark pandas currently requires
+        all string values to be one unicode codepoint in length. To create replacements of multiple
+        characters, chain calls to `Series.str.replace` as needed.
+
+        Vanilla pandas code:
+
+        >>> import pandas
+        >>> pandas.Series("ab").str.translate(str.maketrans({"a": "A", "b": "BBB"}))
+        0    ABBB
+        dtype: object
+
+        Snowpark pandas equivalent:
+
+        >>> pd.Series("ab").str.translate({"a": "A"}).str.replace("b", "BBB")
+        0    ABBB
+        dtype: object
+        """
 
     def isalnum():
         pass
@@ -1319,6 +1386,27 @@ class CombinedDatetimelikeProperties:
         1    2
         2    3
         dtype: int8
+        """
+
+    def isocalendar():
+        """
+        Calculate year, week, and day according to the ISO 8601 standard.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            With columns year, week, and day.
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.date_range("2020-05-01", periods=5, freq="4D"))
+        >>> ser.dt.isocalendar()
+           year  week  day
+        0  2020    18    5
+        1  2020    19    2
+        2  2020    19    6
+        3  2020    20    3
+        4  2020    20    7
         """
 
     @property

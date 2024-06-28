@@ -151,6 +151,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.case_when
     Series.drop
     Series.drop_duplicates
     Series.get
@@ -196,7 +197,7 @@ Series
     Series.sort_values
     Series.sort_index
     Series.nlargest
-    Series.smallest
+    Series.nsmallest
     Series.squeeze
 
 .. rubric:: Combining / comparing / joining / merging
@@ -252,6 +253,7 @@ Series
     Series.dt.dayofyear
     Series.dt.day_of_year
     Series.dt.quarter
+    Series.dt.isocalendar
 
 
 .. rubric:: String accessor methods
@@ -283,4 +285,5 @@ Series
     Series.str.split
     Series.str.startswith
     Series.str.strip
+    Series.str.translate
     Series.str.upper
