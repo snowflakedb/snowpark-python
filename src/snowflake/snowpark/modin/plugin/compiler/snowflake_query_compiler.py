@@ -125,6 +125,7 @@ from snowflake.snowpark.functions import (
     timestamp_ntz_from_parts,
     to_date,
     to_variant,
+    translate,
     trim,
     uniform,
     upper,
@@ -13979,8 +13980,66 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_swapcase(self) -> None:
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
 
-    def str_translate(self, table: dict) -> None:
-        ErrorMessage.method_not_implemented_error("translate", "Series.str")
+    def str_translate(self, table: dict) -> "SnowflakeQueryCompiler":
+        """
+        Map all characters in the string through the given mapping table.
+
+        Equivalent to standard :meth:`str.translate`.
+
+        Parameters
+        ----------
+        table : dict
+            Table is a mapping of Unicode ordinals to Unicode ordinals, strings, or
+            None. Unmapped characters are left untouched.
+            Characters mapped to None are deleted. :meth:`str.maketrans` is a
+            helper function for making translation tables.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing results of the string operation.
+        """
+        # Snowflake SQL TRANSLATE:
+        #   TRANSLATE(<subject>, <sourceAlphabet>, <targetAlphabet>)
+        # Characters in the <sourceAlphabet> string are mapped to the corresponding entry in <targetAlphabet>.
+        # If <sourceAlphabet> is longer than <targetAlphabet>, then the trailing characters of <sourceAlphabet>
+        # are removed from the input string.
+        #
+        # Because TRANSLATE only supports 1-to-1 character mappings, any entries with multi-character
+        # values must be handled by REPLACE instead. 1-character keys are always invalid.
+        single_char_pairs = {}
+        none_keys = set()
+        for key, value in table.items():
+            # Treat integers as unicode codepoints
+            if isinstance(key, int):
+                key = chr(key)
+            if isinstance(value, int):
+                value = chr(value)
+            if len(key) != 1:
+                # Mimic error from str.maketrans
+                raise ValueError(
+                    f"Invalid mapping key '{key}'. String keys in translate table must be of length 1."
+                )
+            if value is not None and len(value) > 1:
+                raise NotImplementedError(
+                    f"Invalid mapping value '{value}' for key '{key}'. Snowpark pandas currently only "
+                    "supports unicode ordinals or 1-codepoint strings as values in str.translate mappings. "
+                    "Consider using Series.str.replace to replace multiple characters."
+                )
+            if value is None or len(value) == 0:
+                none_keys.add(key)
+            else:
+                single_char_pairs[key] = value
+        source_alphabet = "".join(single_char_pairs.keys()) + "".join(none_keys)
+        target_alphabet = "".join(single_char_pairs.values())
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_data_columns(
+                lambda col_name: translate(
+                    col(col_name),
+                    pandas_lit(source_alphabet),
+                    pandas_lit(target_alphabet),
+                )
+            )
+        )
 
     def str_wrap(self, width: int, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("wrap", "Series.str")
