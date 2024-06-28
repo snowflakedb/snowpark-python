@@ -86,6 +86,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
         (lambda df: df.std(), 0),
         (lambda df: df.var(), 0),
         (lambda df: df.quantile(), 0),
+        (lambda df: df.corr(), 2),
         (lambda df: df.aggregate(["idxmin"]), 0),
         (
             lambda df: df.aggregate(
@@ -100,6 +101,34 @@ def test_agg_basic(numeric_native_df, func, expected_union_count):
     snow_df = pd.DataFrame(numeric_native_df)
     with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
+
+
+@pytest.mark.parametrize("min_periods", [None, -1, 0, 1, 2, 3, 4])
+@sql_count_checker(query_count=1, union_count=2)
+def test_corr_min_periods(min_periods):
+    snow_df, pandas_df = create_test_dfs(
+        {"a": [None, 1, 2], "b": [3, 4, 5], "c": [6, 7, 8]}
+    )
+    eval_snowpark_pandas_result(
+        snow_df, pandas_df, lambda df: df.corr(min_periods=min_periods)
+    )
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "kendall",
+        "spearman",
+        lambda x, y: np.minimum(x, y).sum().round(decimals=1),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_corr_negative(numeric_native_df, method):
+    snow_df = pd.DataFrame(numeric_native_df)
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            snow_df, numeric_native_df, lambda df: df.corr(method=method)
+        )
 
 
 @pytest.mark.parametrize(
@@ -307,6 +336,7 @@ class TestNamedAggDupColPandasFails:
         (lambda df: df.median(numeric_only=True), 0),
         (lambda df: df.std(numeric_only=True), 0),
         (lambda df: df.var(numeric_only=True), 0),
+        (lambda df: df.corr(numeric_only=True), 1),
         (lambda df: df.aggregate("max"), 0),
     ],
 )
@@ -477,6 +507,7 @@ AGG_MULTIINDEX_FAIL_REASON = (
         ),
         (lambda df: df.aggregate(min), 0),
         (lambda df: df.max(), 0),
+        (lambda df: df.corr(), 1),
     ],
 )
 def test_agg_with_multiindex(native_df_multiindex, func, expected_union_count):
@@ -553,6 +584,7 @@ def test_agg_with_no_column_raises(pandas_df):
         lambda df: df.aggregate(min),
         lambda df: df.max(),
         lambda df: df.count(),
+        lambda df: df.corr(),
         lambda df: df.aggregate(x=("A", "min")),
     ],
 )
@@ -564,19 +596,20 @@ def test_agg_with_single_col(func):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func, expected_union_count",
     [
-        lambda df: df.aggregate(min),
-        lambda df: df.max(),
-        lambda df: df.count(),
-        lambda df: df.aggregate(x=("A", "min")),
+        (lambda df: df.aggregate(min), 0),
+        (lambda df: df.max(), 0),
+        (lambda df: df.count(), 0),
+        (lambda df: df.corr(), 1),
+        (lambda df: df.aggregate(x=("A", "min")), 0),
     ],
 )
-@sql_count_checker(query_count=1)
-def test_agg_with_multi_col(func):
+def test_agg_with_multi_col(func, expected_union_count):
     native_df = native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(snow_df, native_df, func)
 
 
 @pytest.mark.parametrize(
