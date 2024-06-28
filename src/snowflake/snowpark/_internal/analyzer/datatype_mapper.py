@@ -47,11 +47,13 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
-def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
+def to_sql(value: Any,
+           datatype: DataType,
+           from_values_statement: bool = False,
+           eliminate_numeric_sql_value_cast_enabled=False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
 
-    enable_eliminating_numeric_sql_value_cast = snowflake.snowpark.context.enable_eliminating_numeric_sql_value_cast
-    eliminate_cast_for_numeric_value = (not from_values_statement) and enable_eliminating_numeric_sql_value_cast
+    eliminate_cast_for_numeric_value = (not from_values_statement) and eliminate_numeric_sql_value_cast_enabled
     if eliminate_cast_for_numeric_value and isinstance(datatype, _NumericType) and (value is None):
         return "NULL"
 
