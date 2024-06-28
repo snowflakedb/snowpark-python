@@ -288,4 +288,50 @@ df140 = df.select(to_time("A"), to_time("A", "YYYY"), to_time(col("A"), col("B")
 
 df141 = df.select(to_timestamp("A"), to_timestamp("C", None), to_timestamp(col("A"), col("B")))
 
+df142 = df.select(to_timestamp_ntz("A"), to_timestamp_ntz(col("A"), None), to_timestamp_ntz("A", "auto"), to_timestamp_ntz(col("A"), col("B")))
+
+df143 = df.select(to_timestamp_ltz("A"), to_timestamp_ltz(col("A"), None), to_timestamp_ltz("A", "auto"), to_timestamp_ltz(col("A"), col("B")))
+
+df144 = df.select(to_timestamp_tz("A"), to_timestamp_tz(col("A"), None), to_timestamp_tz("A", "auto"), to_timestamp_tz(col("A"), col("B")))
+
+df145 = df.select(from_utc_timestamp("A", lit(1234)), from_utc_timestamp(col("A"), col("B")))
+
+df146 = df.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A"), col("B")))
+
+df147 = df.select(to_date("A"), to_date("A", col("A")), to_date(col("A"), None))
+
+df148 = df.select(current_timestamp())
+
+df149 = df.select(current_date())
+
+df150 = df.select(current_time())
+
+df151 = df.select(hour("A"))
+
+df152 = df.select(last_day("A"), last_day(col("A"), None), last_day(col("A"), col("B")), last_day("A", "B"))
+
+df153 = df.select(minute("A"))
+
+df154 = df.select(next_day("A", "fr"), next_day(col("A"), col("B")))
+
+df155 = df.select(previous_day("A", "fr"), previous_day(col("A"), col("B")))
+
+df156 = df.select(second("A"))
+
+df157 = df.select(month("A"))
+
+df158 = df.select(monthname("A"))
+
+df159 = df.select(quarter("A"))
+
+df160 = df.select(year("A"))
+
+df170 = df.select(sysdate())
+
+df171 = df.select(months_between("A", "B"), months_between(col("A"), "B"), months_between(col("A"), col("B")))
+
+df172 = df.select(to_geography("A"))
+
+df173 = df.select(to_geometry("A"))
+
 ## EXPECTED OUTPUT
