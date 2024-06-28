@@ -12,6 +12,7 @@
 - Fixed a bug that stage operation can not handle directories.
 - Fixed a bug that `DataFrame.to_pandas` should take Snowflake numeric types with precision 38 as `int64`.
 - Fixed a bug that stored proc and udf should not remove imports already in the sys.path during the clean-up step.
+- Fixed a bug in 'DataFrame.analytics.time_series_agg' function to handle multiple data points in same sliding interval.
 
 ## 1.16.0 (TBD)
 
