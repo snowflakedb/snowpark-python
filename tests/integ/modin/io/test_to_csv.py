@@ -138,6 +138,7 @@ def test_to_csv_series_stage(sf_stage, session, kwargs, is_compressed):
         # pandas as compared to native pandas. Null values are written as empty string
         # in snowpark pandas but in native pandas null values are written as a pair of
         # duoble quotes "". Add na_rep param to match behavior in test.
+        # Bug filed in pandas: https://github.com/pandas-dev/pandas/issues/59116
         kwargs["na_rep"] = '""'
     pd.Series(native_series).to_csv(stage_location, **kwargs)
 
