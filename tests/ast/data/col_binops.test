@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table("test_table102856")
 
 df = df.select(col("A") == col("B"))
 
@@ -33,7 +33,7 @@ df = df.select(col("A") | col("B"))
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+res1 = session.table("test_table76850")
 
 res2 = res1.select(col("A") == col("B"))
 
