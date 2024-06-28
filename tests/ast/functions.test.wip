@@ -259,6 +259,7 @@ df = df.select(is_time(col: ColumnOrName) -> Column:
 df = df.select(is_timestamp_ltz(col: ColumnOrName) -> Column:
 df = df.select(is_timestamp_ntz(col: ColumnOrName) -> Column:
 df = df.select(is_timestamp_tz(col: ColumnOrName) -> Column:
+
 df = df.select(_columns_from_timestamp_parts(
 df = df.select(_timestamp_from_parts_internal(
 df = df.select(time_from_parts(
