@@ -23,7 +23,9 @@ class TestCase:
 
 def parse_file(file):
     """Parses a test case file."""
-    with open(file, "r", encoding="utf-8") as f:
+    # TODO(oplaton): Auto-formatters keep simplifying open(file, "r", ...) to drop the mode.
+    # Find a way to keep it as is.
+    with open(file, encoding="utf-8") as f:
         src = f.readlines()
 
     try:
