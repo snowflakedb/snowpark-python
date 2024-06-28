@@ -1854,6 +1854,18 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+        # Begin AST
+        stmt = self._ast_batch.assign()
+        ast = stmt.expr.sp_table
+        if isinstance(name, str):
+            ast.table = name
+        else:
+            ast.database = name[0]
+            ast.schema = name[1]
+            ast.table = name[2]
+        set_src_position(ast.src)
+        # TODO(oplaton): Are there any other AST properties that this needs to fill out here? DO NOT MERGE
+        # End AST
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
@@ -1861,13 +1873,6 @@ class Session:
         t = Table(name, self)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
-        # Begin AST
-        stmt = self._ast_batch.assign()
-        # DO NOT SUBMIT. Is sp_table the right variant to use?
-        ast = stmt.expr.sp_table
-        ast.table = name
-        set_src_position(ast.src)
-        # End AST
         return t
 
     def table_function(
