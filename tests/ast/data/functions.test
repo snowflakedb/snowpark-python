@@ -334,4 +334,82 @@ df172 = df.select(to_geography("A"))
 
 df173 = df.select(to_geometry("A"))
 
+df174 = df.select(arrays_overlap("A", col("B")), arrays_overlap(col("A"), "B"))
+
+df175 = df.select(array_distinct("A"))
+
+df176 = df.select(array_intersection("A", "B"), array_intersection(col("A"), col("B")), array_intersection("A", col("B")))
+
+df177 = df.select(array_except("A", "B"), array_except("A", col("B"), True), array_except("B", "A", False))
+
+df178 = df.select(array_min("A"))
+
+df179 = df.select(array_max("A"))
+
+df180 = df.select(array_flatten("A"))
+
+df181 = df.select(array_sort("A"), array_sort("A", True), array_sort(col("A"), False, True))
+
+df182 = df.select(arrays_to_object("A", "B"), arrays_to_object("A", col("A")))
+
+df183 = df.select(array_generate_range("A", "B"), array_generate_range("A", col("B"), None), array_generate_range(col("A"), "B", "C"))
+
+df184 = df.select(sequence("A", "B"), sequence("A", col("B"), None), sequence(col("A"), "B", "C"))
+
+df185 = df.select(date_add("A", "B"), date_add("A", 10), date_add(col("A"), 0), date_add(col("A"), col("B")))
+
+df186 = df.select(date_sub("A", "B"), date_sub("A", 10), date_sub(col("A"), 0), date_sub(col("A"), col("B")))
+
+df187 = df.select(datediff("year", col("A"), "B"), datediff("month", "A", col("B")))
+
+df188 = df.select(daydiff("A", "B"), daydiff(col("A"), col("B")))
+
+df189 = df.select(trunc("A", "B"), trunc(col("A"), col("B")), trunc("A", 10), trunc("B", 7.9))
+
+df190 = df.select(dateadd("year", "A", "B"), dateadd("year", col("A"), col("B")))
+
+df191 = df.select(date_part("year", "A"), date_part("year", col("B")))
+
+df192 = df.select(date_from_parts(10, 2, 1), date_from_parts(10, "A", 1), date_from_parts("A", "B", "A"), date_from_parts(10, col("A"), 1))
+
+df193 = df.select(date_trunc("year", "A"), date_trunc("year", col("B")))
+
+df194 = df.select(dayname("A"))
+
+df195 = df.select(dayofmonth("A"))
+
+df196 = df.select(dayofweek("A"))
+
+df197 = df.select(dayofyear("A"))
+
+df198 = df.select(is_array("A"))
+
+df199 = df.select(is_boolean("A"))
+
+df200 = df.select(is_binary("A"))
+
+df201 = df.select(is_char("A"))
+
+df202 = df.select(is_date("A"))
+
+df203 = df.select(is_decimal("A"))
+
+df204 = df.select(is_double("A"))
+
+df205 = df.select(is_real("A"))
+
+df206 = df.select(is_integer("A"))
+
+df207 = df.select(is_null_value("A"))
+
+df208 = df.select(is_object("A"))
+
+df209 = df.select(is_time("A"))
+
+df210 = df.select(is_timestamp_ltz("A"))
+
+df211 = df.select(is_timestamp_ntz("A"))
+
+df212 = df.select(is_timestamp_tz("A"))
+
 ## EXPECTED OUTPUT
