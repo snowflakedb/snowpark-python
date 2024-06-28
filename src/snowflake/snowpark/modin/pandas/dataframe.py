@@ -1810,11 +1810,15 @@ class DataFrame(BasePandasDataset):
             is_multiindex and is_list_like(level) and len(level) == self.index.nlevels
         ):
             return self._reduce_dimension(
-                query_compiler=self._query_compiler.unstack(level, fill_value, sort)
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_output=True
+                )
             )
         else:
             return self.__constructor__(
-                query_compiler=self._query_compiler.unstack(level, fill_value, sort)
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_output=False
+                )
             )
 
     @dataframe_not_implemented()

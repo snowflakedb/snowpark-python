@@ -14889,6 +14889,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level: Union[int, str, list] = -1,
         fill_value: Optional[Union[int, str, dict]] = None,
         sort: bool = True,
+        is_series_output: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Pivot a level of the (necessarily hierarchical) index labels.
@@ -14909,8 +14910,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         sort : bool, default True
             Sort the level(s) in the resulting MultiIndex columns.
+
+        is_series_output : bool, default False
+            Whether the output is a Series, used by `fillna`
         """
         level = level if is_list_like(level) else [level]
+        if not sort:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame/Series.unstack does not yet support the `sort` parameter"
+            )
 
         # Check to see if we have a MultiIndex, if we do, make sure we remove
         # the appropriate level(s), and we pivot accordingly.
@@ -14937,7 +14945,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     dropna=True,
                     margins_name="All",
                     observed=False,
-                    sort=True,
+                    sort=sort,
                 )
                 .set_index_names([None])
             )
@@ -14972,7 +14980,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 .set_index_names([None, None])
             )
 
-        # Do something for the fill_value
         if fill_value:
-            qc = qc.fillna(value=fill_value, self_is_series=False)
+            qc = qc.fillna(value=fill_value, self_is_series=is_series_output)
         return qc

@@ -2205,7 +2205,8 @@ class DataFrame:
 
         Notes
         -----
-        Supports only integer ``level``.
+        Supports only integer ``level`` and ``sort = True``. Internally, calls ``pivot_table``
+        or ``melt`` to perform `unstack` operation.
 
         See Also
         --------
