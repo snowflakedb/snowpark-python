@@ -87,6 +87,7 @@
 - Added documentation pages for `Index` and its APIs.
 - Added support for `DataFrame.assign`.
 - Added support for `DataFrame.stack`.
+- Added support for `DataFrame.pivot` and `pd.pivot`.
 
 #### Bug Fixes
 
