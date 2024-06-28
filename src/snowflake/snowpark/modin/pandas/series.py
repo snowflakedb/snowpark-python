@@ -1550,16 +1550,19 @@ class Series(BasePandasDataset):
         # We can't unstack a Series object, if we don't have a MultiIndex.
         if len(self.index.names) > 1:
             result = DataFrame(
-                query_compiler=self._query_compiler.unstack(level, fill_value)
+                query_compiler=self._query_compiler.unstack(
+                    level, fill_value, sort, is_series_output=False
+                )
             )
         else:
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 f"index must be a MultiIndex to unstack, {type(self.index)} was passed"
             )
 
-        result.columns = (
-            result.columns.droplevel() if result.columns.nlevels > 1 else result.columns
-        )
+        if result.columns.nlevels > 1:
+            # Modin just calls result.droplevel(0, axis=1), but we work around that
+            # Snowpark pandas `DataFrame.droplevel()` is not implemented
+            result.columns = result.columns.droplevel()
         return result
 
     @series_not_implemented()
