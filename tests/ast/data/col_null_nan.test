@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table("test_table102856")
 
 df = df.select(col("A").equal_null(col("B")))
 
@@ -13,7 +13,7 @@ df = df.select(col("A").is_not_null())
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+res1 = session.table("test_table76850")
 
 res2 = res1.select(col("A").equal_null(col("B")))
 

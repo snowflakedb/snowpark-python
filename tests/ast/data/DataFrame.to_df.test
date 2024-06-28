@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table("test_table102856")
 
 variadic = df.to_df("one", "two")
 
@@ -9,7 +9,7 @@ non_variadic = df.to_df(["one", "two"])
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+res1 = session.table("test_table76850")
 
 res2 = res1.to_df("one", "two")
 

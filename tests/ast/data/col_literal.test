@@ -4,7 +4,7 @@ import datetime
 import decimal
 from snowflake.snowpark.types import *
 
-df = session.table("test_table")
+df = session.table("test_table102856")
 
 df = df.select(col("A") + None)
 
@@ -53,7 +53,7 @@ df = df.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", 'ut
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+res1 = session.table("test_table76850")
 
 res2 = res1.select(col("A") + None)
 
