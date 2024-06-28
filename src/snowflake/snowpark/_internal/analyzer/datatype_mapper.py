@@ -11,6 +11,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
+import snowflake.snowpark.context
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
@@ -48,6 +49,11 @@ def str_to_sql(value: str) -> str:
 
 def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
+
+    enable_eliminating_numeric_sql_value_cast = snowflake.snowpark.context.enable_eliminating_numeric_sql_value_cast
+    eliminate_cast_for_numeric_value = (not from_values_statement) and enable_eliminating_numeric_sql_value_cast
+    if eliminate_cast_for_numeric_value and isinstance(datatype, _NumericType) and (value is None):
+        return "NULL"
 
     # Handle null values
     if isinstance(
@@ -92,6 +98,8 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         )
 
     if isinstance(datatype, _IntegralType):
+        if eliminate_cast_for_numeric_value and isinstance(value, int):
+            return str(value)
         return f"{value} :: INT"
 
     if isinstance(datatype, BooleanType):
@@ -105,6 +113,8 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         elif math.isinf(value) and value < 0:
             cast_value = "'-INF'"
         else:
+            if eliminate_cast_for_numeric_value and isinstance(value, float):
+                return str(value)
             cast_value = f"'{value}'"
         return f"{cast_value} :: FLOAT"
 
