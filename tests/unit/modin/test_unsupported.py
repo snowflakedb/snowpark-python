@@ -46,7 +46,6 @@ def test_unsupported_io(io_method, kwargs):
     [
         ["merge_ordered", {"left": "", "right": ""}],
         ["merge_asof", {"left": "", "right": ""}],
-        ["pivot", {"data": ""}],
         ["value_counts", {"values": ""}],
         ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
@@ -94,7 +93,6 @@ def test_unsupported_general(general_method, kwargs):
         ["kurtosis", {}],
         ["mode", {}],
         ["pipe", {"func": ""}],
-        ["pivot", {}],
         ["plot", {}],
         ["pop", {"item": ""}],
         ["prod", {}],
