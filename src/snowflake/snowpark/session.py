@@ -503,6 +503,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
+        self._eliminate_numeric_sql_value_cast_enabled: bool = False
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -568,6 +569,10 @@ class Session:
         The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
         """
         return self._cte_optimization_enabled
+
+    @property
+    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
+        return self._eliminate_numeric_sql_value_cast_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
