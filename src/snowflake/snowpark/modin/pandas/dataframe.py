@@ -1821,12 +1821,31 @@ class DataFrame(BasePandasDataset):
                 )
             )
 
-    @dataframe_not_implemented()
-    def pivot(self, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
+    def pivot(
+        self,
+        *,
+        columns: Any,
+        index: Any | NoDefault = no_default,
+        values: Any | NoDefault = no_default,
+    ):
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+        if index is no_default:
+            index = None  # pragma: no cover
+        if values is no_default:
+            values = None
+
+        # if values is not specified, it should be the remaining columns not in
+        # index or columns
+        if values is None:
+            values = list(self.columns)
+            if index is not None:
+                values = [v for v in values if v not in index]
+            if columns is not None:
+                values = [v for v in values if v not in columns]
+
         return self.__constructor__(
             query_compiler=self._query_compiler.pivot(
                 index=index, columns=columns, values=values

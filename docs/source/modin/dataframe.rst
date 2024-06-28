@@ -186,8 +186,12 @@ DataFrame
     DataFrame.melt
     DataFrame.nlargest
     DataFrame.nsmallest
+    DataFrame.pivot
     DataFrame.pivot_table
     DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.melt
     DataFrame.sort_values
     DataFrame.squeeze
     DataFrame.stack

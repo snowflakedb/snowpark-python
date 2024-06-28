@@ -2245,7 +2245,97 @@ class DataFrame:
 
     def pivot():
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a "pivot" table) based on column values. Uses unique values from
+        specified index / columns to form axes of the resulting DataFrame. This function does not
+        support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+        Parameters
+        ----------
+        columns : str or object or a list of str
+            Column to use to make new frame’s columns.
+        index : str or object or a list of str, optional
+            Column to use to make new frame’s index. If not given, uses existing index.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+            will be used and the result will have hierarchically indexed columns.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Calls pivot_table with columns, values, index and aggregation "min".
+
+        See Also
+        --------
+        DataFrame.pivot_table : Generalization of pivot that can handle
+            duplicate values for one index/column pair.
+        DataFrame.unstack: Pivot based on the index values instead
+            of a column.
+        wide_to_long : Wide panel to long format. Less flexible but more
+            user-friendly than melt.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        ...                   'two'],
+        ...           'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        ...           'baz': [1, 2, 3, 4, 5, 6],
+        ...           'zoo': ['x', 'y', 'z', 'q', 'w', 't']})
+        >>> df
+           foo bar  baz zoo
+        0  one   A    1   x
+        1  one   B    2   y
+        2  one   C    3   z
+        3  two   A    4   q
+        4  two   B    5   w
+        5  two   C    6   t
+        >>> df.pivot(index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
+            baz       zoo
+        bar   A  B  C   A  B  C
+        foo
+        one   1  2  3   x  y  z
+        two   4  5  6   q  w  t
+        >>> df = pd.DataFrame({
+        ...     "lev1": [1, 1, 1, 2, 2, 2],
+        ...     "lev2": [1, 1, 2, 1, 1, 2],
+        ...     "lev3": [1, 2, 1, 2, 1, 2],
+        ...     "lev4": [1, 2, 3, 4, 5, 6],
+        ...     "values": [0, 1, 2, 3, 4, 5]})
+        >>> df
+           lev1  lev2  lev3  lev4  values
+        0     1     1     1     1       0
+        1     1     1     2     2       1
+        2     1     2     1     3       2
+        3     2     1     2     4       3
+        4     2     1     1     5       4
+        5     2     2     2     6       5
+        >>> df.pivot(index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev2  1       2
+        lev3  1  2    1    2
+        lev1
+        1     0  1  2.0  NaN
+        2     4  3  NaN  5.0
+        >>> df.pivot(index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev3         1    2
+        lev1 lev2
+        1    1     0.0  1.0
+             2     2.0  NaN
+        2    1     4.0  3.0
+             2     NaN  5.0
         """
 
     def pivot_table():
