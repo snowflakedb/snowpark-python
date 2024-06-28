@@ -23,19 +23,21 @@ class TestCase:
 
 def parse_file(file):
     """Parses a test case file."""
-    with open(file, "r", encoding="utf-8") as f:
+    # TODO(oplaton): Auto-formatters keep simplifying open(file, "r", ...) to drop the mode.
+    # Find a way to keep it as is.
+    with open(file, encoding="utf-8") as f:
         src = f.readlines()
 
     try:
         test_case_start = src.index("## TEST CASE\n")
-    except ValueError as e:
+    except ValueError:
         raise ValueError(
             "Required header ## TEST CASE missing in the file: " + file.name
         )
 
     try:
         expected_output_start = src.index("## EXPECTED OUTPUT\n")
-    except ValueError as e:
+    except ValueError:
         raise ValueError(
             "Required header ## EXPECTED OUTPUT missing in the file: " + file.name
         )
