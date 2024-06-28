@@ -219,6 +219,7 @@ df = df.select(sysdate() -> Column:
 df = df.select(months_between(date1: ColumnOrName, date2: ColumnOrName) -> Column:
 df = df.select(to_geography(e: ColumnOrName) -> Column:
 df = df.select(to_geometry(e: ColumnOrName) -> Column:
+
 df = df.select(arrays_overlap(array1: ColumnOrName, array2: ColumnOrName) -> Column:
 df = df.select(array_distinct(col: ColumnOrName):
 df = df.select(array_intersection(array1: ColumnOrName, array2: ColumnOrName) -> Column:
