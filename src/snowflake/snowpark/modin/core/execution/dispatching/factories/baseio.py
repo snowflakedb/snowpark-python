@@ -280,7 +280,13 @@ class BaseIO:
     QueryCompiler or OrderedDict/dict with read data.""",
     )
     def read_excel(cls, **kwargs):  # noqa: PR01
-        intermediate = pandas.read_excel(**kwargs)
+        try:
+            intermediate = pandas.read_excel(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Snowpark Pandas requires an additional package to read excel files such as openpyxl, pyxlsb, or xlrd",
+                e,
+            )
         if isinstance(intermediate, (OrderedDict, dict)):
             parsed = type(intermediate)()
             for key in intermediate.keys():

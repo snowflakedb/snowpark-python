@@ -3,8 +3,9 @@
 #
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
 from tests.utils import TestFiles
 
@@ -20,3 +21,18 @@ def test_read_excel(resources_path):
             native_pd.read_excel(filename),
             check_dtype=False,
         )
+
+
+@sql_count_checker(query_count=0)
+def test_read_excel_no_lib_negative(resources_path):
+    try:
+        # skip test if we actually have calamine installed
+        # this is not a common library to use
+        import calamine  # noqa
+    except Exception:
+        test_files = TestFiles(resources_path)
+        filename = test_files.test_file_excel
+        with pytest.raises(
+            ImportError, match="Snowpark Pandas requires an additional package"
+        ):
+            pd.read_excel(filename, engine="calamine")
