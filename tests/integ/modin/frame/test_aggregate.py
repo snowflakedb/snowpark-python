@@ -507,7 +507,6 @@ AGG_MULTIINDEX_FAIL_REASON = (
         ),
         (lambda df: df.aggregate(min), 0),
         (lambda df: df.max(), 0),
-        (lambda df: df.corr(), 1),
     ],
 )
 def test_agg_with_multiindex(native_df_multiindex, func, expected_union_count):

@@ -15083,9 +15083,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             new_columns = [index_col]
-            for inner_quoted_identifier in (
-                frame.data_column_snowflake_quoted_identifiers,
-            ):
+            for (
+                inner_quoted_identifier
+            ) in frame.data_column_snowflake_quoted_identifiers:
                 new_col = corr(outer_quoted_identifier, inner_quoted_identifier)
                 if min_periods > 1:
                     outer_col_is_valid = builtin("count_if")(
