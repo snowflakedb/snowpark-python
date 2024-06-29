@@ -503,7 +503,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
-        self._eliminate_numeric_sql_value_cast_enabled: bool = False
+        self._eliminate_numeric_sql_value_cast_enabled: bool = True
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
