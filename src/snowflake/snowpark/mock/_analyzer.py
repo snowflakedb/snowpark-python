@@ -284,7 +284,11 @@ class MockAnalyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = to_sql(expr.value, expr.datatype)
+            sql = to_sql(
+                expr.value,
+                expr.datatype,
+                self.session.eliminate_numeric_sql_value_cast_enabled,
+            )
             if parse_local_name:
                 sql = sql.upper()
             return f"{sql}"
