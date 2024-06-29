@@ -30,6 +30,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._snowflake_data_type import ColumnType
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -80,7 +81,10 @@ def verify_column_result(
 ):
     df_metadata = get_result_metadata(session, df)
     metadata_column_names = [col.name for col in df_metadata]
-    metadata_column_dtypes = [col.datatype for col in df_metadata]
+    metadata_column_dtypes = [
+        col.datatype.datatype if isinstance(col.datatype, ColumnType) else col.datatype
+        for col in df_metadata
+    ]
     output_names = [output.name for output in df._output]
     assert output_names == df.columns == metadata_column_names == expected_column_names
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
