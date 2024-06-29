@@ -4,15 +4,14 @@
 
 import datetime
 import math
+from typing import List, Optional
 
 import pytest
 
-from typing import List, Optional
-from snowflake.snowpark import Column, Window, Row, Session
-from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.types import DataType, BooleanType, StringType, VariantType, LongType, ArrayType, TimestampType, TimestampTimeZone, DoubleType, DecimalType
+from snowflake.snowpark import Column, Row, Session, Window
 from snowflake.snowpark._internal.analyzer.expression import Interval
-from snowflake.snowpark._internal.utils import TempObjectType, quote_name
+from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
     any_value,
     avg,
@@ -31,6 +30,18 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.types import (
+    ArrayType,
+    BooleanType,
+    DataType,
+    DecimalType,
+    DoubleType,
+    LongType,
+    StringType,
+    TimestampTimeZone,
+    TimestampType,
+    VariantType,
+)
 from tests.utils import Utils
 
 paramList = [True, False]
@@ -38,10 +49,14 @@ paramList = [True, False]
 
 @pytest.fixture(params=paramList, autouse=True)
 def setup(request, session):
-    is_eliminate_numeric_sql_value_cast_enabled = session._eliminate_numeric_sql_value_cast_enabled
+    is_eliminate_numeric_sql_value_cast_enabled = (
+        session._eliminate_numeric_sql_value_cast_enabled
+    )
     session._eliminate_numeric_sql_value_cast_enabled = request.param
     yield
-    session._eliminate_numeric_sql_value_cast_enabled = is_eliminate_numeric_sql_value_cast_enabled
+    session._eliminate_numeric_sql_value_cast_enabled = (
+        is_eliminate_numeric_sql_value_cast_enabled
+    )
 
 
 def get_metadata_names(session, df):
@@ -57,17 +72,17 @@ def get_result_metadata(session: Session, df: DataFrame):
 
 
 def verify_column_result(
-        session: Session,
-        df: DataFrame,
-        expected_column_names: List[str],
-        expected_dtypes: List[DataType],
-        expected_rows: Optional[List[Row]],
+    session: Session,
+    df: DataFrame,
+    expected_column_names: List[str],
+    expected_dtypes: List[DataType],
+    expected_rows: Optional[List[Row]],
 ):
     df_metadata = get_result_metadata(session, df)
     metadata_column_names = [col.name for col in df_metadata]
     metadata_column_dtypes = [col.datatype for col in df_metadata]
     output_names = [output.name for output in df._output]
-    assert (output_names == df.columns == metadata_column_names == expected_column_names)
+    assert output_names == df.columns == metadata_column_names == expected_column_names
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
         if isinstance(expected_type, StringType):
             assert isinstance(datatype, StringType)
@@ -76,7 +91,7 @@ def verify_column_result(
 
     if expected_rows is not None:
         res = df.collect()
-        assert(res == expected_rows)
+        assert res == expected_rows
 
 
 def test_like(session):
@@ -84,22 +99,14 @@ def test_like(session):
     df2 = df1.select(df1["c"].like(lit("v%")))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C"" LIKE \'V%\'"'],
-        [BooleanType()],
-        [Row(True)]
+        session, df2, ['"""C"" LIKE \'V%\'"'], [BooleanType()], [Row(True)]
     )
 
     df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1["c c"].like(lit("v%")))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C C"" LIKE \'V%\'"'],
-        [BooleanType()],
-        [Row(True)]
+        session, df2, ['"""C C"" LIKE \'V%\'"'], [BooleanType()], [Row(True)]
     )
 
 
@@ -108,22 +115,14 @@ def test_regexp(session):
     df2 = df1.select(df1["c"].regexp(lit("v%")))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C"" REGEXP \'V%\'"'],
-        [BooleanType()],
-        [Row(False)]
+        session, df2, ['"""C"" REGEXP \'V%\'"'], [BooleanType()], [Row(False)]
     )
 
     df1 = session.create_dataframe(["v"], schema=['"c c"'])
     df2 = df1.select(df1['"c c"'].regexp(lit("v%")))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C C"" REGEXP \'V%\'"'],
-        [BooleanType()],
-        [Row(False)]
+        session, df2, ['"""C C"" REGEXP \'V%\'"'], [BooleanType()], [Row(False)]
     )
 
 
@@ -136,22 +135,14 @@ def test_collate(session):
     df2 = df1.select(df1["c"].collate("en"))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C"" COLLATE \'EN\'"'],
-        [StringType(1)],
-        [Row('v')]
+        session, df2, ['"""C"" COLLATE \'EN\'"'], [StringType(1)], [Row("v")]
     )
 
     df1 = session.sql("select 'v' as \"c c\"")
     df2 = df1.select(df1["c c"].collate("en"))
 
     verify_column_result(
-        session,
-        df2,
-        ['"""C C"" COLLATE \'EN\'"'],
-        [StringType(1)],
-        [Row('v')]
+        session, df2, ['"""C C"" COLLATE \'EN\'"'], [StringType(1)], [Row("v")]
     )
 
 
@@ -166,7 +157,7 @@ def test_subfield(session):
         df2,
         ['"""C""[0]"', '"""C C""[\'A\']"'],
         [VariantType(), VariantType()],
-        None
+        None,
     )
 
 
@@ -177,14 +168,10 @@ def test_case_when(session):
         '"CASE  WHEN (""C"" = 1 :: INT) THEN TRUE :: BOOLEAN WHEN (""C"" = 2 :: INT) THEN \'ABC\' ELSE NULL END"'
     ]
     if session.eliminate_numeric_sql_value_cast_enabled:
-        expected_columns = ['"CASE  WHEN (""C"" = 1) THEN TRUE :: BOOLEAN WHEN (""C"" = 2) THEN \'ABC\' ELSE NULL END"']
-    verify_column_result(
-        session,
-        df2,
-        expected_columns,
-        [BooleanType()],
-        [Row(True)]
-    )
+        expected_columns = [
+            '"CASE  WHEN (""C"" = 1) THEN TRUE :: BOOLEAN WHEN (""C"" = 2) THEN \'ABC\' ELSE NULL END"'
+        ]
+    verify_column_result(session, df2, expected_columns, [BooleanType()], [Row(True)])
 
 
 def test_multiple_expression(session):
@@ -193,19 +180,16 @@ def test_multiple_expression(session):
     expected_columns = ['"(""C"", ""C C"") IN ((1 :: INT, \'V\'))"']
     if session.eliminate_numeric_sql_value_cast_enabled:
         expected_columns = ['"(""C"", ""C C"") IN ((1, \'V\'))"']
-    verify_column_result(
-        session,
-        df2,
-        expected_columns,
-        [BooleanType()],
-        [Row(True)]
-    )
+    verify_column_result(session, df2, expected_columns, [BooleanType()], [Row(True)])
 
 
 def test_in_expression(session):
     df1 = session.create_dataframe([[1, "v"]], schema=["c", '"c c"'])
     df2 = df1.select(df1["c"].in_(1, 2, 3), df1["c c"].in_("v"))
-    expected_columns = ['"""C"" IN (1 :: INT, 2 :: INT, 3 :: INT)"', '"""C C"" IN (\'V\')"']
+    expected_columns = [
+        '"""C"" IN (1 :: INT, 2 :: INT, 3 :: INT)"',
+        '"""C C"" IN (\'V\')"',
+    ]
     if session.eliminate_numeric_sql_value_cast_enabled:
         expected_columns = ['"""C"" IN (1, 2, 3)"', '"""C C"" IN (\'V\')"']
     verify_column_result(
@@ -213,7 +197,7 @@ def test_in_expression(session):
         df2,
         expected_columns,
         [BooleanType(), BooleanType()],
-        [Row(True, True)]
+        [Row(True, True)],
     )
 
 
@@ -238,17 +222,14 @@ def test_specified_window_frame(session):
     assert df1._output[0].name == '" a"'
     assert df1.columns[0] == '" a"'
     df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
-    expected_columns = ['"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"']
+    expected_columns = [
+        '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
+    ]
     if session.eliminate_numeric_sql_value_cast_enabled:
         expected_columns = [
-            '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1)"']
-    verify_column_result(
-        session,
-        df2,
-        expected_columns,
-        [LongType()],
-        [Row(0)]
-    )
+            '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1)"'
+        ]
+    verify_column_result(session, df2, expected_columns, [LongType()], [Row(0)])
 
 
 def test_cast(session):
@@ -268,7 +249,7 @@ def test_cast(session):
             '"CAST (UPPER("" A"") AS STRING)"',
         ],
         [StringType(), LongType(), StringType()],
-        [Row('1', None, 'V')]
+        [Row("1", None, "V")],
     )
 
 
@@ -278,20 +259,10 @@ def test_cast(session):
 )
 def test_unspecified_frame(session):
     df1 = session.sql("select 'v' as \" a\"")
-    verify_column_result(
-        session,
-        df1,
-        ['" a"'],
-        [StringType()],
-        [Row('v')]
-    )
+    verify_column_result(session, df1, ['" a"'], [StringType()], [Row("v")])
     df2 = df1.select(any_value(df1[" a"]).over())
     verify_column_result(
-        session,
-        df2,
-        ['"ANY_VALUE("" A"") OVER (  )"'],
-        [StringType()],
-        [Row('v')]
+        session, df2, ['"ANY_VALUE("" A"") OVER (  )"'], [StringType()], [Row("v")]
     )
 
 
@@ -311,17 +282,15 @@ def test_special_frame_boundry(session):
         )
         - 1
     )
-    expected_columns = ['"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"']
+    expected_columns = [
+        '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'
+    ]
     if session.eliminate_numeric_sql_value_cast_enabled:
-        expected_columns = ['"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1)"']
+        expected_columns = [
+            '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1)"'
+        ]
 
-    verify_column_result(
-        session,
-        df2,
-        expected_columns,
-        [LongType()],
-        [Row(0)]
-    )
+    verify_column_result(session, df2, expected_columns, [LongType()], [Row(0)])
 
 
 def test_rank_related_function_expression(session):
@@ -344,7 +313,7 @@ def test_rank_related_function_expression(session):
             '"LAST_VALUE("" A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
         ],
         [StringType(), StringType(), StringType(), StringType()],
-        [Row(None, None, 'v', 'v')]
+        [Row(None, None, "v", "v")],
     )
 
     df3 = df1.select(
@@ -364,7 +333,7 @@ def test_rank_related_function_expression(session):
             '"LAST_VALUE(""A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
         ],
         [LongType(), LongType(), LongType(), LongType()],
-        [Row(None, None, 1, 1)]
+        [Row(None, None, 1, 1)],
     )
 
 
@@ -382,7 +351,7 @@ def test_literal(session):
             "\"PARSE_JSON('[1]') :: ARRAY\"",
         ],
         [StringType(), LongType(), BooleanType(), ArrayType(StringType())],
-        [Row('a', 1, True, '[\n  1\n]')]
+        [Row("a", 1, True, "[\n  1\n]")],
     )
 
 
@@ -422,7 +391,7 @@ def test_interval(session):
             '"(""A"" + INTERVAL \'1 QUARTER,1 MONTH,2 WEEK,2 DAY,2 HOUR,3 MINUTE,3 SECOND,3 MILLISECOND,4 MICROSECOND,4 NANOSECOND\')"',
         ],
         [TimestampType(timezone=TimestampTimeZone.NTZ)],
-        None
+        None,
     )
 
 
@@ -610,15 +579,25 @@ def test_unary_expression(session):
         '""" A"" IS NULL"',
         '""" A"" IS NOT NULL"',
         '""" A"" = \'NAN\'"',
-        '"NOT ("" A"" = 1)"' if session.eliminate_numeric_sql_value_cast_enabled else '"NOT ("" A"" = 1 :: INT)"',
+        '"NOT ("" A"" = 1)"'
+        if session.eliminate_numeric_sql_value_cast_enabled
+        else '"NOT ("" A"" = 1 :: INT)"',
     ]
     verify_column_result(
         session,
         df2,
         expected_columns,
-        [StringType(), LongType(), LongType(), BooleanType(), BooleanType(), BooleanType(), BooleanType()],
+        [
+            StringType(),
+            LongType(),
+            LongType(),
+            BooleanType(),
+            BooleanType(),
+            BooleanType(),
+            BooleanType(),
+        ],
         # Not able to check result, collect failed due to 'Numeric value 'NAN' is not recognized'
-        None
+        None,
     )
 
     df3 = df1.select(
@@ -640,7 +619,9 @@ def test_unary_expression(session):
             '"""A"" IS NULL"',
             '"""A"" IS NOT NULL"',
             '"""A"" = \'NAN\'"',
-            '"NOT (""A"" = 1)"' if session.eliminate_numeric_sql_value_cast_enabled else '"NOT (""A"" = 1 :: INT)"',
+            '"NOT (""A"" = 1)"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"NOT (""A"" = 1 :: INT)"',
         ]
     )
     assert df3.columns == [
@@ -650,7 +631,9 @@ def test_unary_expression(session):
         '"""A"" IS NULL"',
         '"""A"" IS NOT NULL"',
         '"""A"" = \'NAN\'"',
-        '"NOT (""A"" = 1)"' if session.eliminate_numeric_sql_value_cast_enabled else '"NOT (""A"" = 1 :: INT)"',
+        '"NOT (""A"" = 1)"'
+        if session.eliminate_numeric_sql_value_cast_enabled
+        else '"NOT (""A"" = 1 :: INT)"',
     ]  # In class ColumnIdentifier, the "" is removed for '"B"'.
 
 
@@ -671,9 +654,11 @@ def test_list_agg_within_group_sort_order(session):
     verify_column_result(
         session,
         df2,
-        ['"LISTAGG ( DISTINCT ""A B"", \'A\') WITHIN GROUP ( ORDER BY ""A B"" ASC NULLS FIRST) OVER (PARTITION BY ""A B""  )"'],
+        [
+            '"LISTAGG ( DISTINCT ""A B"", \'A\') WITHIN GROUP ( ORDER BY ""A B"" ASC NULLS FIRST) OVER (PARTITION BY ""A B""  )"'
+        ],
         [StringType()],
-        [Row('1')],
+        [Row("1")],
     )
 
 
@@ -710,12 +695,24 @@ def test_binary_expression(session):
             '"("" B"" > \'X\')"',
             '"("" B"" <= \'X\')"',
             '"EQUAL_NULL("" A"", "" B"")"',
-            '"(("" B"" = \'X\') AND ("" A"" = 1))"' if session.eliminate_numeric_sql_value_cast_enabled else '"(("" B"" = \'X\') AND ("" A"" = 1 :: INT))"',
-            '"(("" B"" = \'X\') OR ("" A"" = 1))"' if session.eliminate_numeric_sql_value_cast_enabled else '"(("" B"" = \'X\') OR ("" A"" = 1 :: INT))"',
-            '"BITAND(1, "" A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITAND(1 :: INT, "" A"")"',
-            '"BITOR(1, "" A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITOR(1 :: INT, "" A"")"',
-            '"BITXOR(1, "" A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITXOR(1 :: INT, "" A"")"',
-            '"POWER("" A"", 2)"' if session.eliminate_numeric_sql_value_cast_enabled else '"POWER("" A"", 2 :: INT)"',
+            '"(("" B"" = \'X\') AND ("" A"" = 1))"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"(("" B"" = \'X\') AND ("" A"" = 1 :: INT))"',
+            '"(("" B"" = \'X\') OR ("" A"" = 1))"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"(("" B"" = \'X\') OR ("" A"" = 1 :: INT))"',
+            '"BITAND(1, "" A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITAND(1 :: INT, "" A"")"',
+            '"BITOR(1, "" A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITOR(1 :: INT, "" A"")"',
+            '"BITXOR(1, "" A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITXOR(1 :: INT, "" A"")"',
+            '"POWER("" A"", 2)"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"POWER("" A"", 2 :: INT)"',
             '"("" A"" + "" A"")"',
             '"("" A"" - "" A"")"',
             '"("" A"" * "" A"")"',
@@ -738,7 +735,7 @@ def test_binary_expression(session):
             LongType(),
             LongType(),
             DecimalType(38, 6),
-            LongType()
+            LongType(),
         ],
         # Not able to collect result, failed with error "Numeric value 'x' is not recognized"
         None,
@@ -770,12 +767,24 @@ def test_binary_expression(session):
             '"(""B"" > \'X\')"',
             '"(""B"" <= \'X\')"',
             '"EQUAL_NULL(""A"", ""B"")"',
-            '"((""B"" = \'X\') AND (""A"" = 1))"' if session.eliminate_numeric_sql_value_cast_enabled else '"((""B"" = \'X\') AND (""A"" = 1 :: INT))"',
-            '"((""B"" = \'X\') OR (""A"" = 1))"' if session.eliminate_numeric_sql_value_cast_enabled else '"((""B"" = \'X\') OR (""A"" = 1 :: INT))"',
-            '"BITAND(1, ""A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITAND(1 :: INT, ""A"")"',
-            '"BITOR(1, ""A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITOR(1 :: INT, ""A"")"',
-            '"BITXOR(1, ""A"")"' if session.eliminate_numeric_sql_value_cast_enabled else '"BITXOR(1 :: INT, ""A"")"',
-            '"POWER(""A"", 2)"' if session.eliminate_numeric_sql_value_cast_enabled else '"POWER(""A"", 2 :: INT)"',
+            '"((""B"" = \'X\') AND (""A"" = 1))"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"((""B"" = \'X\') AND (""A"" = 1 :: INT))"',
+            '"((""B"" = \'X\') OR (""A"" = 1))"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"((""B"" = \'X\') OR (""A"" = 1 :: INT))"',
+            '"BITAND(1, ""A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITAND(1 :: INT, ""A"")"',
+            '"BITOR(1, ""A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITOR(1 :: INT, ""A"")"',
+            '"BITXOR(1, ""A"")"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"BITXOR(1 :: INT, ""A"")"',
+            '"POWER(""A"", 2)"'
+            if session.eliminate_numeric_sql_value_cast_enabled
+            else '"POWER(""A"", 2 :: INT)"',
             '"(""A"" + ""A"")"',
             '"(""A"" - ""A"")"',
             '"(""A"" * ""A"")"',
@@ -798,7 +807,7 @@ def test_binary_expression(session):
             LongType(),
             LongType(),
             DecimalType(38, 6),
-            LongType()
+            LongType(),
         ],
         # Not able to collect result, failed with error "Numeric value 'x' is not recognized"
         None,
