@@ -11,7 +11,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-import snowflake.snowpark.context
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
@@ -47,14 +46,22 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
-def to_sql(value: Any,
-           datatype: DataType,
-           from_values_statement: bool = False,
-           eliminate_numeric_sql_value_cast_enabled=False) -> str:
+def to_sql(
+    value: Any,
+    datatype: DataType,
+    from_values_statement: bool = False,
+    eliminate_numeric_sql_value_cast_enabled=False,
+) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
 
-    eliminate_cast_for_numeric_value = (not from_values_statement) and eliminate_numeric_sql_value_cast_enabled
-    if eliminate_cast_for_numeric_value and isinstance(datatype, _NumericType) and (value is None):
+    eliminate_cast_for_numeric_value = (
+        not from_values_statement
+    ) and eliminate_numeric_sql_value_cast_enabled
+    if (
+        eliminate_cast_for_numeric_value
+        and isinstance(datatype, _NumericType)
+        and (value is None)
+    ):
         return "NULL"
 
     # Handle null values

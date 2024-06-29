@@ -337,7 +337,11 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = to_sql(expr.value, expr.datatype, eliminate_numeric_sql_value_cast_enabled=self.session._eliminate_numeric_sql_value_cast_enabled)
+            sql = to_sql(
+                expr.value,
+                expr.datatype,
+                eliminate_numeric_sql_value_cast_enabled=self.session._eliminate_numeric_sql_value_cast_enabled,
+            )
             if parse_local_name:
                 sql = sql.upper()
             return sql
