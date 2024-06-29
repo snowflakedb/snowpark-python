@@ -9,6 +9,7 @@
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Added session parameter _eliminate_numeric_sql_value_cast_enabled to allow generating sql value without casting for numeric values when not needed. The value is default False for now.
 
 ### Snowpark pandas API Updates
 
