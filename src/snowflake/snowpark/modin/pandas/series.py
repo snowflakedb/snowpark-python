@@ -1548,7 +1548,7 @@ class Series(BasePandasDataset):
         from snowflake.snowpark.modin.pandas.dataframe import DataFrame
 
         # We can't unstack a Series object, if we don't have a MultiIndex.
-        if len(self.index.names) > 1:
+        if self._query_compiler.has_multiindex:
             result = DataFrame(
                 query_compiler=self._query_compiler.unstack(
                     level, fill_value, sort, is_series_output=False

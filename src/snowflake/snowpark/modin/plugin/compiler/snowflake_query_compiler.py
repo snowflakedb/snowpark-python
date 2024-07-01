@@ -15065,9 +15065,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas DataFrame/Series.unstack does not yet support the `sort` parameter"
             )
 
+        num_index_levels = self._modin_frame.num_index_levels()
         # Check to see if we have a MultiIndex, if we do, make sure we remove
         # the appropriate level(s), and we pivot accordingly.
-        index_cols = [f"level_{i}" for i in range(self.index.nlevels)]
+        index_cols = [f"level_{i}" for i in range(num_index_levels)]
         if len(index_cols) > 1:
             pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
             index_cols = [
