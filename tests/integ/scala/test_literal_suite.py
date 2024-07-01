@@ -30,6 +30,7 @@ from tests.utils import Utils
     reason="SNOW-1362917: Schema inference not fully aligned for local testing mode.",
 )
 def test_literal_basic_types(session):
+    session._eliminate_numeric_sql_value_cast_enabled = False
     df = (
         session.range(2)
         .with_column("null", lit(None))
@@ -38,7 +39,7 @@ def test_literal_basic_types(session):
         .with_column("bool", lit(True))
         .with_column("bytes", lit(bytes("bytes", "utf8")))
         .with_column("int", lit(12))
-        .with_column("float", lit(float(14)))
+        .with_column("float", lit(float(14.2)))
         .with_column("decimal", lit(Decimal("16")))
     )
 

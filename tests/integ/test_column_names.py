@@ -350,7 +350,7 @@ def test_literal(session):
         df2,
         [
             "\"'A'\"",
-            '"1"' if session.eliminate_numeric_sql_value_cast_enabled else '"1 :: INT"',
+            '"1 :: INT"',
             '"TRUE :: BOOLEAN"',
             "\"PARSE_JSON('[1]') :: ARRAY\"",
         ],
