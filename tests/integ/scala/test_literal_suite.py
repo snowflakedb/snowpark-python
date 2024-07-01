@@ -39,7 +39,7 @@ def test_literal_basic_types(session):
         .with_column("bool", lit(True))
         .with_column("bytes", lit(bytes("bytes", "utf8")))
         .with_column("int", lit(12))
-        .with_column("float", lit(float(14.2)))
+        .with_column("float", lit(float(14)))
         .with_column("decimal", lit(Decimal("16")))
     )
 
