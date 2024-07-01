@@ -1,27 +1,52 @@
 # Release History
 
-## 1.19.0 (TBD)
+## 1.19.1 (TBD)
 
 ### Snowpark Python API Updates
 
 #### Improvements
 
+- Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
+  - _execute_and_get_query_id
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+
+## 1.19.0 (2024-06-25)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added open telemetry tracing on UDxF functions in snowpark.
+- Added open telemetry tracing on stored procedure registration in snowpark.
+
 #### New Features
 
 - Added support for `to_boolean` function.
-- Added documentation pages for `Index` and its APIs.
 
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - random
+- Added new parameters to `patch` function when registering a mocked function:
+  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
+  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
+  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
+  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
 
 #### Bug Fixes
 
@@ -31,6 +56,7 @@
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in handling of `CaseExpr` expressions that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in implementation of `Column.like` that raises `IndexError` when incoming column has nonconsecutive row index.
+- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
 
 #### Improvements
 
@@ -45,25 +71,44 @@
 - Added support for `Series.dt.dayofweek`, `Series.dt.day_of_week`, `Series.dt.dayofyear`, and `Series.dt.day_of_year`.
 - Added support for `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `Series.str.lstrip` and `Series.str.rstrip`.
-- Added support for `DataFrameGroupby.size` and `SeriesGroupby.size`.
-- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, and `var` with `axis=0`.
+- Added support for `DataFrameGroupBy.size` and `SeriesGroupBy.size`.
+- Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, `var`, and `sem` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
+- Added support for `DataFrameGroupBy.get_group`.
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `Series.str.match`.
-- Added support for `DataFrame.resample` and `Series.resample` for aggregation `size`.
+- Added support for `DataFrame.resample` and `Series.resample` for aggregations `size`, `first`, and `last`.
+- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
+- Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
+- Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
+- Added support for `DataFrame.stack`.
+- Added support for `DataFrame.pivot` and `pd.pivot`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
+- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
 
 - Added support for named aggregations in `DataFrame.aggregate` and `Series.aggregate` with `axis=0`.
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
-- Initial work to support an Index directly in Snowpark pandas. Support for Index as a first-class component of Snowpark pandas is coming soon.
-- Added lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object. 
-- For `df.columns`, Snowpark pandas supports a non-lazy version of an Index since the data is already stored locally
+- Initial work to support an `pd.Index` directly in Snowpark pandas. Support for `pd.Index` as a first-class component of Snowpark pandas is coming soon.
+- Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
+- For `df.index`, Snowpark pandas creates a lazy index object. 
+- For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
+- Added support for `Index.copy()`
+- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
+- Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 
 ## 1.18.0 (2024-05-28)
 

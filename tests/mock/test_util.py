@@ -2,8 +2,10 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import importlib
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -34,3 +36,28 @@ def test_import_context():
 
     assert old_path == list(sys.path)
     assert old_modules == set(sys.modules.keys())
+
+
+@pytest.mark.parametrize("numpy_available", [True, False])
+def test_numpy_installed(numpy_available):
+    def bad_import(_):
+        raise ModuleNotFoundError()
+
+    with patch(
+        "importlib.import_module",
+        importlib.import_module if numpy_available else bad_import,
+    ):
+        import snowflake.snowpark.mock._options
+
+        importlib.reload(snowflake.snowpark.mock._options)
+        assert snowflake.snowpark.mock._options.installed_numpy == numpy_available
+        if numpy_available:
+            assert not isinstance(
+                snowflake.snowpark.mock._options.numpy,
+                snowflake.snowpark.mock._options.MissingNumpy,
+            )
+        else:
+            assert isinstance(
+                snowflake.snowpark.mock._options.numpy,
+                snowflake.snowpark.mock._options.MissingNumpy,
+            )

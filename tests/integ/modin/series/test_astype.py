@@ -304,7 +304,7 @@ def test_astype_uint():
     s = pd.Series([-1, 0, 1]).astype("uint8")
     assert s.dtype == "int64"
     assert_snowpark_pandas_equal_to_pandas(
-        s, native_pd.Series([-1, 0, 1]).astype("int64")
+        s, native_pd.Series([-1, 0, 1]), check_dtype=False
     )
 
 

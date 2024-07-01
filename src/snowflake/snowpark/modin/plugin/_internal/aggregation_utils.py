@@ -252,8 +252,8 @@ SNOWFLAKE_BUILTIN_AGG_FUNC_MAP: dict[Union[str, Callable], Callable] = {
     "skew": skew,
     "std": stddev,
     "var": variance,
-    "booland_agg": builtin("booland_agg"),
-    "boolor_agg": builtin("boolor_agg"),
+    "all": builtin("booland_agg"),
+    "any": builtin("boolor_agg"),
     np.max: max_,
     np.min: min_,
     np.sum: sum_,
@@ -695,8 +695,8 @@ def generate_aggregation_column(
                 snowflake_agg_func(snowpark_column), pandas_lit(0)
             )
     elif snowflake_agg_func in (
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["booland_agg"],
-        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["boolor_agg"],
+        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["all"],
+        SNOWFLAKE_BUILTIN_AGG_FUNC_MAP["any"],
     ):
         # Need to wrap column name in IDENTIFIER, or else bool agg function will treat the name as a string literal
         agg_snowpark_column = snowflake_agg_func(builtin("identifier")(snowpark_column))

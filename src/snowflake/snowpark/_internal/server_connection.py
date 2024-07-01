@@ -748,7 +748,7 @@ def _fix_pandas_df_fixed_type(
                         pd_df[pandas_col_name] = pd_df[pandas_col_name].astype("int64")
                     except OverflowError:
                         pd_df[pandas_col_name] = pandas.to_numeric(
-                            pd_df[pandas_col_name], downcast="integer"
+                            pd_df[pandas_col_name]
                         )
                 else:
                     pd_df[pandas_col_name] = pandas.to_numeric(

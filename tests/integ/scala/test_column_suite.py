@@ -112,6 +112,22 @@ def test_equal_and_not_equal(session):
     ).collect() == [  # noqa: E712
         Row(2, False, "b")
     ]
+    test_data2 = session.create_dataframe(
+        [[0.1, 0.1], [0.2, 0.6], [0.3, 0.7]],
+        schema=StructType(
+            [
+                StructField("A", DecimalType(20, 2), nullable=True),
+                StructField("B", DecimalType(20, 2)),
+            ]
+        ),
+    )
+    assert test_data2.where(test_data2.a == test_data2.b).collect() == [
+        Row(A=Decimal("0.10"), B=Decimal("0.10"))
+    ]
+    assert test_data2.where(test_data2.a != test_data2.b).collect() == [
+        Row(A=Decimal("0.20"), B=Decimal("0.60")),
+        Row(A=Decimal("0.30"), B=Decimal("0.70")),
+    ]
 
 
 def test_gt_and_lt(session):
