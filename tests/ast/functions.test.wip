@@ -287,6 +287,8 @@ df = df.select(array_construct(*cols: ColumnOrName) -> Column:
 df = df.select(array_construct_compact(*cols: ColumnOrName) -> Column:
 df = df.select(array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
 df = df.select(array_insert(
+
+
 df = df.select(array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
 df = df.select(array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
 df = df.select(array_size(array: ColumnOrName) -> Column:
@@ -366,7 +368,6 @@ df = df.select(call_table_function(
 df = df.select(table_function(function_name: str) -> Callable:
 df = df.select(call_function(function_name: str, *args: ColumnOrLiteral) -> Column:
 df = df.select(function(
-df = df.select(_call_function(
 df = df.select(sproc(
 df = df.select(unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
 df = df.select(locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:

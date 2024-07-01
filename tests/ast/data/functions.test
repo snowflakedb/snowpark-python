@@ -412,4 +412,31 @@ df211 = df.select(is_timestamp_ntz("A"))
 
 df212 = df.select(is_timestamp_tz("A"))
 
+df213 = df.select(time_from_parts(1,2,3), time_from_parts("A", "B", "A"), time_from_parts(1, "A", col("B")))
+
+df = df.select(timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
+df = df.select(timestamp_from_parts(
+df = df.select(timestamp_from_parts(*args, **kwargs) -> Column:
+df = df.select(timestamp_ltz_from_parts(
+df = df.select(timestamp_ntz_from_parts(
+df = df.select(timestamp_ntz_from_parts(
+df = df.select(timestamp_ntz_from_parts(*args, **kwargs) -> Column:
+df = df.select(timestamp_tz_from_parts(
+df = df.select(weekofyear(e: ColumnOrName) -> Column:
+df = df.select(typeof(col: ColumnOrName) -> Column:
+df = df.select(check_json(col: ColumnOrName) -> Column:
+df = df.select(check_xml(col: ColumnOrName) -> Column:
+df = df.select(json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
+df = df.select(parse_json(e: ColumnOrName) -> Column:
+df = df.select(parse_xml(e: ColumnOrName) -> Column:
+df = df.select(strip_null_value(col: ColumnOrName) -> Column:
+df = df.select(array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
+df = df.select(array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
+df = df.select(array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
+df = df.select(array_compact(array: ColumnOrName) -> Column:
+df = df.select(array_construct(*cols: ColumnOrName) -> Column:
+df = df.select(array_construct_compact(*cols: ColumnOrName) -> Column:
+df = df.select(array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
+df = df.select(array_insert(
+
 ## EXPECTED OUTPUT
