@@ -1398,6 +1398,10 @@ def test_array_flatten(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: arrays_zip function not supported",
+)
 @pytest.mark.parametrize(
     "data, expected",
     [
