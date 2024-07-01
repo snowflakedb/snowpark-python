@@ -126,9 +126,7 @@ def test_corr_min_periods(min_periods):
 def test_corr_negative(numeric_native_df, method):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(NotImplementedError):
-        eval_snowpark_pandas_result(
-            snow_df, numeric_native_df, lambda df: df.corr(method=method)
-        )
+        snow_df.corr(method=method)
 
 
 @pytest.mark.parametrize(
