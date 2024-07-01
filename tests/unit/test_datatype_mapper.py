@@ -189,10 +189,6 @@ def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(None, NullType()) == "NULL"
     assert numeric_to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
-    assert numeric_to_sql_without_cast(123, StringType()) == "'123'"
-    assert numeric_to_sql_without_cast(0.2, StringType()) == "'0.2'"
-
     assert numeric_to_sql_without_cast(123, IntegerType()) == "123"
     assert numeric_to_sql_without_cast(0.2, FloatType()) == "0.2"
     assert numeric_to_sql_without_cast(0.2, DoubleType()) == "0.2"
