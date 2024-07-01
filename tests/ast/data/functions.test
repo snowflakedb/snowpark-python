@@ -412,31 +412,50 @@ df211 = df.select(is_timestamp_ntz("A"))
 
 df212 = df.select(is_timestamp_tz("A"))
 
-df213 = df.select(time_from_parts(1,2,3), time_from_parts("A", "B", "A"), time_from_parts(1, "A", col("B")))
+df213 = df.select(time_from_parts(1, 2, 3), time_from_parts("A", "B", "A"), time_from_parts(1, "A", col("B")))
 
-df = df.select(timestamp_from_parts(date_expr: ColumnOrName, time_expr: ColumnOrName) -> Column:
-df = df.select(timestamp_from_parts(
-df = df.select(timestamp_from_parts(*args, **kwargs) -> Column:
-df = df.select(timestamp_ltz_from_parts(
-df = df.select(timestamp_ntz_from_parts(
-df = df.select(timestamp_ntz_from_parts(
-df = df.select(timestamp_ntz_from_parts(*args, **kwargs) -> Column:
-df = df.select(timestamp_tz_from_parts(
-df = df.select(weekofyear(e: ColumnOrName) -> Column:
-df = df.select(typeof(col: ColumnOrName) -> Column:
-df = df.select(check_json(col: ColumnOrName) -> Column:
-df = df.select(check_xml(col: ColumnOrName) -> Column:
-df = df.select(json_extract_path_text(col: ColumnOrName, path: ColumnOrName) -> Column:
-df = df.select(parse_json(e: ColumnOrName) -> Column:
-df = df.select(parse_xml(e: ColumnOrName) -> Column:
-df = df.select(strip_null_value(col: ColumnOrName) -> Column:
-df = df.select(array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
-df = df.select(array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
-df = df.select(array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
-df = df.select(array_compact(array: ColumnOrName) -> Column:
-df = df.select(array_construct(*cols: ColumnOrName) -> Column:
-df = df.select(array_construct_compact(*cols: ColumnOrName) -> Column:
-df = df.select(array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
-df = df.select(array_insert(
+df214 = df.select(timestamp_from_parts("A", "A"), timestamp_from_parts(col("A"), "B"), timestamp_from_parts(col("A"), col("B")))
+
+df215 = df.select(timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_from_parts(2000, 12, 0, 12, 3, 1, None, None), timestamp_from_parts(2000, 12, 0, 12, 3, 1, None, "us"))
+
+df216 = df.select(timestamp_from_parts("year", "month", "day", "hour", "minute", "second"), timestamp_from_parts(to_date("date"), to_time("time")))
+
+df217 = df.select(timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, 12))
+
+df218 = df.select(timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, 12))
+
+df219 = df.select(timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, None), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, "us"))
+
+df220 = df.select(weekofyear("A"))
+
+df221 = df.select(typeof("A"))
+
+df222 = df.select(check_json("A"))
+
+df223 = df.select(check_xml("A"))
+
+df224 = df.select(json_extract_path_text("A", "B"), json_extract_path_text(col("A"), col("B")), json_extract_path_text(col("A"), "B"))
+
+df225 = df.select(parse_json("A"))
+
+df226 = df.select(parse_xml("A"))
+
+df227 = df.select(strip_null_value("A"))
+
+df228 = df.select(array_agg("A", False), array_agg(col("A"), True))
+
+df229 = df.select(array_append("A", lit(1)), array_append("A", "B"), array_append(col("A"), col("B")))
+
+df230 = df.select(array_cat("A", lit(1)), array_cat("A", "B"), array_cat(col("A"), col("B")))
+
+df231 = df.select(array_compact("A"))
+
+df232 = df.select(array_construct(), array_construct("A"), array_construct(lit(1), "A", col("B")))
+
+df233 = df.select(array_construct_compact(), array_construct_compact("A"), array_construct_compact(lit(1), "A", col("B")))
+
+df234 = df.select(array_contains("A", col("B")), array_contains("A", lit(1)))
+
+df = df.select(array_insert("A", "B", "A"), array_insert(col("A"), col("B"), col("A")))
 
 ## EXPECTED OUTPUT
