@@ -91,6 +91,11 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             else str_to_sql(value)
         )
 
+    if isinstance(datatype, StringType):
+        # if the value is not a string, but the datatype is string, convert the
+        # value to string
+        return f"'{value}'"
+
     if isinstance(datatype, _IntegralType):
         return f"{value} :: INT"
 
