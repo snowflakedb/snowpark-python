@@ -50,7 +50,8 @@ def dict_exporter():
     dict_exporter = InMemorySpanExporter()
     processor = SimpleSpanProcessor(dict_exporter)
     trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
+    if trace.get_tracer_provider() != trace_provider:
+        trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
 
