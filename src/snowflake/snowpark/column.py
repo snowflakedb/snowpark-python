@@ -5,6 +5,7 @@
 
 import inspect
 import sys
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import snowflake.snowpark
@@ -1008,11 +1009,12 @@ class Column:
                     while call_stack and __file__ == curr_frame.filename:
                         column_api = curr_frame.function
                         curr_frame = call_stack.pop(0)
-                    raise NotImplementedError(
-                        f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
-                        f"\t{curr_frame.code_context[0].strip()}\n"
-                        f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
-                    )
+                    if not Path(__file__).parents[0] in Path(curr_frame.filename).parents:
+                        raise NotImplementedError(
+                            f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
+                            f"\t{curr_frame.code_context[0].strip()}\n"
+                            f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
+                        )
                 elif msg is not None:
                     getattr(prop_ast, attr).CopyFrom(msg)
             for attr, other in fill_expr_asts.items():
