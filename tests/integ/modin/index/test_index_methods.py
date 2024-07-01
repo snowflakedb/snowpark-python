@@ -41,9 +41,9 @@ NATIVE_INDEX_TEST_DATA = [
     "index, type",
     [
         (native_pd.Index([1, 2, 3, 4], dtype=int), float),
-        (native_pd.Index(["a", "b", "c"], dtype=str), object),
+        (native_pd.Index(["a", "b", "c"], dtype=str), "object"),
         (native_pd.Index([], dtype=object), int),
-        (native_pd.Index([], dtype=int), object),
+        (native_pd.Index([], dtype=int), "O"),
     ],
 )
 @sql_count_checker(query_count=1)
