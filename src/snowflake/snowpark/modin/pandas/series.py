@@ -1549,7 +1549,6 @@ class Series(BasePandasDataset):
 
         return result.droplevel(0, axis=1) if result.columns.nlevels > 1 else result
 
-    @series_not_implemented()
     @property
     def plot(
         self,
@@ -1582,6 +1581,9 @@ class Series(BasePandasDataset):
         Make plot of Series.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        WarningMessage.single_warning(
+            "Series.plot materializes data to the local machine for plotting"
+        )
         return self._to_pandas().plot
 
     def pow(self, other, level=None, fill_value=None, axis=0):  # noqa: PR01, RT01, D200
