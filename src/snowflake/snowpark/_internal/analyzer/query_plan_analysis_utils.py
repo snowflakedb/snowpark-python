@@ -63,18 +63,6 @@ def sum_node_complexities(
     )
     return dict(counter_sum)
 
-def subtract_node_complexity(
-    node_complexity: Dict[PlanNodeCategory, int],
-    subtract_complexity: Dict[PlanNodeCategory, int]
-) -> Dict[PlanNodeCategory, int]:
-    """This function subtracts the complexity values of `subtract_complexity`
-    from `node_complexity` and returns the result."""
-    result = node_complexity.copy()
-    for category, count in subtract_complexity.items():
-        result[category] -= count
-    return result
-
-
 def get_complexity_score(cumulative_node_complexity: Dict[PlanNodeCategory, int]) -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
     return sum(

@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from sortedcontainers import SortedList
 
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PipelineBreakerCategory, PlanNodeCategory, get_complexity_score, subtract_node_complexity, sum_node_complexities
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PipelineBreakerCategory, get_complexity_score
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import TempTableReference
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateTempTableCommand
@@ -67,16 +67,15 @@ class LargeQueryBreakdown:
             next_level = []
             for node in current_level:
                 for child in node.children_plan_nodes:
+                    next_level.append(child)
                     parent_map[child] = node
-                    score = get_complexity_score(child)
+                    score = get_complexity_score(child.cumulative_node_complexity)
 
                     # Categorize the child node based on its complexity score and pipeline breaker category
                     if score > self.COMPLEXITY_SCORE_LOWER_BOUND and score < self.COMPLEXITY_SCORE_UPPER_BOUND:
-                        score_node_tuple = (score, child, node)
                         if child.pipeline_breaker_category == PipelineBreakerCategory.PIPELINE_BREAKER:
-                            pipeline_breaker_list.append(score_node_tuple)
+                            pipeline_breaker_list.append((score, child))
 
-                next_level.extend(node.children_plan_nodes)
             current_level = next_level
 
         # Return if we don't find a valid not to break down the query plan
@@ -86,7 +85,8 @@ class LargeQueryBreakdown:
         # Find the appropriate child and parent nodes to break the plan
         child: Optional[SnowflakePlan] = None
         parent: Optional[SnowflakePlan] = None
-        _, child, parent = pipeline_breaker_list[-1]
+        child = pipeline_breaker_list[-1][1]
+        parent = parent_map[child]
 
         # Create a temporary table and replace the child node with the temporary table reference
         temp_table_name = self.session.get_fully_qualified_name_if_possible(
@@ -100,7 +100,7 @@ class LargeQueryBreakdown:
         child_sql = child.queries[-1].sql
         while parent is not None:
             parent.queries[-1].sql.replace(child_sql, f"SELECT * FROM {temp_table_name}")
-            parent.cumulative_node_complexity = subtract_node_complexity(sum_node_complexities(parent.cumulative_node_complexity, {PlanNodeCategory.COLUMN: 1}), child.cumulative_node_complexity)
+            parent.reset_cumulative_node_complexity()
             parent = parent_map[parent_map]
 
         return temp_table_node
