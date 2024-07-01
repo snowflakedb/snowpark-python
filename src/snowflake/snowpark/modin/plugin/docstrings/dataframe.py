@@ -1256,8 +1256,8 @@ class DataFrame:
         ...                   columns=['dogs', 'cats'])
         >>> df.corr(min_periods=3)
               dogs  cats
-        dogs   1.0   NaN
-        cats   NaN   1.0
+        dogs   1.0   1.0
+        cats   1.0   1.0
         """
 
     def corrwith():
