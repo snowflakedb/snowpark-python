@@ -2683,7 +2683,7 @@ class Series(BasePandasDataset):
         new_query_compiler : PandasQueryCompiler
             QueryCompiler to use to manage the data.
         inplace : bool, default: False
-            Whether or not to perform update or creation inplace.
+            Whether to perform update or creation inplace.
 
         Returns
         -------

@@ -7865,6 +7865,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         col_dtypes_map: dict[str, Union[dtype, ExtensionDtype]],
         errors: Literal["raise", "ignore"] = "raise",
+        is_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Convert columns dtypes to given dtypes.
@@ -7877,6 +7878,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Control raising of exceptions on invalid data for provided dtype.
             - raise : allow exceptions to be raised
             - ignore : suppress exceptions. On error return original object.
+        is_index : bool, default=False
+            Whether an Index object is invoking astype. Index objects use only index columns;
+            data columns are relevant only for Series and DataFrame objects.
 
         Returns
         -------
@@ -7887,16 +7891,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas astype API doesn't yet support errors == '{errors}'"
             )
-        col_dtypes_curr = {
-            k: v for k, v in self.dtypes.to_dict().items() if k in col_dtypes_map
-        }
+
+        if is_index:
+            col_dtypes_curr = {
+                column: self.index.dtype for column in self.get_index_names()
+            }
+        else:
+            col_dtypes_curr = {
+                k: v for k, v in self.dtypes.to_dict().items() if k in col_dtypes_map
+            }
 
         astype_mapping = {}
         id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         labels = list(col_dtypes_map.keys())
         col_ids = (
             self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                labels, include_index=False
+                labels,
+                include_index=is_index,
             )
         )
         for ids, label in zip(col_ids, labels):
