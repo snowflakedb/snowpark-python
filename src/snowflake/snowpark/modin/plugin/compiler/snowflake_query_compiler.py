@@ -15127,7 +15127,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             result = query_compilers[0].concat(axis=0, other=query_compilers[1:])
         return result
-    
+
     def compare(
         self,
         other: "SnowflakeQueryCompiler",
