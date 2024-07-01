@@ -24,9 +24,42 @@ def test_unstack_input_no_multiindex():
 
 
 @sql_count_checker(query_count=1)
+def test_unstack_input_no_multiindex_with_names():
+    index = native_pd.MultiIndex.from_tuples(
+        [("one", "a"), ("one", "b"), ("two", "a"), ("two", "b")],
+        names=["hello", "world"],
+    )
+    # Note we call unstack below to create a dataframe without a multiindex before
+    # calling unstack again
+    native_df = native_pd.Series(np.arange(1.0, 5.0), index=index).unstack(level=0)
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.unstack())
+
+
+@sql_count_checker(query_count=1)
 def test_unstack_multiindex():
     index = pd.MultiIndex.from_product([[2, 1], ["a", "b"]])
     native_df = native_pd.DataFrame(np.random.randn(4), index=index, columns=["A"])
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.unstack())
+
+
+@sql_count_checker(query_count=1)
+def test_unstack_multiindex_with_names():
+    index = pd.MultiIndex.from_product(
+        iterables=[[2, 1], ["a", "b"]], names=["hello", "world"]
+    )
+    native_df = native_pd.DataFrame(np.random.randn(4), index=index, columns=["A"])
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.unstack())
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_unstack_multiple_columns():
+    index = pd.MultiIndex.from_product([[2, 1], ["a", "b"]])
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3, 4], "B": ["f", "o", "u", "r"]}, index=index
+    )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.unstack())
 
