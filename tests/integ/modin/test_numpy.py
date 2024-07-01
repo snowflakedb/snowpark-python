@@ -113,7 +113,7 @@ def test_np_where_notimplemented():
             )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=4, join_count=3)
 def test_scalar():
     pdf_scalar = native_pd.DataFrame([[99, 99], [99, 99]])
     sdf_scalar = pd.DataFrame([[99, 99], [99, 99]])
@@ -129,6 +129,11 @@ def test_scalar():
     # numpy
     np_orig_result = np.where(pdf_cond, 99, -99)
     sp_result = np.where(sdf_cond, 99, -99)
+    assert_array_equal(sp_result, np_orig_result)
+
+    # numpy w/ zeros - SNOW-1372268
+    np_orig_result = np.where(pdf_cond, 1, 0)
+    sp_result = np.where(sdf_cond, 1, 0)
     assert_array_equal(sp_result, np_orig_result)
 
 
