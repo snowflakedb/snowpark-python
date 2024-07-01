@@ -25,6 +25,10 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
 )
 
+# This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
+# AST or field is required to populate the AST field of a different Snowpark object instance.
+FAIL_ON_MISSING_AST = True
+
 
 def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
@@ -299,11 +303,23 @@ def create_ast_for_column_method(
         for attr, value in assign_opt_fields.items():
             setattr_if_not_none(getattr(prop_ast, attr), "value", value)
         for attr, msg in copy_messages.items():
-            if msg is not None:
-                getattr(prop_ast, attr).CopyFrom(msg)
+            if msg is None and FAIL_ON_MISSING_AST:
+                call_stack = inspect.stack()
+                curr_frame = call_stack.pop(0)
+                while call_stack and __file__ == curr_frame.filename:
+                    column_api = curr_frame.function
+                    curr_frame = call_stack.pop(0)
+                if not Path(__file__).parents[0] in Path(curr_frame.filename).parents:
+                    raise NotImplementedError(
+                        f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
+                        f"\t{curr_frame.code_context[0].strip()}\n"
+                        f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
+                    )
+            getattr(prop_ast, attr).CopyFrom(msg)
         for attr, other in fill_expr_asts.items():
             _fill_column_ast(getattr(prop_ast, attr), other)
     return ast
+
 
 
 def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):

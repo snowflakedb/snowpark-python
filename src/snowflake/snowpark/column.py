@@ -3,7 +3,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import inspect
 import sys
+from pathlib import Path
 from typing import Optional, Union
 
 import snowflake.snowpark
@@ -68,6 +70,7 @@ from snowflake.snowpark._internal.ast_utils import (
     create_ast_for_column,
     create_ast_for_column_method,
     snowpark_expression_to_ast,
+    FAIL_ON_MISSING_AST,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
