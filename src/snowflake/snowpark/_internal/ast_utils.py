@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
     Literal,
+    MultipleExpression,
     UnresolvedAttribute,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -357,11 +358,18 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         build_const_from_python_val(expr.value, ast)
         return ast
     elif isinstance(expr, UnresolvedAttribute):
-        # Unresolved means treatment as sql expression
+        # Unresolved means treatment as sql expression.
         return create_ast_for_column_method(
             property="sp_column_sql_expr",
             assign_fields={"sql": expr.sql},
         )
+    elif isinstance(expr, MultipleExpression):
+        # Convert to list of expressions.
+        ast = proto.Expr()
+        for child_expr in expr.expressions:
+            ast_list = ast.list_val.vs.add()
+            ast_list.CopyFrom(snowpark_expression_to_ast(child_expr))
+        return ast
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."

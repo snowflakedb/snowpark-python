@@ -6578,6 +6578,15 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).otherwise(lit("unknown")).as_("ans")).collect()
         [Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='even'), Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='odd'), Row(ANS='even')]
     """
+
+    ast = proto.Expr()
+    build_fn_apply(
+        ast,
+        "when",
+        snowpark_expression_to_ast(condition),
+        snowpark_expression_to_ast(value),
+    )
+
     return CaseExpr(
         CaseWhen(
             [
@@ -6586,7 +6595,8 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
                     Column._to_expr(value),
                 )
             ]
-        )
+        ),
+        ast=ast,
     )
 
 
@@ -6666,7 +6676,25 @@ def in_(
     """
     vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(MultipleExpression([c._expression for c in columns])).in_(vals)
+
+    # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
+    # Fix here by constructing ast based on current column expressions.
+    ast = proto.Expr()
+    for c in columns:
+        column_ast = ast.list_val.vs.add()
+        column_ast.CopyFrom(c._ast)
+    col = Column(MultipleExpression([c._expression for c in columns]), ast=ast).in_(
+        vals
+    )
+
+    # Replace ast in col with correct one.
+    ast = proto.Expr()
+    list_arg = col._ast.sp_column_in__seq.col
+    values_arg = col._ast.sp_column_in__seq.values[0]
+    build_fn_apply(ast, "in_", list_arg, values_arg)
+    col._ast = ast
+
+    return col
 
 
 def cume_dist() -> Column:

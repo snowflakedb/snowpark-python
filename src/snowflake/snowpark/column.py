@@ -475,6 +475,13 @@ class Column:
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
+
+        # TODO SNOW-1515255: For in_([col("A"), "B", "A"], df) support df parameter.
+        if any(isinstance(val, snowflake.snowpark.dataframe.DataFrame) for val in vals):
+            raise NotImplementedError(
+                "SNOW-1515255: No support for dataframe paramter in in_."
+            )
+
         cols = parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
@@ -523,7 +530,16 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
-        return Column(InExpression(self._expression, value_expressions))
+        ast = proto.Expr()
+        proto_ast = ast.sp_column_in__seq
+        proto_ast.col.CopyFrom(self._ast)
+        values_ast = proto_ast.values.add()
+
+        for expr in value_expressions:
+            expr_ast = values_ast.list_val.vs.add()
+            expr_ast.CopyFrom(snowpark_expression_to_ast(expr))
+
+        return Column(InExpression(self._expression, value_expressions), ast=ast)
 
     def between(
         self,
@@ -1019,8 +1035,12 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
-    def __init__(self, expr: CaseWhen) -> None:
-        super().__init__(expr)
+    def __init__(
+        self,
+        expr: CaseWhen,
+        ast: Optional[proto.Expr] = None,
+    ) -> None:
+        super().__init__(expr, ast=ast)
         self._branches = expr.branches
 
     def when(self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> "CaseExpr":
