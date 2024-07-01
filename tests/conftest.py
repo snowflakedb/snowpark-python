@@ -27,7 +27,7 @@ def is_excluded_frontend_file(path):
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=True)
+    parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
 
 
