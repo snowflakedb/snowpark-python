@@ -91,11 +91,6 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
             else str_to_sql(value)
         )
 
-    if isinstance(datatype, StringType):
-        # if the value is not a string, but the datatype is string, convert the
-        # value to string
-        return f"'{value}'"
-
     if isinstance(datatype, _IntegralType):
         return f"{value} :: INT"
 
@@ -222,11 +217,14 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
 
 
 def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
-    if not isinstance(datatype, _NumericType):
-        return to_sql(value, datatype)
-
     if value is None:
         return "NULL"
+
+    if not (isinstance(datatype, _NumericType)):
+        # if the value is not numeric or the datatype is not numeric, fallback to the
+        # regular to_sql generation
+        return to_sql(value, datatype)
+
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
         # when the float value is NAN or INF, a cast is still required
         if math.isnan(value):
