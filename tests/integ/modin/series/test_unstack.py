@@ -27,6 +27,23 @@ def test_unstack(level):
     )
 
 
+@pytest.mark.parametrize("level", [-1, 0])
+@sql_count_checker(query_count=1)
+def test_unstack_multiindex_with_names(level):
+    index = native_pd.MultiIndex.from_tuples(
+        tuples=[("one", "a"), ("one", "b"), ("two", "a"), ("two", "b")],
+        names=["hello", "world"],
+    )
+    native_ser = native_pd.Series(np.arange(1.0, 5.0), index=index)
+    snow_ser = pd.Series(native_ser)
+
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.unstack(level=level),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_unstack_sort_notimplemented():
     index = native_pd.MultiIndex.from_tuples(
