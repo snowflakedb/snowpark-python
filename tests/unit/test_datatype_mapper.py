@@ -9,9 +9,9 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
-    numeric_to_sql_without_cast,
 )
 from snowflake.snowpark.types import (
     ArrayType,
