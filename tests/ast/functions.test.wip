@@ -325,6 +325,7 @@ df = df.select(as_real(variant: ColumnOrName) -> Column:
 df = df.select(as_integer(variant: ColumnOrName) -> Column:
 df = df.select(as_object(variant: ColumnOrName) -> Column:
 df = df.select(as_time(variant: ColumnOrName) -> Column:
+
 df = df.select(as_timestamp_ltz(variant: ColumnOrName) -> Column:
 df = df.select(as_timestamp_ntz(variant: ColumnOrName) -> Column:
 df = df.select(as_timestamp_tz(variant: ColumnOrName) -> Column:

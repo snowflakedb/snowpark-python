@@ -1,6 +1,7 @@
 ## TEST CASE
 
 from snowflake.snowpark.functions import *
+from snowflake.snowpark.types import *
 
 import datetime
 
@@ -456,6 +457,76 @@ df233 = df.select(array_construct_compact(), array_construct_compact("A"), array
 
 df234 = df.select(array_contains("A", col("B")), array_contains("A", lit(1)))
 
-df = df.select(array_insert("A", "B", "A"), array_insert(col("A"), col("B"), col("A")))
+df235 = df.select(array_insert("A", "B", "A"), array_insert(col("A"), col("B"), col("A")))
+
+df236 = df.select(array_position("A", "B"), array_position(col("A"), lit(0)))
+
+df237 = df.select(array_prepend("A", col("B")), array_prepend(col("A"), col("B")))
+
+df238 = df.select(array_size("A"))
+
+df239 = df.select(array_slice("A", "B", "A"), array_slice(col("A"), col("B"), col("A")))
+
+df240 = df.select(array_to_string("A", "B"), array_to_string(col("A"), col("B")))
+
+df241 = df.select(array_unique_agg("A"))
+
+df242 = df.select(object_agg("A", "B"), object_agg("A", col("B")))
+
+df243 = df.select(object_construct(), object_construct(col("k"), col("v")), object_construct("A", "B", "A", "B"))
+
+df244 = df.select(object_construct_keep_null(), object_construct_keep_null(col("k"), col("v")), object_construct_keep_null("A", "B", "A", "B"))
+
+df245 = df.select(object_delete("A", "B"), object_delete(col("A"), "k1", "k2", "k3", "k4"))
+
+df246 = df.select(object_insert("A", "B", "A"), object_insert(col("A"), lit(1), lit(20), "B"))
+
+df247 = df.select(object_pick("A", "B"), object_pick(col("A"), "k1", "k2", "k3", "k4"))
+
+df248 = df.select(vector_cosine_distance(col("A"), "B"))
+
+df249 = df.select(vector_l2_distance("A", col("B")))
+
+df250 = df.select(vector_inner_product("A", "B"))
+
+df251 = df.select(asc("A"))
+
+df252 = df.select(asc_nulls_first("A"))
+
+df253 = df.select(asc_nulls_last("A"))
+
+df254 = df.select(desc("A"))
+
+df255 = df.select(desc_nulls_first("A"))
+
+df256 = df.select(desc_nulls_last("A"))
+
+df257 = df.select(as_array("A"))
+
+df258 = df.select(as_binary("A"))
+
+df259 = df.select(as_char("A"))
+
+df260 = df.select(as_varchar("A"))
+
+df261 = df.select(as_date("A"))
+
+df262 = df.select(cast("A", "int"), cast("A", LongType()))
+
+df263 = df.select(try_cast("A", "int"), try_cast("A", LongType()))
+
+df264 = df.select(as_decimal("A"), as_decimal("A", None), as_decimal("A", 10), as_decimal(col("A"), 10, 2))
+
+df265 = df.select(as_number("A"), as_number("A", None), as_number("A", 10), as_number(col("A"), 10, 2))
+
+df266 = df.select(as_double("A"))
+
+df267 = df.select(as_real("A"))
+
+df268 = df.select(as_integer("A"))
+
+df269 = df.select(as_object("A"))
+
+df70 = df.select(as_time("A"))
 
 ## EXPECTED OUTPUT
