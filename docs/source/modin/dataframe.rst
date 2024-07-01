@@ -53,6 +53,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.assign
     DataFrame.head
     DataFrame.loc
     DataFrame.iloc
@@ -182,11 +183,18 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
-    DataFrame.pivot_table
-    DataFrame.sort_values
-    DataFrame.sort_index
     DataFrame.melt
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.pivot
+    DataFrame.pivot_table
+    DataFrame.sort_index
+    DataFrame.nlargest
+    DataFrame.nsmallest
+    DataFrame.melt
+    DataFrame.sort_values
     DataFrame.squeeze
+    DataFrame.stack
     DataFrame.T
     DataFrame.transpose
 

@@ -665,14 +665,15 @@ class DataFrame:
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
         """This method is only used in stored procedures."""
-        return self._session._conn.get_result_query_id(
-            self._plan,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
-        )
+        with open_telemetry_context_manager(self._execute_and_get_query_id, self):
+            return self._session._conn.get_result_query_id(
+                self._plan,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_THREE,
+                ),
+            )
 
     @overload
     def to_local_iterator(

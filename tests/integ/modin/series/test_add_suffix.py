@@ -65,7 +65,7 @@ def test_add_suffix_time_column_df(suffix, time_index_series_data):
 def test_series_add_suffix_snowpark_pandas_series(
     default_index_snowpark_pandas_series, default_index_native_series
 ):
-    suffix_series = native_pd.Series([1, 2, 3])
+    suffix_series = native_pd.Series([1.1, 2.2, 3.3])
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_series,
         default_index_native_series,

@@ -868,6 +868,81 @@ class DataFrame:
         dtype: float64
         """
 
+    def assign():
+        """
+        Assign new columns to a ``DataFrame``.
+
+        Returns a new object with all original columns in addition to new ones. Existing
+        columns that are re-assigned will be overwritten.
+
+        Parameters
+        ----------
+        **kwargs: dict of {str: callable or Series}
+            The column names are the keywords. If the values are callable, they are computed
+            on the DataFrame and assigned to the new columns. The callable must not change input
+            DataFrame (though Snowpark pandas doesn't check it). If the values are not callable,
+            (e.g. a Series, scalar, or array), they are simply assigned.
+
+        Returns
+        -------
+        DataFrame
+            A new DataFrame with the new columns in addition to all the existing columns.
+
+        Notes
+        -----
+        - Assigning multiple columns within the same assign is possible. Later items in `**kwargs`
+          may refer to newly created or modified columns in `df`; items are computed and assigned into `df` in order.
+
+        - If an array that of the wrong length is passed in to assign, Snowpark pandas will either truncate the array, if it is too long,
+          or broadcast the last element of the array until the array is the correct length if it is too short. This differs from native pandas,
+          which will error out with a ValueError if the length of the array does not match the length of `df`.
+          This is done to preserve Snowpark pandas' lazy evaluation paradigm.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'temp_c': [17.0, 25.0]},
+        ...                   index=['Portland', 'Berkeley'])
+        >>> df
+                  temp_c
+        Portland    17.0
+        Berkeley    25.0
+
+        >>> df.assign(temp_f=lambda x: x.temp_c * 9 / 5 + 32)
+                  temp_c  temp_f
+        Portland    17.0    62.6
+        Berkeley    25.0    77.0
+
+        >>> df.assign(temp_f=df['temp_c'] * 9 / 5 + 32)
+                  temp_c  temp_f
+        Portland    17.0    62.6
+        Berkeley    25.0    77.0
+
+        >>> df.assign(temp_f=lambda x: x['temp_c'] * 9 / 5 + 32,
+        ...           temp_k=lambda x: (x['temp_f'] + 459.67) * 5 / 9)
+                  temp_c  temp_f  temp_k
+        Portland    17.0    62.6  290.15
+        Berkeley    25.0    77.0  298.15
+
+        >>> df = pd.DataFrame({'col1': [17.0, 25.0, 22.0]})
+        >>> df
+           col1
+        0  17.0
+        1  25.0
+        2  22.0
+
+        >>> df.assign(new_col=[10, 11])
+           col1  new_col
+        0  17.0       10
+        1  25.0       11
+        2  22.0       11
+
+        >>> df.assign(new_col=[10, 11, 12, 13, 14])
+           col1  new_col
+        0  17.0       10
+        1  25.0       11
+        2  22.0       12
+        """
+
     def groupby():
         """
         Group DataFrame using a mapper or by a Series of columns.
@@ -1108,11 +1183,6 @@ class DataFrame:
     def add():
         """
         Get addition of ``DataFrame`` and `other`, element-wise (binary operator `add`).
-        """
-
-    def assign():
-        """
-        Assign new columns to a ``DataFrame``.
         """
 
     def boxplot():
@@ -1892,11 +1962,220 @@ class DataFrame:
     def nlargest():
         """
         Return the first `n` rows ordered by `columns` in descending order.
+
+        Return the first `n` rows with the largest values in `columns`, in
+        descending order. The columns that are not specified are returned as
+        well, but not used for ordering.
+
+        This method is equivalent to
+        ``df.sort_values(columns, ascending=False).head(n)``
+
+        Parameters
+        ----------
+        n : int
+            Number of rows to return.
+        columns : label or list of labels
+            Column label(s) to order by.
+        keep : {'first', 'last', 'all'}, default 'first'
+            Where there are duplicate values:
+
+            - ``first`` : prioritize the first occurrence(s)
+            - ``last`` : prioritize the last occurrence(s)
+            - ``all`` : keep all the ties of the smallest item even if it means
+              selecting more than ``n`` items.
+
+        Returns
+        -------
+        DataFrame
+            The first `n` rows ordered by the given columns in descending
+            order.
+
+        See Also
+        --------
+        DataFrame.nsmallest : Return the first `n` rows ordered by `columns` in
+            ascending order.
+        DataFrame.sort_values : Sort DataFrame by the values.
+        DataFrame.head : Return the first `n` rows without re-ordering.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'population': [59000000, 65000000, 434000,
+        ...                                   434000, 434000, 337000, 11300,
+        ...                                   11300, 11300],
+        ...                    'GDP': [1937894, 2583560 , 12011, 4520, 12128,
+        ...                            17036, 182, 38, 311],
+        ...                    'alpha-2': ["IT", "FR", "MT", "MV", "BN",
+        ...                                "IS", "NR", "TV", "AI"]},
+        ...                   index=["Italy", "France", "Malta",
+        ...                          "Maldives", "Brunei", "Iceland",
+        ...                          "Nauru", "Tuvalu", "Anguilla"])
+        >>> df
+                  population      GDP alpha-2
+        Italy       59000000  1937894      IT
+        France      65000000  2583560      FR
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+        Iceland       337000    17036      IS
+        Nauru          11300      182      NR
+        Tuvalu         11300       38      TV
+        Anguilla       11300      311      AI
+
+        In the following example, we will use ``nlargest`` to select the three
+        rows having the largest values in column "population".
+
+        >>> df.nlargest(3, 'population')
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Malta       434000    12011      MT
+
+        When using ``keep='last'``, ties are resolved in reverse order:
+
+        >>> df.nlargest(3, 'population', keep='last')
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Brunei      434000    12128      BN
+
+        When using ``keep='all'``, the number of element kept can go beyond ``n``
+        if there are duplicate values for the smallest element, all the
+        ties are kept:
+
+        >>> df.nlargest(3, 'population', keep='all')  # doctest: +SKIP
+                  population      GDP alpha-2
+        France      65000000  2583560      FR
+        Italy       59000000  1937894      IT
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+
+        However, ``nlargest`` does not keep ``n`` distinct largest elements:
+
+        >>> df.nlargest(5, 'population', keep='all')  # doctest: +SKIP
+                  population      GDP alpha-2
+        France      65000000  2583560      FR
+        Italy       59000000  1937894      IT
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+
+        To order by the largest values in column "population" and then "GDP",
+        we can specify multiple columns like in the next example.
+
+        >>> df.nlargest(3, ['population', 'GDP'])
+                population      GDP alpha-2
+        France    65000000  2583560      FR
+        Italy     59000000  1937894      IT
+        Brunei      434000    12128      BN
         """
 
     def nsmallest():
         """
         Return the first `n` rows ordered by `columns` in ascending order.
+
+        Return the first `n` rows with the smallest values in `columns`, in
+        ascending order. The columns that are not specified are returned as
+        well, but not used for ordering.
+
+        This method is equivalent to
+        ``df.sort_values(columns, ascending=True).head(n)``
+
+        Parameters
+        ----------
+        n : int
+            Number of items to retrieve.
+        columns : list or str
+            Column name or names to order by.
+        keep : {'first', 'last', 'all'}, default 'first'
+            Where there are duplicate values:
+
+            - ``first`` : take the first occurrence.
+            - ``last`` : take the last occurrence.
+            - ``all`` : keep all the ties of the largest item even if it means
+              selecting more than ``n`` items.
+
+        Returns
+        -------
+        DataFrame
+
+        See Also
+        --------
+        DataFrame.nlargest : Return the first `n` rows ordered by `columns` in
+            descending order.
+        DataFrame.sort_values : Sort DataFrame by the values.
+        DataFrame.head : Return the first `n` rows without re-ordering.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'population': [59000000, 65000000, 434000,
+        ...                                   434000, 434000, 337000, 337000,
+        ...                                   11300, 11300],
+        ...                    'GDP': [1937894, 2583560 , 12011, 4520, 12128,
+        ...                            17036, 182, 38, 311],
+        ...                    'alpha-2': ["IT", "FR", "MT", "MV", "BN",
+        ...                                "IS", "NR", "TV", "AI"]},
+        ...                   index=["Italy", "France", "Malta",
+        ...                          "Maldives", "Brunei", "Iceland",
+        ...                          "Nauru", "Tuvalu", "Anguilla"])
+        >>> df
+                  population      GDP alpha-2
+        Italy       59000000  1937894      IT
+        France      65000000  2583560      FR
+        Malta         434000    12011      MT
+        Maldives      434000     4520      MV
+        Brunei        434000    12128      BN
+        Iceland       337000    17036      IS
+        Nauru         337000      182      NR
+        Tuvalu         11300       38      TV
+        Anguilla       11300      311      AI
+
+        In the following example, we will use ``nsmallest`` to select the
+        three rows having the smallest values in column "population".
+
+        >>> df.nsmallest(3, 'population')
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+
+        When using ``keep='last'``, ties are resolved in reverse order:
+
+        >>> df.nsmallest(3, 'population', keep='last')
+                  population  GDP alpha-2
+        Anguilla       11300  311      AI
+        Tuvalu         11300   38      TV
+        Nauru         337000  182      NR
+
+        When using ``keep='all'``, the number of element kept can go beyond ``n``.
+        if there are duplicate values for the largest element, all the
+        ties are kept.
+
+        >>> df.nsmallest(3, 'population', keep='all')  # doctest: +SKIP
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+        Nauru         337000    182      NR
+
+        However, ``nsmallest`` does not keep ``n`` distinct
+        smallest elements:
+
+        >>> df.nsmallest(4, 'population', keep='all')  # doctest: +SKIP
+                  population    GDP alpha-2
+        Tuvalu         11300     38      TV
+        Anguilla       11300    311      AI
+        Iceland       337000  17036      IS
+        Nauru         337000    182      NR
+
+        To order by the smallest values in column "population" and then "GDP", we can
+        specify multiple columns like in the next example.
+
+        >>> df.nsmallest(3, ['population', 'GDP'])
+                  population  GDP alpha-2
+        Tuvalu         11300   38      TV
+        Anguilla       11300  311      AI
+        Nauru         337000  182      NR
         """
 
     def unstack():
@@ -1906,7 +2185,97 @@ class DataFrame:
 
     def pivot():
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a "pivot" table) based on column values. Uses unique values from
+        specified index / columns to form axes of the resulting DataFrame. This function does not
+        support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+        Parameters
+        ----------
+        columns : str or object or a list of str
+            Column to use to make new frame’s columns.
+        index : str or object or a list of str, optional
+            Column to use to make new frame’s index. If not given, uses existing index.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+            will be used and the result will have hierarchically indexed columns.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Calls pivot_table with columns, values, index and aggregation "min".
+
+        See Also
+        --------
+        DataFrame.pivot_table : Generalization of pivot that can handle
+            duplicate values for one index/column pair.
+        DataFrame.unstack: Pivot based on the index values instead
+            of a column.
+        wide_to_long : Wide panel to long format. Less flexible but more
+            user-friendly than melt.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+        ...                   'two'],
+        ...           'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+        ...           'baz': [1, 2, 3, 4, 5, 6],
+        ...           'zoo': ['x', 'y', 'z', 'q', 'w', 't']})
+        >>> df
+           foo bar  baz zoo
+        0  one   A    1   x
+        1  one   B    2   y
+        2  one   C    3   z
+        3  two   A    4   q
+        4  two   B    5   w
+        5  two   C    6   t
+        >>> df.pivot(index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
+        bar  A  B  C
+        foo
+        one  1  2  3
+        two  4  5  6
+        >>> df.pivot(index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
+            baz       zoo
+        bar   A  B  C   A  B  C
+        foo
+        one   1  2  3   x  y  z
+        two   4  5  6   q  w  t
+        >>> df = pd.DataFrame({
+        ...     "lev1": [1, 1, 1, 2, 2, 2],
+        ...     "lev2": [1, 1, 2, 1, 1, 2],
+        ...     "lev3": [1, 2, 1, 2, 1, 2],
+        ...     "lev4": [1, 2, 3, 4, 5, 6],
+        ...     "values": [0, 1, 2, 3, 4, 5]})
+        >>> df
+           lev1  lev2  lev3  lev4  values
+        0     1     1     1     1       0
+        1     1     1     2     2       1
+        2     1     2     1     3       2
+        3     2     1     2     4       3
+        4     2     1     1     5       4
+        5     2     2     2     6       5
+        >>> df.pivot(index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev2  1       2
+        lev3  1  2    1    2
+        lev1
+        1     0  1  2.0  NaN
+        2     4  3  NaN  5.0
+        >>> df.pivot(index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+        lev3         1    2
+        lev1 lev2
+        1    1     0.0  1.0
+             2     2.0  NaN
+        2    1     4.0  3.0
+             2     NaN  5.0
         """
 
     def pivot_table():
@@ -2948,6 +3317,59 @@ class DataFrame:
     def stack():
         """
         Stack the prescribed level(s) from columns to index.
+
+        Return a reshaped DataFrame or Series having a multi-level index with one
+        or more new inner-most levels compared to the current DataFrame. The new inner-most
+        levels are created by pivoting the columns of the current dataframe.
+        If the columns have a single level, the output is a Series.
+        If the columns have multiple levels, the new index level(s) is (are)
+        taken from the prescribed level(s) and the output is a DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) to stack from the column axis onto the index axis,
+            defined as one index or label, or a list of indices or labels.
+
+        dropna : bool, default True
+            Whether to drop rows in the resulting Frame/Series with missing values. Stacking a
+            column level onto the index axis can create combinations of index and column values
+            that are missing from the original dataframe.
+
+        sort : bool, default True
+            Whether to sort the levels of the resulting MultiIndex.
+
+        future_stack : bool, default False
+            This argument is ignored in Snowpark pandas.
+
+        Returns
+        -------
+        DataFrame or Series
+            Stacked dataframe or series.
+
+        Notes
+        -----
+        level != -1 and MultiIndex dataframes are not yet supported by Snowpark pandas.
+
+        See Also
+        --------
+        DataFrame.unstack : Unstack prescribed level(s) from index axis onto column axis.
+        DataFrame.pivot : Reshape dataframe from long format to wide format.
+        DataFrame.pivot_table : Create a spreadsheet-style pivot table as a DataFrame.
+
+        Examples
+        --------
+        >>> df_single_level_cols = pd.DataFrame([[0, 1], [2, 3]], index=['cat', 'dog'], columns=['weight', 'height'])
+        >>> df_single_level_cols
+             weight  height
+        cat       0       1
+        dog       2       3
+        >>> df_single_level_cols.stack()
+        cat  weight    0
+             height    1
+        dog  weight    2
+             height    3
+        dtype: int64
         """
 
     def sub():
