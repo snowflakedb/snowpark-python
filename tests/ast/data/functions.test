@@ -527,6 +527,86 @@ df268 = df.select(as_integer("A"))
 
 df269 = df.select(as_object("A"))
 
-df70 = df.select(as_time("A"))
+df270 = df.select(as_time("A"))
+
+df271 = df.select(as_timestamp_ltz("A"))
+
+df272 = df.select(as_timestamp_ntz("A"))
+
+df273 = df.select(as_timestamp_tz("A"))
+
+df274 = df.select(to_binary("A"), to_binary("B", "BASE64"), to_binary(col("A"), 'UTF-8'))
+
+df275 = df.select(to_array("A"))
+
+df276 = df.select(to_json("A"))
+
+df277 = df.select(to_object("A"))
+
+df278 = df.select(to_variant("A"))
+
+df279 = df.select(to_xml("A"))
+
+df280 = df.select(get_ignore_case("A", col("B")))
+
+df281 = df.select(object_keys("A"))
+
+df282 = df.select(xmlget("A", "B"), xmlget("A", "B", 0), xmlget(col("A"), lit("123"), col("B")), xmlget("A", "B", "C"))
+
+df283 = df.select(get_path("A", "B"))
+
+df284 = df.select(get(1, 2), get("A", 2), get(3, "B"), get(col("A"), 2), get(col("A"), lit(1)))
+
+df285 = df.select(when(col("a") % 2 == 0, lit("even")))
+
+df286 = df.select(iff(col("a") % 2 == 0, lit("even"), lit("odd")))
+
+df287 = df.select(in_([]), in_([col("A"), "B", "A"]), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
+
+df288 = df.select(cume_dist())
+
+df289 = df.select(rank())
+
+df290 = df.select(percent_rank())
+
+df291 = df.select(dense_rank())
+
+df292 = df.select(row_number())
+
+df293 = df.select(lag("A"), lag(col("B")), lag("A", 1, None, None), lag("A", 1, col("B")), lag("A", 2, lit(20), True))
+
+df294 = df.select(lead("A"), lead(col("B")), lead("A", 1, None, None), lead("A", 1, col("B")), lead("A", 2, lit(20), True))
+
+df295 = df.select(last_value("A"), last_value("A", True), last_value(col("B"), False))
+
+df296 = df.select(first_value("A"), first_value("A", True), first_value(col("B"), False))
+
+df297 = df.select(ntile(10), ntile("A"), ntile(col("B")))
+
+df298 = df.select(percentile_cont(0.4))
+
+df299 = df.select(greatest(), greatest("A"), greatest(col("B"), "A"), greatest("A", "B", "C", "D", "E", "F"))
+
+df300 = df.select(least(), least("A"), least(col("B"), "A"), least("A", "B", "C", "D", "E", "F"))
+
+df301 = df.select(listagg("A"), listagg(col("B")), listagg("A", ","), listagg("A", "|", True))
+
+df302 = df.select(when_matched(), when_matched(col("A")), when_matched(None))
+
+df303 = df.select(when_not_matched(), when_not_matched(col("A")), when_not_matched(None))
+
+df304 = df.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
+
+df305 = df.select(call_table_function("name"), call_table_function("test", lit(10), col("B"), named_arg=lit(10)))
+
+df306 = df.select(table_function("test"))
+
+df307 = df.select(call_function("name"), call_function("test", col("A"), lit(10)))
+
+df308 = df.select(function("test"))
+
+df309 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp(col("B"), lit("YYYY")))
+
+df310 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
 
 ## EXPECTED OUTPUT

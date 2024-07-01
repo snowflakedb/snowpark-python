@@ -6,8 +6,9 @@ from snowflake.snowpark.functions import (  # noqa: F401
     col,
     create_map,
     current_warehouse,
+    in_,
     sql_expr,
-    timestamp_from_parts
+    timestamp_from_parts,
 )
 from snowflake.snowpark.session import Session
 
@@ -23,10 +24,12 @@ def test_example():
         [("Paris", "France"), ("Tokyo", "Japan")], ("city", "country")
     )
 
-    df.select(timestamp_from_parts("A", "A"), timestamp_from_parts(col("A"), "B"),
-              timestamp_from_parts(col("A"), col("B")))
+    df.select(in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
 
-    #df.select(create_map("city", "country").alias("map"))
+    # df.select(timestamp_from_parts("A", "A"), timestamp_from_parts(col("A"), "B"),
+    #           timestamp_from_parts(col("A"), col("B")))
+
+    # df.select(create_map("city", "country").alias("map"))
 
     # variadic = df.to_df("one", "two")
     #
