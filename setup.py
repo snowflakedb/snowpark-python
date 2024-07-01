@@ -14,7 +14,7 @@ MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
 # Use HEAD of server-side-snowpark branch in connector.
-CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@server-side-snowpark#egg=snowflake-connector-python"
+CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
