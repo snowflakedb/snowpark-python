@@ -203,6 +203,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.compare
     DataFrame.join
     DataFrame.merge
     DataFrame.update

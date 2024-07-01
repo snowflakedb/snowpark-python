@@ -102,6 +102,7 @@ from snowflake.snowpark.functions import (
     lead,
     least,
     length,
+    lit,
     lower,
     ltrim,
     max as max_,
@@ -15126,3 +15127,214 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             result = query_compilers[0].concat(axis=0, other=query_compilers[1:])
         return result
+    
+    def compare(
+        self,
+        other: "SnowflakeQueryCompiler",
+        align_axis: Axis,
+        keep_shape: bool,
+        keep_equal: bool,
+        result_names: tuple[str],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Compare to another query compiler and show the differences.
+
+        Parameters
+        ----------
+        other : SnowflakeQueryCompiler
+            The query compiler to compare `self` to.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows.
+            Otherwise, only keep rows with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this series's values from the other's values in
+            the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            The comparison result.
+        """
+        if align_axis not in (1, "columns"):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `compare` does not yet support the parameter `align_axis`."
+            )
+        if keep_shape:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `compare` does not yet support the parameter `keep_shape`."
+            )
+        if keep_equal:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `compare` does not yet support the parameter `keep_equal."
+            )
+        if result_names != ("self", "other"):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas `compare` does not yet support the parameter `result_names`."
+            )
+
+        # TODO(SNOW-1478684): Stop calling to_pandas() to work around Index.equals() bug.
+        def pandas_index(index: Union[native_pd.Index, pd.Index]) -> native_pd.Index:
+            if isinstance(index, native_pd.Index):
+                return index
+            return index.to_pandas()
+
+        if not (
+            pandas_index(self.columns).equals(pandas_index(other.columns))
+            and pandas_index(self.index).equals(pandas_index(other.index))
+        ):
+            raise ValueError("Can only compare identically-labeled objects")
+
+        # align the two frames on index values, which should be equal. We don't
+        # align on row position because the frames might not have row position
+        # columns.
+        result_frame, result_column_mapper = join_utils.align(
+            left=self._modin_frame,
+            right=other._modin_frame,
+            left_on=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            right_on=other._modin_frame.index_column_snowflake_quoted_identifiers,
+        )
+
+        # compare each column in `self` to the corresponding column in `other`.
+        binary_op_result = result_frame
+        for left_identifier, right_identifier, left_pandas_label in zip(
+            self._modin_frame.data_column_snowflake_quoted_identifiers,
+            other._modin_frame.data_column_snowflake_quoted_identifiers,
+            self._modin_frame.data_column_pandas_labels,
+        ):
+            binary_op_result = binary_op_result.append_column(
+                str(left_pandas_label) + "_comparison_result",
+                col(
+                    result_column_mapper.left_quoted_identifiers_map[left_identifier]
+                ).equal_null(
+                    col(
+                        result_column_mapper.right_quoted_identifiers_map[
+                            right_identifier
+                        ]
+                    )
+                ),
+            )
+
+        # drop the rows where all the columns are equal, i.e. where all the
+        # `comparison_result_columns` are true.
+        comparison_result_columns = (
+            binary_op_result.data_column_snowflake_quoted_identifiers[
+                -len(self._modin_frame.data_column_snowflake_quoted_identifiers) :
+            ]
+        )
+        filtered_binary_op_result = binary_op_result.filter(
+            ~functools.reduce(
+                lambda a, b: (a & col(b)), comparison_result_columns, lit(True)
+            )
+        )
+
+        # Get a series that tells whether each column contains only matches.
+        all_rows_match_frame = (
+            SnowflakeQueryCompiler(
+                get_frame_by_col_pos(
+                    filtered_binary_op_result,
+                    list(range(len(self.columns) * 2, len(self.columns) * 3)),
+                )
+            )
+            .all(axis=0, bool_only=False, skipna=False)
+            .to_pandas()
+        )
+
+        # Construct expressions for the result.
+        new_pandas_labels = []
+        new_values = []
+        column_index_tuples = []
+        for (
+            pandas_column_value,
+            pandas_label,
+            left_identifier,
+            right_identifier,
+            column_only_contains_matches,
+        ) in zip(
+            self.columns,
+            filtered_binary_op_result.data_column_pandas_labels,
+            self._modin_frame.data_column_snowflake_quoted_identifiers,
+            other._modin_frame.data_column_snowflake_quoted_identifiers,
+            all_rows_match_frame.iloc[:, 0].values,
+        ):
+            # Drop columns that only contain matches.
+            if column_only_contains_matches:
+                continue
+
+            cols_equal = col(
+                result_column_mapper.left_quoted_identifiers_map[left_identifier]
+            ).equal_null(
+                col(result_column_mapper.right_quoted_identifiers_map[right_identifier])
+            )
+
+            # Add a column containing the values from `self`, but replace
+            # matching values with null.
+            new_pandas_labels.append(pandas_label)
+            new_values.append(
+                iff(
+                    condition=cols_equal,
+                    expr1=pandas_lit(np.nan),
+                    expr2=col(
+                        result_column_mapper.left_quoted_identifiers_map[
+                            left_identifier
+                        ]
+                    ),
+                )
+            )
+
+            # Add a column containing the values from `other`, but replace
+            # matching values with null.
+            new_pandas_labels.append(pandas_label)
+            new_values.append(
+                iff(
+                    condition=cols_equal,
+                    expr1=pandas_lit(np.nan),
+                    expr2=col(
+                        result_column_mapper.right_quoted_identifiers_map[
+                            right_identifier
+                        ]
+                    ),
+                )
+            )
+
+            # Add the two column labels of the result: these are the same as
+            # self's column labels, except with an extra level telling whether
+            # the column came from `self` or `other`.
+            if self.columns.nlevels > 1:
+                column_index_tuples.append((*pandas_column_value, "self"))
+                column_index_tuples.append((*pandas_column_value, "other"))
+            else:
+                column_index_tuples.append((pandas_column_value, "self"))
+                column_index_tuples.append((pandas_column_value, "other"))
+
+        return SnowflakeQueryCompiler(
+            filtered_binary_op_result.project_columns(new_pandas_labels, new_values)
+        ).set_columns(
+            # TODO(SNOW-1510921): fix the levels and inferred_type of the
+            # result's MultiIndex once we can pass the levels correctly through
+            # set_columns.
+            pd.MultiIndex.from_tuples(
+                column_index_tuples, names=(*self.columns.names, None)
+            )
+        )
