@@ -105,6 +105,7 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
 
     spans = spans_to_dict(dict_exporter.get_finished_spans())
     assert len(spans) == 0
+    _remove_session(session)
     dict_exporter.clear()
 
 
