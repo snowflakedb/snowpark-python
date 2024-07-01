@@ -960,7 +960,6 @@ class DataFrame:
         ast.variadic = is_variadic
         set_src_position(ast.src)
 
-        # TODO: SNOW-1507432 (currently to_df expectation test will fail due to incomplete AST logging)
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
