@@ -13,6 +13,7 @@
 
 #### New Features
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+- Added support for `DataFrame.corr`.
 
 ## 1.19.0 (2024-06-25)
 
