@@ -82,6 +82,7 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     concat,
+    corr,
     count,
     count_distinct,
     date_part,
@@ -15028,3 +15029,100 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return qc.dropna(axis=0, how="any", thresh=None)
         else:
             return qc
+
+    def corr(
+        self,
+        method: Union[str, Callable] = "pearson",
+        min_periods: Optional[int] = 1,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Compute pairwise correlation of columns, excluding NA/null values.
+
+        Parameters
+        ----------
+        method : {‘pearson’, ‘kendall’, ‘spearman’} or callable
+            Method of correlation:
+            pearson : standard correlation coefficient
+            kendall : Kendall Tau correlation coefficient
+            spearman : Spearman rank correlation
+            callable: callable with input two 1d ndarrays
+                and returning a float. Note that the returned matrix from corr will have 1 along the diagonals and will be symmetric regardless of the callable’s behavior.
+
+        min_periods : int, optional
+            Minimum number of observations required per pair of columns to have a valid result. Currently only available for Pearson and Spearman correlation.
+        """
+        if not isinstance(method, str):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame.corr does not yet support non-string 'method'"
+            )
+
+        if method != "pearson":
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas DataFrame.corr does not yet support 'method={method}'"
+            )
+
+        if min_periods is None:
+            min_periods = 1
+
+        frame = self._modin_frame
+
+        query_compilers = []
+        for outer_pandas_label, outer_quoted_identifier in zip(
+            frame.data_column_pandas_labels,
+            frame.data_column_snowflake_quoted_identifiers,
+        ):
+            index_quoted_identifier = (
+                frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[INDEX_LABEL],
+                )[0]
+            )
+
+            # Apply a "min" function to the index column to make sure it's also an aggregate.
+            index_col = min_(pandas_lit(outer_pandas_label)).as_(
+                index_quoted_identifier
+            )
+
+            new_columns = [index_col]
+            for (
+                inner_quoted_identifier
+            ) in frame.data_column_snowflake_quoted_identifiers:
+                new_col = corr(outer_quoted_identifier, inner_quoted_identifier)
+                if min_periods > 1:
+                    outer_col_is_valid = builtin("count_if")(
+                        col(outer_quoted_identifier).is_not_null()
+                    ) >= pandas_lit(min_periods)
+                    inner_col_is_valid = builtin("count_if")(
+                        col(inner_quoted_identifier).is_not_null()
+                    ) >= pandas_lit(min_periods)
+                    new_col = iff(
+                        outer_col_is_valid & inner_col_is_valid,
+                        new_col,
+                        pandas_lit(None),
+                    )
+                new_col = new_col.as_(inner_quoted_identifier)
+                new_columns.append(new_col)
+
+            new_ordered_data_frame = OrderedDataFrame(
+                dataframe_ref=DataFrameReference(
+                    frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
+                        new_columns
+                    )
+                )
+            )
+
+            new_frame = InternalFrame.create(
+                ordered_dataframe=new_ordered_data_frame,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=[None],
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=[None],
+                index_column_snowflake_quoted_identifiers=[index_quoted_identifier],
+            )
+
+            query_compilers.append(SnowflakeQueryCompiler(new_frame))
+
+        if len(query_compilers) == 1:
+            result = query_compilers[0]
+        else:
+            result = query_compilers[0].concat(axis=0, other=query_compilers[1:])
+        return result
