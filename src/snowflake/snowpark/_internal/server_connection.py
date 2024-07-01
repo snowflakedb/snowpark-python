@@ -572,6 +572,7 @@ class ServerConnection:
                     is_batch_insert = True
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
+            plans = [plan]
             if len(plan.queries) > 1 and not block and not is_batch_insert:
                 params = []
                 final_queries = []
