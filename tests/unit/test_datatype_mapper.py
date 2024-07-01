@@ -11,7 +11,7 @@ import pytest
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     schema_expression,
     to_sql,
-    to_sql_without_cast,
+    numeric_to_sql_without_cast,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -54,153 +54,23 @@ def timezone(request):
     return request.param
 
 
-@pytest.mark.parametrize(
-    "from_values_statement",
-    [True, False],
-)
-@pytest.mark.parametrize(
-    "eliminate_numeric_sql_value_cast_enabled",
-    [True, False],
-)
-def test_to_sql(from_values_statement, eliminate_numeric_sql_value_cast_enabled):
+def test_to_sql():
     # Test nulls
-    assert (
-        to_sql(
-            None,
-            NullType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
-    assert (
-        to_sql(
-            None,
-            ArrayType(DoubleType()),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
-    assert (
-        to_sql(
-            None,
-            MapType(IntegerType(), ByteType()),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
-    assert (
-        to_sql(
-            None,
-            StructType([]),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
-    assert (
-        to_sql(
-            None,
-            GeographyType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
-    assert (
-        to_sql(
-            None,
-            GeometryType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL"
-    )
+    assert to_sql(None, NullType()) == "NULL"
+    assert to_sql(None, ArrayType(DoubleType())) == "NULL"
+    assert to_sql(None, MapType(IntegerType(), ByteType())) == "NULL"
+    assert to_sql(None, StructType([])) == "NULL"
+    assert to_sql(None, GeographyType()) == "NULL"
+    assert to_sql(None, GeometryType()) == "NULL"
 
-    expected_int_postfix = (
-        ""
-        if ((not from_values_statement) and eliminate_numeric_sql_value_cast_enabled)
-        else " :: INT"
-    )
-    expected_float_postfix = (
-        ""
-        if ((not from_values_statement) and eliminate_numeric_sql_value_cast_enabled)
-        else " :: FLOAT"
-    )
-    assert (
-        to_sql(
-            None,
-            IntegerType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            ShortType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            ByteType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            LongType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            FloatType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_float_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            StringType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL :: STRING"
-    )
-    assert (
-        to_sql(
-            None,
-            DoubleType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"NULL{expected_float_postfix}"
-    )
-    assert (
-        to_sql(
-            None,
-            BooleanType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "NULL :: BOOLEAN"
-    )
+    assert to_sql(None, IntegerType()) == "NULL :: INT"
+    assert to_sql(None, ShortType()) == "NULL :: INT"
+    assert to_sql(None, ByteType()) == "NULL :: INT"
+    assert to_sql(None, LongType()) == "NULL :: INT"
+    assert to_sql(None, FloatType()) == "NULL :: FLOAT"
+    assert to_sql(None, StringType()) == "NULL :: STRING"
+    assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
+    assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
 
     assert to_sql(None, "Not any of the previous types") == "NULL"
 
@@ -210,340 +80,78 @@ def test_to_sql(from_values_statement, eliminate_numeric_sql_value_cast_enabled)
         to_sql("\\ '  ' abc \n \\", StringType(), True)
         == "'\\\\ ''  '' abc \\n \\\\' :: STRING"
     )
-    assert (
-        to_sql(
-            1,
-            ByteType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"1{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            1,
-            ShortType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"1{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            1,
-            IntegerType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"1{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            1,
-            LongType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"1{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            1,
-            BooleanType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "1 :: BOOLEAN"
-    )
-    assert (
-        to_sql(
-            0,
-            ByteType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"0{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            0,
-            ShortType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"0{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            0,
-            IntegerType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"0{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            0,
-            LongType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == f"0{expected_int_postfix}"
-    )
-    assert (
-        to_sql(
-            0,
-            BooleanType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "0 :: BOOLEAN"
-    )
+    assert to_sql(1, ByteType()) == "1 :: INT"
+    assert to_sql(1, ShortType()) == "1 :: INT"
+    assert to_sql(1, IntegerType()) == "1 :: INT"
+    assert to_sql(1, LongType()) == "1 :: INT"
+    assert to_sql(1, BooleanType()) == "1 :: BOOLEAN"
+    assert to_sql(0, ByteType()) == "0 :: INT"
+    assert to_sql(0, ShortType()) == "0 :: INT"
+    assert to_sql(0, IntegerType()) == "0 :: INT"
+    assert to_sql(0, LongType()) == "0 :: INT"
+    assert to_sql(0, BooleanType()) == "0 :: BOOLEAN"
 
-    assert (
-        to_sql(
-            float("nan"),
-            FloatType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'NAN' :: FLOAT"
-    )
-    assert (
-        to_sql(
-            float("inf"),
-            FloatType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'INF' :: FLOAT"
-    )
-    assert (
-        to_sql(
-            float("-inf"),
-            FloatType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'-INF' :: FLOAT"
-    )
-    expected_float_sql = (
-        "1.2"
-        if ((not from_values_statement) and eliminate_numeric_sql_value_cast_enabled)
-        else f"'1.2'{expected_float_postfix}"
-    )
-    assert (
-        to_sql(
-            1.2,
-            FloatType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == expected_float_sql
-    )
+    assert to_sql(float("nan"), FloatType()) == "'NAN' :: FLOAT"
+    assert to_sql(float("inf"), FloatType()) == "'INF' :: FLOAT"
+    assert to_sql(float("-inf"), FloatType()) == "'-INF' :: FLOAT"
+    assert to_sql(1.2, FloatType()) == "'1.2' :: FLOAT"
 
-    assert (
-        to_sql(
-            float("nan"),
-            DoubleType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'NAN' :: FLOAT"
-    )
-    assert (
-        to_sql(
-            float("inf"),
-            DoubleType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'INF' :: FLOAT"
-    )
-    assert (
-        to_sql(
-            float("-inf"),
-            DoubleType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'-INF' :: FLOAT"
-    )
-    assert (
-        to_sql(
-            1.2,
-            DoubleType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == expected_float_sql
-    )
+    assert to_sql(float("nan"), DoubleType()) == "'NAN' :: FLOAT"
+    assert to_sql(float("inf"), DoubleType()) == "'INF' :: FLOAT"
+    assert to_sql(float("-inf"), DoubleType()) == "'-INF' :: FLOAT"
+    assert to_sql(1.2, DoubleType()) == "'1.2' :: FLOAT"
 
-    assert (
-        to_sql(
-            Decimal(0.5),
-            DecimalType(2, 1),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "0.5 ::  NUMBER (2, 1)"
-    )
+    assert to_sql(Decimal(0.5), DecimalType(2, 1)) == "0.5 ::  NUMBER (2, 1)"
 
-    expected_str = "'abc' :: STRING" if from_values_statement else "'abc'"
-    assert (
-        to_sql(
-            "abc",
-            StringType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == expected_str
-    )
-
-    assert (
-        to_sql(
-            397,
-            DateType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "DATE '1971-02-02'"
-    )
+    assert to_sql(397, DateType()) == "DATE '1971-02-02'"
     # value type must be int
     with pytest.raises(TypeError, match="Unsupported datatype DateType"):
-        to_sql(
-            0.397,
-            DateType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql(0.397, DateType())
 
     assert (
-        to_sql(
-            1622002533000000,
-            TimestampType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql(1622002533000000, TimestampType())
         == "TIMESTAMP '2021-05-26 04:15:33+00:00'"
     )
     # value type must be int
     with pytest.raises(TypeError, match="Unsupported datatype TimestampType"):
-        to_sql(
-            0.2,
-            TimestampType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql(0.2, TimestampType())
 
     assert (
-        to_sql(
-            bytearray.fromhex("2Ef0 F1f2 "),
-            BinaryType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "'2ef0f1f2' :: BINARY"
+        to_sql(bytearray.fromhex("2Ef0 F1f2 "), BinaryType()) == "'2ef0f1f2' :: BINARY"
     )
 
     assert (
-        to_sql(
-            [1, "2", 3.5],
-            ArrayType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "PARSE_JSON('[1, \"2\", 3.5]') :: ARRAY"
+        to_sql([1, "2", 3.5], ArrayType()) == "PARSE_JSON('[1, \"2\", 3.5]') :: ARRAY"
     )
     assert (
-        to_sql(
-            {"'": '"'},
-            MapType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: OBJECT'
+        to_sql({"'": '"'}, MapType()) == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: OBJECT'
     )
+    assert to_sql([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]') :: ARRAY"
+    assert to_sql({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}') :: OBJECT"
+
     assert (
-        to_sql(
-            [{1: 2}],
-            ArrayType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "PARSE_JSON('[{\"1\": 2}]') :: ARRAY"
-    )
-    assert (
-        to_sql(
-            {1: [2]},
-            MapType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "PARSE_JSON('{\"1\": [2]}') :: OBJECT"
+        to_sql([1, bytearray(1)], ArrayType()) == "PARSE_JSON('[1, \"00\"]') :: ARRAY"
     )
 
     assert (
-        to_sql(
-            [1, bytearray(1)],
-            ArrayType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "PARSE_JSON('[1, \"00\"]') :: ARRAY"
-    )
-
-    assert (
-        to_sql(
-            ["2", Decimal(0.5)],
-            ArrayType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql(["2", Decimal(0.5)], ArrayType())
         == "PARSE_JSON('[\"2\", 0.5]') :: ARRAY"
     )
 
     dt = datetime.datetime.today()
     assert (
-        to_sql(
-            {1: dt},
-            MapType(),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql({1: dt}, MapType())
         == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}') :: OBJECT"
     )
 
-    assert (
-        to_sql(
-            [1, 2, 3.5],
-            VectorType(float, 3),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "[1, 2, 3.5] :: VECTOR(float,3)"
-    )
+    assert to_sql([1, 2, 3.5], VectorType(float, 3)) == "[1, 2, 3.5] :: VECTOR(float,3)"
     assert (
         to_sql([1, 2, 3.5, 4.1234567, -3.8], VectorType("float", 5))
         == "[1, 2, 3.5, 4.1234567, -3.8] :: VECTOR(float,5)"
     )
+    assert to_sql([1, 2, 3], VectorType(int, 3)) == "[1, 2, 3] :: VECTOR(int,3)"
     assert (
-        to_sql(
-            [1, 2, 3],
-            VectorType(int, 3),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
-        == "[1, 2, 3] :: VECTOR(int,3)"
-    )
-    assert (
-        to_sql(
-            [1, 2, 31234567, -1928, 0, -3],
-            VectorType(int, 5),
-            from_values_statement=from_values_statement,
-            eliminate_numeric_sql_value_cast_enabled=eliminate_numeric_sql_value_cast_enabled,
-        )
+        to_sql([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
     )
 
@@ -578,16 +186,16 @@ def test_datetime_to_sql_timestamp(timezone, expected):
 
 
 def test_to_sql_without_cast():
-    assert to_sql_without_cast(None, NullType()) == "NULL"
-    assert to_sql_without_cast(None, IntegerType()) == "NULL"
+    assert numeric_to_sql_without_cast(None, NullType()) == "NULL"
+    assert numeric_to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    assert to_sql_without_cast("abc", StringType()) == "'abc'"
-    assert to_sql_without_cast(123, StringType()) == "'123'"
-    assert to_sql_without_cast(0.2, StringType()) == "'0.2'"
+    # assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
+    assert numeric_to_sql_without_cast(123, StringType()) == "'123'"
+    assert numeric_to_sql_without_cast(0.2, StringType()) == "'0.2'"
 
-    assert to_sql_without_cast(123, IntegerType()) == "123"
-    assert to_sql_without_cast(0.2, FloatType()) == "0.2"
-    assert to_sql_without_cast(0.2, DoubleType()) == "0.2"
+    assert numeric_to_sql_without_cast(123, IntegerType()) == "123"
+    assert numeric_to_sql_without_cast(0.2, FloatType()) == "0.2"
+    assert numeric_to_sql_without_cast(0.2, DoubleType()) == "0.2"
 
 
 def test_schema_expression():

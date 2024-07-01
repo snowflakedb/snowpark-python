@@ -217,6 +217,9 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
 
 
 def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
+    if not isinstance(datatype, _NumericType):
+        return to_sql(value, datatype)
+
     if value is None:
         return "NULL"
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
