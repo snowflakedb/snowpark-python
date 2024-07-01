@@ -340,10 +340,14 @@ def sql_expr(sql: str) -> Column:
         [Row(A=3, B=4)]
     """
 
-    ast = create_ast_for_column_method(
+    sql_expr_ast = create_ast_for_column_method(
         property="sp_column_sql_expr",
         assign_fields={"sql": sql},
     )
+
+    # Capture with ApplyFn in order to restore sql_expr(...) function.
+    ast = proto.Expr()
+    build_fn_apply(ast, "sql_expr", sql_expr_ast)
 
     return Column._expr(sql, ast=ast)
 
@@ -588,7 +592,13 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     """
     col = _to_col_if_str(col, "bround")
     scale = _to_col_if_lit(scale, "bround")
-    return call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "bround", col, scale)
+
+    col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+    col._ast = ast
+    return col
 
 
 def convert_timezone(
@@ -2544,7 +2554,13 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
         if isinstance(scale, (int, float))
         else _to_col_if_str(scale, "round")
     )
-    return builtin("round")(c, scale_col)
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "round", e, scale)
+
+    col = builtin("round")(c, scale_col)
+    col._ast = ast
+    return col
 
 
 def sign(col: ColumnOrName) -> Column:
