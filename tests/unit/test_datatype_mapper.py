@@ -185,11 +185,11 @@ def test_datetime_to_sql_timestamp(timezone, expected):
     assert to_sql(dt, TimestampType(timezone)) == expected
 
 
-def test_to_sql_without_cast():
+def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(None, NullType()) == "NULL"
     assert numeric_to_sql_without_cast(None, IntegerType()) == "NULL"
 
-    # assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
+    assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
     assert numeric_to_sql_without_cast(123, StringType()) == "'123'"
     assert numeric_to_sql_without_cast(0.2, StringType()) == "'0.2'"
 
