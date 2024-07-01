@@ -189,9 +189,26 @@ def test_numeric_to_sql_without_cast():
     assert numeric_to_sql_without_cast(None, NullType()) == "NULL"
     assert numeric_to_sql_without_cast(None, IntegerType()) == "NULL"
 
+    assert numeric_to_sql_without_cast("abc", StringType()) == "'abc'"
+
     assert numeric_to_sql_without_cast(123, IntegerType()) == "123"
     assert numeric_to_sql_without_cast(0.2, FloatType()) == "0.2"
     assert numeric_to_sql_without_cast(0.2, DoubleType()) == "0.2"
+
+    assert numeric_to_sql_without_cast(float("nan"), FloatType()) == "'NAN' :: FLOAT"
+    assert numeric_to_sql_without_cast(float("inf"), DoubleType()) == "'INF' :: FLOAT"
+
+
+@pytest.mark.parametrize(
+    "value, datatype",
+    [
+        (123, StringType()),
+        (0.2, StringType()),
+    ],
+)
+def test_numeric_to_sql_without_cast_invalid(value, datatype):
+    with pytest.raises(TypeError, match="Unsupported datatype"):
+        assert numeric_to_sql_without_cast(value, datatype)
 
 
 def test_schema_expression():

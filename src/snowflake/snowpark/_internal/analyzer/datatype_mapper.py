@@ -46,6 +46,19 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
+def float_nan_inf_to_sql(value: float) -> str:
+    if math.isnan(value):
+        cast_value = "'NAN'"
+    elif math.isinf(value) and value > 0:
+        cast_value = "'INF'"
+    elif math.isinf(value) and value < 0:
+        cast_value = "'-INF'"
+    else:
+        raise ValueError("None inf or nan float value is received")
+
+    return f"{cast_value} :: FLOAT"
+
+
 def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
 
@@ -98,15 +111,10 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"{value} :: BOOLEAN"
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
-        if math.isnan(value):
-            cast_value = "'NAN'"
-        elif math.isinf(value) and value > 0:
-            cast_value = "'INF'"
-        elif math.isinf(value) and value < 0:
-            cast_value = "'-INF'"
+        if math.isnan(value) or math.isinf(value):
+            return float_nan_inf_to_sql(value)
         else:
-            cast_value = f"'{value}'"
-        return f"{cast_value} :: FLOAT"
+            return f"'{value}' :: FLOAT"
 
     if isinstance(value, Decimal) and isinstance(datatype, DecimalType):
         return f"{value} :: {analyzer_utils.number(datatype.precision, datatype.scale)}"
@@ -227,10 +235,6 @@ def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
 
     if isinstance(value, float) and isinstance(datatype, _FractionalType):
         # when the float value is NAN or INF, a cast is still required
-        if math.isnan(value):
-            return "'NAN' :: FLOAT"
-        elif math.isinf(value) and value > 0:
-            return "'INF' :: FLOAT"
-        elif math.isinf(value) and value < 0:
-            return "'-INF' :: FLOAT"
+        if math.isnan(value) or math.isinf(value):
+            return float_nan_inf_to_sql(value)
     return str(value)
