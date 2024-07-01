@@ -48,9 +48,9 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     str_to_sql,
     to_sql,
-    to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -255,30 +255,46 @@ class Analyzer:
             )
 
         if isinstance(expr, MultipleExpression):
-            return block_expression(
-                [
-                    self.analyze(
+            block_expressions = []
+            for expression in expr.expressions:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
-                    for expression in expr.expressions
-                ]
-            )
+                else:
+                    resolved_expr = self.analyze(
+                        expression,
+                        df_aliased_col_name_to_real_col_name,
+                        parse_local_name,
+                    )
+
+                block_expressions.append(resolved_expr)
+            return block_expression(block_expressions)
 
         if isinstance(expr, InExpression):
+            in_values = []
+            for expression in expr.values:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    in_value = self.to_sql_try_avoid_cast(
+                        expression,
+                        df_aliased_col_name_to_real_col_name,
+                        parse_local_name,
+                    )
+                else:
+                    in_value = self.analyze(
+                        expression,
+                        df_aliased_col_name_to_real_col_name,
+                        parse_local_name,
+                    )
+
+                in_values.append(in_value)
             return in_expression(
                 self.analyze(
                     expr.columns, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
-                [
-                    self.analyze(
-                        expression,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
-                    )
-                    for expression in expr.values
-                ],
+                in_values,
             )
 
         if isinstance(expr, GroupingSet):
@@ -321,12 +337,12 @@ class Analyzer:
             return specified_window_frame_expression(
                 expr.frame_type.sql,
                 self.window_frame_boundary(
-                    self.to_sql_avoid_offset(
+                    self.to_sql_try_avoid_cast(
                         expr.lower, df_aliased_col_name_to_real_col_name
                     )
                 ),
                 self.window_frame_boundary(
-                    self.to_sql_avoid_offset(
+                    self.to_sql_try_avoid_cast(
                         expr.upper, df_aliased_col_name_to_real_col_name
                     )
                 ),
@@ -337,11 +353,7 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = to_sql(
-                expr.value,
-                expr.datatype,
-                eliminate_numeric_sql_value_cast_enabled=self.session._eliminate_numeric_sql_value_cast_enabled,
-            )
+            sql = to_sql(expr.value, expr.datatype)
             if parse_local_name:
                 sql = sql.upper()
             return sql
@@ -375,7 +387,7 @@ class Analyzer:
             return function_expression(
                 func_name,
                 [
-                    self.to_sql_avoid_offset(c, df_aliased_col_name_to_real_col_name)
+                    self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
                     for c in expr.children
                 ],
                 expr.is_distinct,
@@ -659,30 +671,34 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name,
         parse_local_name=False,
     ) -> str:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
+            left_sql_expr = self.to_sql_try_avoid_cast(
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            right_sql_expr = self.to_sql_try_avoid_cast(
+                expr.right,
+                df_aliased_col_name_to_real_col_name,
+                parse_local_name,
+            )
+        else:
+            left_sql_expr = self.analyze(
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            right_sql_expr = self.analyze(
+                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 expr.sql_operator,
-                self.analyze(
-                    expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
-                ),
-                self.analyze(
-                    expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
-                ),
+                left_sql_expr,
+                right_sql_expr,
             )
         else:
             return function_expression(
                 expr.sql_operator,
                 [
-                    self.analyze(
-                        expr.left,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
-                    ),
-                    self.analyze(
-                        expr.right,
-                        df_aliased_col_name_to_real_col_name,
-                        parse_local_name,
-                    ),
+                    left_sql_expr,
+                    right_sql_expr,
                 ],
                 False,
             )
@@ -706,16 +722,22 @@ class Analyzer:
         except Exception:
             return offset
 
-    def to_sql_avoid_offset(
+    def to_sql_try_avoid_cast(
         self,
         expr: Expression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name: bool = False,
     ) -> str:
+        """
+        Convert the expression to sql and try to avoid cast expression if possible when
+        the expression is:
+        1) a literal expression
+        2) the literal expression is numeric type
+        """
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
-            return to_sql_without_cast(expr.value, expr.datatype)
+            return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(
                 expr, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -817,7 +839,9 @@ class Analyzer:
         if isinstance(logical_plan, Aggregate):
             return self.plan_builder.aggregate(
                 [
-                    self.to_sql_avoid_offset(expr, df_aliased_col_name_to_real_col_name)
+                    self.to_sql_try_avoid_cast(
+                        expr, df_aliased_col_name_to_real_col_name
+                    )
                     for expr in logical_plan.grouping_expressions
                 ],
                 [
@@ -964,10 +988,10 @@ class Analyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_avoid_offset(
+                self.to_sql_try_avoid_cast(
                     logical_plan.limit_expr, df_aliased_col_name_to_real_col_name
                 ),
-                self.to_sql_avoid_offset(
+                self.to_sql_try_avoid_cast(
                     logical_plan.offset_expr, df_aliased_col_name_to_real_col_name
                 ),
                 resolved_children[logical_plan.child],

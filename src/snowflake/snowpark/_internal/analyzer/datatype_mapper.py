@@ -46,23 +46,8 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
-def to_sql(
-    value: Any,
-    datatype: DataType,
-    from_values_statement: bool = False,
-    eliminate_numeric_sql_value_cast_enabled=False,
-) -> str:
+def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
-
-    eliminate_cast_for_numeric_value = (
-        not from_values_statement
-    ) and eliminate_numeric_sql_value_cast_enabled
-    if (
-        eliminate_cast_for_numeric_value
-        and isinstance(datatype, _NumericType)
-        and (value is None)
-    ):
-        return "NULL"
 
     # Handle null values
     if isinstance(
@@ -107,8 +92,6 @@ def to_sql(
         )
 
     if isinstance(datatype, _IntegralType):
-        if eliminate_cast_for_numeric_value and isinstance(value, int):
-            return str(value)
         return f"{value} :: INT"
 
     if isinstance(datatype, BooleanType):
@@ -122,8 +105,6 @@ def to_sql(
         elif math.isinf(value) and value < 0:
             cast_value = "'-INF'"
         else:
-            if eliminate_cast_for_numeric_value and isinstance(value, float):
-                return str(value)
             cast_value = f"'{value}'"
         return f"{cast_value} :: FLOAT"
 
@@ -235,9 +216,15 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
-def to_sql_without_cast(value: Any, datatype: DataType) -> str:
+def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
     if value is None:
         return "NULL"
-    if isinstance(datatype, StringType):
-        return f"'{value}'"
+    if isinstance(value, float) and isinstance(datatype, _FractionalType):
+        # when the float value is NAN or INF, a cast is still required
+        if math.isnan(value):
+            return "'NAN' :: FLOAT"
+        elif math.isinf(value) and value > 0:
+            return "'INF' :: FLOAT"
+        elif math.isinf(value) and value < 0:
+            return "'-INF' :: FLOAT"
     return str(value)

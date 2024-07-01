@@ -45,9 +45,9 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     str_to_sql,
     to_sql,
-    to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
@@ -274,8 +274,8 @@ class MockAnalyzer:
         if isinstance(expr, SpecifiedWindowFrame):
             return specified_window_frame_expression(
                 expr.frame_type.sql,
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower, {})),
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.lower, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.upper, {})),
             )
 
         if isinstance(expr, UnspecifiedFrame):
@@ -284,11 +284,7 @@ class MockAnalyzer:
             return expr.sql
 
         if isinstance(expr, Literal):
-            sql = to_sql(
-                expr.value,
-                expr.datatype,
-                self.session.eliminate_numeric_sql_value_cast_enabled,
-            )
+            sql = to_sql(expr.value, expr.datatype)
             if parse_local_name:
                 sql = sql.upper()
             return f"{sql}"
@@ -309,7 +305,7 @@ class MockAnalyzer:
 
             children = []
             for c in expr.children:
-                extracted = self.to_sql_avoid_offset(c, expr_to_alias)
+                extracted = self.to_sql_try_avoid_cast(c, expr_to_alias)
                 if isinstance(extracted, list):
                     children.extend(extracted)
                 else:
@@ -582,13 +578,13 @@ class MockAnalyzer:
         except Exception:
             return offset
 
-    def to_sql_avoid_offset(
+    def to_sql_try_avoid_cast(
         self, expr: Expression, expr_to_alias: Dict[str, str], parse_local_name=False
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
-            return to_sql_without_cast(expr.value, expr.datatype)
+            return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr, expr_to_alias, parse_local_name)
 
@@ -718,8 +714,8 @@ class MockAnalyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_avoid_offset(logical_plan.limit_expr, expr_to_alias),
-                self.to_sql_avoid_offset(logical_plan.offset_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.limit_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.offset_expr, expr_to_alias),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
