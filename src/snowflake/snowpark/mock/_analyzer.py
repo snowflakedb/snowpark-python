@@ -221,20 +221,44 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, MultipleExpression):
-            return block_expression(
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.expressions
-                ]
-            )
+            block_expressions = []
+            for expression in expr.expressions:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    resolved_expr = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    resolved_expr = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                block_expressions.append(resolved_expr)
+            return block_expression(block_expressions)
 
         if isinstance(expr, InExpression):
+            in_values = []
+            for expression in expr.values:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    in_value = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    in_value = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                in_values.append(in_value)
             return in_expression(
                 self.analyze(expr.columns, expr_to_alias, parse_local_name),
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.values
-                ],
+                in_values,
             )
 
         if isinstance(expr, GroupingSet):
@@ -526,35 +550,32 @@ class MockAnalyzer:
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
     ) -> str:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
+            left_sql_expr = self.to_sql_try_avoid_cast(
+                expr.left, expr_to_alias, parse_local_name
+            )
+            right_sql_expr = self.to_sql_try_avoid_cast(
+                expr.right,
+                expr_to_alias,
+                parse_local_name,
+            )
+        else:
+            left_sql_expr = self.analyze(expr.left, expr_to_alias, parse_local_name)
+            right_sql_expr = self.analyze(expr.right, expr_to_alias, parse_local_name)
+
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 operator,
-                self.analyze(
-                    expr.left,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
-                self.analyze(
-                    expr.right,
-                    expr_to_alias,
-                    parse_local_name,
-                ),
+                left_sql_expr,
+                right_sql_expr,
             )
         else:
             return function_expression(
                 operator,
                 [
-                    self.analyze(
-                        expr.left,
-                        expr_to_alias,
-                        parse_local_name,
-                    ),
-                    self.analyze(
-                        expr.right,
-                        expr_to_alias,
-                        parse_local_name,
-                    ),
+                    left_sql_expr,
+                    right_sql_expr,
                 ],
                 False,
             )
