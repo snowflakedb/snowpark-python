@@ -598,3 +598,595 @@ df303 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp
 df304 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
 
 ## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.select(col("A"))
+
+res3 = res1.select(col("X", "A"))
+
+res4 = res1.select(col("A"))
+
+res5 = res1.select(column("A"))
+
+res6 = res1.select(column("X", "A"))
+
+res7 = res1.select(column("A"))
+
+res8 = res1.select(lit(1), lit("1"), lit(1.0), lit(True), lit(bytes("snow", "utf-8")), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}))
+
+res9 = res1.select(sql_expr("CURRENT_WAREHOUSE()"))
+
+res10 = res1.select(current_session())
+
+res11 = res1.select(current_statement())
+
+res12 = res1.select(current_user())
+
+res13 = res1.select(current_version())
+
+res14 = res1.select(current_warehouse())
+
+res15 = res1.select(current_database())
+
+res16 = res1.select(current_role())
+
+res17 = res1.select(current_schema())
+
+res18 = res1.select(current_schemas())
+
+res19 = res1.select(current_region())
+
+res20 = res1.select(current_account())
+
+res21 = res1.select(current_available_roles())
+
+res22 = res1.select(add_months(col("d"), 4))
+
+res23 = res1.select(add_months(col("A"), 4))
+
+res24 = res1.select(add_months(col("A"), col("A")))
+
+res25 = res1.select(any_value(col("A")), any_value(col("A")))
+
+res26 = res1.select(bitnot(col("A")), bitnot(col("A")), bitnot(col("A")))
+
+res27 = res1.select(bitshiftleft(col("A"), col("B")), bitshiftleft(col("A"), -10), bitshiftleft(col("B"), 42))
+
+res28 = res1.select(bitshiftright(col("A"), col("B")), bitshiftright(col("A"), -10), bitshiftright(col("B"), 42))
+
+res29 = res1.select(bround(col("A"), 10), bround(col("A"), 2), bround(col("A"), col("B")))
+
+res30 = res1.select(convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("A"), col("B")))
+
+res31 = res1.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("Asia/Shanghai"), lit("UTC"), col("b")))
+
+res32 = res1.select(approx_count_distinct(col("A")), approx_count_distinct(col("A")))
+
+res33 = res1.select(avg(col("A")), avg(col("B")))
+
+res34 = res1.select(corr(col("A"), col("B")))
+
+res35 = res1.select(count(1), count("\"A\""), count("\"A\""))
+
+res36 = res1.select(count_distinct(), count_distinct("*"), count_distinct("A", "B", "C", "D", col("E")))
+
+res37 = res1.select(covar_pop(col("A"), col("B")))
+
+res38 = res1.select(covar_samp(col("A"), col("B")))
+
+res39 = res1.select(create_map(col("A"), col("B")))
+
+res40 = res1.select(create_map(col("A"), col("B")))
+
+res41 = res1.select(create_map(col("A"), col("B")))
+
+res42 = res1.select(create_map(col("A"), col("B"), col("C"), col("D")))
+
+res43 = res1.select(kurtosis(col("A")))
+
+res44 = res1.select(max("*"), max(col("A")), max(col("A")))
+
+res45 = res1.select(avg(col("A")))
+
+res46 = res1.select(median(col("A")))
+
+res47 = res1.select(min(col("A")))
+
+res48 = res1.select(mode(col("A")))
+
+res49 = res1.select(skew(col("A")))
+
+res50 = res1.select(stddev(col("A")))
+
+res51 = res1.select(stddev_samp(col("A")))
+
+res52 = res1.select(stddev_pop(col("A")))
+
+res53 = res1.select(sum(col("A")))
+
+res54 = res1.select(sum_distinct(col("A")))
+
+res55 = res1.select(variance(col("A")))
+
+res56 = res1.select(variance(col("A")))
+
+res57 = res1.select(var_pop(col("A")))
+
+res58 = res1.select(approx_percentile(col("A"), lit(0.6)), approx_percentile(col("B"), lit(0.0)))
+
+res59 = res1.select(approx_percentile_accumulate(col("A")))
+
+res60 = res1.select(approx_percentile_estimate(col("A"), lit(0.3)))
+
+res61 = res1.select(approx_percentile_combine(col("A")))
+
+res62 = res1.select(grouping(col("A")), grouping(col("A"), col("B")))
+
+res63 = res1.select(coalesce(), coalesce(col("A"), lit(10)))
+
+res64 = res1.select(col("A").equal_nan())
+
+res65 = res1.select(col("A").is_null())
+
+res66 = res1.select(-col("A"))
+
+res67 = res1.select(~col("A"))
+
+res68 = res1.select(random(), random(), random(10))
+
+res69 = res1.select(uniform(col("A"), col("B"), col("A")), uniform(lit(10), lit(13.0).cast(FloatType()), col("A")), uniform(lit(0.2).cast(FloatType()), lit(2), lit(0.2)))
+
+res70 = res1.select(seq1(0), seq1(10), seq1(-10))
+
+res71 = res1.select(seq2(1))
+
+res72 = res1.select(seq4(12))
+
+res73 = res1.select(seq8(324))
+
+res74 = res1.select(to_decimal(col("A"), lit(10), lit(3)), to_decimal(col("B"), lit(12), lit(3)))
+
+res75 = res1.select(to_double(col("A")), to_double(col("A")), to_double(col("A"), "999.9"), to_double(col("A"), col("B")))
+
+res76 = res1.select(div0(lit(0), lit(1)), div0(lit(1.2), lit(9.3)), div0(lit(10), lit(89.2)), div0(col("A"), lit(1)), div0(lit(0.2), col("A")), div0(lit(0.3), col("B")))
+
+res77 = res1.select(sqrt(col("A")))
+
+res78 = res1.select(abs(col("A")))
+
+res79 = res1.select(acos(col("A")))
+
+res80 = res1.select(asin(col("A")))
+
+res81 = res1.select(atan(col("A")))
+
+res82 = res1.select(atan2(col("A"), col("B")))
+
+res83 = res1.select(ceil(col("A")))
+
+res84 = res1.select(cos(col("A")))
+
+res85 = res1.select(cosh(col("A")))
+
+res86 = res1.select(exp(col("A")))
+
+res87 = res1.select(factorial(col("A")))
+
+res88 = res1.select(floor(col("A")))
+
+res89 = res1.select(bround(col("A"), col("B")).cast(StringType()), bround(col("A"), 10).cast(StringType()))
+
+res90 = res1.select(sin(col("A")))
+
+res91 = res1.select(sinh(col("A")))
+
+res92 = res1.select(tan(col("A")))
+
+res93 = res1.select(tanh(col("A")))
+
+res94 = res1.select(degrees(col("A")))
+
+res95 = res1.select(radians(col("A")))
+
+res96 = res1.select(md5(col("A")))
+
+res97 = res1.select(sha1(col("A")))
+
+res98 = res1.select(sha2(col("B"), 0), sha2(col("A"), 224))
+
+res99 = res1.select(hash(lit(None), lit(10), col("A"), col("B")))
+
+res100 = res1.select(ascii(col("A")))
+
+res101 = res1.select(initcap(col("A")), initcap(col("A")), initcap(col("A"), col("B")), initcap(col("A"), lit("123")))
+
+res102 = res1.select(length(col("A")))
+
+res103 = res1.select(lower(col("A")))
+
+res104 = res1.select(lpad(col("A"), col("B"), col("B")), lpad(col("A"), lit(100), col("B")), lpad(col("A"), col("B"), col("B")))
+
+res105 = res1.select(ltrim(col("A")), ltrim(col("A")), ltrim(col("A"), col("B")), ltrim(col("A"), lit("B")))
+
+res106 = res1.select(rpad(col("A"), col("B"), col("B")), rpad(col("A"), lit(100), col("B")), rpad(col("A"), col("B"), col("B")))
+
+res107 = res1.select(rtrim(col("A")), rtrim(col("A")), rtrim(col("A"), col("B")), rtrim(col("A"), lit("B")))
+
+res108 = res1.select(repeat(col("A"), lit(1)), repeat(col("A"), lit(20)), repeat(col("B"), col("A")))
+
+res109 = res1.select(reverse(col("A")))
+
+res110 = res1.select(soundex(col("A")))
+
+res111 = res1.select(trim(col("A")), trim(col("A")), trim(col("A"), col("B")), trim(col("A"), lit("B")))
+
+res112 = res1.select(upper(col("A")))
+
+res113 = res112.select(strtok_to_array(col("A")), strtok_to_array(col("A")), strtok_to_array(col("A"), col("B")), strtok_to_array(col("A"), col("B")))
+
+res114 = res112.select(object_construct_keep_null(lit("A"), col("A"), lit("A"), col("A"), lit("B"), col("B")))
+
+res115 = res112.select(log(col("A"), lit(10)), log(col("B"), lit(4.3)), log(col("A"), col("B")))
+
+res116 = res112.select(pow(col("A"), lit(10)), pow(col("B"), lit(4.3)), pow(col("A"), col("B")))
+
+res117 = res112.select(round("A", 0), round("A", 0), round(col("B"), 4.7))
+
+res118 = res112.select(sign(col("A")))
+
+res119 = res112.select(split(col("A"), col("B")), split(col("A"), lit("asfdg")))
+
+res120 = res112.select(substring(col("A"), col("A"), col("A")), substring(col("A"), lit(0), lit(10)), substring(col("A"), lit(20), col("B")))
+
+res121 = res112.select(array_to_string(array_slice(strtok_to_array(col("A"), "abc"), 0, 3), "abc"), array_to_string(array_slice(strtok_to_array(col("A"), col("B")), 0, 2), col("B")))
+
+res122 = res112.select(regexp_count(col("A"), lit("B"), col("A")), regexp_count(col("A"), col("B"), col("C"), lit(1), lit(2), lit("test")))
+
+res123 = res112.select(coalesce(regexp_substr(col("A"), "B", lit(1), lit(1), lit("e"), 2), lit("")))
+
+res124 = res112.select(regexp_replace(col("A"), lit("B"), lit(""), lit(1), lit(0)), regexp_replace(col("A"), col("B"), col("C"), col("D"), col("E"), col("F"), lit(1), lit("sgh"), lit(99.9)))
+
+res125 = res112.select(replace(col("A"), lit(""), lit("")), replace(col("A"), lit("B"), lit("ahsgj")))
+
+res126 = res112.select(charindex(col("A"), col("B")), charindex(col("A"), col("B")), charindex(col("A"), col("B"), lit(20)), charindex(col("A"), col("B"), col("C")))
+
+res127 = res112.select(collate(col("A"), "sp-upper"))
+
+res128 = res112.select(collation(col("A")))
+
+res129 = res112.select(concat(col("A"), col("B"), col("A")), concat())
+
+res130 = res112.select(concat_ws(col("A"), col("B"), col("A")))
+
+res131 = res112.select(translate(col("A"), col("B"), col("B")), translate(col("A"), col("B"), lit("ashg")))
+
+res132 = res112.select(contains(col("A"), col("B")))
+
+res133 = res112.select(startswith(col("A"), col("B")))
+
+res134 = res112.select(endswith(col("A"), col("B")))
+
+res135 = res112.select(insert(col("A"), col("B"), col("C"), col("D")), insert(col("A"), lit(12), lit(13), col("D")))
+
+res136 = res112.select(left(col("A"), col("B")), left(col("A"), lit(10)))
+
+res137 = res112.select(right(col("A"), col("B")), right(col("A"), lit(10)))
+
+res138 = res112.select(char(col("A")))
+
+res139 = res112.select(to_char(col("A")), to_char(col("B")), to_char(col("A"), lit("bcd")))
+
+res140 = res112.select(to_char(col("A").try_cast(TimestampType()), col("B")), to_char(col("A").try_cast(TimestampType()), lit("YYYY")))
+
+res141 = res112.select(to_time(col("A")), to_time(col("A"), "YYYY"), to_time(col("A"), col("B")))
+
+res142 = res112.select(to_timestamp(col("A")), to_timestamp(col("C")), to_timestamp(col("A"), col("B")))
+
+res143 = res112.select(to_timestamp_ntz(col("A")), to_timestamp_ntz(col("A")), to_timestamp_ntz(col("A"), "auto"), to_timestamp_ntz(col("A"), col("B")))
+
+res144 = res112.select(to_timestamp_ltz(col("A")), to_timestamp_ltz(col("A")), to_timestamp_ltz(col("A"), "auto"), to_timestamp_ltz(col("A"), col("B")))
+
+res145 = res112.select(to_timestamp_tz(col("A")), to_timestamp_tz(col("A")), to_timestamp_tz(col("A"), "auto"), to_timestamp_tz(col("A"), col("B")))
+
+res146 = res112.select(convert_timezone("UTC", lit(1234), col("A")), convert_timezone("UTC", col("B"), col("A")))
+
+res147 = res112.select(convert_timezone(lit(1234), "UTC", col("A")), convert_timezone(col("B"), "UTC", col("A")))
+
+res148 = res112.select(to_date(col("A")), to_date(col("A"), col("A")), to_date(col("A")))
+
+res149 = res112.select(current_timestamp())
+
+res150 = res112.select(current_date())
+
+res151 = res112.select(current_time())
+
+res152 = res112.select(hour(col("A")))
+
+res153 = res112.select(last_day(col("A")), last_day(col("A")), last_day(col("A"), col("B")), last_day(col("A"), col("B")))
+
+res154 = res112.select(minute(col("A")))
+
+res155 = res112.select(next_day(col("A"), "fr"), next_day(col("A"), "\"B\""))
+
+res156 = res112.select(previous_day(col("A"), "fr"), previous_day(col("A"), "\"B\""))
+
+res157 = res112.select(second(col("A")))
+
+res158 = res112.select(month(col("A")))
+
+res159 = res112.select(monthname(col("A")))
+
+res160 = res112.select(quarter(col("A")))
+
+res161 = res112.select(year(col("A")))
+
+res162 = res112.select(sysdate())
+
+res163 = res112.select(months_between(col("A"), col("B")), months_between(col("A"), col("B")), months_between(col("A"), col("B")))
+
+res164 = res112.select(to_geography(col("A")))
+
+res165 = res112.select(to_geometry(col("A")))
+
+res166 = res112.select(arrays_overlap(col("A"), col("B")), arrays_overlap(col("A"), col("B")))
+
+res167 = res112.select(array_distinct(col("A")))
+
+res168 = res112.select(array_intersection(col("A"), col("B")), array_intersection(col("A"), col("B")), array_intersection(col("A"), col("B")))
+
+res169 = res112.select(array_except(col("A"), col("B")), array_except(col("A"), col("B")), array_except(array_distinct(col("B")), array_distinct(col("A"))))
+
+res170 = res112.select(array_min(col("A")))
+
+res171 = res112.select(array_max(col("A")))
+
+res172 = res112.select(array_flatten(col("A")))
+
+res173 = res112.select(array_sort(col("A"), lit(True), lit(False)), array_sort(col("A"), lit(True), lit(False)), array_sort(col("A"), lit(False), lit(True)))
+
+res174 = res112.select(arrays_to_object(col("A"), col("B")), arrays_to_object(col("A"), col("A")))
+
+res175 = res112.select(array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B")), array_generate_range(col("A"), col("B"), col("C")))
+
+res176 = res112.select(array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("B") - col("A")) > 0, 1, -1), iff(sign(col("B") - col("A")) > 0, 1, -1)), array_generate_range(col("A"), col("B") + iff(sign(col("C")) > 0, 1, -1), col("C")))
+
+res177 = res112.select(dateadd("day", col("B"), col("A")), dateadd("day", lit(10), col("A")), dateadd("day", lit(0), col("A")), dateadd("day", col("B"), col("A")))
+
+res178 = res112.select(dateadd("day", -1 * col("B"), col("A")), dateadd("day", -1 * lit(10), col("A")), dateadd("day", -1 * lit(0), col("A")), dateadd("day", -1 * col("B"), col("A")))
+
+res179 = res112.select(datediff("year", col("A"), col("B")), datediff("month", col("A"), col("B")))
+
+res180 = res112.select(datediff(lit("day"), col("B"), col("A")), datediff(lit("day"), col("B"), col("A")))
+
+res181 = res112.select(trunc(col("A"), col("B")), trunc(col("A"), col("B")), trunc(col("A"), lit(10)), trunc(col("B"), lit(7.9)))
+
+res182 = res112.select(dateadd("year", col("A"), col("B")), dateadd("year", col("A"), col("B")))
+
+res183 = res112.select(date_part("year", col("A")), date_part("year", col("B")))
+
+res184 = res112.select(date_from_parts(10, 2, 1), date_from_parts(10, col("A"), 1), date_from_parts(col("A"), col("B"), col("A")), date_from_parts(10, col("A"), 1))
+
+res185 = res112.select(date_trunc("year", col("A")), date_trunc("year", col("B")))
+
+res186 = res112.select(dayname(col("A")))
+
+res187 = res112.select(dayofmonth(col("A")))
+
+res188 = res112.select(dayofweek(col("A")))
+
+res189 = res112.select(dayofyear(col("A")))
+
+res190 = res112.select(is_array(col("A")))
+
+res191 = res112.select(is_boolean(col("A")))
+
+res192 = res112.select(is_binary(col("A")))
+
+res193 = res112.select(is_char(col("A")))
+
+res194 = res112.select(is_date(col("A")))
+
+res195 = res112.select(is_decimal(col("A")))
+
+res196 = res112.select(is_double(col("A")))
+
+res197 = res112.select(is_real(col("A")))
+
+res198 = res112.select(is_integer(col("A")))
+
+res199 = res112.select(is_null_value(col("A")))
+
+res200 = res112.select(is_object(col("A")))
+
+res201 = res112.select(is_time(col("A")))
+
+res202 = res112.select(is_timestamp_ltz(col("A")))
+
+res203 = res112.select(is_timestamp_ntz(col("A")))
+
+res204 = res112.select(is_timestamp_tz(col("A")))
+
+res205 = res112.select(time_from_parts(1, 2, 3), time_from_parts(col("A"), col("B"), col("A")), time_from_parts(1, col("A"), col("B")))
+
+res206 = res112.select(timestamp_from_parts(col("A"), col("A")), timestamp_from_parts(col("A"), col("B")), timestamp_from_parts(col("A"), col("B")))
+
+res207 = res112.select(timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_parts(2000, 12, 0, 12, 3, 1, lit(0), "us"))
+
+res208 = res112.select(timestamp_from_parts(col("year"), col("month"), col("day"), col("hour"), col("minute"), col("second")), timestamp_from_parts(to_date(col("date")), to_time(col("time"))))
+
+res209 = res112.select(timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, 12))
+
+res210 = res112.select(timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, 12))
+
+res211 = res112.select(timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, lit(0), "us"))
+
+res212 = res112.select(weekofyear(col("A")))
+
+res213 = res112.select(typeof(col("A")))
+
+res214 = res112.select(check_json(col("A")))
+
+res215 = res112.select(check_xml(col("A")))
+
+res216 = res112.select(json_extract_path_text(col("A"), col("B")), json_extract_path_text(col("A"), col("B")), json_extract_path_text(col("A"), col("B")))
+
+res217 = res112.select(parse_json(col("A")))
+
+res218 = res112.select(parse_xml(col("A")))
+
+res219 = res112.select(strip_null_value(col("A")))
+
+res220 = res112.select(array_agg(col("A")), array_agg(col("A")))
+
+res221 = res112.select(array_append(col("A"), lit(1)), array_append(col("A"), col("B")), array_append(col("A"), col("B")))
+
+res222 = res112.select(array_cat(col("A"), lit(1)), array_cat(col("A"), col("B")), array_cat(col("A"), col("B")))
+
+res223 = res112.select(array_compact(col("A")))
+
+res224 = res112.select(array_construct(), array_construct(col("A")), array_construct(lit(1), col("A"), col("B")))
+
+res225 = res112.select(array_construct_compact(), array_construct_compact(col("A")), array_construct_compact(lit(1), col("A"), col("B")))
+
+res226 = res112.select(array_contains(col("A"), col("B")), array_contains(col("A"), lit(1)))
+
+res227 = res112.select(array_insert(col("A"), col("B"), col("A")), array_insert(col("A"), col("B"), col("A")))
+
+res228 = res112.select(array_position(col("A"), col("B")), array_position(col("A"), lit(0)))
+
+res229 = res112.select(array_prepend(col("A"), col("B")), array_prepend(col("A"), col("B")))
+
+res230 = res112.select(array_size(col("A")))
+
+res231 = res112.select(array_slice(col("A"), col("B"), col("A")), array_slice(col("A"), col("B"), col("A")))
+
+res232 = res112.select(array_to_string(col("A"), col("B")), array_to_string(col("A"), col("B")))
+
+res233 = res112.select(array_unique_agg(col("A")))
+
+res234 = res112.select(object_agg(col("A"), col("B")), object_agg(col("A"), col("B")))
+
+res235 = res112.select(object_construct(), object_construct(col("k"), col("v")), object_construct(col("A"), col("B"), col("A"), col("B")))
+
+res236 = res112.select(object_construct_keep_null(), object_construct_keep_null(col("k"), col("v")), object_construct_keep_null(col("A"), col("B"), col("A"), col("B")))
+
+res237 = res112.select(object_delete(col("A"), col("B")), object_delete(col("A"), col("k1"), col("k2"), col("k3"), col("k4")))
+
+res238 = res112.select(object_insert(col("A"), col("B"), col("A")), object_insert(col("A"), lit(1), lit(20), col("B")))
+
+res239 = res112.select(object_pick(col("A"), col("B")), object_pick(col("A"), col("k1"), col("k2"), col("k3"), col("k4")))
+
+res240 = res112.select(vector_cosine_distance(col("A"), col("B")))
+
+res241 = res112.select(vector_l2_distance(col("A"), col("B")))
+
+res242 = res112.select(vector_inner_product(col("A"), col("B")))
+
+res243 = res112.select(col("A").asc())
+
+res244 = res112.select(col("A").asc_nulls_first())
+
+res245 = res112.select(col("A").asc_nulls_last())
+
+res246 = res112.select(col("A").desc())
+
+res247 = res112.select(col("A").desc_nulls_first())
+
+res248 = res112.select(col("A").desc_nulls_last())
+
+res249 = res112.select(as_array(col("A")))
+
+res250 = res112.select(as_binary(col("A")))
+
+res251 = res112.select(as_char(col("A")))
+
+res252 = res112.select(as_varchar(col("A")))
+
+res253 = res112.select(as_date(col("A")))
+
+res254 = res112.select(col("A").cast(IntegerType()), col("A").cast(LongType()))
+
+res255 = res112.select(col("A").try_cast(IntegerType()), col("A").try_cast(LongType()))
+
+res256 = res112.select(as_decimal(col("A")), as_decimal(col("A")), as_decimal(col("A"), lit(10)), as_decimal(col("A"), lit(10), lit(2)))
+
+res257 = res112.select(as_number(col("A")), as_number(col("A")), as_number(col("A"), lit(10)), as_number(col("A"), lit(10), lit(2)))
+
+res258 = res112.select(as_double(col("A")))
+
+res259 = res112.select(as_real(col("A")))
+
+res260 = res112.select(as_integer(col("A")))
+
+res261 = res112.select(as_object(col("A")))
+
+res262 = res112.select(as_time(col("A")))
+
+res263 = res112.select(as_timestamp_ltz(col("A")))
+
+res264 = res112.select(as_timestamp_ntz(col("A")))
+
+res265 = res112.select(as_timestamp_tz(col("A")))
+
+res266 = res112.select(to_binary(col("A")), to_binary(col("B"), "BASE64"), to_binary(col("A"), "UTF-8"))
+
+res267 = res112.select(to_array(col("A")))
+
+res268 = res112.select(to_json(col("A")))
+
+res269 = res112.select(to_object(col("A")))
+
+res270 = res112.select(to_variant(col("A")))
+
+res271 = res112.select(to_xml(col("A")))
+
+res272 = res112.select(get_ignore_case(col("A"), col("B")))
+
+res273 = res112.select(object_keys(col("A")))
+
+res274 = res112.select(xmlget(col("A"), col("B"), 0), xmlget(col("A"), col("B"), 0), xmlget(col("A"), lit("123"), col("B")), xmlget(col("A"), col("B"), col("C")))
+
+res275 = res112.select(get_path(col("A"), col("B")))
+
+res276 = res112.select(get(1, 2), get(col("A"), 2), get(3, col("B")), get(col("A"), 2), get(col("A"), lit(1)))
+
+res277 = res112.select(when(col("a") % 2 == 0, lit("even")))
+
+res278 = res112.select(iff(col("a") % 2 == 0, lit("even"), lit("odd")))
+
+res279 = res112.select(in_(Empty$, Empty$), in_([col("A"), col("B"), col("A")], Empty$), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
+
+res280 = res112.select(cume_dist())
+
+res281 = res112.select(rank())
+
+res282 = res112.select(percent_rank())
+
+res283 = res112.select(dense_rank())
+
+res284 = res112.select(row_number())
+
+res285 = res112.select(lag("A", None, 1, None, False), lag(col("B"), None, 1, None, False), lag("A", None, 1, None, None), lag("A", col("B"), 1, col("B"), False), lag("A", lit(20), 2, lit(20), True))
+
+res286 = res112.select(lead("A", None, 1, None, False), lead(col("B"), None, 1, None, False), lead("A", None, 1, None, None), lead("A", col("B"), 1, col("B"), False), lead("A", lit(20), 2, lit(20), True))
+
+res287 = res112.select(last_value("A", False), last_value("A", True), last_value(col("B"), False))
+
+res288 = res112.select(first_value("A", False), first_value("A", True), first_value(col("B"), False))
+
+res289 = res112.select(ntile(10), ntile(col("A")), ntile(col("B")))
+
+res290 = res112.select(percentile_cont(0.4))
+
+res291 = res112.select(greatest(), greatest(col("A")), greatest(col("B"), col("A")), greatest(col("A"), col("B"), col("C"), col("D"), col("E"), col("F")))
+
+res292 = res112.select(least(), least(col("A")), least(col("B"), col("A")), least(col("A"), col("B"), col("C"), col("D"), col("E"), col("F")))
+
+res293 = res112.select(listagg("A", "", False), listagg(col("B"), "", False), listagg("A", ",", False), listagg("A", "|", True))
+
+res294 = res112.select(name(), test(col("A"), lit(10)))
+
+res295 = res112.select(date_part("epoch_second", to_timestamp(col("A"))), date_part("epoch_second", to_timestamp(col("A"))), date_part("epoch_second", to_timestamp(col("B"), lit("YYYY"))))
+
+res296 = res112.select(charindex(lit("needle"), col("expr"), lit(1)), charindex(lit("needle"), lit("test string"), lit(2)))
