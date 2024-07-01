@@ -1197,7 +1197,93 @@ class DataFrame:
 
     def compare():
         """
-        Compare to another ``DataFrame`` and show the differences.
+        Compare to another DataFrame and show the differences.
+
+        Parameters
+        ----------
+        other : DataFrame
+            DataFrame to compare with.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows and columns.
+            Otherwise, only keep rows and columns with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this dataframe's values from the other's values
+            in the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            The result of the comparison.
+
+
+        See Also
+        --------
+        Series.compare : Show the differences between two Series.
+        DataFrame.equals : Test whether two DataFrames contain the same elements.
+
+        Notes
+        -----
+        Matching null values, such as None and NaN, will not appear as a
+        difference.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(
+        ...     {
+        ...         "col1": ["a", "a", "b", "b", "a"],
+        ...         "col2": [1.0, 2.0, 3.0, np.nan, 5.0],
+        ...         "col3": [1.0, 2.0, 3.0, 4.0, 5.0]
+        ...     },
+        ...     columns=["col1", "col2", "col3"],
+        ... )
+        >>> df
+          col1  col2  col3
+        0    a   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   3.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        >>> df2 = df.copy()
+        >>> df2.loc[0, 'col1'] = 'c'
+        >>> df2.loc[2, 'col3'] = 4.0
+        >>> df2
+          col1  col2  col3
+        0    c   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   4.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        Align the differences on columns
+
+        >>> df.compare(df2) # doctest: +NORMALIZE_WHITESPACE
+           col1       col3
+           self other self other
+        0     a     c  NaN   NaN
+        2  None  None  3.0   4.0
         """
 
     def corr():

@@ -723,7 +723,6 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return super().combine(other, func, fill_value=fill_value, overwrite=overwrite)
 
-    @dataframe_not_implemented()
     def compare(
         self,
         other,
