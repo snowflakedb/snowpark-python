@@ -225,6 +225,11 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
 
 
 def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
+    """
+    Generate the sql str for numeric datatype without cast expression. One exception
+    is for float nan and inf, where a cast is always required for Snowflake to be able
+    to handle it correctly.
+    """
     if value is None:
         return "NULL"
 
