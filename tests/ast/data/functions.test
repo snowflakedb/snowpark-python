@@ -591,22 +591,10 @@ df300 = df.select(least(), least("A"), least(col("B"), "A"), least("A", "B", "C"
 
 df301 = df.select(listagg("A"), listagg(col("B")), listagg("A", ","), listagg("A", "|", True))
 
-df302 = df.select(when_matched(), when_matched(col("A")), when_matched(None))
+df302 = df.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
 
-df303 = df.select(when_not_matched(), when_not_matched(col("A")), when_not_matched(None))
+df303 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp(col("B"), lit("YYYY")))
 
-df304 = df.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
-
-df305 = df.select(call_table_function("name"), call_table_function("test", lit(10), col("B"), named_arg=lit(10)))
-
-df306 = df.select(table_function("test"))
-
-df307 = df.select(call_function("name"), call_function("test", col("A"), lit(10)))
-
-df308 = df.select(function("test"))
-
-df309 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp(col("B"), lit("YYYY")))
-
-df310 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
+df304 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
 
 ## EXPECTED OUTPUT

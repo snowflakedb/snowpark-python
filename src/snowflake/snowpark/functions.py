@@ -6867,8 +6867,13 @@ def lag(
         [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
     """
     c = _to_col_if_str(e, "lag")
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lag", e, default_value, offset, default_value, ignore_nulls)
+
     return Column(
-        Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        ast=ast,
     )
 
 
@@ -6899,8 +6904,13 @@ def lead(
         [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
     """
     c = _to_col_if_str(e, "lead")
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lead", e, default_value, offset, default_value, ignore_nulls)
+
     return Column(
-        Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        ast=ast,
     )
 
 
@@ -6920,7 +6930,11 @@ def last_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_LAST=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_LAST=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_LAST=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_LAST=21)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(LastValue(c._expression, None, None, ignore_nulls))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "last_value", e, ignore_nulls)
+
+    return Column(LastValue(c._expression, None, None, ignore_nulls), ast=ast)
 
 
 def first_value(
@@ -6939,7 +6953,11 @@ def first_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(FirstValue(c._expression, None, None, ignore_nulls))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "first_value", e, ignore_nulls)
+
+    return Column(FirstValue(c._expression, None, None, ignore_nulls), ast=ast)
 
 
 def ntile(e: Union[int, ColumnOrName]) -> Column:
@@ -7052,7 +7070,11 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         [Row(RESULT='1,2,2,3,4,5')]
     """
     c = _to_col_if_str(e, "listagg")
-    return Column(ListAgg(c._expression, delimiter, is_distinct))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "listagg", e, delimiter, is_distinct)
+
+    return Column(ListAgg(c._expression, delimiter, is_distinct), ast=ast)
 
 
 def when_matched(
