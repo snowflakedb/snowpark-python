@@ -25,6 +25,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.conftest import check_answers
 from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
@@ -50,8 +51,7 @@ def dict_exporter():
     dict_exporter = InMemorySpanExporter()
     processor = SimpleSpanProcessor(dict_exporter)
     trace_provider.add_span_processor(processor)
-    if trace.get_tracer_provider() != trace_provider:
-        trace.set_tracer_provider(trace_provider)
+    trace.set_tracer_provider(trace_provider)
     yield dict_exporter
     dict_exporter.shutdown()
 
@@ -61,28 +61,30 @@ def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
     df._execute_and_get_query_id()
     lineno = inspect.currentframe().f_lineno - 1
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "_execute_and_get_query_id" in spans
-    span = spans["_execute_and_get_query_id"]
-    assert (
-        span.attributes["method.chain"]
-        == "DataFrame.to_df()._execute_and_get_query_id()"
+    answer = (
+        "_execute_and_get_query_id",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "method.chain": "DataFrame.to_df()._execute_and_get_query_id()",
+        },
     )
-    assert "test_open_telemetry.py" in span.attributes["code.filepath"]
-    assert span.attributes["code.lineno"] == lineno
-    print(span.attributes)
+    assert check_answers(dict_exporter, answer)
 
 
 def test_catch_error_during_action_function(session, dict_exporter):
     df = session.sql("select 1/0")
     with pytest.raises(SnowparkSQLException, match="Division by zero"):
         df.collect()
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "collect" in spans
-    span = spans["collect"]
-    assert span.status.status_code == trace.status.StatusCode.ERROR
-    assert "Division by zero" in span.status.description
-    dict_exporter.clear()
+
+    answer = (
+        "collect",
+        {
+            "status_code": trace.status.StatusCode.ERROR,
+            "status_description": "Division by zero",
+        },
+    )
+    assert check_answers(dict_exporter, answer)
 
 
 def test_catch_error_during_registration_function(session, dict_exporter):
@@ -96,12 +98,14 @@ def test_catch_error_during_registration_function(session, dict_exporter):
             replace=True,
             immutable=True,
         )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    span = spans["register_from_file"]
-    assert span.status.status_code == trace.status.StatusCode.ERROR
-    assert "does not exist" in span.status.description
-
-    dict_exporter.clear()
+    answer = (
+        "register_from_file",
+        {
+            "status_code": trace.status.StatusCode.ERROR,
+            "status_description": "does not exist",
+        },
+    )
+    assert check_answers(dict_exporter, answer)
 
 
 @pytest.mark.skipif(
@@ -128,16 +132,16 @@ def test_register_stored_procedure_from_file(session, dict_exporter):
         input_types=[IntegerType()],
         replace=True,
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register_from_file" in spans
-    span = spans["register_from_file"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register_from_file",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "register_stored_proc_from_file",
+            "snow.executable.handler": "mod5",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "register_stored_proc_from_file"
-    assert span.attributes["snow.executable.handler"] == "mod5"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 @pytest.mark.skipif(
@@ -158,30 +162,31 @@ def test_inline_register_stored_procedure(session, dict_exporter):
         input_types=[IntegerType()],
         name="add_stored_proc",
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "add_stored_proc",
+            "snow.executable.handler": "add_sp",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "add_stored_proc"
-    assert span.attributes["snow.executable.handler"] == "add_sp"
+    assert check_answers(dict_exporter, answer)
 
     # test register with @sproc
     @sproc(name="minus_stored_proc")
     def minus_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> int:
         return session_.sql(f"select {x} - {y}").collect()[0][0]
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "snow.executable.name": "minus_stored_proc",
+            "snow.executable.handler": "minus_sp",
+        },
     )
-    assert span.attributes["snow.executable.name"] == "minus_stored_proc"
-    assert span.attributes["snow.executable.handler"] == "minus_sp"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_register_udaf_from_file(session, dict_exporter):
@@ -204,16 +209,16 @@ def test_register_udaf_from_file(session, dict_exporter):
         replace=True,
         immutable=True,
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register_from_file" in spans
-    span = spans["register_from_file"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register_from_file",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "udaf_register_from_file",
+            "snow.executable.handler": "MyUDAFWithoutTypeHints",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "udaf_register_from_file"
-    assert span.attributes["snow.executable.handler"] == "MyUDAFWithoutTypeHints"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_inline_register_udaf(session, dict_exporter):
@@ -245,19 +250,20 @@ def test_inline_register_udaf(session, dict_exporter):
         name="sum_udaf",
         replace=True,
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "sum_udaf",
+            "snow.executable.handler": "PythonSumUDAF",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "sum_udaf"
-    assert span.attributes["snow.executable.handler"] == "PythonSumUDAF"
+    assert check_answers(dict_exporter, answer)
 
     # test register with @udaf
     @udaf(
-        name="sum_udaf",
+        name="sum_udaf_decorator",
         session=session,
         input_types=[IntegerType()],
         return_type=IntegerType(),
@@ -280,15 +286,15 @@ def test_inline_register_udaf(session, dict_exporter):
         def finish(self):
             return self._sum
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "snow.executable.name": "sum_udaf_decorator",
+            "snow.executable.handler": "PythonSumUDAF",
+        },
     )
-    assert span.attributes["snow.executable.name"] == "sum_udaf"
-    assert span.attributes["snow.executable.handler"] == "PythonSumUDAF"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_register_udtf_from_file(session, dict_exporter):
@@ -331,16 +337,16 @@ def test_register_udtf_from_file(session, dict_exporter):
         immutable=True,
         replace=True,
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register_from_file" in spans
-    span = spans["register_from_file"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register_from_file",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "MyUDTFWithTypeHints_from_file",
+            "snow.executable.handler": "MyUDTFWithTypeHints",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "MyUDTFWithTypeHints_from_file"
-    assert span.attributes["snow.executable.handler"] == "MyUDTFWithTypeHints"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_inline_register_udtf(session, dict_exporter):
@@ -359,15 +365,16 @@ def test_inline_register_udtf(session, dict_exporter):
         replace=True,
         name="generate_udtf",
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "generate_udtf",
+            "snow.executable.handler": "GeneratorUDTF",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "generate_udtf"
-    assert span.attributes["snow.executable.handler"] == "GeneratorUDTF"
+    assert check_answers(dict_exporter, answer)
 
     # test register with @udtf
     @udtf(
@@ -381,15 +388,15 @@ def test_inline_register_udtf(session, dict_exporter):
             for i in range(n):
                 yield (i,)
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "snow.executable.name": "generate_udtf_with_decorator",
+            "snow.executable.handler": "GeneratorUDTFwithDecorator",
+        },
     )
-    assert span.attributes["snow.executable.name"] == "generate_udtf_with_decorator"
-    assert span.attributes["snow.executable.handler"] == "GeneratorUDTFwithDecorator"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_register_udf_from_file(session, dict_exporter):
@@ -412,16 +419,16 @@ def test_register_udf_from_file(session, dict_exporter):
         replace=True,
         immutable=True,
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register_from_file" in spans
-    span = spans["register_from_file"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register_from_file",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "mod5_function",
+            "snow.executable.handler": "mod5",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "mod5_function"
-    assert span.attributes["snow.executable.handler"] == "mod5"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_inline_register_udf(session, dict_exporter):
@@ -438,31 +445,31 @@ def test_inline_register_udf(session, dict_exporter):
         replace=True,
         name="add",
     )
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "snow.executable.name": "add",
+            "snow.executable.handler": "add_udf",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    assert span.attributes["snow.executable.name"] == "add"
-    assert span.attributes["snow.executable.handler"] == "add_udf"
+    assert check_answers(dict_exporter, answer)
 
     # test register with decorator @udf
     @udf(name="minus_function", session=session, replace=True)
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "register" in spans
-    span = spans["register"]
-    print(span.attributes)
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "register",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "snow.executable.name": "minus_function",
+            "snow.executable.handler": "minus_udf",
+        },
     )
-    assert span.attributes["snow.executable.name"] == "minus_function"
-    assert span.attributes["snow.executable.handler"] == "minus_udf"
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe(
@@ -472,15 +479,15 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
     lineno = inspect.currentframe().f_lineno - 1
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "save_as_table" in spans
-    span = spans["save_as_table"]
-    assert span.attributes["method.chain"] == "DataFrame.to_df().save_as_table()"
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "save_as_table",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "method.chain": "DataFrame.to_df().save_as_table()",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
 
 
 def test_open_telemetry_span_from_dataframe_writer(session, dict_exporter):
@@ -488,12 +495,12 @@ def test_open_telemetry_span_from_dataframe_writer(session, dict_exporter):
     df.collect()
     lineno = inspect.currentframe().f_lineno - 1
 
-    spans = spans_to_dict(dict_exporter.get_finished_spans())
-    assert "collect" in spans
-    span = spans["collect"]
-    assert span.attributes["method.chain"] == "DataFrame.to_df().collect()"
-    assert (
-        os.path.basename(span.attributes["code.filepath"]) == "test_open_telemetry.py"
+    answer = (
+        "collect",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "method.chain": "DataFrame.to_df().collect()",
+        },
     )
-    assert span.attributes["code.lineno"] == lineno
-    dict_exporter.clear()
+    assert check_answers(dict_exporter, answer)
