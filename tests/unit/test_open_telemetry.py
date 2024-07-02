@@ -31,7 +31,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.conftest import check_answers
+from tests.utils import check_answers
 
 pytestmark = [
     pytest.mark.udf,
@@ -118,7 +118,7 @@ def test_register_udaf_from_file(dict_exporter):
     session.udaf.register_from_file(
         test_file,
         "MyUDAFWithoutTypeHints",
-        name="udaf_register_from_file",
+        name="udaf_register_from_file_unit",
         return_type=IntegerType(),
         input_types=[IntegerType()],
         immutable=True,
@@ -128,7 +128,7 @@ def test_register_udaf_from_file(dict_exporter):
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "udaf_register_from_file",
+            "snow.executable.name": "udaf_register_from_file_unit",
             "snow.executable.handler": "MyUDAFWithoutTypeHints",
         },
     )
@@ -165,14 +165,14 @@ def test_inline_register_udaf(dict_exporter):
         output_schema=StructType([StructField("number", IntegerType())]),
         input_types=[IntegerType()],
         return_type=IntegerType(),
-        name="sum_udaf",
+        name="sum_udaf_unit",
     )
     answer = (
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "sum_udaf",
+            "snow.executable.name": "sum_udaf_unit",
             "snow.executable.handler": "PythonSumUDAF",
         },
     )
@@ -180,7 +180,7 @@ def test_inline_register_udaf(dict_exporter):
 
     # test register with @udaf
     @udaf(
-        name="sum_udaf_decorator",
+        name="sum_udaf_decorator_unit",
         session=session,
         input_types=[IntegerType()],
         return_type=IntegerType(),
@@ -206,7 +206,7 @@ def test_inline_register_udaf(dict_exporter):
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
-            "snow.executable.name": "sum_udaf_decorator",
+            "snow.executable.name": "sum_udaf_decorator_unit",
             "snow.executable.handler": "PythonSumUDAF",
         },
     )
@@ -246,7 +246,7 @@ def test_register_udtf_from_file(dict_exporter):
     session.udtf.register_from_file(
         test_file,
         "MyUDTFWithTypeHints",
-        name="MyUDTFWithTypeHints_from_file",
+        name="MyUDTFWithTypeHints_from_file_unit",
         output_schema=schema,
         input_types=[
             IntegerType(),
@@ -264,7 +264,7 @@ def test_register_udtf_from_file(dict_exporter):
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "MyUDTFWithTypeHints_from_file",
+            "snow.executable.name": "MyUDTFWithTypeHints_from_file_unit",
             "snow.executable.handler": "MyUDTFWithTypeHints",
         },
     )
@@ -292,14 +292,14 @@ def test_inline_register_udtf(dict_exporter):
         GeneratorUDTF,
         output_schema=StructType([StructField("number", IntegerType())]),
         input_types=[IntegerType()],
-        name="generate_udtf",
+        name="generate_udtf_unit",
     )
     answer = (
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "generate_udtf",
+            "snow.executable.name": "generate_udtf_unit",
             "snow.executable.handler": "GeneratorUDTF",
         },
     )
@@ -308,7 +308,7 @@ def test_inline_register_udtf(dict_exporter):
     # test register with @udtf
     @udtf(
         output_schema=StructType([StructField("number", IntegerType())]),
-        name="generate_udtf_with_decorator",
+        name="generate_udtf_with_decorator_unit",
         session=session,
     )
     class GeneratorUDTFwithDecorator:
@@ -320,7 +320,7 @@ def test_inline_register_udtf(dict_exporter):
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
-            "snow.executable.name": "generate_udtf_with_decorator",
+            "snow.executable.name": "generate_udtf_with_decorator_unit",
             "snow.executable.handler": "GeneratorUDTFwithDecorator",
         },
     )
@@ -345,7 +345,7 @@ def test_register_udf_from_file(dict_exporter):
     session.udf.register_from_file(
         test_file,
         "mod5",
-        name="mod5_function",
+        name="mod5_function_unit",
         return_type=IntegerType(),
         input_types=[IntegerType()],
         immutable=True,
@@ -355,7 +355,7 @@ def test_register_udf_from_file(dict_exporter):
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "mod5_function",
+            "snow.executable.name": "mod5_function_unit",
             "snow.executable.handler": "mod5",
         },
     )
@@ -379,21 +379,21 @@ def test_inline_register_udf(dict_exporter):
         input_types=[IntegerType(), IntegerType()],
         replace=True,
         stage_location="@test_stage",
-        name="add",
+        name="add_unit",
     )
     answer = (
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
             "code.lineno": lineno,
-            "snow.executable.name": "add",
+            "snow.executable.name": "add_unit",
             "snow.executable.handler": "add_udf",
         },
     )
     assert check_answers(dict_exporter, answer)
 
     # test register with decorator @udf
-    @udf(name="minus_decorator", session=session)
+    @udf(name="minus_decorator_unit", session=session)
     def minus_udf(x: int, y: int) -> int:
         return x - y
 
@@ -401,7 +401,7 @@ def test_inline_register_udf(dict_exporter):
         "register",
         {
             "code.filepath": "test_open_telemetry.py",
-            "snow.executable.name": "minus_decorator",
+            "snow.executable.name": "minus_decorator_unit",
             "snow.executable.handler": "minus_udf",
         },
     )
