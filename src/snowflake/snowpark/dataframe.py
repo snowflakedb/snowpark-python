@@ -1110,9 +1110,8 @@ class DataFrame:
             col_expr_ast.sp_dataframe_col.col_name = "*"
             return Column(Star(self._output), ast=col_expr_ast)
         else:
-            resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
-            return Column(resolved_name, ast=col_expr_ast)
+            col_expr_ast.sp_dataframe_col.col_name = col_name
+            return Column(self._resolve(col_name), ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1200,8 +1199,8 @@ class DataFrame:
             elif isinstance(e, str):
                 if ast:
                     col_expr_ast = ast.cols.add()
+                col_expr_ast.sp_column.name = e
                 col = Column(e, ast=col_expr_ast)
-                col_expr_ast.sp_column.name = col.get_name()
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):
