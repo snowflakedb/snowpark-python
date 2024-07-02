@@ -2821,9 +2821,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 for quoted_identifier in by_snowflake_quoted_identifiers
             ]
         else:
-            # when sort is False, the order is decided by the position of the groupby
-            # keys in the original dataframe. In order to recover the order, we retain
-            # min(row_position) in the aggregation result.
+            # When sort is False, the order is decided by the position of the groupby
+            # keys in the original dataframe.
+            # To recover the order, we retain min(row_position) in the aggregation result.
             internal_frame = internal_frame.ensure_row_position_column()
             row_position_quoted_identifier = (
                 internal_frame.row_position_snowflake_quoted_identifier
@@ -2907,13 +2907,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if len(new_index_column_pandas_labels_to_keep) > 0:
                 # if there are columns needs to be retained, we reset the index columns to the
                 # columns needs to be retained, and call reset_index with drop = False later to
-                # keep those column as data columns.
+                # keep those columns as data columns.
                 new_index_column_pandas_labels = new_index_column_pandas_labels_to_keep
                 new_index_column_quoted_identifiers = (
                     new_index_column_quoted_identifiers_to_keep
                 )
             else:
-                # if all index column needs to be dropped, we simply set drop to be True, and
+                # if all index columns need to be dropped, we simply set drop to be True, and
                 # reset_index will drop all current index columns.
                 drop = True
 
@@ -7330,7 +7330,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._modin_frame.num_rows if axis == 0 else len(self.columns)
 
-    def _nunique_columns(self, dropna: bool) -> "SnowflakeQueryCompiler":
+    def _nunique_columns(
+        self, dropna: bool, is_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper function to compute the number of unique elements in each column.
 
@@ -7347,16 +7349,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             original index. This may be dropped later if necessary.
         """
         internal_frame = self._modin_frame
-        new_index_identifier = (
-            internal_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=[INDEX_LABEL],
-            )[0]
-        )
 
-        if len(self.columns) == 0:
-            return SnowflakeQueryCompiler.from_pandas(
-                native_pd.DataFrame([], index=["unique"], dtype=float)
-            )
+        if is_index is False:
+            if len(self.columns) == 0:
+                return SnowflakeQueryCompiler.from_pandas(
+                    native_pd.DataFrame([], index=["unique"], dtype=float)
+                )
 
         def make_nunique(identifier: str, dropna: bool) -> SnowparkColumn:
             if dropna:
@@ -7373,12 +7371,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # get a new ordered df with nunique columns
         nunique_columns = [
             make_nunique(identifier, dropna).as_(identifier)
-            for identifier in internal_frame.data_column_snowflake_quoted_identifiers
+            for identifier in (
+                internal_frame.index_column_snowflake_quoted_identifiers
+                if is_index is True
+                else internal_frame.data_column_snowflake_quoted_identifiers
+            )
         ]
 
-        # since we don't compute count on the index, we need to add a column for it
+        ordered_dataframe = internal_frame.ordered_dataframe.agg(*nunique_columns)
+        # In the Index case (when is_index is True), even though index columns are used to compute nunique_columns,
+        # nunique_columns should be used as data columns when created the resultant InternalFrame.
+        # This is because Index._reduce_dimension treats the query compiler passed in as a Series query compiler.
+        # Index._reduce_dimension and Series._reduce_dimension perform the same operations.
+        # Therefore, in both all cases of inputs, a new Index column needs to be generated.
+        new_index_identifier = (
+            internal_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=[INDEX_LABEL],
+            )[0]
+        )
         ordered_dataframe = append_columns(
-            internal_frame.ordered_dataframe.agg(*nunique_columns),
+            ordered_dataframe,
             [new_index_identifier],
             [pandas_lit("unique")],
         )
@@ -7386,8 +7398,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # get a new internal frame
         frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
-            data_column_pandas_labels=internal_frame.data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_labels=internal_frame.data_column_pandas_labels
+            if not is_index
+            else internal_frame.index_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers
+            if not is_index
+            else internal_frame.index_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=[INDEX_LABEL],
             index_column_snowflake_quoted_identifiers=[new_index_identifier],
@@ -7408,29 +7424,55 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Result is basically a series with the column labels as index and the distinct count as values
         # for each data column
         # frame holds rows with nunique values, but result must be a series so transpose single row
-        return self._nunique_columns(dropna).transpose_single_row()
+        return self._nunique_columns(
+            dropna, is_index=kwargs.get("is_index", False)
+        ).transpose_single_row()
 
-    def unique(self) -> "SnowflakeQueryCompiler":
-        """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
-        empty.
+    def unique(
+        self, is_index: Optional[bool], level: Optional[int]
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Compute unique elements for series. Preserves the order of elements as they are encountered.
+        Keyword arguments are empty.
+
+        Parameters
+        ----------
+        is_index : bool, optional
+            Set `is_index` to True when an Index object's query compiler is invoking this method.
+            When True, use index columns to compute unique instead of data columns.
+        level : int, optional
+            When `is_index` is True, this specifies which level of the MultiIndex to use when
+            performing unique. For single-dimensional Index objects, `level` defaults to 0.
+            This functionality is not fully implemented and currently only works for `level=0`.
 
         Returns
         -------
         Return query compiler with unique values.
         """
-
-        assert 1 == len(
-            self._modin_frame.data_column_snowflake_quoted_identifiers
-        ), "unique can be only applied to 1-D DataFrame (Series)"
+        # With groupby, specify either one of `level` or `by`, not both.
+        if is_index is True:
+            # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
+            assert level is not None
+            # Reusing the groupby_agg implementation helps take care of ordering columns.
+            # Set as_index to True - this turns the column(s) we used with groupby into index columns.
+            as_index = True
+            by = [self._modin_frame.index_column_pandas_labels[level]]
+        else:
+            assert 1 == len(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            ), "unique can be only applied to 1-D DataFrame (Series)"
+            by = self._modin_frame.data_column_pandas_labels[0]
+            level = None
+            as_index = False
 
         # unique is ordered in the original occurrence of the elements, which is equivalent to
         # groupby aggregation with no aggregation function, sort = False, as_index = False and
         # dropna = False.
         return self.groupby_agg(
-            by=self._modin_frame.data_column_pandas_labels[0],
+            by=by,
             agg_func={},
             axis=0,
-            groupby_kwargs={"sort": False, "as_index": False, "dropna": False},
+            groupby_kwargs={"sort": False, "as_index": as_index, "dropna": False},
             agg_args=[],
             agg_kwargs={},
         )

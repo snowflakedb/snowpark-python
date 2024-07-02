@@ -2585,7 +2585,7 @@ class Series(BasePandasDataset):
 
         Returns
         -------
-        pandas.Series or pandas.DataFrame.
+        scalar, pandas.Series, or pandas.DataFrame.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return query_compiler.to_pandas().squeeze()
@@ -2599,11 +2599,11 @@ class Series(BasePandasDataset):
         axis : {0, 1}
             Axis to validate over.
         numeric_only : bool
-            Whether or not to allow only numeric data.
+            Whether to allow only numeric data.
             If True and non-numeric data is found, exception
             will be raised.
         ignore_axis : bool, default: False
-            Whether or not to ignore `axis` parameter.
+            Whether to ignore `axis` parameter.
 
         Returns
         -------
@@ -2624,7 +2624,7 @@ class Series(BasePandasDataset):
         Parameters
         ----------
         numeric_only : bool, default: False
-            Whether or not to allow only numeric data.
+            Whether to allow only numeric data.
             If True and non-numeric data is found, exception
             will be raised.
 
@@ -2683,7 +2683,7 @@ class Series(BasePandasDataset):
         new_query_compiler : PandasQueryCompiler
             QueryCompiler to use to manage the data.
         inplace : bool, default: False
-            Whether or not to perform update or creation inplace.
+            Whether to perform update or creation inplace.
 
         Returns
         -------
