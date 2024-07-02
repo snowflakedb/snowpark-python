@@ -73,7 +73,6 @@ def test_unsupported_general(general_method, kwargs):
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
         ["compare", {"other": ""}],
-        ["corr", {}],
         ["corrwith", {"other": ""}],
         ["cov", {}],
         ["dot", {"other": ""}],
