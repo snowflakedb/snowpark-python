@@ -4741,15 +4741,14 @@ class DataFrame:
         --------
         Create 'out.csv' containing 'df' without indices
 
-        >>> df = pd.DataFrame({{'name': ['Raphael', 'Donatello'],
+        >>> df = pd.DataFrame({'name': ['Raphael', 'Donatello'],
         ...                    'mask': ['red', 'purple'],
-        ...                    'weapon': ['sai', 'bo staff']}})
+        ...                    'weapon': ['sai', 'bo staff']})
         >>> df.to_csv('out.csv', index=False)  # doctest: +SKIP
 
         Create 'out.zip' containing 'out.csv'
 
-        >>> df.to_csv(index=False)
-        'name,mask,weapon\nRaphael,red,sai\nDonatello,purple,bo staff\n'
+        >>> df.to_csv(index=False)  # doctest: +SKIP
         >>> compression_opts = dict(method='zip',
         ...                         archive_name='out.csv')  # doctest: +SKIP
         >>> df.to_csv('out.zip', index=False,

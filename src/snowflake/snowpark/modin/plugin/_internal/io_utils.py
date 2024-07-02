@@ -12,7 +12,6 @@ import pandas as native_pd
 from pandas._typing import FilePath
 
 import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.session import Session
 
 PANDAS_KWARGS = {"names", "index_col", "usecols", "dtype"}
@@ -107,11 +106,10 @@ def get_compression_algorithm_for_csv(
 
     # Check against supported compression algorithms in Snowflake.
     if compression.lower() not in SUPPORTED_COMPRESSION_IN_SNOWFLAKE:
-        WarningMessage.single_warning(
-            f"Snowpark pandas does not support compression algorithm '{compression}'."
-            " Please refer to https://docs.snowflake.com/en/sql-reference/sql/copy-into-location#type-csv for supported compression algorithms"
+        raise ValueError(
+            f"Unrecognized compression type: {compression}\nValid "
+            f"compression types are {SUPPORTED_COMPRESSION_IN_SNOWFLAKE}"
         )
-        return None
     return compression
 
 

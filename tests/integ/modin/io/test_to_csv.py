@@ -30,10 +30,8 @@ SERIES_TEST_CASES = [
     ({"sep": "|"}, False),
     ({"na_rep": "NULL_VALUE"}, False),
     ({"compression": "infer", "ext": "gz"}, True),
-    (
-        {"compression": "infer", "ext": "csv"},
-        False,
-    ),
+    ({"compression": "infer", "ext": "csv"}, False),
+    ({"compression": "infer", "ext": None}, False),
     ({"compression": None}, False),
     ({"compression": "gzip"}, True),
     ({"compression": {"method": "gzip"}}, True),
@@ -76,8 +74,12 @@ def assert_file_equal(
 
 def get_filepaths(kwargs: Any, test_name: str) -> Tuple[str, str]:
     ext = kwargs.get("ext", "csv")
-    native_path = os.path.join(TEMP_DIR_NAME, f"native_{test_name}.{ext}")
-    snow_path = os.path.join(TEMP_DIR_NAME, f"snow_{test_name}.{ext}")
+    if ext:
+        native_path = os.path.join(TEMP_DIR_NAME, f"native_{test_name}.{ext}")
+        snow_path = os.path.join(TEMP_DIR_NAME, f"snow_{test_name}.{ext}")
+    else:
+        native_path = os.path.join(TEMP_DIR_NAME, f"native_{test_name}")
+        snow_path = os.path.join(TEMP_DIR_NAME, f"snow_{test_name}")
     # Remove files if exits.
     if os.path.exists(native_path):
         os.remove(native_path)
@@ -177,3 +179,20 @@ def test_to_csv_none_path():
     native_result = native_df.to_csv(path_or_buf=None)
     snow_result = pd.DataFrame(native_df).to_csv(path_or_buf=None)
     assert_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=0)
+def test_to_csv_unknown_compression(sf_stage, session):
+    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    kwargs = {"compression": "piedpiper"}
+    native_path, snow_path = get_filepaths(kwargs, "unknown_compression")
+
+    # Write csv with native  pandas.
+    msg = "Unrecognized compression type: piedpiper"
+    with pytest.raises(ValueError, match=msg):
+        native_df.to_csv(native_path, **kwargs)
+
+    # Write csv to snowflake stage.
+    stage_location = f"@{sf_stage}/{os.path.basename(snow_path)}"
+    with pytest.raises(ValueError, match=msg):
+        pd.DataFrame(native_df).to_csv(stage_location, **kwargs)

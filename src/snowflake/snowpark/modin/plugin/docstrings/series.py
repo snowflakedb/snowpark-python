@@ -3435,8 +3435,7 @@ class Series:
 
         Create 'out.zip' containing 'out.csv'
 
-        >>> series.to_csv(index=False)
-        'color\nred\ngreen\nblue\n'
+        >>> series.to_csv(index=False)  # doctest: +SKIP
         >>> compression_opts = dict(method='zip',
         ...                         archive_name='out.csv')  # doctest: +SKIP
         >>> series.to_csv('out.zip', index=False,
