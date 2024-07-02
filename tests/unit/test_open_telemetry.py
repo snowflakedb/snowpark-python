@@ -416,13 +416,11 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
-    lineno = inspect.currentframe().f_lineno - 1
 
     answer = (
         "save_as_table",
         {
             "code.filepath": "test_open_telemetry.py",
-            "code.lineno": lineno,
             "method.chain": "DataFrame.to_df().save_as_table()",
         },
     )
@@ -436,13 +434,11 @@ def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
-    lineno = inspect.currentframe().f_lineno - 1
 
     answer = (
         "collect",
         {
             "code.filepath": "test_open_telemetry.py",
-            "code.lineno": lineno,
             "method.chain": "DataFrame.to_df().collect()",
         },
     )
