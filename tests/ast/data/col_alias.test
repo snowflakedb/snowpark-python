@@ -14,8 +14,8 @@ df = df.select(col("A").name("test"))
 
 res1 = session.table("test_table")
 
-res2 = res1.select(col("A").as_("TEST"))
+res2 = res1.select(col("A").as_("test"))
 
-res3 = res2.select(col("A").alias("TEST"))
+res3 = res2.select(col("A").alias("test"))
 
-res4 = res3.select(col("A").name("TEST"))
+res4 = res3.select(col("A").name("test"))
