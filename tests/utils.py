@@ -1453,3 +1453,42 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
+
+
+def attr_to_dict(span):
+    dict_attr = {}
+    for name in span.attributes:
+        dict_attr[name] = span.attributes[name]
+    dict_attr["code.filepath"] = os.path.basename(dict_attr["code.filepath"])
+    dict_attr["status_code"] = span.status.status_code
+    dict_attr["status_description"] = span.status.description
+    return dict_attr
+
+
+def span_extractor(dict_exporter):
+    spans = []
+    raw_spans = dict_exporter.get_finished_spans()
+    for span in raw_spans:
+        spans.append((span.name, attr_to_dict(span), span))
+    return spans
+
+
+def check_single_answer(result, expected_answer):
+    for answer_name in expected_answer:
+        if answer_name == "status_description":
+            if expected_answer[answer_name] not in result[answer_name]:
+                return False
+            else:
+                continue
+        if expected_answer[answer_name] != result[answer_name]:
+            return False
+    return True
+
+
+def check_answers(results, expected_answer):
+    results = span_extractor(results)
+    for result in results:
+        if expected_answer[0] == result[0]:
+            if check_single_answer(result[1], expected_answer[1]):
+                return True
+    return False

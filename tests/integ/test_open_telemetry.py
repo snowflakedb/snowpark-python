@@ -25,8 +25,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.conftest import check_answers
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, check_answers
 
 pytestmark = [
     pytest.mark.udf,
