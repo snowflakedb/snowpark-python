@@ -12,10 +12,14 @@ from typing import Any
 import pandas as native_pd
 
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
+from snowflake.snowpark.modin.pandas.api.extensions import (
+    register_dataframe_accessor,
+    register_dataframe_property,
+)
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
@@ -57,3 +61,49 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
     # TODO: SNOW-1264697: push implementation down to query compiler
     columns = (["Index"] if index else []) + self._get_columns().array.tolist()
     return native_pd.Series([0] * len(columns), index=columns)
+
+
+@register_dataframe_property("plot")
+@snowpark_pandas_telemetry_method_decorator
+def plot(
+    self,
+    x=None,
+    y=None,
+    kind="line",
+    ax=None,
+    subplots=False,
+    sharex=None,
+    sharey=False,
+    layout=None,
+    figsize=None,
+    use_index=True,
+    title=None,
+    grid=None,
+    legend=True,
+    style=None,
+    logx=False,
+    logy=False,
+    loglog=False,
+    xticks=None,
+    yticks=None,
+    xlim=None,
+    ylim=None,
+    rot=None,
+    fontsize=None,
+    colormap=None,
+    table=False,
+    yerr=None,
+    xerr=None,
+    secondary_y=False,
+    sort_columns=False,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
+    """
+    Make plots of ``DataFrame``. Materializes data into memory and uses the
+    existing pandas PlotAccessor
+    """
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    WarningMessage.single_warning(
+        "DataFrame.plot materializes data to the local machine for plotting"
+    )
+    return self._to_pandas().plot

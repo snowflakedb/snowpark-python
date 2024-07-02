@@ -14,10 +14,14 @@ import pandas as native_pd
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
+from snowflake.snowpark.modin.pandas.api.extensions.extensions import (
+    register_series_property,
+)
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
@@ -117,3 +121,42 @@ def isin(self, values: Union[set, ListLike]) -> Series:
         values = list(values)
 
     return super(Series, self).isin(values)
+
+
+@register_series_property("plot")
+@snowpark_pandas_telemetry_method_decorator
+def plot(
+    self,
+    kind="line",
+    ax=None,
+    figsize=None,
+    use_index=True,
+    title=None,
+    grid=None,
+    legend=False,
+    style=None,
+    logx=False,
+    logy=False,
+    loglog=False,
+    xticks=None,
+    yticks=None,
+    xlim=None,
+    ylim=None,
+    rot=None,
+    fontsize=None,
+    colormap=None,
+    table=False,
+    yerr=None,
+    xerr=None,
+    label=None,
+    secondary_y=False,
+    **kwds,
+):  # noqa: PR01, RT01, D200
+    """
+    Make plot of Series.
+    """
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    WarningMessage.single_warning(
+        "Series.plot materializes data to the local machine for plotting"
+    )
+    return self._to_pandas().plot

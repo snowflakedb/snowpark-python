@@ -1879,6 +1879,7 @@ class DataFrame(BasePandasDataset):
         )
         return result
 
+    @dataframe_not_implemented()
     @property
     def plot(
         self,
@@ -1917,9 +1918,6 @@ class DataFrame(BasePandasDataset):
         Make plots of ``DataFrame``.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        WarningMessage.single_warning(
-            "DataFrame.plot materializes data to the local machine for plotting"
-        )
         return self._to_pandas().plot
 
     def pow(
