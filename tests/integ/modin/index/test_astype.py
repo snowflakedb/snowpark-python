@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
 
 
@@ -42,21 +42,21 @@ from tests.integ.modin.utils import assert_index_equal
         (native_pd.Index([1.11, 2.1111, 3.0002, 4.111], dtype=object), float),
     ],
 )
-# @sql_count_checker(query_count=1)
-def test_index_astype(index, type):
-    snow_index = pd.Index(index)
-    native_index = index.astype(type)
-    snow_index = snow_index.astype(type)
-    assert_index_equal(snow_index, native_index)
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_index_astype(index, type, is_lazy):
+    snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+    with SqlCounter(query_count=1 if is_lazy else 0):
+        assert_index_equal(snow_index.astype(type), index.astype(type))
 
 
 @pytest.mark.parametrize("from_type", [str, int, float, object, bool])
 @pytest.mark.parametrize("to_type", [str, int, float, object, bool])
-@sql_count_checker(query_count=1)
-def test_index_astype_empty_index(from_type, to_type):
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_index_astype_empty_index(from_type, to_type, is_lazy):
     native_index = native_pd.Index([], dtype=from_type)
-    snow_index = pd.Index(native_index)
-    assert_index_equal(snow_index.astype(to_type), native_index.astype(to_type))
+    snow_index = pd.Index(native_index, convert_to_lazy=is_lazy)
+    with SqlCounter(query_count=1 if is_lazy else 0):
+        assert_index_equal(snow_index.astype(to_type), native_index.astype(to_type))
 
 
 @pytest.mark.parametrize(
