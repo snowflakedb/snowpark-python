@@ -749,23 +749,25 @@ class DataFrame(BasePandasDataset):
             )
         )
 
-    @dataframe_not_implemented()
     def corr(
-        self, method="pearson", min_periods=1, numeric_only=False
+        self,
+        method: str | Callable = "pearson",
+        min_periods: int | None = None,
+        numeric_only: bool = False,
     ):  # noqa: PR01, RT01, D200
         """
         Compute pairwise correlation of columns, excluding NA/null values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not numeric_only:
-            return self._default_to_pandas(
-                pandas.DataFrame.corr,
-                method=method,
-                min_periods=min_periods,
-                numeric_only=numeric_only,
+        corr_df = self
+        if numeric_only:
+            corr_df = self.drop(
+                columns=[
+                    i for i in self.dtypes.index if not is_numeric_dtype(self.dtypes[i])
+                ]
             )
         return self.__constructor__(
-            query_compiler=self._query_compiler.corr(
+            query_compiler=corr_df._query_compiler.corr(
                 method=method,
                 min_periods=min_periods,
             )
@@ -1813,12 +1815,31 @@ class DataFrame(BasePandasDataset):
                 query_compiler=self._query_compiler.unstack(level, fill_value)
             )
 
-    @dataframe_not_implemented()
-    def pivot(self, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
+    def pivot(
+        self,
+        *,
+        columns: Any,
+        index: Any | NoDefault = no_default,
+        values: Any | NoDefault = no_default,
+    ):
         """
-        Return reshaped ``DataFrame`` organized by given index / column values.
+        Return reshaped DataFrame organized by given index / column values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+        if index is no_default:
+            index = None  # pragma: no cover
+        if values is no_default:
+            values = None
+
+        # if values is not specified, it should be the remaining columns not in
+        # index or columns
+        if values is None:
+            values = list(self.columns)
+            if index is not None:
+                values = [v for v in values if v not in index]
+            if columns is not None:
+                values = [v for v in values if v not in columns]
+
         return self.__constructor__(
             query_compiler=self._query_compiler.pivot(
                 index=index, columns=columns, values=values

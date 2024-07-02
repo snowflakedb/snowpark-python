@@ -422,13 +422,6 @@ def test_pivot_unpivot(session):
     check_result(session, df_result, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
-    # Because of SNOW-1375062, dynamic pivot doesn't work with nested CTE
-    # TODO: SNOW-1413967 Remove it when the bug is fixed
-    df_nested = session.table("monthly_sales").select("*")
-    df_nested = df_nested.union_all(df_nested).select("*")
-    df_dynamic_pivot = df_nested.pivot("month").sum("amount")
-    check_result(session, df_dynamic_pivot, expect_cte_optimized=False)
-
 
 def test_window_function(session):
     window1 = (
