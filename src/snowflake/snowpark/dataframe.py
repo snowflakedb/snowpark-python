@@ -90,8 +90,8 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    create_ast_for_column,
     FAIL_ON_MISSING_AST,
+    fill_ast_for_column,
     get_symbol,
     set_src_position,
     setattr_if_not_none,
@@ -1193,9 +1193,9 @@ class DataFrame:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                if ast:
-                    col_expr_ast = ast.cols.add()
-                    col_expr_ast.sp_column.name = e
+                col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                fill_ast_for_column(col_expr_ast, e, None)
+
                 col = Column(e, ast=col_expr_ast)
                 names.append(col._named())
 
