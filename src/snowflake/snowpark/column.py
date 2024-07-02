@@ -783,8 +783,8 @@ class Column:
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_like)
-        ast.str.CopyFrom(self._ast)
+        ast = with_src_position(expr.sp_column_string_like)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.pattern, pattern)
         return Column(Like(self._expression, Column._to_expr(pattern)), ast=expr)
 
@@ -803,7 +803,7 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_regexp)
-        ast.str.CopyFrom(self._ast)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.pattern, pattern)
         return Column(RegExp(self._expression, Column._to_expr(pattern)), ast=expr)
 
@@ -816,7 +816,7 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_starts_with)
-        ast.str.CopyFrom(self._ast)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.prefix, other)
         other = snowflake.snowpark.functions.lit(other)
         return Column(
@@ -832,7 +832,7 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_ends_with)
-        ast.str.CopyFrom(self._ast)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.suffix, other)
         other = snowflake.snowpark.functions.lit(other)
         return Column(
@@ -854,7 +854,7 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_substr)
-        ast.str.CopyFrom(self._ast)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.pos, start_pos)
         Column._fill_ast(ast.len, length)
         return Column(
@@ -871,8 +871,8 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_collate)
-        ast.str.CopyFrom(self._ast)
-        ast.collation_spec = collation_spec
+        ast.col.CopyFrom(self._ast)
+        Column._fill_ast(ast.collation_spec, collation_spec)
         return Column(Collate(self._expression, collation_spec), ast=expr)
 
     def contains(self, string: ColumnOrName) -> "Column":
@@ -883,7 +883,7 @@ class Column:
         """
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_contains)
-        ast.str.CopyFrom(self._ast)
+        ast.col.CopyFrom(self._ast)
         Column._fill_ast(ast.pattern, string)
         return Column(
             snowflake.snowpark.functions.contains(self, string)._expression, ast=expr
