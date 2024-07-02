@@ -327,6 +327,39 @@ def create_ast_for_column_method(
     return ast
 
 
+def fill_ast_for_column(
+    expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
+):
+    # When name2 is None, corresponds to col(col_name: str).
+    # Else, corresponds to col(df_alias: str, col_name: str)
+
+    # Handle the special case * (as a SQL column expr).
+    if name2 == "*":
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        if name1 is not None:
+            ast.df_alias.value = name1
+        return expr
+
+    if name1 == "*" and name2 is None:
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        return expr
+
+    # Regular form (without *): build as function ApplyExpr.
+    kwargs = (
+        {"df_alias": name1, "col_name": name2}
+        if name2 is not None
+        else {"col_name": name1}
+    )
+
+    # To replicate Snowpark behavior (overloads do NOT seem to work at the moment)
+    # - use args.
+    args = tuple(kwargs.values())
+    kwargs = {}
+
+    build_fn_apply(expr, fn_name, *args, **kwargs)
+
 
 def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
     # When name2 is None, corresponds to col(col_name: str).
@@ -340,7 +373,7 @@ def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
         if name1 is not None:
             ast.df_alias.value = name1
         return expr
-    
+
     if name1 == "*" and name2 is None:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_sql_expr)
