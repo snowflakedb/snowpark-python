@@ -105,10 +105,6 @@ def test_write_with_target_table_autoincrement(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Inserting data into table by matching columns is not supported",
-)
 def test_negative_write_with_target_column_name_order(session):
     table_name = Utils.random_table_name()
     session.create_dataframe(
@@ -139,10 +135,6 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Inserting data into table by matching columns is not supported",
-)
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
@@ -394,7 +386,6 @@ def test_write_table_names(session, db_parameters):
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
 def test_writer_csv(session, tmpdir_factory):
-
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
     ROWS_COUNT = 4
@@ -457,7 +448,6 @@ def test_writer_csv(session, tmpdir_factory):
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
 )
 def test_writer_json(session, tmpdir_factory):
-
     """Tests for df.write.json()."""
     df1 = session.create_dataframe(
         ["[{a: 1, b: 2}, {a: 3, b: 0}]"], schema=["raw_data"]
