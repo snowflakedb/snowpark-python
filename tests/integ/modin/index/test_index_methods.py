@@ -37,48 +37,6 @@ NATIVE_INDEX_TEST_DATA = [
 ]
 
 
-@pytest.mark.parametrize(
-    "index, type",
-    [
-        (native_pd.Index([1, 2, 3, 4], dtype=int), float),
-        (native_pd.Index(["a", "b", "c"], dtype=str), "object"),
-        (native_pd.Index([], dtype=object), int),
-        (native_pd.Index([], dtype=int), "O"),
-    ],
-)
-@sql_count_checker(query_count=1)
-def test_index_astype(index, type):
-    snow_index = pd.Index(index)
-    native_index = index.astype(type)
-    snow_index = snow_index.astype(type)
-    assert_index_equal(snow_index, native_index)
-
-
-@sql_count_checker(query_count=2)
-def test_index_astype_float_to_string():
-    native_index = native_pd.Index([1, 2, 3.4, 4], dtype=float)
-    snow_index = pd.Index(native_index)
-    # When astype() is called on the native pandas Index, the index values
-    # are first converted to float, and these float values are turned into
-    # strings.
-    # The result in native pandas is ["1.0", "2.0", "3.4", "4.0"]
-    # but in Snowpark pandas is ["1", "2", "3.4", "4"]
-    with pytest.raises(AssertionError):
-        assert_index_equal(snow_index.astype(str), native_index.astype(str))
-    assert_index_equal(snow_index, native_pd.Index(["1", "2", "3.4", "4"], dtype=str))
-
-
-@sql_count_checker(query_count=1)
-def test_index_astype_failure_SNOW_1480906():
-    # TODO: SNOW-1480906 - ticket tracks this specific issue.
-    # TODO: SNOW-1514565 - this bug is most likely caused due to a known issue with apply.
-    native_index = native_pd.Index([1, 2, 3], dtype=int)
-    snow_index = pd.Index(native_index)
-    with pytest.raises(AssertionError):
-        assert_index_equal(snow_index.astype("object"), native_index.astype("object"))
-    assert snow_index.dtype == object
-
-
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_copy(native_index):
