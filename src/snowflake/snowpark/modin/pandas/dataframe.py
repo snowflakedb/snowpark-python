@@ -1807,11 +1807,10 @@ class DataFrame(BasePandasDataset):
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         # This ensures that non-pandas MultiIndex objects are caught.
-        num_index_levels = self._query_compiler._modin_frame.num_index_levels()
-        is_multiindex = num_index_levels > 1
+        is_multiindex = self._query_compiler.is_multiindex()
 
         if not is_multiindex or (
-            is_multiindex and is_list_like(level) and len(level) == num_index_levels
+            is_multiindex and is_list_like(level) and len(level) == self.index.nlevels
         ):
             return self._reduce_dimension(
                 query_compiler=self._query_compiler.unstack(
