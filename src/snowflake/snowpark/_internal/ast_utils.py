@@ -189,6 +189,12 @@ def set_src_position(ast: proto.SrcPosition) -> None:
         setattr_if_not_none(ast, "end_column", code_context.end_col_offset)
 
 
+def with_src_position(expr_ast: proto.Expr) -> proto.Expr:
+    """Sets the src_position on the supplied Expr AST node and returns it."""
+    set_src_position(expr_ast.src)
+    return expr_ast
+
+
 def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
     if val is not None:
         setattr(obj, attr, val)
