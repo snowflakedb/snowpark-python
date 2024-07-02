@@ -4,6 +4,7 @@
 #
 
 import sys
+from enum import Enum, auto, unique
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
@@ -267,10 +268,16 @@ class Table(DataFrame):
     with the name of the table in Snowflake. See examples in :meth:`Session.table`.
     """
 
+    @unique
+    class _TableConstructor(Enum):
+        TABLE_INIT = auto()
+        SESSION_TABLE = auto()
+
     def __init__(
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        constructor: _TableConstructor = _TableConstructor.TABLE_INIT,
     ) -> None:
         # Begin AST
         if session is not None:
@@ -280,6 +287,12 @@ class Table(DataFrame):
             # The caller frequently has the split version of the name and joins it for this call, so it's silly but
             # necessary to split it again here.
             ast.table = table_name
+            if constructor == Table._TableConstructor.TABLE_INIT:
+                ast.constructor.sp_table_init = True
+            elif constructor == Table._TableConstructor.SESSION_TABLE:
+                ast.constructor.sp_session_table = True
+            else:
+                raise ValueError("Invalid constructor type")
             set_src_position(ast.src)
         else:
             raise NotImplementedError(
@@ -289,7 +302,7 @@ class Table(DataFrame):
         super().__init__(
             session,
             session._analyzer.resolve(UnresolvedRelation(table_name)),
-            # ast_stmt=stmt,
+            ast_stmt=stmt,
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
