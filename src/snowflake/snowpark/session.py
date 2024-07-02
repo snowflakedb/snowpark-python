@@ -49,7 +49,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
-from snowflake.snowpark._internal.ast_utils import set_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -1854,23 +1853,10 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        # Begin AST
-        stmt = self._ast_batch.assign()
-        ast = stmt.expr.sp_table
-        if isinstance(name, str):
-            ast.table = name
-        else:
-            ast.database = name[0]
-            ast.schema = name[1]
-            ast.table = name[2]
-        set_src_position(ast.src)
-        # TODO(oplaton): Are there any other AST properties that this needs to fill out here? DO NOT MERGE
-        # End AST
-
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self)
+        t = Table(name, self, Table._TableConstructor.SESSION_TABLE)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
