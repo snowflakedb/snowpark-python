@@ -3,9 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import inspect
 import sys
-from pathlib import Path
 from typing import Optional, Union
 
 import snowflake.snowpark
@@ -70,7 +68,6 @@ from snowflake.snowpark._internal.ast_utils import (
     create_ast_for_column,
     create_ast_for_column_method,
     snowpark_expression_to_ast,
-    FAIL_ON_MISSING_AST,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -296,7 +293,7 @@ class Column:
             ast = create_ast_for_column_method(
                 property="sp_column_apply__string",
                 copy_messages={"col": self._ast},
-                assign_fields={"field": quote_name(field, keep_case=True)},
+                assign_fields={"field": field},
             )
             return Column(SubfieldString(self._expression, field), ast=ast)
         elif isinstance(field, int):
@@ -879,7 +876,7 @@ class Column:
         ast = create_ast_for_column_method(
             property="sp_column_alias",
             copy_messages={"col": self._ast},
-            assign_fields={"name": quote_name(alias)},
+            assign_fields={"name": alias},
             assign_opt_fields={"variant_is_as": variant_is_as},
         )
         return Column(Alias(self._expression, quote_name(alias)), ast=ast)
