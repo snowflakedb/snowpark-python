@@ -1076,9 +1076,6 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
-        target = entity_registry.read_table(source_plan.table_name)
-        if source_plan.column_names is not None:
-            source_plan.column_names = target.columns
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
             source_plan.table_name, res_df, source_plan.mode
@@ -1118,9 +1115,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
