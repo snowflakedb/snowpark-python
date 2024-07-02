@@ -15001,29 +15001,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support multiindex columns in stack API"
             )
 
-        index_names = ["index"]
+        index_names = self.get_index_names()
+        has_index_names_none = None in index_names
+
+        if has_index_names_none:
+            # Index name defaults to "index" after reset_index() operation if index name is None
+            index_cols = ["index"]
+        else:
+            index_cols = index_names  # type: ignore
+
         # Stack is equivalent to doing df.melt() with index reset, sorting the values, then setting the index
         # Note that we always use sort_rows_by_column_values even if sort is False
+        col_label = (
+            "index_second_level" if self.columns.name is None else self.columns.name
+        )
+
         qc = (
             self.reset_index()
             .melt(
-                id_vars=index_names,
+                id_vars=index_cols,
                 value_vars=self.columns,
-                var_name="index_second_level",
+                var_name=col_label,
                 value_name=MODIN_UNNAMED_SERIES_LABEL,
                 ignore_index=False,
             )
             .sort_rows_by_column_values(
-                columns=index_names,  # type: ignore
+                columns=index_cols,  # type: ignore
                 ascending=[True],
                 kind="stable",
                 na_position="last",
                 ignore_index=False,
             )
             .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
-            .set_index_from_columns(index_names + ["index_second_level"])  # type: ignore
-            .set_index_names([None, None])
+            .set_index_from_columns(index_cols + [col_label])  # type: ignore
         )
+
+        index_cols_replace_none = [
+            None if index_cols[i] == "index" else index_cols[i]
+            for i in range(len(index_cols))
+        ]
+        # Set the correct index names based on column and index names
+        if self.columns.name is None and not has_index_names_none:
+            qc = qc.set_index_names(index_cols_replace_none + [None])  # type: ignore
+        elif self.columns.name is None and has_index_names_none:
+            qc = qc.set_index_names([None, None])
+        elif has_index_names_none:
+            qc = qc.set_index_names([col_label, None])
 
         if dropna:
             return qc.dropna(axis=0, how="any", thresh=None)
