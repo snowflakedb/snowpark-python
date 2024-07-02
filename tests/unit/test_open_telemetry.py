@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.open_telemetry import (
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.functions import udaf, udf, udtf
-from snowflake.snowpark.session import _add_session, _remove_session
 from snowflake.snowpark.types import (
     BinaryType,
     BooleanType,
@@ -85,7 +84,6 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
 
@@ -135,14 +133,12 @@ def test_register_udaf_from_file(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_inline_register_udaf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     # test register with udaf.register
 
@@ -215,7 +211,6 @@ def test_inline_register_udaf(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 @pytest.mark.skipif(
@@ -274,7 +269,6 @@ def test_register_udtf_from_file(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 @pytest.mark.skipif(
@@ -285,7 +279,6 @@ def test_inline_register_udtf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     # test register with udtf.register
 
@@ -332,7 +325,6 @@ def test_inline_register_udtf(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_register_udf_from_file(dict_exporter):
@@ -368,14 +360,12 @@ def test_register_udf_from_file(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_inline_register_udf(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     # test register with udf.register
 
@@ -416,7 +406,6 @@ def test_inline_register_udf(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
@@ -424,7 +413,6 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
@@ -439,14 +427,12 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
-    _add_session(session)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([1, 2, 3, 4]).to_df("a")
     df.collect()
@@ -461,7 +447,6 @@ def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
         },
     )
     assert check_answers(dict_exporter, answer)
-    _remove_session(session)
 
 
 def test_decorator_count():
