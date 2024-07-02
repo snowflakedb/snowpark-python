@@ -109,6 +109,7 @@ class Index:
         name: object = None,
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
+        query_compiler: SnowflakeQueryCompiler | None = None,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -131,7 +132,8 @@ class Index:
         convert_to_lazy : bool (default: True)
             When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
             We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
-
+        query_compiler : SnowflakeQueryCompiler | None (default: None)
+            A query compiler object to create the Index from.
         Notes
         -----
         An Index instance can **only** contain hashable objects.
@@ -149,23 +151,27 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        self.is_lazy = convert_to_lazy
-        if self.is_lazy:
-            self.set_query_compiler(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
+        if query_compiler is not None:
+            self.set_query_compiler(data=query_compiler)
+            self.is_lazy = True
         else:
-            self.set_local_index(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
+            self.is_lazy = convert_to_lazy
+            if self.is_lazy:
+                self.set_query_compiler(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                )
+            else:
+                self.set_local_index(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                )
 
     def set_query_compiler(
         self,
@@ -469,6 +475,7 @@ class Index:
         """
         return (len(self),)
 
+    @is_lazy_check
     def astype(self, dtype: str | type | ExtensionDtype, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
@@ -509,12 +516,10 @@ class Index:
             return self.copy() if copy else self
 
         col_dtypes = {
-            column: pandas_dtype(dtype)
-            for column in self._query_compiler.get_index_names()
+            column: dtype for column in self._query_compiler.get_index_names()
         }
         new_query_compiler = self._query_compiler.astype(col_dtypes, is_index=True)
-        self.set_query_compiler(new_query_compiler)
-        return self
+        return Index(query_compiler=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
