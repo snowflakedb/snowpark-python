@@ -172,6 +172,9 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
 UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.is_monotonic_increasing(),
     lambda idx: idx.is_monotonic_decreasing(),
+    lambda idx: idx.is_unique(),
+    lambda idx: idx.has_duplicates(),
+    lambda idx: idx.unique(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.all(),
@@ -223,6 +226,18 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.get_slice_bound(),
     lambda idx: idx.isin(),
     lambda idx: idx.slice_locs(),
+    lambda idx: idx.set_names(),
+    lambda idx: idx.drop(),
+    lambda idx: idx.duplicated(),
+    lambda idx: idx.value_counts(),
+    lambda idx: idx.sort_values(),
+    lambda idx: idx.intersection(),
+    lambda idx: idx.union(),
+    lambda idx: idx.difference(),
+    lambda idx: idx.get_indexer_for(),
+    lambda idx: idx.get_level_values(),
+    lambda idx: idx._get_indexer_strict(),
+    lambda idx: idx._summary(),
 ]
 
 
