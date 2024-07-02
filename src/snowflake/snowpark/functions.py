@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -800,7 +800,9 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
-def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+def create_map(
+    *cols: Union[ColumnOrName, List[ColumnOrName], Set[ColumnOrName]]
+) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
     columns is treated as a key-value pair in the resulting map.
 
@@ -853,6 +855,10 @@ def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
         raise ValueError(
             f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
         )
+
+    # To make Ast deterministic, sort set and convert to tuple.
+    if isinstance(cols, set):
+        cols = tuple(sorted(list(cols)))
 
     col = object_construct_keep_null(*cols)
 

@@ -677,7 +677,7 @@ res38 = res1.select(covar_samp(col("A"), col("B")))
 
 res39 = res1.select(create_map(col("A"), col("B")))
 
-res40 = res1.select(create_map(col("B"), col("A")))
+res40 = res1.select(create_map(col("A"), col("B")))
 
 res41 = res1.select(create_map(col("A"), col("B")))
 
