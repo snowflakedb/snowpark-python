@@ -27,7 +27,7 @@ from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
-from pandas._typing import ArrayLike, DtypeObj, NaPosition
+from pandas._typing import ArrayLike, DtypeObj, NaPosition, Scalar
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 
@@ -108,6 +108,7 @@ class Index:
         name: object = None,
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
+        query_compiler: SnowflakeQueryCompiler | None = None,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -130,6 +131,9 @@ class Index:
         convert_to_lazy : bool (default: True)
             When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
             We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
+        query_compiler : SnowflakeQueryCompiler, optional
+
+
 
         Notes
         -----
@@ -148,7 +152,11 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        self.is_lazy = convert_to_lazy
+        if query_compiler is not None:
+            data = query_compiler
+            self.is_lazy = True
+        else:
+            self.is_lazy = convert_to_lazy
         if self.is_lazy:
             self.set_query_compiler(
                 data=data,
@@ -395,7 +403,6 @@ class Index:
         # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
-    @is_lazy_check
     def unique(self, level: Hashable | None = None) -> Index:
         """
         Return unique values in the index.
@@ -415,7 +422,7 @@ class Index:
         See Also
         --------
         unique : Numpy array of unique values in that column.
-        Series.unique : Return unique values of Series object.
+        Series.unique : Return unique values of a Series object.
 
         Examples
         --------
@@ -423,9 +430,13 @@ class Index:
         >>> idx.unique()
         Index([1, 2, 3], dtype='int64')
         """
-        # TODO: SNOW-1458132 implement unique
-        WarningMessage.index_to_pandas_warning("unique")
-        return Index(self.to_pandas().unique(level=level))
+        # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "level is not yet supported for Index.unique. It is used with "
+                "MultiIndex objects, which will be supported in the future."
+            )
+        return Index(query_compiler=self._query_compiler.unique(is_index=True, level=0))
 
     @property
     @is_lazy_check
@@ -1372,8 +1383,23 @@ class Index:
         """
         # TODO: SNOW-1458122 implement rename
 
-    @index_not_implemented()
-    def nunique(self) -> None:
+    def _reduce_dimension(self, query_compiler) -> Scalar:
+        """
+        Try to reduce the dimension of data from the `query_compiler`.
+
+        Parameters
+        ----------
+        query_compiler : BaseQueryCompiler
+            Query compiler to retrieve the data.
+
+        Returns
+        -------
+        scalar
+            The projection after squeezing axis 0.
+        """
+        return query_compiler.to_pandas().squeeze()
+
+    def nunique(self, dropna: bool = True) -> int:
         """
         Return number of unique elements in the object.
 
@@ -1392,8 +1418,24 @@ class Index:
         --------
         DataFrame.nunique: Method nunique for DataFrame.
         Series.count: Count non-NA/null observations in the Series.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 3, 5, 7, 7])
+        >>> s
+        0    1
+        1    3
+        2    5
+        3    7
+        4    7
+        dtype: int64
+
+        >>> s.nunique()
+        4
         """
-        # TODO: SNOW-1458132 implement nunique
+        return self._reduce_dimension(
+            self._query_compiler.nunique(axis=0, dropna=dropna, **{"is_index": True})
+        )
 
     @is_lazy_check
     def value_counts(
