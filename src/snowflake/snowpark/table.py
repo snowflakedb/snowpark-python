@@ -272,15 +272,24 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
-        # TODO: what do we do if there's no session?
-        stmt = session._ast_batch.assign()
-        stmt.expr.sp_table.table = table_name
-        set_src_position(stmt.expr.sp_table.src)
+        # Begin AST
+        if session is not None:
+            stmt = session._ast_batch.assign()
+            ast = stmt.expr.sp_table
+            # TODO(oplaton): table_name can be a qualified name, so we need to split it
+            # The caller frequently has the split version of the name and joins it for this call, so it's silly but
+            # necessary to split it again here.
+            ast.table = table_name
+            set_src_position(ast.src)
+        else:
+            raise NotImplementedError(
+                "Table() calls without a session are not implemented yet"
+            )
 
         super().__init__(
             session,
             session._analyzer.resolve(UnresolvedRelation(table_name)),
-            ast_stmt=stmt,
+            # ast_stmt=stmt,
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
