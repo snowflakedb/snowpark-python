@@ -251,6 +251,12 @@ def set_src_position(ast: proto.SrcPosition) -> None:
         setattr_if_not_none(ast, "end_column", code_context.end_col_offset)
 
 
+def with_src_position(expr_ast: proto.Expr) -> proto.Expr:
+    """Sets the src_position on the supplied Expr AST node and returns it."""
+    set_src_position(expr_ast.src)
+    return expr_ast
+
+
 def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
     if val is not None:
         setattr(obj, attr, val)
@@ -326,19 +332,22 @@ def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
     # When name2 is None, corresponds to col(col_name: str).
     # Else, corresponds to col(df_alias: str, col_name: str)
 
-    # Handle special case * (as sql column expr)
+    # Handle the special case * (as a SQL column expr).
     if name2 == "*":
-        return create_ast_for_column_method(
-            property="sp_column_sql_expr",
-            assign_fields={"sql": "*"},
-            assign_opt_fields={"df_alias": name1},
-        )
+        expr = proto.Expr()
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        if name1 is not None:
+            ast.df_alias.value = name1
+        return expr
+    
     if name1 == "*" and name2 is None:
-        return create_ast_for_column_method(
-            property="sp_column_sql_expr", assign_fields={"sql": "*"}
-        )
+        expr = proto.Expr()
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        return expr
 
-    # Regular, build as function ApplyExpr:
+    # Regular form (without *): build as function ApplyExpr.
     kwargs = (
         {"df_alias": name1, "col_name": name2}
         if name2 is not None
