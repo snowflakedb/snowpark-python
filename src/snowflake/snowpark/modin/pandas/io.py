@@ -478,7 +478,6 @@ def read_clipboard(
     )
 
 
-@_inherit_docstrings(pandas.read_excel, apilink="pandas.read_excel")
 @snowpark_pandas_telemetry_standalone_function_decorator
 @expanduser_path_arg("io")
 def read_excel(
@@ -517,7 +516,6 @@ def read_excel(
     engine_kwargs: dict | None = None,
 ) -> DataFrame | dict[IntStrT, DataFrame]:  # pragma: no cover
     _, _, _, kwargs = inspect.getargvalues(inspect.currentframe())
-
     from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
         FactoryDispatcher,
     )

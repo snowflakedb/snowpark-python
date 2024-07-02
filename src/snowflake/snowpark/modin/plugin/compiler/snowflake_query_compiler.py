@@ -82,6 +82,7 @@ from snowflake.snowpark.functions import (
     coalesce,
     col,
     concat,
+    corr,
     count,
     count_distinct,
     date_part,
@@ -125,6 +126,7 @@ from snowflake.snowpark.functions import (
     timestamp_ntz_from_parts,
     to_date,
     to_variant,
+    translate,
     trim,
     uniform,
     upper,
@@ -3824,6 +3826,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    def groupby_get_group(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Get all rows that match a given group name in the `by` column.
+
+        Arguments:
+            by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
+                Use this to determine the groups.
+            axis: 0 (index) or 1 (columns)
+            groupby_kwargs: dict
+                keyword arguments passed for the groupby.
+            agg_args: tuple
+                The aggregation args, unused in `groupby_get_group`.
+            agg_kwargs: dict
+                The aggregation keyword args, holds the name parameter.
+            drop: bool
+                Drop the `by` column, unused in `groupby_get_group`.
+        Returns:
+            SnowflakeQueryCompiler: The result of groupby_get_group().
+        """
+        level = groupby_kwargs.get("level", None)
+        is_supported = check_is_groupby_supported_by_snowflake(by, level, axis)
+        if not is_supported:  # pragma: no cover
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.get_group does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+            )
+        if is_list_like(by):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.get_group does not yet support multiple by columns."
+            )
+        name = agg_kwargs.get("name")
+        return self.take_2d_labels(
+            self.take_2d_labels(slice(None), by).binary_op("eq", name, 0),
+            slice(None),
+        )
+
     def groupby_size(
         self,
         by: Any,
@@ -6803,6 +6849,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # TODO SNOW-864083: look into why len(self.index) == 1 is also considered as series-like
         return self.get_axis_len(axis=1) == 1 or self.get_axis_len(axis=0) == 1
+
+    def pivot(
+        self,
+        columns: Any,
+        index: Optional[Any] = None,
+        values: Optional[Any] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return reshaped DataFrame organized by given index / column values.
+
+        Reshape data (produce a “pivot” table) based on column values. Uses unique values from
+        specified index / columns to form axes of the resulting DataFrame. This function does not
+        support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+        Parameters
+        ----------
+        columns : str or object or a list of str
+            Column to use to make new frame’s columns.
+        index : str or object or a list of str, optional
+            Column to use to make new frame’s index. If not given, uses existing index.
+        values : str, object or a list of the previous, optional
+            Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+            will be used and the result will have hierarchically indexed columns.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+        """
+        # Call pivot_table which is a more generalized version of pivot with `min` aggregation
+        # Note we differ from pandas by not checking for duplicates and raising a ValueError as that would require an eager query
+        return self.pivot_table(
+            columns=columns,
+            index=index,
+            values=values,
+            aggfunc="min",
+            fill_value=None,
+            margins=False,
+            dropna=True,
+            margins_name="All",
+            observed=False,
+            sort=True,
+        )
 
     def pivot_table(
         self,
@@ -13935,8 +14023,66 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_swapcase(self) -> None:
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
 
-    def str_translate(self, table: dict) -> None:
-        ErrorMessage.method_not_implemented_error("translate", "Series.str")
+    def str_translate(self, table: dict) -> "SnowflakeQueryCompiler":
+        """
+        Map all characters in the string through the given mapping table.
+
+        Equivalent to standard :meth:`str.translate`.
+
+        Parameters
+        ----------
+        table : dict
+            Table is a mapping of Unicode ordinals to Unicode ordinals, strings, or
+            None. Unmapped characters are left untouched.
+            Characters mapped to None are deleted. :meth:`str.maketrans` is a
+            helper function for making translation tables.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing results of the string operation.
+        """
+        # Snowflake SQL TRANSLATE:
+        #   TRANSLATE(<subject>, <sourceAlphabet>, <targetAlphabet>)
+        # Characters in the <sourceAlphabet> string are mapped to the corresponding entry in <targetAlphabet>.
+        # If <sourceAlphabet> is longer than <targetAlphabet>, then the trailing characters of <sourceAlphabet>
+        # are removed from the input string.
+        #
+        # Because TRANSLATE only supports 1-to-1 character mappings, any entries with multi-character
+        # values must be handled by REPLACE instead. 1-character keys are always invalid.
+        single_char_pairs = {}
+        none_keys = set()
+        for key, value in table.items():
+            # Treat integers as unicode codepoints
+            if isinstance(key, int):
+                key = chr(key)
+            if isinstance(value, int):
+                value = chr(value)
+            if len(key) != 1:
+                # Mimic error from str.maketrans
+                raise ValueError(
+                    f"Invalid mapping key '{key}'. String keys in translate table must be of length 1."
+                )
+            if value is not None and len(value) > 1:
+                raise NotImplementedError(
+                    f"Invalid mapping value '{value}' for key '{key}'. Snowpark pandas currently only "
+                    "supports unicode ordinals or 1-codepoint strings as values in str.translate mappings. "
+                    "Consider using Series.str.replace to replace multiple characters."
+                )
+            if value is None or len(value) == 0:
+                none_keys.add(key)
+            else:
+                single_char_pairs[key] = value
+        source_alphabet = "".join(single_char_pairs.keys()) + "".join(none_keys)
+        target_alphabet = "".join(single_char_pairs.values())
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_data_columns(
+                lambda col_name: translate(
+                    col(col_name),
+                    pandas_lit(source_alphabet),
+                    pandas_lit(target_alphabet),
+                )
+            )
+        )
 
     def str_wrap(self, width: int, **kwargs: Any) -> None:
         ErrorMessage.method_not_implemented_error("wrap", "Series.str")
@@ -14883,3 +15029,100 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return qc.dropna(axis=0, how="any", thresh=None)
         else:
             return qc
+
+    def corr(
+        self,
+        method: Union[str, Callable] = "pearson",
+        min_periods: Optional[int] = 1,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Compute pairwise correlation of columns, excluding NA/null values.
+
+        Parameters
+        ----------
+        method : {‘pearson’, ‘kendall’, ‘spearman’} or callable
+            Method of correlation:
+            pearson : standard correlation coefficient
+            kendall : Kendall Tau correlation coefficient
+            spearman : Spearman rank correlation
+            callable: callable with input two 1d ndarrays
+                and returning a float. Note that the returned matrix from corr will have 1 along the diagonals and will be symmetric regardless of the callable’s behavior.
+
+        min_periods : int, optional
+            Minimum number of observations required per pair of columns to have a valid result. Currently only available for Pearson and Spearman correlation.
+        """
+        if not isinstance(method, str):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas DataFrame.corr does not yet support non-string 'method'"
+            )
+
+        if method != "pearson":
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas DataFrame.corr does not yet support 'method={method}'"
+            )
+
+        if min_periods is None:
+            min_periods = 1
+
+        frame = self._modin_frame
+
+        query_compilers = []
+        for outer_pandas_label, outer_quoted_identifier in zip(
+            frame.data_column_pandas_labels,
+            frame.data_column_snowflake_quoted_identifiers,
+        ):
+            index_quoted_identifier = (
+                frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[INDEX_LABEL],
+                )[0]
+            )
+
+            # Apply a "min" function to the index column to make sure it's also an aggregate.
+            index_col = min_(pandas_lit(outer_pandas_label)).as_(
+                index_quoted_identifier
+            )
+
+            new_columns = [index_col]
+            for (
+                inner_quoted_identifier
+            ) in frame.data_column_snowflake_quoted_identifiers:
+                new_col = corr(outer_quoted_identifier, inner_quoted_identifier)
+                if min_periods > 1:
+                    outer_col_is_valid = builtin("count_if")(
+                        col(outer_quoted_identifier).is_not_null()
+                    ) >= pandas_lit(min_periods)
+                    inner_col_is_valid = builtin("count_if")(
+                        col(inner_quoted_identifier).is_not_null()
+                    ) >= pandas_lit(min_periods)
+                    new_col = iff(
+                        outer_col_is_valid & inner_col_is_valid,
+                        new_col,
+                        pandas_lit(None),
+                    )
+                new_col = new_col.as_(inner_quoted_identifier)
+                new_columns.append(new_col)
+
+            new_ordered_data_frame = OrderedDataFrame(
+                dataframe_ref=DataFrameReference(
+                    frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
+                        new_columns
+                    )
+                )
+            )
+
+            new_frame = InternalFrame.create(
+                ordered_dataframe=new_ordered_data_frame,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=[None],
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=[None],
+                index_column_snowflake_quoted_identifiers=[index_quoted_identifier],
+            )
+
+            query_compilers.append(SnowflakeQueryCompiler(new_frame))
+
+        if len(query_compilers) == 1:
+            result = query_compilers[0]
+        else:
+            result = query_compilers[0].concat(axis=0, other=query_compilers[1:])
+        return result

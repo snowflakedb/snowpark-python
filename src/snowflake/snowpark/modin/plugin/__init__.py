@@ -5,7 +5,6 @@
 import sys
 import warnings
 
-from modin.pandas.series_utils import DatetimeProperties  # type: ignore
 from packaging import version
 
 import snowflake.snowpark._internal.utils
@@ -103,4 +102,4 @@ def isocalendar(self):  # type: ignore
     return DataFrame(query_compiler=self._query_compiler.dt_isocalendar())
 
 
-DatetimeProperties.isocalendar = isocalendar
+modin.pandas.series_utils.DatetimeProperties.isocalendar = isocalendar
