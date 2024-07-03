@@ -265,12 +265,8 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
-        if self.source_plan:
-            self.source_plan.replace_child(old_node, new_node)
-
     def reset_snowflake_plan(self) -> None:
-        if self.source_plan:
+        if isinstance(self.source_plan, Selectable):
             self.source_plan.reset_snowflake_plan()
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":

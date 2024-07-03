@@ -56,9 +56,6 @@ class LogicalPlan:
     def reset_cumulative_node_complexity(self) -> None:
         self._cumulative_node_complexity = None
 
-    def reset_snowflake_plan(self):
-        pass
-
     @property
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
         return PipelineBreakerCategory.NON_BREAKER
@@ -104,10 +101,6 @@ class UnresolvedRelation(LeafNode):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
         return {PlanNodeCategory.COLUMN: 1}
-
-
-class TempTableReference(UnresolvedRelation):
-    pass
 
 
 class SnowflakeValues(LeafNode):
