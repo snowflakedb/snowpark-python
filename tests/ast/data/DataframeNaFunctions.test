@@ -52,7 +52,7 @@ res10 = res1.na.fill(42, ["NUM"])
 
 res11 = res1.na.fill("def", ["STR"])
 
-res12 = res1.na.replace({1: 10, "three": "trzy"}}, None)
+res12 = res1.na.replace({1: 10, "three": "trzy"}, None)
 
 res13 = res1.na.replace([1, 2], [10, 20])
 
