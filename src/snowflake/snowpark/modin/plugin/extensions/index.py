@@ -108,7 +108,6 @@ class Index:
         name: object = None,
         tupleize_cols: bool = True,
         convert_to_lazy: bool = True,
-        query_compiler: SnowflakeQueryCompiler | None = None,
     ) -> None:
         """
         Immutable sequence used for indexing and alignment.
@@ -131,9 +130,6 @@ class Index:
         convert_to_lazy : bool (default: True)
             When True, create a lazy index object from a local data input, otherwise, create an index object that saves a pandas index locally.
             We only set convert_to_lazy as False to avoid pulling data back and forth from Snowflake, e.g., when calling df.columns, the column data should always be kept locally.
-        query_compiler : SnowflakeQueryCompiler, optional
-
-
 
         Notes
         -----
@@ -152,27 +148,27 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        if query_compiler is not None:
-            data = query_compiler
+        if isinstance(data, SnowflakeQueryCompiler):
+            self.set_query_compiler(data=data)
             self.is_lazy = True
         else:
             self.is_lazy = convert_to_lazy
-        if self.is_lazy:
-            self.set_query_compiler(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
-        else:
-            self.set_local_index(
-                data=data,
-                dtype=dtype,
-                copy=copy,
-                name=name,
-                tupleize_cols=tupleize_cols,
-            )
+            if self.is_lazy:
+                self.set_query_compiler(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                )
+            else:
+                self.set_local_index(
+                    data=data,
+                    dtype=dtype,
+                    copy=copy,
+                    name=name,
+                    tupleize_cols=tupleize_cols,
+                )
 
     def set_query_compiler(
         self,
@@ -436,7 +432,7 @@ class Index:
                 "level is not yet supported for Index.unique. It is used with "
                 "MultiIndex objects, which will be supported in the future."
             )
-        return Index(query_compiler=self._query_compiler.unique(is_index=True, level=0))
+        return Index(data=self._query_compiler.unique(is_index=True, level=0))
 
     @property
     @is_lazy_check
