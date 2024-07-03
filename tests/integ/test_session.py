@@ -18,6 +18,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
 )
 from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
     _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
@@ -679,6 +680,29 @@ def test_cte_optimization_enabled_on_session(db_parameters):
     }
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.cte_optimization_enabled is True
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="reading server side parameter is not supported in local testing",
+)
+def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
+    db_parameters,
+):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+        new_session.eliminate_numeric_sql_value_cast_enabled = True
+        assert new_session.eliminate_numeric_sql_value_cast_enabled is True
+        new_session.eliminate_numeric_sql_value_cast_enabled = False
+        assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: True
+    }
+    with Session.builder.configs(parameters).create() as new_session2:
+        assert new_session2.eliminate_numeric_sql_value_cast_enabled is True
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
