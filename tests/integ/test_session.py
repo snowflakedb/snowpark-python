@@ -696,6 +696,8 @@ def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
         assert new_session.eliminate_numeric_sql_value_cast_enabled is True
         new_session.eliminate_numeric_sql_value_cast_enabled = False
         assert new_session.eliminate_numeric_sql_value_cast_enabled is False
+        with pytest.raises(ValueError):
+            new_session.eliminate_numeric_sql_value_cast_enabled = None
 
     parameters = db_parameters.copy()
     parameters["session_parameters"] = {
