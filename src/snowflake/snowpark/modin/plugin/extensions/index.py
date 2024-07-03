@@ -319,7 +319,6 @@ class Index:
         # TODO: SNOW-1458134 implement is_monotonic_decreasing
 
     @property
-    @index_not_implemented()
     @is_lazy_check
     def is_unique(self) -> bool:
         """
@@ -359,7 +358,6 @@ class Index:
         return self.to_pandas().is_unique
 
     @property
-    @index_not_implemented()
     @is_lazy_check
     def has_duplicates(self) -> bool:
         """
@@ -397,7 +395,6 @@ class Index:
         # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
-    @index_not_implemented()
     @is_lazy_check
     def unique(self, level: Hashable | None = None) -> Index:
         """
@@ -570,7 +567,6 @@ class Index:
 
     names = property(fset=_set_names, fget=_get_names)
 
-    @index_not_implemented()
     def set_names(
         self, names: Any, level: Any = None, inplace: bool = False
     ) -> Index | None:
@@ -875,7 +871,6 @@ class Index:
         """
         # TODO: SNOW-1458146 implement delete
 
-    @index_not_implemented()
     @is_lazy_check
     def drop(
         self,
@@ -938,7 +933,6 @@ class Index:
         """
         # TODO: SNOW-1458147 implement drop_duplicates
 
-    @index_not_implemented()
     @is_lazy_check
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
         """
@@ -1401,7 +1395,6 @@ class Index:
         """
         # TODO: SNOW-1458132 implement nunique
 
-    @index_not_implemented()
     @is_lazy_check
     def value_counts(
         self,
@@ -1748,7 +1741,6 @@ class Index:
 
     to_list = tolist
 
-    @index_not_implemented()
     @is_lazy_check
     def sort_values(
         self,
@@ -1856,7 +1848,6 @@ class Index:
         """
         # TODO: SNOW-1458150 implement join
 
-    @index_not_implemented()
     @is_lazy_check
     def intersection(self, other: Any, sort: bool = False) -> Index:
         """
@@ -1896,7 +1887,6 @@ class Index:
             convert_to_lazy=self.is_lazy,
         )
 
-    @index_not_implemented()
     @is_lazy_check
     def union(self, other: Any, sort: bool = False) -> Index:
         """
@@ -1950,7 +1940,6 @@ class Index:
             convert_to_lazy=self.is_lazy,
         )
 
-    @index_not_implemented()
     @is_lazy_check
     def difference(self, other: Any, sort: Any = None) -> Index:
         """
@@ -1992,7 +1981,6 @@ class Index:
             convert_to_lazy=self.is_lazy,
         )
 
-    @index_not_implemented()
     @is_lazy_check
     def get_indexer_for(self, target: Any) -> Any:
         """
@@ -2016,7 +2004,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("get_indexer_for")
         return self.to_pandas().get_indexer_for(target=target)
 
-    @index_not_implemented()
     @is_lazy_check
     def _get_indexer_strict(self, key: Any, axis_name: str) -> tuple[Index, np.ndarray]:
         """
@@ -2026,7 +2013,6 @@ class Index:
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return Index(tup[0], convert_to_lazy=self.is_lazy), tup[1]
 
-    @index_not_implemented()
     @is_lazy_check
     def get_level_values(self, level: int | str) -> Index:
         """
@@ -2106,7 +2092,6 @@ class Index:
         """
         # TODO: SNOW-1458153 implement isin
 
-    @index_not_implemented()
     @is_lazy_check
     def slice_indexer(
         self,
@@ -2153,7 +2138,6 @@ class Index:
         return self.to_pandas().slice_indexer(start=start, end=end, step=step)
 
     @property
-    @index_not_implemented()
     @is_lazy_check
     def array(self) -> ExtensionArray:
         """
@@ -2161,7 +2145,6 @@ class Index:
         """
         return self.to_pandas().array
 
-    @index_not_implemented()
     @is_lazy_check
     def _summary(self, name: Any = None) -> str:
         """
