@@ -135,6 +135,10 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Inserting data into table by matching columns is not supported",
+)
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
@@ -152,6 +156,8 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         df_cached.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
+        table = session.table(table_name).select("*")
+        table.show()
         Utils.check_answer(session.table(table_name), [Row(2, 1)])
 
         # copy DataFrame
