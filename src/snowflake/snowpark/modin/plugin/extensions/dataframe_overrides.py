@@ -12,10 +12,7 @@ from typing import Any
 import pandas as native_pd
 
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_dataframe_property,
-)
+from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
@@ -63,7 +60,8 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
     return native_pd.Series([0] * len(columns), index=columns)
 
 
-@register_dataframe_property("plot")
+@register_dataframe_accessor("plot")
+@property
 @snowpark_pandas_telemetry_method_decorator
 def plot(
     self,

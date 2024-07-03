@@ -86,100 +86,6 @@ def _set_attribute_on_obj(
     return decorator
 
 
-def _set_property_on_obj(
-    name: str,
-    extensions_dict: dict,
-    obj: Union["pd.DataFrame", "pd.Series", ModuleType],
-):
-    """
-    Create a new or override existing property on obj.
-
-    Parameters
-    ----------
-    name : str
-        The name of the property to assign to `obj`.
-    extensions_dict : dict
-        The dictionary mapping extension name to `new_attr` (assigned below).
-    obj : DataFrame, Series, or modin.pandas
-        The object we are assigning the new property to.
-
-    Returns
-    -------
-    decorator
-        Returns the decorator function.
-    """
-
-    def decorator(new_attr: Any):
-        new_prop = property(new_attr)
-        extensions_dict[name] = new_prop
-        setattr(obj, name, new_prop)
-        return new_prop
-
-    return decorator
-
-
-def register_dataframe_property(name: str):
-    """
-    Registers a dataframe property with the name provided. This can
-    be used to register properties on the DataFrame which can be
-    callable or used as accessors to other methods, such as
-    DataFrame.plot() or DataFrame.plot.area(). It can be used
-    with the following syntax:
-    ```
-    @register_dataframe_property("my_property")
-    def my_property_accessor(*args, **kwargs):
-        # logic goes here
-        return _my_property
-    ```
-    Parameters
-    ----------
-    name : str
-        The name of the property create on the DataFrame.
-    Returns
-    -------
-    decorator
-        Returns the decorator function for the property
-    """
-    import snowflake.snowpark.modin.pandas as pd
-
-    return _set_property_on_obj(
-        name,
-        pd.dataframe._DATAFRAME_EXTENSIONS_,
-        pd.dataframe.DataFrame,
-    )
-
-
-def register_series_property(name: str):
-    """
-    Registers a series property with the name provided. This can
-    be used to register properties on the Series which can be
-    callable or used as accessors to other methods, such as
-    Series.plot() or Series.plot.area(). It can be used
-    with the following syntax:
-    ```
-    @register_series_property("my_property")
-    def my_property_accessor(*args, **kwargs):
-        # logic goes here
-        return _my_property
-    ```
-    Parameters
-    ----------
-    name : str
-        The name of the property create on the Series.
-    Returns
-    -------
-    decorator
-        Returns the decorator function for the property
-    """
-    import snowflake.snowpark.modin.pandas as pd
-
-    return _set_property_on_obj(
-        name,
-        pd.series._SERIES_EXTENSIONS_,
-        pd.series.Series,
-    )
-
-
 def register_dataframe_accessor(name: str):
     """
     Registers a dataframe attribute with the name provided.
@@ -195,6 +101,16 @@ def register_dataframe_accessor(name: str):
     ```
     df.new_method(*my_args, **my_kwargs)
     ```
+
+    If you want a property accessor, you must annotate with @property
+    after the call to this function:
+    ```
+    @register_dataframe_accessor("new_prop")
+    @property
+    def my_new_dataframe_property(*args, **kwargs):
+        return _prop
+    ```
+
     Parameters
     ----------
     name : str
@@ -228,6 +144,16 @@ def register_series_accessor(name: str):
     ```
     s.new_method(*my_args, **my_kwargs)
     ```
+
+    If you want a property accessor, you must annotate with @property
+    after the call to this function:
+    ```
+    @register_series_accessor("new_prop")
+    @property
+    def my_new_series_property(*args, **kwargs):
+        return _prop
+    ```
+
     Parameters
     ----------
     name : str

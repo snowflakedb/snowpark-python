@@ -14,9 +14,6 @@ import pandas as native_pd
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
-from snowflake.snowpark.modin.pandas.api.extensions.extensions import (
-    register_series_property,
-)
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
@@ -123,7 +120,8 @@ def isin(self, values: Union[set, ListLike]) -> Series:
     return super(Series, self).isin(values)
 
 
-@register_series_property("plot")
+@register_series_accessor("plot")
+@property
 @snowpark_pandas_telemetry_method_decorator
 def plot(
     self,
