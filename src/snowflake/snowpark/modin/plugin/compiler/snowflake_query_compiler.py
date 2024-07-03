@@ -8665,7 +8665,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 snowflake_quoted_identifier
             )
             # TODO (SNOW-904421): Other value can fail to cast in snowflake if not compatible type
-            if other_value or other_value == 0:
+            if other_value is not None:
                 other_col_or_literal = pandas_lit(other_value)
                 other_col_data_type = infer_object_type(other_value)
                 if not is_compatible_snowpark_types(other_col_data_type, col_data_type):
