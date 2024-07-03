@@ -1115,9 +1115,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
