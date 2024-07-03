@@ -81,13 +81,12 @@ class StringType(_AtomicType):
         >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
     """
 
-    _MAX_LENGTH = 16777216
-
-    def __init__(self, length: Optional[int] = None) -> None:
+    def __init__(self, length: Optional[int] = None, is_max_size: bool = False) -> None:
         self.length = length
+        self._is_max_size = length is None or is_max_size
 
     def __repr__(self) -> str:
-        if self.length:
+        if self.length and not self._is_max_size:
             return f"StringType({self.length})"
         return "StringType()"
 
@@ -98,21 +97,21 @@ class StringType(_AtomicType):
         if self.length == other.length:
             return True
 
-        # This is to ensure that we treat StringType() and StringType(_MAX_LENGTH)
+        # This is to ensure that we treat StringType() and StringType(MAX_LENGTH)
         # the same because when a string type column is created on server side without
-        # a length parameter, it is set the _MAX_LENGTH by default.
+        # a length parameter, it is set the MAX_LENGTH by default.
         if (
             self.length is None
-            and other.length == StringType._MAX_LENGTH
+            and other._is_max_size
             or other.length is None
-            and self.length == StringType._MAX_LENGTH
+            and self._is_max_size
         ):
             return True
 
         return False
 
     def __hash__(self):
-        if self.length == StringType._MAX_LENGTH:
+        if self._is_max_size and self.length is not None:
             return StringType().__hash__()
         return super().__hash__()
 

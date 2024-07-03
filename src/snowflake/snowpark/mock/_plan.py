@@ -1544,9 +1544,10 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, StringType):
                 data_type.length = (
-                    StringType._MAX_LENGTH
-                    if data_type.length is None
-                    else data_type.length
+                    data_type.length or plan.session._conn.max_string_size
+                )
+                data_type._is_max_size = (
+                    data_type.length == plan.session._conn.max_string_size
                 )
 
             ret.append(
