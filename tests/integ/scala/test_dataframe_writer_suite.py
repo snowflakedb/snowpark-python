@@ -59,7 +59,9 @@ def test_write_with_target_column_name_order(session):
 
         # If target table doesn't exist, "order by name" is not actually used.
         Utils.drop_table(session, table_name)
-        df1.write.saveAsTable(table_name, mode="append", column_order="name")
+        df1.write.save_as_table(table_name, mode="append", column_order="name")
+        # NOTE: Order is different in the below check
+        # because the table returns columns in the order of the order of the schema `df1`
         Utils.check_answer(session.table(table_name), [Row(**{"B": 1, "A": 2})])
     finally:
         session.table(table_name).drop_table()
