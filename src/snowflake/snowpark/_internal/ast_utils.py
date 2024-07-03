@@ -9,9 +9,21 @@ import re
 import sys
 from functools import reduce
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
+import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    Literal,
+    MultipleExpression,
+    UnresolvedAttribute,
+)
+from snowflake.snowpark._internal.type_utils import (
+    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+    ColumnOrLiteral,
+)
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
@@ -133,6 +145,54 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
 
+def build_fn_apply(
+    ast: proto.Expr,
+    builtin_name: str,
+    *args: Tuple[Union[proto.Expr, Any]],
+    **kwargs: Dict[str, Union[proto.Expr, Any]],
+) -> None:
+    """
+    Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>, List(<args...>), Map(<kwargs...>))) for builtin
+    functions.
+    Args:
+        ast: Expr node to fill
+        builtin_name: Name of the builtin function to call.
+        *args: Positional arguments to pass to function.
+        **kwargs: Keyword arguments to pass to function.
+
+    """
+
+    expr = with_src_position(ast.apply_expr)
+
+    fn = proto.BuiltinFn()
+    fn.name = builtin_name
+    set_src_position(fn.src)
+    expr.fn.builtin_fn.CopyFrom(fn)
+
+    for arg in args:
+        if isinstance(arg, proto.Expr):
+            expr.pos_args.append(arg)
+        elif hasattr(arg, "_ast"):
+            assert arg._ast, f"Column object {arg} has no _ast member set."
+            expr.pos_args.append(arg._ast)
+        else:
+            pos_arg = proto.Expr()
+            build_const_from_python_val(arg, pos_arg)
+            expr.pos_args.append(pos_arg)
+
+    for name, arg in kwargs.items():
+        kwarg = proto.Tuple_String_Expr()
+        kwarg._1 = name
+        if isinstance(arg, proto.Expr):
+            kwarg._2.CopyFrom(arg)
+        elif isinstance(arg, snowflake.snowpark.Column):
+            assert arg._ast, f"Column object {name}={arg} has no _ast member set."
+            kwarg._2.CopyFrom(arg._ast)
+        else:
+            build_const_from_python_val(arg, kwarg._2)
+        expr.named_args.append(kwarg)
+
+
 def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
     """Searches up through the call stack using inspect library to find the first stack frame
     of a caller within a file which does not lie within the Snowpark library itself.
@@ -198,3 +258,120 @@ def with_src_position(expr_ast: proto.Expr) -> proto.Expr:
 def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
     if val is not None:
         setattr(obj, attr, val)
+
+
+def _fill_ast_with_snowpark_column_or_literal(
+    ast: proto.Expr, value: ColumnOrLiteral
+) -> None:
+    """Copy from a Column object's AST, or copy a literal value into an AST expression.
+
+    Args:
+        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        if value._ast is None and FAIL_ON_MISSING_AST:
+            raise NotImplementedError(
+                f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
+            )
+        elif value._ast is not None:
+            ast.CopyFrom(value._ast)
+    elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        build_const_from_python_val(value, ast)
+    elif isinstance(value, Expression):
+        # Expressions must be handled by caller.
+        pass
+    else:
+        raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
+
+
+def fill_ast_for_column(
+    expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
+) -> None:
+    """
+    Fill in expr node to encode Snowpark Column created through col(...) / column(...).
+    Args:
+        expr: Ast node to fill in.
+        name1: When name2 is None, this corresponds col_name. Else, this is df_alias.
+        name2: When not None, this is col_name.
+        fn_name: alias to use when encoding Snowpark column (should be "col" or "column").
+
+    """
+
+    # Handle the special case * (as a SQL column expr).
+    if name2 == "*":
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        if name1 is not None:
+            ast.df_alias.value = name1
+        return expr
+
+    if name1 == "*" and name2 is None:
+        ast = with_src_position(expr.sp_column_sql_expr)
+        ast.sql = "*"
+        return expr
+
+    # Regular form (without *): build as function ApplyExpr.
+    kwargs = (
+        {"df_alias": name1, "col_name": name2}
+        if name2 is not None
+        else {"col_name": name1}
+    )
+
+    # To replicate Snowpark behavior (overloads do NOT seem to work at the moment)
+    # - use args.
+    args = tuple(kwargs.values())
+    kwargs = {}
+
+    build_fn_apply(expr, fn_name, *args, **kwargs)
+
+
+def create_ast_for_column(
+    name1: str, name2: Optional[str], fn_name="col"
+) -> proto.Expr:
+    """
+    Helper function to create Ast for Snowpark Column. Cf. fill_ast_for_column on parameter details.
+    """
+    ast = proto.Expr()
+    fill_ast_for_column(ast, name1, name2, fn_name)
+    return ast
+
+
+def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
+    """
+    Converts Snowpark expression expr to protobuf ast.
+    Args:
+        expr: A Snowpark expression (or instance of a derived class from Expression).
+
+    Returns:
+        protobuf expression.
+    """
+    if hasattr(expr, "_ast"):
+        return expr._ast
+
+    if isinstance(expr, Attribute):
+        return create_ast_for_column(expr.name, None)
+    elif isinstance(expr, Literal):
+        ast = proto.Expr()
+        build_const_from_python_val(expr.value, ast)
+        return ast
+    elif isinstance(expr, UnresolvedAttribute):
+        # Unresolved means treatment as sql expression.
+        ast = proto.Expr()
+        sql_expr_ast = with_src_position(ast.sp_column_sql_expr)
+        sql_expr_ast.sql = expr.sql
+        return ast
+    elif isinstance(expr, MultipleExpression):
+        # Convert to list of expressions.
+        ast = proto.Expr()
+        for child_expr in expr.expressions:
+            ast_list = ast.list_val.vs.add()
+            ast_list.CopyFrom(snowpark_expression_to_ast(child_expr))
+        return ast
+    else:
+        raise NotImplementedError(
+            f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."
+        )
