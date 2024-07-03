@@ -77,7 +77,9 @@ def render(ast_base64: str) -> str:
         ],
         capture_output=True,
         text=True,
+        check=True,
     )
+
     return res.stdout
 
 

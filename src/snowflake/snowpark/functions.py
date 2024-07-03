@@ -162,12 +162,14 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
+    Expression,
     FunctionExpression,
     ListAgg,
     Literal,
@@ -180,6 +182,12 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lag,
     LastValue,
     Lead,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    build_fn_apply,
+    create_ast_for_column,
+    snowpark_expression_to_ast,
+    with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -251,10 +259,12 @@ def col(df_alias: str, col_name: str) -> Column:
 
 
 def col(name1: str, name2: Optional[str] = None) -> Column:
+    ast = create_ast_for_column(name1, name2, "col")
+
     if name2 is None:
-        return Column(name1)
+        return Column(name1, ast=ast)
     else:
-        return Column(name1, name2)
+        return Column(name1, name2, ast=ast)
 
 
 @overload
@@ -282,10 +292,12 @@ def column(df_alias: str, col_name: str) -> Column:
 
 
 def column(name1: str, name2: Optional[str] = None) -> Column:
+    ast = create_ast_for_column(name1, name2, "column")
+
     if name2 is None:
-        return Column(name1)
+        return Column(name1, ast=ast)
     else:
-        return Column(name1, name2)
+        return Column(name1, name2, ast=ast)
 
 
 def lit(literal: LiteralType) -> Column:
@@ -312,7 +324,10 @@ def lit(literal: LiteralType) -> Column:
         ---------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-    return literal if isinstance(literal, Column) else Column(Literal(literal))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lit", literal)
+    return literal if isinstance(literal, Column) else Column(Literal(literal), ast=ast)
 
 
 def sql_expr(sql: str) -> Column:
@@ -324,7 +339,16 @@ def sql_expr(sql: str) -> Column:
         >>> df.filter("a > 1").collect()  # use SQL expression
         [Row(A=3, B=4)]
     """
-    return Column._expr(sql)
+
+    sql_expr_ast = proto.Expr()
+    ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+    ast.sql = sql
+
+    # Capture with ApplyFn in order to restore sql_expr(...) function.
+    ast = proto.Expr()
+    build_fn_apply(ast, "sql_expr", sql_expr_ast)
+
+    return Column._expr(sql, ast=ast)
 
 
 def current_session() -> Column:
@@ -567,7 +591,14 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     """
     col = _to_col_if_str(col, "bround")
     scale = _to_col_if_lit(scale, "bround")
-    return call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "bround", col, scale)
+
+    # Note: Original Snowpark python code capitalized here.
+    col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
+    col._ast = ast
+    return col
 
 
 def convert_timezone(
@@ -720,9 +751,14 @@ def count_distinct(*cols: ColumnOrName) -> Column:
         <BLANKLINE>
         >>> #  The result should be 2 for {[1,2],[2,3]} since the rest are either duplicate or NULL records
     """
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "count_distinct", *cols)
+
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
-        FunctionExpression("count", [c._expression for c in cs], is_distinct=True)
+        FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
+        ast=ast,
     )
 
 
@@ -764,7 +800,9 @@ def covar_samp(column1: ColumnOrName, column2: ColumnOrName) -> Column:
     return builtin("covar_samp")(col1, col2)
 
 
-def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
+def create_map(
+    *cols: Union[ColumnOrName, List[ColumnOrName], Set[ColumnOrName]]
+) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
     columns is treated as a key-value pair in the resulting map.
 
@@ -806,6 +844,9 @@ def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
         -----------------------
         <BLANKLINE>
     """
+
+    # Note: The type hint seems wrong here, hard to infer what the correct API here is.
+
     if len(cols) == 1 and isinstance(cols[0], (list, set)):
         cols = cols[0]
 
@@ -815,7 +856,16 @@ def create_map(*cols: Union[ColumnOrName, Iterable[ColumnOrName]]) -> Column:
             f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
         )
 
-    return object_construct_keep_null(*cols)
+    # To make Ast deterministic, sort set and convert to tuple.
+    if isinstance(cols, set):
+        cols = tuple(sorted(list(cols)))
+
+    col = object_construct_keep_null(*cols)
+
+    # Alias to create_map
+    col._ast.apply_expr.fn.builtin_fn.name = "create_map"
+
+    return col
 
 
 def kurtosis(e: ColumnOrName) -> Column:
@@ -1007,7 +1057,12 @@ def sum_distinct(e: ColumnOrName) -> Column:
         [Row(SUM( DISTINCT "N")=6)]
     """
     c = _to_col_if_str(e, "sum_distinct")
-    return _call_function("sum", True, c)
+    col = _call_function("sum", True, c)
+
+    # alias to keep sum_distinct
+    col._ast.apply_expr.fn.builtin_fn.name = "sum_distinct"
+
+    return col
 
 
 def variance(e: ColumnOrName) -> Column:
@@ -1520,8 +1575,17 @@ def random(seed: Optional[int] = None) -> Column:
         >>> df = session.sql("select 1")
         >>> df = df.select(random(123).alias("result"))
     """
+
+    # Create AST here to encode whether a seed was supplied by the user or not.
+    ast = proto.Expr()
+    args = (seed,) if seed is not None else ()
+    build_fn_apply(ast, "random", *args)
+
     s = seed if seed is not None else randint(-(2**63), 2**63 - 1)
-    return builtin("random")(Literal(s))
+    col = builtin("random")(Literal(s))
+    col._ast = ast
+
+    return col
 
 
 def uniform(
@@ -2496,7 +2560,13 @@ def round(e: ColumnOrName, scale: Union[ColumnOrName, int, float] = 0) -> Column
         if isinstance(scale, (int, float))
         else _to_col_if_str(scale, "round")
     )
-    return builtin("round")(c, scale_col)
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "round", e, scale)
+
+    col = builtin("round")(c, scale_col)
+    col._ast = ast
+    return col
 
 
 def sign(col: ColumnOrName) -> Column:
@@ -6530,6 +6600,15 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
         >>> df.select(when(col("a") % 2 == 0, lit("even")).when(col("a") % 2 == 1, lit("odd")).otherwise(lit("unknown")).as_("ans")).collect()
         [Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='even'), Row(ANS='odd'), Row(ANS='unknown'), Row(ANS='odd'), Row(ANS='even')]
     """
+
+    ast = proto.Expr()
+    build_fn_apply(
+        ast,
+        "when",
+        snowpark_expression_to_ast(condition),
+        snowpark_expression_to_ast(value),
+    )
+
     return CaseExpr(
         CaseWhen(
             [
@@ -6538,7 +6617,8 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
                     Column._to_expr(value),
                 )
             ]
-        )
+        ),
+        ast=ast,
     )
 
 
@@ -6618,7 +6698,25 @@ def in_(
     """
     vals = parse_positional_args_to_list(*vals)
     columns = [_to_col_if_str(c, "in_") for c in cols]
-    return Column(MultipleExpression([c._expression for c in columns])).in_(vals)
+
+    # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
+    # Fix here by constructing ast based on current column expressions.
+    ast = proto.Expr()
+    for c in columns:
+        column_ast = ast.list_val.vs.add()
+        column_ast.CopyFrom(c._ast)
+    col = Column(MultipleExpression([c._expression for c in columns]), ast=ast).in_(
+        vals
+    )
+
+    # Replace ast in col with correct one.
+    ast = proto.Expr()
+    list_arg = col._ast.sp_column_in__seq.col
+    values_arg = col._ast.sp_column_in__seq.values[0]
+    build_fn_apply(ast, "in_", list_arg, values_arg)
+    col._ast = ast
+
+    return col
 
 
 def cume_dist() -> Column:
@@ -6791,8 +6889,13 @@ def lag(
         [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
     """
     c = _to_col_if_str(e, "lag")
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lag", e, default_value, offset, default_value, ignore_nulls)
+
     return Column(
-        Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lag(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        ast=ast,
     )
 
 
@@ -6823,8 +6926,13 @@ def lead(
         [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
     """
     c = _to_col_if_str(e, "lead")
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "lead", e, default_value, offset, default_value, ignore_nulls)
+
     return Column(
-        Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls)
+        Lead(c._expression, offset, Column._to_expr(default_value), ignore_nulls),
+        ast=ast,
     )
 
 
@@ -6844,7 +6952,11 @@ def last_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_LAST=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_LAST=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_LAST=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_LAST=21)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(LastValue(c._expression, None, None, ignore_nulls))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "last_value", e, ignore_nulls)
+
+    return Column(LastValue(c._expression, None, None, ignore_nulls), ast=ast)
 
 
 def first_value(
@@ -6863,7 +6975,11 @@ def first_value(
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_FIRST=10), Row(COLUMN1=1, COLUMN2=11, COLUMN2_FIRST=10), Row(COLUMN1=2, COLUMN2=20, COLUMN2_FIRST=20), Row(COLUMN1=2, COLUMN2=21, COLUMN2_FIRST=20)]
     """
     c = _to_col_if_str(e, "last_value")
-    return Column(FirstValue(c._expression, None, None, ignore_nulls))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "first_value", e, ignore_nulls)
+
+    return Column(FirstValue(c._expression, None, None, ignore_nulls), ast=ast)
 
 
 def ntile(e: Union[int, ColumnOrName]) -> Column:
@@ -6976,7 +7092,11 @@ def listagg(e: ColumnOrName, delimiter: str = "", is_distinct: bool = False) -> 
         [Row(RESULT='1,2,2,3,4,5')]
     """
     c = _to_col_if_str(e, "listagg")
-    return Column(ListAgg(c._expression, delimiter, is_distinct))
+
+    ast = proto.Expr()
+    build_fn_apply(ast, "listagg", e, delimiter, is_distinct)
+
+    return Column(ListAgg(c._expression, delimiter, is_distinct), ast=ast)
 
 
 def when_matched(
@@ -8177,7 +8297,22 @@ def _call_function(
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
 ) -> Column:
-    expressions = [Column._to_expr(arg) for arg in parse_positional_args_to_list(*args)]
+
+    args_list = parse_positional_args_to_list(*args)
+    ast = proto.Expr()
+
+    # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
+    #       Python objects are passed.
+    build_fn_apply(
+        ast,
+        name,
+        *tuple(
+            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+            for arg in args_list
+        ),
+    )
+
+    expressions = [Column._to_expr(arg) for arg in args_list]
     return Column(
         FunctionExpression(
             name,
@@ -8185,7 +8320,8 @@ def _call_function(
             is_distinct=is_distinct,
             api_call_source=api_call_source,
             is_data_generator=is_data_generator,
-        )
+        ),
+        ast=ast,
     )
 
 

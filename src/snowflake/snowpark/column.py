@@ -3,17 +3,14 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import inspect
 import sys
-from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Optional, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
-    BinaryExpression,
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
@@ -62,15 +59,13 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     IsNotNull,
     IsNull,
     Not,
-    UnaryExpression,
     UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    FAIL_ON_MISSING_AST,
-    build_const_from_python_val,
-    set_src_position,
-    setattr_if_not_none,
+    _fill_ast_with_snowpark_column_or_literal,
+    create_ast_for_column,
+    snowpark_expression_to_ast,
     with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -268,15 +263,8 @@ class Column:
             # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
             # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
             if self._ast is None:
-                self._ast = proto.Expr()
-                if expr2 == "*":
-                    ast = with_src_position(self._ast.sp_column_sql_expr)
-                    ast.sql = "*"
-                else:
-                    ast = with_src_position(self._ast.sp_column)
-                    ast.name = expr2
-                if expr1 is not None:
-                    ast.df_alias.value = expr1
+                self._ast = create_ast_for_column(expr1, expr2)
+
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
@@ -284,16 +272,17 @@ class Column:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
             if self._ast is None:
-                self._ast = proto.Expr()
-                if expr1 == "*":
-                    ast = with_src_position(self._ast.sp_column_sql_expr)
-                    ast.sql = "*"
-                else:
-                    ast = with_src_position(self._ast.sp_column)
-                    ast.name = expr1
+                self._ast = create_ast_for_column(expr1, None)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1
+
+            if self._ast is None:
+                if hasattr(expr1, "_ast"):
+                    self._ast = expr1._ast
+                else:
+                    self._ast = snowpark_expression_to_ast(expr1)
+
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
@@ -319,7 +308,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.eq)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         right = Column._to_expr(other)
         return Column(EqualTo(self._expression, right), ast=expr)
 
@@ -328,7 +317,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.neq)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         right = Column._to_expr(other)
         return Column(NotEqualTo(self._expression, right), ast=expr)
 
@@ -337,7 +326,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.gt)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(GreaterThan(self._expression, Column._to_expr(other)), ast=expr)
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -345,7 +334,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.lt)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(LessThan(self._expression, Column._to_expr(other)), ast=expr)
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -353,29 +342,33 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.geq)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
-        return Column(GreaterThanOrEqual(self._expression, Column._to_expr(other)), ast=expr)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
+        return Column(
+            GreaterThanOrEqual(self._expression, Column._to_expr(other)), ast=expr
+        )
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
         expr = proto.Expr()
         ast = with_src_position(expr.leq)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
-        return Column(LessThanOrEqual(self._expression, Column._to_expr(other)), ast=expr)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
+        return Column(
+            LessThanOrEqual(self._expression, Column._to_expr(other)), ast=expr
+        )
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
         expr = proto.Expr()
         ast = with_src_position(expr.add)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Add(self._expression, Column._to_expr(other)), ast=expr)
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.add)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Add(Column._to_expr(other), self._expression), ast=expr)
 
@@ -384,13 +377,13 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sub)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Subtract(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.sub)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Subtract(Column._to_expr(other), self._expression), ast=expr)
 
@@ -399,13 +392,13 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.mul)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Multiply(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.mul)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Multiply(Column._to_expr(other), self._expression), ast=expr)
 
@@ -414,13 +407,13 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.div)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Divide(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.div)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Divide(Column._to_expr(other), self._expression), ast=expr)
 
@@ -429,13 +422,13 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.mod)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Remainder(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.mod)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Remainder(Column._to_expr(other), self._expression), ast=expr)
 
@@ -444,13 +437,13 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.pow)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Pow(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = proto.Expr()
         ast = with_src_position(expr.pow)
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
         return Column(Pow(Column._to_expr(other), self._expression), ast=expr)
 
@@ -516,6 +509,13 @@ class Column:
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
+
+        # TODO SNOW-1515255: For in_([col("A"), "B", "A"], df) support df parameter.
+        if any(isinstance(val, snowflake.snowpark.dataframe.DataFrame) for val in vals):
+            raise NotImplementedError(
+                "SNOW-1515255: No support for dataframe paramter in in_."
+            )
+
         cols = parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
@@ -564,7 +564,16 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
-        return Column(InExpression(self._expression, value_expressions))
+        ast = proto.Expr()
+        proto_ast = ast.sp_column_in__seq
+        proto_ast.col.CopyFrom(self._ast)
+        values_ast = proto_ast.values.add()
+
+        for expr in value_expressions:
+            expr_ast = values_ast.list_val.vs.add()
+            expr_ast.CopyFrom(snowpark_expression_to_ast(expr))
+
+        return Column(InExpression(self._expression, value_expressions), ast=ast)
 
     def between(
         self,
@@ -575,8 +584,8 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_between)
         ast.col.CopyFrom(self._ast)
-        Column._fill_ast(ast.lower_bound, lower_bound)
-        Column._fill_ast(ast.upper_bound, upper_bound)
+        _fill_ast_with_snowpark_column_or_literal(ast.lower_bound, lower_bound)
+        _fill_ast_with_snowpark_column_or_literal(ast.upper_bound, upper_bound)
         ret = (Column._to_expr(lower_bound) <= self) & (
             self <= Column._to_expr(upper_bound)
         )
@@ -588,7 +597,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.bit_and)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(BitwiseAnd(Column._to_expr(other), self._expression), ast=expr)
 
     def bitor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -596,7 +605,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.bit_or)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(BitwiseOr(Column._to_expr(other), self._expression), ast=expr)
 
     def bitxor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
@@ -604,7 +613,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.bit_xor)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(BitwiseXor(Column._to_expr(other), self._expression), ast=expr)
 
     def __neg__(self) -> "Column":
@@ -619,7 +628,7 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_equal_null)
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(EqualNullSafe(self._expression, Column._to_expr(other)), ast=expr)
 
     def equal_nan(self) -> "Column":
@@ -649,30 +658,34 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(getattr(expr, "and"))
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(And(self._expression, Column._to_expr(other)), ast=expr)
 
     def __rand__(self, other: "Column") -> "Column":
         expr = proto.Expr()
         ast = with_src_position(getattr(expr, "and"))
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
-        return Column(And(Column._to_expr(other), self._expression), ast=expr)  # pragma: no cover
+        return Column(
+            And(Column._to_expr(other), self._expression), ast=expr
+        )  # pragma: no cover
 
     def __or__(self, other: "Column") -> "Column":
         """Or."""
         expr = proto.Expr()
         ast = with_src_position(getattr(expr, "or"))
         ast.lhs.CopyFrom(self._ast)
-        Column._fill_ast(ast.rhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.rhs, other)
         return Column(Or(self._expression, Column._to_expr(other)), ast=expr)
 
     def __ror__(self, other: "Column") -> "Column":
         expr = proto.Expr()
         ast = with_src_position(getattr(expr, "or"))
-        Column._fill_ast(ast.lhs, other)
+        _fill_ast_with_snowpark_column_or_literal(ast.lhs, other)
         ast.rhs.CopyFrom(self._ast)
-        return Column(And(Column._to_expr(other), self._expression), ast=expr)  # pragma: no cover
+        return Column(
+            And(Column._to_expr(other), self._expression), ast=expr
+        )  # pragma: no cover
 
     def __invert__(self) -> "Column":
         """Unary not."""
@@ -769,9 +782,9 @@ class Column:
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_like)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.pattern, pattern)
+        ast = with_src_position(expr.sp_column_string_like)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.pattern, pattern)
         return Column(Like(self._expression, Column._to_expr(pattern)), ast=expr)
 
     def regexp(self, pattern: ColumnOrLiteralStr) -> "Column":
@@ -788,9 +801,9 @@ class Column:
 
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_regexp)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.pattern, pattern)
+        ast = with_src_position(expr.sp_column_string_regexp)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.pattern, pattern)
         return Column(RegExp(self._expression, Column._to_expr(pattern)), ast=expr)
 
     def startswith(self, other: ColumnOrLiteralStr) -> "Column":
@@ -801,9 +814,9 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_starts_with)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.prefix, other)
+        ast = with_src_position(expr.sp_column_string_starts_with)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.prefix, other)
         other = snowflake.snowpark.functions.lit(other)
         return Column(
             snowflake.snowpark.functions.startswith(self, other)._expression, ast=expr
@@ -817,9 +830,9 @@ class Column:
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_ends_with)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.suffix, other)
+        ast = with_src_position(expr.sp_column_string_ends_with)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.suffix, other)
         other = snowflake.snowpark.functions.lit(other)
         return Column(
             snowflake.snowpark.functions.startswith(self, other)._expression, ast=expr
@@ -839,10 +852,10 @@ class Column:
         :meth:`substring` is an alias of :meth:`substr`.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_substr)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.pos, start_pos)
-        Column._fill_ast(ast.len, length)
+        ast = with_src_position(expr.sp_column_string_substr)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.pos, start_pos)
+        _fill_ast_with_snowpark_column_or_literal(ast.len, length)
         return Column(
             snowflake.snowpark.functions.substring(self, start_pos, length)._expression,
             ast=expr,
@@ -856,9 +869,9 @@ class Column:
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_collate)
-        ast.str.CopyFrom(self._ast)
-        ast.collation_spec = collation_spec
+        ast = with_src_position(expr.sp_column_string_collate)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.collation_spec, collation_spec)
         return Column(Collate(self._expression, collation_spec), ast=expr)
 
     def contains(self, string: ColumnOrName) -> "Column":
@@ -868,9 +881,9 @@ class Column:
             string: the string to search for in this column.
         """
         expr = proto.Expr()
-        ast = with_src_position(expr.string_contains)
-        ast.str.CopyFrom(self._ast)
-        Column._fill_ast(ast.pattern, string)
+        ast = with_src_position(expr.sp_column_string_contains)
+        ast.col.CopyFrom(self._ast)
+        _fill_ast_with_snowpark_column_or_literal(ast.pattern, string)
         return Column(
             snowflake.snowpark.functions.contains(self, string)._expression, ast=expr
         )
@@ -979,7 +992,7 @@ class Column:
         order_by_cols = []
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
-                assert(col._ast is not None)
+                assert col._ast is not None
                 ast.sp_column_within_group.cols.append(col._ast)
                 order_by_cols.append(col)
             elif isinstance(col, str):
@@ -1001,33 +1014,6 @@ class Column:
             return UnresolvedAlias(self._expression)
 
     @classmethod
-    def _fill_ast(cls, ast: proto.Expr, value: ColumnOrLiteral) -> None:
-        """Copy from a Column object's AST, or copy a literal value into an AST expression.
-
-        Args:
-            ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
-            value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
-
-        Raises:
-            TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
-        """
-        if isinstance(value, cls):
-            if value._ast is None and FAIL_ON_MISSING_AST:
-                raise NotImplementedError(
-                    f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
-                )
-            elif value._ast is not None:
-                ast.CopyFrom(value._ast)
-        elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-            build_const_from_python_val(value, ast)
-        elif isinstance(value, Expression):
-            pass  # TODO: clean this up
-        else:
-            raise TypeError(
-                f"{type(value)} is not a valid type for Column or literal AST."
-            )
-
-    @classmethod
     def _to_expr(cls, expr: Union[ColumnOrLiteral, Expression]) -> Expression:
         """
         Convert a Column object, or an literal value to an expression.
@@ -1044,8 +1030,8 @@ class Column:
             return Literal(expr)
 
     @classmethod
-    def _expr(cls, e: str) -> "Column":
-        return cls(UnresolvedAttribute(e, is_sql_text=True))
+    def _expr(cls, e: str, ast: Optional[proto.Expr] = None) -> "Column":
+        return cls(UnresolvedAttribute(e, is_sql_text=True), ast=ast)
 
     # Add these alias for user code migration
     isin = in_
@@ -1084,8 +1070,12 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
-    def __init__(self, expr: CaseWhen) -> None:
-        super().__init__(expr)
+    def __init__(
+        self,
+        expr: CaseWhen,
+        ast: Optional[proto.Expr] = None,
+    ) -> None:
+        super().__init__(expr, ast=ast)
         self._branches = expr.branches
 
     def when(self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> "CaseExpr":
