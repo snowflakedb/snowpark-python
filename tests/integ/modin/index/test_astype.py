@@ -49,6 +49,49 @@ def test_index_astype(index, type, is_lazy):
         assert_index_equal(snow_index.astype(type), index.astype(type))
 
 
+@pytest.mark.parametrize(
+    "index, type",
+    [
+        # convert int to type
+        (native_pd.Index([1, 2, 3, 4, 5], dtype=int), float),
+        (native_pd.Index([1, 2, 3, 4, 5], dtype=int, name="imaginary numbers"), bool),
+        (native_pd.Index([10, 20, 90, 80, 20], dtype=int), str),
+        # convert float to type
+        (native_pd.Index([1.2, 2, -0.1113, 4.07, 0.111], dtype=float), int),
+        (native_pd.Index([1.111, 2.222, -3.3333, -4.4444, 0], dtype=float), bool),
+        # convert str to type
+        (
+            native_pd.Index(
+                ["a", "b", "c", "d", "e"], dtype=str, name="pandas.Index the Great!"
+            ),
+            "object",
+        ),
+        (native_pd.Index(["1", "2", "3", "4", "5"], dtype="string"), np.int64),
+        (
+            native_pd.Index(["-2", "-5.6", "-0.008", "3.14", "-6.28"], dtype="string"),
+            float,
+        ),
+        (native_pd.Index(["True", "False", "True", "True", "False"], dtype=str), bool),
+        (native_pd.Index(["a", "b", "c", None, "d"], dtype=str), bool),
+        # convert bool to type
+        (native_pd.Index([True, False, True, False, False], dtype=bool), str),
+        (native_pd.Index([True, True, True, False, False], dtype=bool), np.int8),
+        (native_pd.Index([True, False, False, False, True], dtype=bool), float),
+        # convert object to type
+        (native_pd.Index(["a", "b", "c", 1, 2], dtype="O"), str),
+        (native_pd.Index([1, 2, 3, 4, 5], dtype="O"), np.int64),
+        (native_pd.Index([1.11, 2.1111, 3.0002, 4.111, 5.001], dtype=object), float),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_index_df_columns_astype(index, type):
+    native_df = native_pd.DataFrame([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]], columns=index)
+    snow_df = pd.DataFrame(native_df)
+    native_index = native_df.columns.astype(type)
+    snow_index = snow_df.columns.astype(type)
+    assert_index_equal(snow_index, native_index)
+
+
 @pytest.mark.parametrize("from_type", [str, int, float, object, bool])
 @pytest.mark.parametrize("to_type", [str, int, float, object, bool])
 @pytest.mark.parametrize("is_lazy", [True, False])
