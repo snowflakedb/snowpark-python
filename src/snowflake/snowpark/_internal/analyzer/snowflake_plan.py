@@ -22,6 +22,7 @@ from typing import (
 )
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -264,9 +265,13 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_child(self, old_node, new_node) -> None:
+    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
         if self.source_plan:
             self.source_plan.replace_child(old_node, new_node)
+
+    def reset_snowflake_plan(self) -> None:
+        if self.source_plan:
+            self.source_plan.reset_snowflake_plan()
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
@@ -355,6 +360,12 @@ class SnowflakePlan(LogicalPlan):
             height += 1
             current_level = next_level
         return height
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        if self.source_plan:
+            return self.source_plan.pipeline_breaker_category
+        return PipelineBreakerCategory.NON_BREAKER
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
@@ -958,6 +969,7 @@ class SnowflakePlanBuilder:
         self,
         name: str,
         child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
         *,
         use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
@@ -968,10 +980,13 @@ class SnowflakePlanBuilder:
                 name,
                 x,
                 None,
-                table_type=get_temp_type_for_object(use_scoped_temp_objects, is_generated)),
-                child,
-                None,
-            )
+                table_type=get_temp_type_for_object(
+                    use_scoped_temp_objects, is_generated
+                ),
+            ),
+            child,
+            source_plan,
+        )
 
     def create_table_and_insert(
         self,

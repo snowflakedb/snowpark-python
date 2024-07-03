@@ -1,19 +1,34 @@
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
 
 import copy
-from typing import List, Optional
+from collections import defaultdict
+from logging import getLogger
+from typing import List
 
 from sortedcontainers import SortedList
 
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PipelineBreakerCategory, get_complexity_score
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PipelineBreakerCategory,
+    get_complexity_score,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import TempTableReference
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateTempTableCommand
-from snowflake.snowpark._internal.utils import TempObjectType, random_name_for_temp_object
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
+
+_logger = getLogger(__name__)
 
 
 class LargeQueryBreakdown:
-    COMPLEXITY_SCORE_LOWER_BOUND = 2_500_000
-    COMPLEXITY_SCORE_UPPER_BOUND = 5_000_000
+    # COMPLEXITY_SCORE_LOWER_BOUND = 2_500_000
+    # COMPLEXITY_SCORE_UPPER_BOUND = 5_000_000
+    COMPLEXITY_SCORE_LOWER_BOUND = 300
+    COMPLEXITY_SCORE_UPPER_BOUND = 410
 
     def __init__(self, session) -> None:
         self.session = session
@@ -30,14 +45,19 @@ class LargeQueryBreakdown:
 
         """
         plans = []
-        root = copy.deepcopy(root)
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
+        root = copy.copy(root)
         while complexity_score > self.COMPLEXITY_SCORE_UPPER_BOUND:
             partition = self.get_partitioned_node(root)
             if partition is None:
+                _logger.debug("No appropriate node found to break down the query plan")
                 break
+            _logger.debug(
+                f"Partition complexity breakdown: {partition.cumulative_node_complexity}"
+            )
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
+            _logger.debug(f"Post breakdown {complexity_score=} for root node")
 
         plans.append(root)
         return plans
@@ -58,9 +78,8 @@ class LargeQueryBreakdown:
 
         # Initialize variables
         current_level = [root]
-        pipeline_breaker_list = SortedList()
-        parent_map = {}
-        parent_map[root] = None
+        pipeline_breaker_list = SortedList(key=lambda x: x[0])
+        parent_map = defaultdict(set)
 
         # Traverse the plan tree
         while current_level:
@@ -68,13 +87,19 @@ class LargeQueryBreakdown:
             for node in current_level:
                 for child in node.children_plan_nodes:
                     next_level.append(child)
-                    parent_map[child] = node
+                    parent_map[child].add(node)
                     score = get_complexity_score(child.cumulative_node_complexity)
 
                     # Categorize the child node based on its complexity score and pipeline breaker category
-                    if score > self.COMPLEXITY_SCORE_LOWER_BOUND and score < self.COMPLEXITY_SCORE_UPPER_BOUND:
-                        if child.pipeline_breaker_category == PipelineBreakerCategory.PIPELINE_BREAKER:
-                            pipeline_breaker_list.append((score, child))
+                    if (
+                        score > self.COMPLEXITY_SCORE_LOWER_BOUND
+                        and score <= self.COMPLEXITY_SCORE_UPPER_BOUND + 20
+                    ):
+                        if (
+                            child.pipeline_breaker_category
+                            == PipelineBreakerCategory.PIPELINE_BREAKER
+                        ):
+                            pipeline_breaker_list.add((score, child))
 
             current_level = next_level
 
@@ -82,25 +107,40 @@ class LargeQueryBreakdown:
         if not pipeline_breaker_list:
             return None
 
-        # Find the appropriate child and parent nodes to break the plan
-        child: Optional[SnowflakePlan] = None
-        parent: Optional[SnowflakePlan] = None
+        # Find the appropriate child break off from the plan
         child = pipeline_breaker_list[-1][1]
-        parent = parent_map[child]
 
         # Create a temporary table and replace the child node with the temporary table reference
         temp_table_name = self.session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
-        temp_table_node = self.session._analyzer.resolve(CreateTempTableCommand(child, temp_table_name))
-        temp_table_reference = self.session._analyzer.resolve(TempTableReference(temp_table_name))
-        parent.replace_child(child, temp_table_reference)
+        temp_table_plan = self.session._analyzer.resolve(
+            CreateTempTableCommand(child, temp_table_name)
+        )
+        # Drop the temporary table after the root node is executed
+        root.post_actions.append(Query(f"DROP TABLE IF EXISTS {temp_table_name}"))
+
+        if self.session.sql_simplifier_enabled:
+            temp_table_node = self.session._analyzer.create_selectable_entity(
+                temp_table_name, analyzer=self.session._analyzer
+            )
+        else:
+            temp_table_node = TempTableReference(temp_table_name)
+        parents = parent_map[child]
+        for parent in parents:
+            parent.replace_child(child, temp_table_node)
 
         # Update the SQL and complexity of the parent nodes
-        child_sql = child.queries[-1].sql
-        while parent is not None:
-            parent.queries[-1].sql.replace(child_sql, f"SELECT * FROM {temp_table_name}")
-            parent.reset_cumulative_node_complexity()
-            parent = parent_map[parent_map]
+        nodes_to_reset = list(parents)
+        while nodes_to_reset:
+            node = nodes_to_reset.pop()
+            nodes_to_reset.extend(parent_map[node])
 
-        return temp_table_node
+            node.reset_snowflake_plan()
+            node.reset_cumulative_node_complexity()
+
+        updated_root_plan = self.session._analyzer.resolve(root.source_plan)
+
+        # Update the final query in the root node
+        root.queries[-1] = updated_root_plan.queries[-1]
+        return temp_table_plan
