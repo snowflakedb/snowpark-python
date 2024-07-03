@@ -160,8 +160,6 @@ def build_fn_apply(
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
 
-    Returns:
-
     """
 
     expr = ast.apply_expr
@@ -276,8 +274,6 @@ def _fill_column_ast(ast: proto.Expr, value: ColumnOrLiteral) -> None:
         return ast.CopyFrom(value._ast)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         build_const_from_python_val(value, ast)
-    elif isinstance(value, Expression):
-        pass  # TODO: clean this up
     else:
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
 
@@ -302,28 +298,30 @@ def create_ast_for_column_method(
     """
 
     ast = proto.Expr()
-    if property is not None:
-        prop_ast = getattr(ast, property)
-        for attr, value in assign_fields.items():
-            setattr_if_not_none(prop_ast, attr, value)
-        for attr, value in assign_opt_fields.items():
-            setattr_if_not_none(getattr(prop_ast, attr), "value", value)
-        for attr, msg in copy_messages.items():
-            if msg is None and FAIL_ON_MISSING_AST:
-                call_stack = inspect.stack()
+    if property is None:
+        return ast
+
+    prop_ast = getattr(ast, property)
+    for attr, value in assign_fields.items():
+        setattr_if_not_none(prop_ast, attr, value)
+    for attr, value in assign_opt_fields.items():
+        setattr_if_not_none(getattr(prop_ast, attr), "value", value)
+    for attr, msg in copy_messages.items():
+        if msg is None and FAIL_ON_MISSING_AST:
+            call_stack = inspect.stack()
+            curr_frame = call_stack.pop(0)
+            while call_stack and __file__ == curr_frame.filename:
+                column_api = curr_frame.function
                 curr_frame = call_stack.pop(0)
-                while call_stack and __file__ == curr_frame.filename:
-                    column_api = curr_frame.function
-                    curr_frame = call_stack.pop(0)
-                if not Path(__file__).parents[0] in Path(curr_frame.filename).parents:
-                    raise NotImplementedError(
-                        f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
-                        f"\t{curr_frame.code_context[0].strip()}\n"
-                        f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
-                    )
-            getattr(prop_ast, attr).CopyFrom(msg)
-        for attr, other in fill_expr_asts.items():
-            _fill_column_ast(getattr(prop_ast, attr), other)
+            if not Path(__file__).parents[0] in Path(curr_frame.filename).parents:
+                raise NotImplementedError(
+                    f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
+                    f"\t{curr_frame.code_context[0].strip()}\n"
+                    f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
+                )
+        getattr(prop_ast, attr).CopyFrom(msg)
+    for attr, other in fill_expr_asts.items():
+        _fill_column_ast(getattr(prop_ast, attr), other)
     return ast
 
 

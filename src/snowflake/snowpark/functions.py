@@ -596,6 +596,7 @@ def bround(col: ColumnOrName, scale: Union[Column, int]) -> Column:
     ast = proto.Expr()
     build_fn_apply(ast, "bround", col, scale)
 
+    # Note: Original Snowpark python code capitalized here.
     col = call_builtin("ROUND", col, scale, lit("HALF_TO_EVEN"))
     col._ast = ast
     return col
