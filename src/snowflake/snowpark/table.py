@@ -288,9 +288,9 @@ class Table(DataFrame):
             # necessary to split it again here.
             ast.table = table_name
             if constructor == Table._TableConstructor.TABLE_INIT:
-                ast.constructor.sp_table_init = True
+                ast.variant.sp_table_init = True
             elif constructor == Table._TableConstructor.SESSION_TABLE:
-                ast.constructor.sp_session_table = True
+                ast.variant.sp_session_table = True
             else:
                 raise ValueError("Invalid constructor type")
             set_src_position(ast.src)
