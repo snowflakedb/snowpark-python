@@ -139,6 +139,13 @@ class MockServerConnection:
                     input_schema = table.columns.to_list()
                     existing_schema = target_table.columns.to_list()
 
+                    if len(table.columns.to_list()) != len(
+                        target_table.columns.to_list()
+                    ):
+                        raise SnowparkLocalTestingException(
+                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                        )
+
                     if len(input_schema) <= len(existing_schema) and (
                         all(
                             target_table[col].sf_type.nullable
