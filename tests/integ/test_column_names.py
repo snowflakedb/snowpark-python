@@ -837,9 +837,12 @@ def test_inf_column_name(session, local_testing_mode):
     df1 = session.create_dataframe([["inf"]], schema=["'INF'"])
     df2 = df1.select(df1["'INF'"] == math.inf)
 
-    # local testing mode is not handling INF correctly today, skip the result
-    # value check when it is local testing mode
-    expected_rows = None if local_testing_mode else [Row(True)]
+    # there is a behavior difference between local testing mode and snowflake.
+    # The column 'INF' of df1 is actually mapped to string columns. In snowflake,
+    # string column can be casted to numeric column when possible. However, in python,
+    # string to numeric cast is not possible. Therefore, local testing mode will return
+    # False for df2 result, but Snowflake returns True.
+    expected_rows = None if [Row(False)] else [Row(True)]
     verify_column_result(
         session,
         df2,
