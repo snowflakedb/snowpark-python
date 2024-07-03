@@ -186,7 +186,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.ast_utils import (
     build_fn_apply,
     create_ast_for_column,
-    create_ast_for_column_method,
+    fill_ast_for_column_method,
     snowpark_expression_to_ast,
 )
 from snowflake.snowpark._internal.type_utils import (
@@ -340,7 +340,9 @@ def sql_expr(sql: str) -> Column:
         [Row(A=3, B=4)]
     """
 
-    sql_expr_ast = create_ast_for_column_method(
+    sql_expr_ast = proto.Expr()
+    fill_ast_for_column_method(
+        sql_expr_ast,
         property="sp_column_sql_expr",
         assign_fields={"sql": sql},
     )

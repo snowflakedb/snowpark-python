@@ -278,14 +278,16 @@ def _fill_column_ast(ast: proto.Expr, value: ColumnOrLiteral) -> None:
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
 
 
-def create_ast_for_column_method(
+def fill_ast_for_column_method(
+    ast: proto.Expr,
     property: Optional[str] = None,
     assign_fields: Dict[str, Any] = {},  # noqa: B006
     assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
     copy_messages: Dict[str, Any] = {},  # noqa: B006
     fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
-) -> proto.SpColumnExpr:
-    """General purpose function to generate the AST representation for a new Snowpark Column instance
+) -> None:
+    """General purpose function to generate the AST representation for a new Snowpark Column instance, fills in ast with
+       fully populated SpColumnExpr AST from given arguments.
 
     Args:
         property (str, optional): The protobuf property name of a subtype of the SpColumnExpr IR entity. Defaults to None.
@@ -293,11 +295,8 @@ def create_ast_for_column_method(
         copy_messages (Dict[str, Any], optional): Subtype message fields which must be copied into (do not support assignment). Defaults to {}.
         fill_expr_asts (Dict[str, ColumnOrLiteral], optional): Subtype Expr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
 
-    Returns:
-        proto.SpColumnExpr: Returns fully populated SpColumnExpr AST from given arguments
     """
 
-    ast = proto.Expr()
     if property is None:
         return ast
 
@@ -322,14 +321,20 @@ def create_ast_for_column_method(
         getattr(prop_ast, attr).CopyFrom(msg)
     for attr, other in fill_expr_asts.items():
         _fill_column_ast(getattr(prop_ast, attr), other)
-    return ast
 
 
 def fill_ast_for_column(
     expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
-):
-    # When name2 is None, corresponds to col(col_name: str).
-    # Else, corresponds to col(df_alias: str, col_name: str)
+) -> None:
+    """
+    Fill in expr node to encode Snowpark Column created through col(...) / column(...).
+    Args:
+        expr: Ast node to fill in.
+        name1: When name2 is None, this corresponds col_name. Else, this is df_alias.
+        name2: When not None, this is col_name.
+        fn_name: alias to use when encoding Snowpark column (should be "col" or "column").
+
+    """
 
     # Handle the special case * (as a SQL column expr).
     if name2 == "*":
@@ -359,40 +364,15 @@ def fill_ast_for_column(
     build_fn_apply(expr, fn_name, *args, **kwargs)
 
 
-def create_ast_for_column(name1: str, name2: Optional[str], fn_name="col"):
-    # When name2 is None, corresponds to col(col_name: str).
-    # Else, corresponds to col(df_alias: str, col_name: str)
-
-    # Handle the special case * (as a SQL column expr).
-    if name2 == "*":
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_sql_expr)
-        ast.sql = "*"
-        if name1 is not None:
-            ast.df_alias.value = name1
-        return expr
-
-    if name1 == "*" and name2 is None:
-        expr = proto.Expr()
-        ast = with_src_position(expr.sp_column_sql_expr)
-        ast.sql = "*"
-        return expr
-
-    # Regular form (without *): build as function ApplyExpr.
-    kwargs = (
-        {"df_alias": name1, "col_name": name2}
-        if name2 is not None
-        else {"col_name": name1}
-    )
-
-    # To replicate Snowpark behavior (overloads do NOT seem to work at the moment)
-    # - use args.
-    args = tuple(kwargs.values())
-    kwargs = {}
-
-    expr = proto.Expr()
-    build_fn_apply(expr, fn_name, *args, **kwargs)
-    return expr
+def create_ast_for_column(
+    name1: str, name2: Optional[str], fn_name="col"
+) -> proto.Expr:
+    """
+    Helper function to create Ast for Snowpark Column. Cf. fill_ast_for_column on parameter details.
+    """
+    ast = proto.Expr()
+    fill_ast_for_column(ast, name1, name2, fn_name)
+    return ast
 
 
 def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
@@ -415,10 +395,13 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         return ast
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
-        return create_ast_for_column_method(
+        ast = proto.Expr()
+        fill_ast_for_column_method(
+            ast,
             property="sp_column_sql_expr",
             assign_fields={"sql": expr.sql},
         )
+        return ast
     elif isinstance(expr, MultipleExpression):
         # Convert to list of expressions.
         ast = proto.Expr()
