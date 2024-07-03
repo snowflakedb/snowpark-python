@@ -91,6 +91,7 @@ from snowflake.snowpark._internal.ast import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
+    fill_ast_for_column,
     get_symbol,
     set_src_position,
     setattr_if_not_none,
@@ -1189,17 +1190,12 @@ class DataFrame:
             if isinstance(e, Column):
                 names.append(e._named())
                 if ast:
-                    if e._ast is None and FAIL_ON_MISSING_AST:
-                        raise NotImplementedError(
-                            f"Column({e._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
-                        )
-                    elif e._ast is not None:
-                        ast.cols.append(e._ast)
+                    ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                if ast:
-                    col_expr_ast = ast.cols.add()
-                col_expr_ast.sp_column.name = e
+                col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                fill_ast_for_column(col_expr_ast, e, None)
+
                 col = Column(e, ast=col_expr_ast)
                 names.append(col._named())
 
