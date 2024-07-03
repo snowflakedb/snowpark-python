@@ -250,9 +250,9 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
         return t2
     if isinstance(t1, StringType):
         if isinstance(t2, StringType):
-            l1 = t1.length or StringType._MAX_LENGTH
-            l2 = t2.length or StringType._MAX_LENGTH
-            return StringType(max(l1, l2))
+            if t1.length is None or t2.length is None:
+                return StringType()
+            return StringType(max(t1.length, t2.length))
         elif isinstance(
             t2,
             (

@@ -370,6 +370,7 @@ class Utils:
                     meta.precision,
                     meta.scale,
                     meta.internal_size,
+                    session._conn.max_string_size,
                 )
                 == field.datatype
             )

@@ -35,7 +35,7 @@ def test_basic_filter(session):
             [
                 StructField("A", LongType(), nullable=False),
                 StructField("B", LongType(), nullable=False),
-                StructField("C", StringType(16777216), nullable=False),
+                StructField("C", StringType(), nullable=False),
             ]
         )
     )
