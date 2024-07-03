@@ -35,6 +35,7 @@ SERIES_TEST_CASES = [
     ({"compression": None}, False),
     ({"compression": "gzip"}, True),
     ({"compression": {"method": "gzip"}}, True),
+    ({"chunksize": 10}, False),
 ]
 
 
@@ -195,4 +196,63 @@ def test_to_csv_unknown_compression(sf_stage, session):
     # Write csv to snowflake stage.
     stage_location = f"@{sf_stage}/{os.path.basename(snow_path)}"
     with pytest.raises(ValueError, match=msg):
+        pd.DataFrame(native_df).to_csv(stage_location, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"float_format": None},
+        {"mode": "w"},
+        {"encoding": None},
+        {"quoting": None},
+        {"quotechar": '"'},
+        {"lineterminator": None},
+        {"doublequote": True},
+        {"decimal": "."},
+    ],
+)
+@sql_count_checker(query_count=2)
+def test_to_csv_unsupported_params_default_value(sf_stage, session, kwargs):
+    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    # None index name is not supported when writing to snowflake stage.
+    native_df.index.set_names(["X"], inplace=True)
+    native_path, snow_path = get_filepaths(kwargs, "unsupported_params_default_value")
+
+    # Write csv with native pandas.
+    native_df.to_csv(native_path, **kwargs)
+    # Write csv to snowflake stage.
+    stage_location = f"@{sf_stage}/{os.path.basename(snow_path)}"
+    pd.DataFrame(native_df).to_csv(stage_location, **kwargs)
+
+    # Download csv file from stage.
+    session.file.get(stage_location, TEMP_DIR_NAME)
+    # Compare content.
+    assert_file_equal(snow_path, native_path, False)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"float_format": "2d"},
+        {"mode": "a"},
+        {"encoding": "utf-16"},
+        {"quoting": "nonnumeric"},
+        {"quotechar": "|"},
+        {"lineterminator": "\r"},
+        {"doublequote": False},
+        {"decimal": ","},
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_to_csv_unsupported_params_error(sf_stage, session, kwargs):
+    native_df = native_pd.DataFrame({"A": ["one", "two", None], "B": [1, 2, 3]})
+    # None index name is not supported when writing to snowflake stage.
+    native_df.index.set_names(["X"], inplace=True)
+    native_path, snow_path = get_filepaths(kwargs, "unsupported_params_default_value")
+
+    stage_location = f"@{sf_stage}/{os.path.basename(snow_path)}"
+    msg = f"Snowpark pandas method to_csv does not yet support the '{list(kwargs.keys())[0]}' parameter"
+    with pytest.raises(NotImplementedError, match=msg):
+        # Write csv to snowflake stage.
         pd.DataFrame(native_df).to_csv(stage_location, **kwargs)
