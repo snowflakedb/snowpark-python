@@ -47,8 +47,6 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
 
     This function is used to only include nodes that should be converted to CTEs.
     """
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
@@ -62,10 +60,6 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
             for node in current_level:
                 node_count_map[node] += 1
                 for child in node.children_plan_nodes:
-                    # converting non-SELECT child query to SELECT query here,
-                    # so we can further optimize
-                    if isinstance(child, Selectable):
-                        child = child.to_subqueryable()
                     node_parents_map[child].add(node)
                     next_level.append(child)
             current_level = next_level
@@ -125,8 +119,6 @@ def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
             else:
                 plan_to_query_map[node] = node.placeholder_query
                 for child in node.children_plan_nodes:
-                    if isinstance(child, Selectable):
-                        child = child.to_subqueryable()
                     # replace the placeholder (id) with child query
                     plan_to_query_map[node] = plan_to_query_map[node].replace(
                         child._id, plan_to_query_map[child]
