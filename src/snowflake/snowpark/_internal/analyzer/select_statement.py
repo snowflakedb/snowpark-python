@@ -23,6 +23,7 @@ from typing import (
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -286,6 +287,9 @@ class Selectable(LogicalPlan, ABC):
             self._snowflake_plan.api_calls = self.api_calls
         return self._snowflake_plan
 
+    def reset_snowflake_plan(self):
+        self._snowflake_plan = None
+
     @property
     def plan_height(self) -> int:
         return self.snowflake_plan.plan_height
@@ -303,9 +307,8 @@ class Selectable(LogicalPlan, ABC):
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
@@ -319,9 +322,8 @@ class Selectable(LogicalPlan, ABC):
             else []
         )
 
-    def replace_child(self, old_node, new_node) -> None:
-        """Replaces a child node with a new node in the select statement.
-        """
+    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
+        """Replaces a child node with a new node in the select statement."""
         if self.snowflake_plan:
             self.snowflake_plan.replace_child(old_node, new_node)
 
@@ -477,6 +479,12 @@ class SelectSnowflakePlan(Selectable):
     def snowflake_plan(self):
         return self._snowflake_plan
 
+    def reset_snowflake_plan(self):
+        if self._snowflake_plan.source_plan:
+            self._snowflake_plan = self.analyzer.resolve(
+                self._snowflake_plan.source_plan
+            )
+
     @property
     def sql_query(self) -> str:
         return self._snowflake_plan.queries[-1].sql
@@ -500,6 +508,10 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        return self.snowflake_plan.pipeline_breaker_category
 
 
 class SelectStatement(Selectable):
@@ -644,6 +656,13 @@ class SelectStatement(Selectable):
             self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
         return self._sql_query
 
+    def reset_snowflake_plan(self):
+        # snowflake plan for SelectStatement is created from _sql_query, so reset it.
+        self._sql_query = None
+        self._schema_query = None
+        self._snowflake_plan = None
+        self.from_.reset_snowflake_plan()
+
     @property
     def placeholder_query(self) -> str:
         if self._placeholder_query:
@@ -694,9 +713,8 @@ class SelectStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return [self.from_]
 
-    def replace_child(self, old_node, new_node) -> None:
+    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
         if self.from_ == old_node:
-            # TODO: should this be converted into a selectable entity?
             self.from_ = new_node
 
     @property
@@ -753,6 +771,10 @@ class SelectStatement(Selectable):
             else complexity
         )
         return complexity
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        return PipelineBreakerCategory.NON_BREAKER
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1040,6 +1062,12 @@ class SelectTableFunction(Selectable):
     def snowflake_plan(self):
         return self._snowflake_plan
 
+    def reset_snowflake_plan(self):
+        if self._snowflake_plan.source_plan:
+            self._snowflake_plan = self.analyzer.resolve(
+                self._snowflake_plan.source_plan
+            )
+
     @property
     def sql_query(self) -> str:
         return self._snowflake_plan.queries[-1].sql
@@ -1060,6 +1088,10 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        return self.snowflake_plan.pipeline_breaker_category
+
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -1072,6 +1104,7 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self._sql_query = None
+        self._schema_query = None
         self._placeholder_query = None
         self.set_operands = set_operands
         self._nodes = []
@@ -1095,6 +1128,13 @@ class SetStatement(Selectable):
             self._sql_query = sql
         return self._sql_query
 
+    def reset_snowflake_plan(self):
+        # snowflake plan for SetStatement is created from _sql_query, so reset it.
+        self._sql_query = None
+        self._snowflake_plan = None
+        for operand in self.set_operands:
+            operand.selectable.reset_snowflake_plan()
+
     @property
     def placeholder_query(self) -> Optional[str]:
         if not self._placeholder_query:
@@ -1108,12 +1148,14 @@ class SetStatement(Selectable):
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
         Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
-        attributes = self.set_operands[0].selectable.snowflake_plan.attributes
-        sql = f"({schema_value_statement(attributes)})"
-        for i in range(1, len(self.set_operands)):
-            attributes = self.set_operands[i].selectable.snowflake_plan.attributes
-            sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
-        return sql
+        if self._schema_query is None:
+            attributes = self.set_operands[0].selectable.snowflake_plan.attributes
+            sql = f"({schema_value_statement(attributes)})"
+            for i in range(1, len(self.set_operands)):
+                attributes = self.set_operands[i].selectable.snowflake_plan.attributes
+                sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
+            self._schema_query = sql
+        return self._schema_query
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -1139,13 +1181,19 @@ class SetStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return self._nodes
 
-    def replace_child(self, old_node, new_node) -> None:
+    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
         self._nodes = [node if node != old_node else new_node for node in self._nodes]
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
+
+    @property
+    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        if any(map(lambda x: x.operator == SET_UNION, self.set_operands)):
+            return PipelineBreakerCategory.PIPELINE_BREAKER
+        return PipelineBreakerCategory.UNION_ALL
 
 
 class DeriveColumnDependencyError(Exception):

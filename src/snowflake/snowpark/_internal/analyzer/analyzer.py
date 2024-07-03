@@ -1068,10 +1068,13 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, CreateTempTableCommand):
-            return self.plan_builder.create_temp_table(logical_plan.name,
-                                                       resolved_children[logical_plan.child],
-                                                       use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                                                       is_generated=True)
+            return self.plan_builder.create_temp_table(
+                logical_plan.name,
+                resolved_children[logical_plan.child],
+                logical_plan,
+                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                is_generated=True,
+            )
 
         if isinstance(logical_plan, CreateViewCommand):
             if isinstance(logical_plan.view_type, PersistedView):

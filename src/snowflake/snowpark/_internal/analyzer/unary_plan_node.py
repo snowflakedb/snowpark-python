@@ -42,7 +42,7 @@ class Sample(UnaryNode):
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
         if self.row_count is not None:
             return PipelineBreakerCategory.PIPELINE_BREAKER
-        return PipelineBreakerCategory.PIPELINED
+        return PipelineBreakerCategory.NON_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -62,7 +62,8 @@ class Sort(UnaryNode):
 
     @property
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.PIPELINE_BREAKER
+        # we should not materialize a sort node as the order is not preserved
+        return PipelineBreakerCategory.NON_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

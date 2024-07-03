@@ -831,9 +831,15 @@ def create_table_as_select_statement(
         if clustering_key
         else EMPTY_STRING
     )
-    column_definition_sql = f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}" if column_definition else EMPTY_STRING
+    column_definition_sql = (
+        f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        if column_definition
+        else EMPTY_STRING
+    )
     comment_sql = get_comment_sql(comment)
-    project_sql = child if is_sql_select_statement(child) else project_statement([], child)
+    project_sql = (
+        child if is_sql_select_statement(child) else project_statement([], child)
+    )
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"

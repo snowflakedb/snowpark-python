@@ -53,16 +53,20 @@ class LogicalPlan:
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+
+    def reset_snowflake_plan(self):
+        pass
 
     @property
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.PIPELINED
+        return PipelineBreakerCategory.NON_BREAKER
 
-    def replace_child(self, old_node, new_node) -> None:
-        self.children = [child if child != old_node else new_node for child in self.children]
+    def replace_child(self, old_node: "LogicalPlan", new_node: "LogicalPlan") -> None:
+        self.children = [
+            child if child != old_node else new_node for child in self.children
+        ]
 
 
 class LeafNode(LogicalPlan):
@@ -100,6 +104,7 @@ class UnresolvedRelation(LeafNode):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM name
         return {PlanNodeCategory.COLUMN: 1}
+
 
 class TempTableReference(UnresolvedRelation):
     pass

@@ -45,12 +45,15 @@ class PipelineBreakerCategory(Enum):
     breaker and can be a good candidate for materialization.
     """
 
-    PIPELINE_BREAKER = "pipeline_breaker" # Sort, Grouping+Aggregate, Pivot, Unpivot, Union, Row Sampling, (Percentile?)
+    PIPELINE_BREAKER = "pipeline_breaker"  # Sort, Grouping+Aggregate, Pivot, Unpivot, Union, Row Sampling, (Percentile?)
     UNION_ALL = "union_all"  # (EXCEPT, INTERSECT, ?) UNION ALL
-    CONSECUTIVE_JOIN = "consecutive_join" # a join where one of the child is also a join
-    NON_CONSECUTIVE_JOIN = "non_consecutive_join" # join where none of the children are join
-    PIPELINED = "pipelined" # all nodes that are pipelines and should not be broken
-
+    CONSECUTIVE_JOIN = (
+        "consecutive_join"  # a join where one of the child is also a join
+    )
+    NON_CONSECUTIVE_JOIN = (
+        "non_consecutive_join"  # join where none of the children are join
+    )
+    NON_BREAKER = "non_breaker"  # all nodes that are pipelines and should not be broken
 
 
 def sum_node_complexities(
@@ -63,8 +66,9 @@ def sum_node_complexities(
     )
     return dict(counter_sum)
 
-def get_complexity_score(cumulative_node_complexity: Dict[PlanNodeCategory, int]) -> int:
+
+def get_complexity_score(
+    cumulative_node_complexity: Dict[PlanNodeCategory, int]
+) -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
-    return sum(
-        (val if key not in (PlanNodeCategory.LOW_IMPACT, PlanNodeCategory.OTHERS) else 0 for key, val in cumulative_node_complexity.items())
-    )
+    return sum(cumulative_node_complexity.values())

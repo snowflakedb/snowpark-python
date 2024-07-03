@@ -33,7 +33,6 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark._internal.large_query_breakdown import LargeQueryBreakdown
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
@@ -46,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.large_query_breakdown import LargeQueryBreakdown
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
     escape_quotes,
@@ -615,7 +615,11 @@ class ServerConnection:
 
                 for j, plan in enumerate(plans):
                     for i, query in enumerate(plan.queries):
-                        is_last = (j == len(plans) -1) and (i == len(plan.queries) - 1) and not block
+                        is_last = (
+                            (j == len(plans) - 1)
+                            and (i == len(plan.queries) - 1)
+                            and not block
+                        )
                         if isinstance(query, BatchInsertQuery):
                             self.run_batch_insert(query.sql, query.rows, **kwargs)
                         else:
@@ -631,7 +635,10 @@ class ServerConnection:
                             result = self.run_query(
                                 final_query,
                                 to_pandas,
-                                to_iter and (i == len(plan.queries) - 1 and j == len(plans) -1),
+                                to_iter
+                                and (
+                                    i == len(plan.queries) - 1 and j == len(plans) - 1
+                                ),
                                 is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                                 block=not is_last,
                                 data_type=data_type,
