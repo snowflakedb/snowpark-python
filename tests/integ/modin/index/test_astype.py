@@ -201,4 +201,4 @@ def test_index_astype_failure_snow_1480906():
     snow_index = pd.Index(native_index)
     with pytest.raises(AssertionError):
         assert_index_equal(snow_index.astype("object"), native_index.astype("object"))
-    assert snow_index.dtype == object
+    assert snow_index.dtype == np.int64

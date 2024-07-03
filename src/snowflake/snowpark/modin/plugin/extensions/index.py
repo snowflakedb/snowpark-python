@@ -518,7 +518,7 @@ class Index:
         col_dtypes = {
             column: dtype for column in self._query_compiler.get_index_names()
         }
-        new_query_compiler = self._query_compiler.astype(col_dtypes, is_index=True)
+        new_query_compiler = self._query_compiler.astype(col_dtypes, include_index=True)
         return Index(query_compiler=new_query_compiler)
 
     @property
