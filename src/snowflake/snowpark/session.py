@@ -648,11 +648,17 @@ class Session:
     @eliminate_numeric_sql_value_cast_enabled.setter
     @experimental_parameter(version="1.20.0")
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
-        if value is not None:
+        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+
+        if value in [True, False]:
             self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
                 self._session_id, value
             )
-        self._eliminate_numeric_sql_value_cast_enabled = value
+            self._eliminate_numeric_sql_value_cast_enabled = value
+        else:
+            raise ValueError(
+                "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
