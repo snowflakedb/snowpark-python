@@ -15,10 +15,14 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
+    CaseWhen,
     Expression,
     Literal,
     MultipleExpression,
     UnresolvedAttribute,
+)
+from snowflake.snowpark._internal.analyzer.unary_expression import (
+    Alias,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -352,7 +356,11 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     if hasattr(expr, "_ast"):
         return expr._ast
 
-    if isinstance(expr, Attribute):
+    if isinstance(expr, Alias):
+        # TODO: Not sure if this can come up in a real use case. We see this use case for internal calls, where
+        # we don't need an AST.
+        return None
+    elif isinstance(expr, Attribute):
         return create_ast_for_column(expr.name, None)
     elif isinstance(expr, Literal):
         ast = proto.Expr()
@@ -371,6 +379,10 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
             ast_list = ast.list_val.vs.add()
             ast_list.CopyFrom(snowpark_expression_to_ast(child_expr))
         return ast
+    elif isinstance(expr, CaseWhen):
+        # TODO: Not sure if this can come up in a real use case. We see this use case for internal calls, where
+        # we don't need an AST.
+        return None
     else:
         raise NotImplementedError(
             f"Snowpark expr {expr} of type {type(expr)} is an expression with missing AST or for which an AST can not be auto-generated."

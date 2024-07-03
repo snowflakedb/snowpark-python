@@ -10,6 +10,7 @@ from logging import getLogger
 from typing import Dict, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, with_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import (
@@ -160,6 +161,18 @@ class DataFrameNaFunctions:
         if how is not None and how not in ["any", "all"]:
             raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python)
+        self._df.set_ast_ref(ast.df)
+        ast.how = how
+        if thresh is not None:
+            ast.thresh.value = thresh
+        if isinstance(subset, str):
+            ast.subset.list.append(subset)
+        elif isinstance(subset, Iterable):
+            ast.subset.list.extend(subset)
+
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
             subset = self._df.columns
@@ -167,7 +180,7 @@ class DataFrameNaFunctions:
             subset = [subset]
         elif not isinstance(subset, (list, tuple)):
             raise TypeError("subset should be a list or tuple of column names")
-
+        
         # if thresh is not provided,
         # drop a row if it contains any nulls when how == 'any',
         # otherwise drop a row only if all its values are null.
@@ -179,11 +192,12 @@ class DataFrameNaFunctions:
         if thresh < 1 or len(subset) == 0:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.drop")
+            self._df._ast_id = stmt.var_id.bitfield1
             return self._df
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
         elif thresh > len(subset):
-            new_df = self._df.limit(0)
+            new_df = self._df.limit(0, _ast_stmt=stmt)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
         else:
@@ -211,7 +225,7 @@ class DataFrameNaFunctions:
                     col_counter += is_na
                 else:
                     col_counter = is_na
-            new_df = self._df.where(col_counter >= thresh)
+            new_df = self._df.where(col_counter >= thresh, _ast_stmt=stmt)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             return new_df
 
@@ -317,6 +331,24 @@ class DataFrameNaFunctions:
         # select col, iff(float_col = 'NaN' or float_col is null, replacement, float_col)
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_na_fill)
+        self._df.set_ast_ref(ast.df)
+        if isinstance(value, dict):
+            for k, v in value.items():
+                # N.B. In Phase 1, error checking will be incorporated directly here.
+                if isinstance(k, str):
+                    entry = ast.value_map.list.add()
+                    entry._1 = k
+                    build_const_from_python_val(v, entry._2)
+        else:
+            build_const_from_python_val(value, ast.value)
+        if isinstance(subset, str):
+            ast.subset.list.append(subset)
+        elif isinstance(subset, Iterable):
+            ast.subset.list.extend(subset)
+
         if subset is None:
             subset = self._df.columns
         elif isinstance(subset, str):
@@ -335,6 +367,7 @@ class DataFrameNaFunctions:
         if not value_dict:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.fill")
+            new_df._ast_id = stmt.var_id.bitfield1
             return new_df
         if not all(
             [
@@ -387,7 +420,7 @@ class DataFrameNaFunctions:
                 # it's not in the value dict, just append the original column
                 res_columns.append(col)
 
-        new_df = self._df.select(res_columns)
+        new_df = self._df.select(res_columns, _ast_stmt=stmt)
         adjust_api_subcalls(new_df, "DataFrameNaFunctions.fill", len_subcalls=1)
         return new_df
 
@@ -487,6 +520,34 @@ class DataFrameNaFunctions:
         See Also:
             :func:`DataFrame.replace`
         """
+        # AST.
+        stmt = self._df._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_na_replace)
+        self._df.set_ast_ref(ast.df)
+
+        if isinstance(to_replace, dict):
+            for k, v in to_replace.items():
+                entry = ast.replacement_map.list.add()
+                build_const_from_python_val(k, entry._1)
+                build_const_from_python_val(v, entry._2)
+        elif isinstance(to_replace, Iterable):
+            for v in to_replace:
+                entry = ast.to_replace_list.list.add()
+                build_const_from_python_val(v, entry)
+        else:
+            build_const_from_python_val(to_replace, ast.to_replace_value)
+
+        if isinstance(value, Iterable):
+            for v in value:
+                entry = ast.values.list.add()
+                build_const_from_python_val(v, entry)
+        else:
+            build_const_from_python_val(value, ast.value)
+
+        if subset is not None:
+            ast.subset.list.extend(subset)
+
+        # Validate arguments.
         if subset is None:
             subset = self._df.columns
         elif isinstance(subset, str):
@@ -496,6 +557,7 @@ class DataFrameNaFunctions:
         elif len(subset) == 0:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
+            new_df._ast_id = stmt.var_id.bitfield1
             return new_df
 
         if isinstance(to_replace, dict):
@@ -516,6 +578,7 @@ class DataFrameNaFunctions:
         if not replacement:
             new_df = copy.copy(self._df)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
+            new_df._ast_id = stmt.var_id.bitfield1
             return new_df
         if not all(
             [
@@ -572,6 +635,6 @@ class DataFrameNaFunctions:
             else:
                 res_columns.append(col)
 
-        new_df = self._df.select(res_columns)
+        new_df = self._df.select(res_columns, _ast_stmt=stmt)
         adjust_api_subcalls(new_df, "DataFrameNaFunctions.replace", len_subcalls=1)
         return new_df

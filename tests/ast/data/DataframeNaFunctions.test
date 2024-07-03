@@ -1,0 +1,59 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+drop1 = df.na.drop()
+
+drop2 = df.na.drop(how="all")
+
+drop3 = df.na.drop(how="any", thresh=42)
+
+drop4 = df.na.drop(subset="STR")
+
+drop5 = df.na.drop(how="all", subset=["NUM", "STR"])
+
+drop6 = df.na.drop(how="any", thresh=42, subset=["NUM"])
+
+fill1 = df.na.fill(42)
+
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
+
+fill3 = df.na.fill(42, subset="NUM")
+
+fill4 = df.na.fill("def", subset=["STR"])
+
+replace1 = df.na.replace({1: 10, "three": "trzy"})
+
+replace2 = df.na.replace([1, 2], [10, 20])
+
+replace3 = df.na.replace(1, 10, subset=["NUM"])
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.na.drop("any")
+
+res3 = res1.na.drop("all")
+
+res4 = res1.na.drop("any", 42)
+
+res5 = res1.na.drop("any", ["STR"])
+
+res6 = res1.na.drop("all", ["NUM", "STR"])
+
+res7 = res1.na.drop("any", 42, ["NUM"])
+
+res8 = res1.na.fill(42)
+
+res9 = res1.na.fill({"NUM": 42, "STR": "abc"}})
+
+res10 = res1.na.fill(42, ["NUM"])
+
+res11 = res1.na.fill("def", ["STR"])
+
+res12 = res1.na.replace({1: 10, "three": "trzy"}}, None)
+
+res13 = res1.na.replace([1, 2], [10, 20])
+
+res14 = res1.na.replace(1, 10, ["NUM"])
