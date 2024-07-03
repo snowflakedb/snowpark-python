@@ -157,6 +157,48 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes_without_tru
         session.table(table_name).drop_table()
 
 
+def test_write_with_target_column_name_order_with_nullable_column(
+    session,
+):
+    table_name = Utils.random_table_name()
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+                StructField("c", StringType(), nullable=True),
+                StructField("d", StringType(), nullable=True),
+                StructField("e", StringType(), nullable=True),
+                StructField("f", StringType(), nullable=True),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+    try:
+        df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
+
+        # By default, it is by index
+        df1.write.save_as_table(table_name, mode="append", table_type="temp")
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(
+                    **{
+                        "A": 2,
+                        "B": 1,
+                        "C": None,
+                        "D": None,
+                        "E": None,
+                        "F": None,
+                    }
+                )
+            ],
+        )
+    finally:
+        session.table(table_name).drop_table()
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Inserting data into table by matching columns is not supported",
