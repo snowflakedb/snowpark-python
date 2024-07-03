@@ -269,7 +269,7 @@ class Table(DataFrame):
     """
 
     @unique
-    class _TableConstructor(Enum):
+    class _TableAstVariant(Enum):
         TABLE_INIT = auto()
         SESSION_TABLE = auto()
 
@@ -277,7 +277,7 @@ class Table(DataFrame):
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
-        constructor: _TableConstructor = _TableConstructor.TABLE_INIT,
+        constructor: _TableAstVariant = _TableAstVariant.TABLE_INIT,
     ) -> None:
         # Begin AST
         if session is not None:
@@ -287,9 +287,9 @@ class Table(DataFrame):
             # The caller frequently has the split version of the name and joins it for this call, so it's silly but
             # necessary to split it again here.
             ast.table = table_name
-            if constructor == Table._TableConstructor.TABLE_INIT:
+            if constructor == Table._TableAstVariant.TABLE_INIT:
                 ast.variant.sp_table_init = True
-            elif constructor == Table._TableConstructor.SESSION_TABLE:
+            elif constructor == Table._TableAstVariant.SESSION_TABLE:
                 ast.variant.sp_session_table = True
             else:
                 raise ValueError("Invalid constructor type")
