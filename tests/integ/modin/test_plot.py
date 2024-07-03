@@ -7,11 +7,14 @@ import io
 import modin.pandas as pd
 import pandas as npd
 
+from tests.integ.modin.sql_counter import sql_count_checker
+
 species = ["adelie"] * 3 + ["chinstrap"] * 3 + ["gentoo"] * 3
 measurements = ["bill_length", "flipper_length", "bill_depth"] * 3
 values = [37.3, 187.1, 17.7, 46.6, 191.7, 17.6, 45.5, 212.7, 14.2]
 
 
+@sql_count_checker(query_count=1, join_count=0)
 def test_simple_plot_method():
     ndf = npd.DataFrame(
         {"species": species, "measurement": measurements, "value": values}
@@ -29,6 +32,7 @@ def test_simple_plot_method():
     assert df_plot_buf.getvalue() == ndf_plot_buf.getvalue()
 
 
+@sql_count_checker(query_count=1, join_count=0)
 def test_simple_plot_accessor():
     ndf = npd.DataFrame(
         {"species": species, "measurement": measurements, "value": values}
@@ -46,6 +50,7 @@ def test_simple_plot_accessor():
     assert df_plot_buf.getvalue() == ndf_plot_buf.getvalue()
 
 
+@sql_count_checker(query_count=2, join_count=0)
 def test_simple_plot_accessor_series():
     ser = pd.Series([1, 2, 3, 3])
     # plot using the property accessor
