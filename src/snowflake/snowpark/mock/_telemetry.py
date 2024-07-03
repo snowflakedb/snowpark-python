@@ -91,6 +91,7 @@ class LocalTestOOBTelemetryService(TelemetryService):
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
+        self._enable = True
 
     def _upload_payload(self, payload) -> None:
         if not REQUESTS_AVAILABLE:
@@ -141,6 +142,19 @@ class LocalTestOOBTelemetryService(TelemetryService):
             if payload is None:
                 return
             self._upload_payload(payload)
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the Telemetry service is enabled or not."""
+        return self._enabled
+
+    def enable(self) -> None:
+        """Enable Telemetry Service."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Disable Telemetry Service."""
+        self._enabled = False
 
     def export_queue_to_string(self):
         logs = list()
@@ -223,6 +237,22 @@ class LocalTestOOBTelemetryService(TelemetryService):
                 SnowparkLocalTestingException.raise_from_error(
                     raise_error(error_message), error_message
                 )
+
+    def close(self) -> None:
+        """Closes the telemetry service."""
+        self.flush()
+        self.disable()
+
+    def flush(self) -> None:
+        """Flushes all telemetry events in the queue and submit them to the back-end."""
+        if not self.enabled:
+            return
+
+        if not self.queue.empty():
+            payload = self.export_queue_to_string()
+            if payload is None:
+                return
+            self._upload_payload(payload)
 
 
 atexit.register(LocalTestOOBTelemetryService.get_instance().close)
