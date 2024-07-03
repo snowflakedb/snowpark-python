@@ -148,21 +148,19 @@ class MockServerConnection:
                         for col in existing_schema[len(input_schema) :]:
                             table[col] = None
                             table.sf_types[col] = target_table[col].sf_type
-                    elif set(input_schema) != set(
-                        existing_schema
-                    ):  # This condition doesn't seem to work!
-                        raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
-                        )
-
                     else:
                         raise SnowparkLocalTestingException(
                             f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
                         )
 
-                    table = table[
-                        target_table.columns
-                    ]  # This should only happen if column_order == "name" but we have no way to check the column_order
+                    # This should only happen if column_order == "name" but we have no way to check the column_order
+                    for col in input_schema:
+                        if col in existing_schema:
+                            continue
+                        raise SnowparkLocalTestingException(f"Invalid identifier {col}")
+
+                    # This should only happen if column_order == "name" but we have no way to check the column_order
+                    table = table[target_table.columns]
 
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True

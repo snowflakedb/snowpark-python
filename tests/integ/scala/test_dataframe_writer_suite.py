@@ -116,7 +116,7 @@ def test_negative_write_with_target_column_name_order(session):
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["a", "c"])
         # The "columnOrder = name" needs the DataFrame has the same column name set
-        with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
+        with pytest.raises(SnowparkSQLException, match='Invalid identifier "C"'):
             df1.write.save_as_table(
                 table_name, mode="append", column_order="name", table_type="temp"
             )
