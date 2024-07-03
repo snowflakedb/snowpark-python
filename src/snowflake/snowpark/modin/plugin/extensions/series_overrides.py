@@ -157,6 +157,6 @@ def plot(
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     WarningMessage.single_warning(
-        "Series.plot materializes data to the local machine for plotting"
+        "Series.plot materializes data to the local machine for plotting."
     )
     return self._to_pandas().plot

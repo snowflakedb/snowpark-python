@@ -104,6 +104,6 @@ def plot(
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     WarningMessage.single_warning(
-        "DataFrame.plot materializes data to the local machine for plotting"
+        "DataFrame.plot materializes data to the local machine for plotting."
     )
     return self._to_pandas().plot
