@@ -288,51 +288,6 @@ def _fill_ast_with_snowpark_column_or_literal(
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
 
 
-def fill_ast_for_column_method(
-    ast: proto.Expr,
-    property: Optional[str] = None,
-    assign_fields: Dict[str, Any] = {},  # noqa: B006
-    assign_opt_fields: Dict[str, Any] = {},  # noqa: B006
-    copy_messages: Dict[str, Any] = {},  # noqa: B006
-    fill_expr_asts: Dict[str, ColumnOrLiteral] = {},  # noqa: B006
-) -> None:
-    """General purpose function to generate the AST representation for a new Snowpark Column instance, fills in ast with
-       fully populated SpColumnExpr AST from given arguments.
-
-    Args:
-        property (str, optional): The protobuf property name of a subtype of the SpColumnExpr IR entity. Defaults to None.
-        assign_fields (Dict[str, Any], optional): Subtype fields with well known protobuf types that support direct assignment. Defaults to {}.
-        copy_messages (Dict[str, Any], optional): Subtype message fields which must be copied into (do not support assignment). Defaults to {}.
-        fill_expr_asts (Dict[str, ColumnOrLiteral], optional): Subtype Expr fields that must be filled explicitly from a ColumnOrLiteral type. Defaults to {}.
-
-    """
-
-    if property is None:
-        return ast
-
-    prop_ast = getattr(ast, property)
-    for attr, value in assign_fields.items():
-        setattr_if_not_none(prop_ast, attr, value)
-    for attr, value in assign_opt_fields.items():
-        setattr_if_not_none(getattr(prop_ast, attr), "value", value)
-    for attr, msg in copy_messages.items():
-        if msg is None and FAIL_ON_MISSING_AST:
-            call_stack = inspect.stack()
-            curr_frame = call_stack.pop(0)
-            while call_stack and __file__ == curr_frame.filename:
-                column_api = curr_frame.function
-                curr_frame = call_stack.pop(0)
-            if not Path(__file__).parents[0] in Path(curr_frame.filename).parents:
-                raise NotImplementedError(
-                    f'Calling Column API "{column_api}" which supports AST logging, from File "{curr_frame.filename}", line {curr_frame.lineno}\n'
-                    f"\t{curr_frame.code_context[0].strip()}\n"
-                    f"A Snowpark API which returns a Column instance used above has not yet implemented AST logging."
-                )
-        getattr(prop_ast, attr).CopyFrom(msg)
-    for attr, other in fill_expr_asts.items():
-        _fill_ast_with_snowpark_column_or_literal(getattr(prop_ast, attr), other)
-
-
 def fill_ast_for_column(
     expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
 ) -> None:
@@ -406,11 +361,8 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
         ast = proto.Expr()
-        fill_ast_for_column_method(
-            ast,
-            property="sp_column_sql_expr",
-            assign_fields={"sql": expr.sql},
-        )
+        sql_expr_ast = with_src_position(ast.sp_column_sql_expr)
+        sql_expr_ast.sql = expr.sql
         return ast
     elif isinstance(expr, MultipleExpression):
         # Convert to list of expressions.
