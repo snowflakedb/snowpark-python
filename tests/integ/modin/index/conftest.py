@@ -30,5 +30,5 @@ NATIVE_INDEX_UNIQUE_TEST_DATA = [
     native_pd.Index([3, np.nan, 5, np.nan, np.nan, 5, 5, 5.0], name="my_index"),
     native_pd.Index([5, None, 7, None]),
     native_pd.Index([1]),
-    native_pd.Index(["a", "b", 1, 2, None, "a", 2]),
+    native_pd.Index(["a", "b", 1, 2, None, "a", 2], name="mixed index"),
 ]
