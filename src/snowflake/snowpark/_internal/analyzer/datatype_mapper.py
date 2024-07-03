@@ -47,6 +47,10 @@ def str_to_sql(value: str) -> str:
 
 
 def float_nan_inf_to_sql(value: float) -> str:
+    """
+    convert the float nan and inf value to a snowflake compatible sql.
+    Note that nan and inf value will always require a cast with ::FLOAT in snowflake
+    """
     if math.isnan(value):
         cast_value = "'NAN'"
     elif math.isinf(value) and value > 0:
