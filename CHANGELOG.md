@@ -15,6 +15,9 @@
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
 
+#### Bug Fixes
+- Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
+
 ## 1.19.0 (2024-06-25)
 
 ### Snowpark Python API Updates
