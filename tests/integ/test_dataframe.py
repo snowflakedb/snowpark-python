@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import math
+import re
 import sys
 from array import array
 from collections import namedtuple
@@ -2620,7 +2621,20 @@ def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
             )
             with pytest.raises(SnowparkSQLException, match=exception_msg):
                 df3.write.save_as_table(table_name, mode=save_mode)
-        else:  # save_mode in ('append', 'errorifexists')
+        elif save_mode == "append":
+            # As long as the dataframe that is appended is only missing columns
+            # that are nullable there will be no error raised.
+            df2.write.save_as_table(table_name, mode=save_mode)
+            exception_msg = (
+                "invalid identifier 'C'"
+                if not local_testing_mode
+                else re.escape(
+                    "Cannot append because incoming data has different schema ['\"A\"', '\"B\"', '\"C\"'] than existing table ['\"A\"', '\"B\"']"
+                )
+            )
+            with pytest.raises(SnowparkSQLException, match=exception_msg):
+                df3.write.save_as_table(table_name, mode=save_mode)
+        else:  # when save_mode is 'errorifexists'
             with pytest.raises(SnowparkSQLException):
                 df2.write.save_as_table(table_name, mode=save_mode)
     finally:
