@@ -13,7 +13,8 @@ on:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
 
 jobs:
   deploy:
@@ -32,6 +33,46 @@ jobs:
         pip install build
     - name: Build package
       run: python -m build
+    - name: List artifacts
+        run: ls ./dist
+    - name: Install sigstore
+      run: python -m pip install sigstore
+    - name: Signing
+      run: |
+        for dist in dist/*; do
+          dist_base="$(basename "${dist}")"
+          echo "dist: ${dist}"
+          echo "dist_base: ${dist_base}"
+          python -m \
+            sigstore sign "${dist}" \
+            --output-signature "${dist_base}.sig" \
+            --output-certificate "${dist_base}.crt" \
+            --bundle "${dist_base}.sigstore"
+
+          # Verify using `.sig` `.crt` pair;
+          python -m \
+            sigstore verify identity "${dist}" \
+            --signature "${dist_base}.sig" \
+            --cert "${dist_base}.crt" \
+            --cert-oidc-issuer https://token.actions.githubusercontent.com \
+            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/build_and_sign_demand.yml@${GITHUB_REF}
+
+          # Verify using `.sigstore` bundle;
+          python -m \
+            sigstore verify identity "${dist}" \
+            --bundle "${dist_base}.sigstore" \
+            --cert-oidc-issuer https://token.actions.githubusercontent.com \
+            --cert-identity ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/build_and_sign_demand.yml@${GITHUB_REF}
+        done
+    - name: List artifacts after sign
+      run: ls ./dist
+    - name: Copy files to release
+      run: |
+        gh release upload ${{ github.event.release.tag_name }} *.sigstore
+        gh release upload ${{ github.event.release.tag_name }} *.sig
+        gh release upload ${{ github.event.release.tag_name }} *.crt
+      env:
+        GITHUB_TOKEN: ${{ github.TOKEN }}
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
