@@ -162,7 +162,7 @@ def build_fn_apply(
 
     """
 
-    expr = ast.apply_expr
+    expr = with_src_position(ast.apply_expr)
 
     fn = proto.BuiltinFn()
     fn.name = builtin_name
@@ -260,7 +260,9 @@ def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
         setattr(obj, attr, val)
 
 
-def _fill_column_ast(ast: proto.Expr, value: ColumnOrLiteral) -> None:
+def _fill_ast_with_snowpark_column_or_literal(
+    ast: proto.Expr, value: ColumnOrLiteral
+) -> None:
     """Copy from a Column object's AST, or copy a literal value into an AST expression.
 
     Args:
@@ -271,9 +273,17 @@ def _fill_column_ast(ast: proto.Expr, value: ColumnOrLiteral) -> None:
         TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
     """
     if isinstance(value, snowflake.snowpark.Column):
-        return ast.CopyFrom(value._ast)
+        if value._ast is None and FAIL_ON_MISSING_AST:
+            raise NotImplementedError(
+                f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
+            )
+        elif value._ast is not None:
+            ast.CopyFrom(value._ast)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         build_const_from_python_val(value, ast)
+    elif isinstance(value, Expression):
+        # Expressions must be handled by caller.
+        pass
     else:
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
 
@@ -320,7 +330,7 @@ def fill_ast_for_column_method(
                 )
         getattr(prop_ast, attr).CopyFrom(msg)
     for attr, other in fill_expr_asts.items():
-        _fill_column_ast(getattr(prop_ast, attr), other)
+        _fill_ast_with_snowpark_column_or_literal(getattr(prop_ast, attr), other)
 
 
 def fill_ast_for_column(
