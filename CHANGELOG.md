@@ -8,6 +8,7 @@
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
+- Added support server side string size limitations.
 
 ### Snowpark pandas API Updates
 
