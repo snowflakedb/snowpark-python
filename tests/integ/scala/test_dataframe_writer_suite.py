@@ -64,7 +64,7 @@ def test_write_with_target_column_name_order(session):
     finally:
         session.table(table_name).drop_table()
 
-    # This condition doesn't work due to SQL not being allow in `local_testing`
+    # This condition doesn't work due to SQL not being allowed in `local_testing` mode, hence commenting out
     # # column name and table name with special characters
     # special_table_name = '"test table name"'
     # Utils.create_table(
