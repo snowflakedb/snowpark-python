@@ -139,13 +139,6 @@ class MockServerConnection:
                     input_schema = table.columns.to_list()
                     existing_schema = target_table.columns.to_list()
 
-                    if len(table.columns.to_list()) != len(
-                        target_table.columns.to_list()
-                    ):
-                        raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
-                        )
-
                     if len(input_schema) <= len(existing_schema) and (
                         all(
                             target_table[col].sf_type.nullable
@@ -155,12 +148,22 @@ class MockServerConnection:
                         for col in existing_schema[len(input_schema) :]:
                             table[col] = None
                             table.sf_types[col] = target_table[col].sf_type
+                    elif set(input_schema) != set(
+                        existing_schema
+                    ):  # This condition doesn't seem to work!
+                        raise SnowparkLocalTestingException(
+                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                        )
+
                     else:
                         raise SnowparkLocalTestingException(
                             f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
                         )
 
-                    table.columns = target_table.columns
+                    table = table[
+                        target_table.columns
+                    ]  # This should only happen if column_order == "name" but we have no way to check the column_order
+
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
@@ -587,10 +590,12 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
+                        (
+                            Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
+                            if isinstance(sf_types[i].datatype, DecimalType)
+                            and v is not None
+                            else v
+                        )
                         for i, v in enumerate(pdr)
                     ]
                 )
@@ -652,9 +657,11 @@ class MockServerConnection:
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type
-                if column_data.sf_type
-                else res.sf_types[column_name],
+                datatype=(
+                    column_data.sf_type
+                    if column_data.sf_type
+                    else res.sf_types[column_name]
+                ),
             )
             for column_name, column_data in res.items()
         ]
