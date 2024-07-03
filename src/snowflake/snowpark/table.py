@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
-from snowflake.snowpark._internal.ast_utils import set_src_position
+from snowflake.snowpark._internal.ast_utils import with_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -282,7 +282,7 @@ class Table(DataFrame):
         # Begin AST
         if session is not None:
             stmt = session._ast_batch.assign()
-            ast = stmt.expr.sp_table
+            ast = with_src_position(stmt.expr.sp_table)
             # TODO(oplaton): table_name can be a qualified name, so we need to split it
             # The caller frequently has the split version of the name and joins it for this call, so it's silly but
             # necessary to split it again here.
@@ -293,7 +293,6 @@ class Table(DataFrame):
                 ast.variant.sp_session_table = True
             else:
                 raise ValueError("Invalid constructor type")
-            set_src_position(ast.src)
         else:
             raise NotImplementedError(
                 "Table() calls without a session are not implemented yet"
