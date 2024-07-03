@@ -75,7 +75,7 @@ def test_unstack_sort_notimplemented():
         snow_df.unstack(sort=False)
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_unstack_non_integer_level_notimplemented():
     # Still requires one query at the frontend layer checking number of levels
     index = pd.MultiIndex.from_product([[2, 1], ["a", "b"]])
