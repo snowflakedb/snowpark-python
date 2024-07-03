@@ -14,7 +14,6 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import TempTableReference
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateTempTableCommand
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -77,7 +76,7 @@ class LargeQueryBreakdown:
         """
 
         # Initialize variables
-        current_level = [root]
+        current_level = [root.source_plan]
         pipeline_breaker_list = SortedList(key=lambda x: x[0])
         parent_map = defaultdict(set)
 
@@ -88,18 +87,11 @@ class LargeQueryBreakdown:
                 for child in node.children_plan_nodes:
                     next_level.append(child)
                     parent_map[child].add(node)
-                    score = get_complexity_score(child.cumulative_node_complexity)
-
-                    # Categorize the child node based on its complexity score and pipeline breaker category
-                    if (
-                        score > self.COMPLEXITY_SCORE_LOWER_BOUND
-                        and score <= self.COMPLEXITY_SCORE_UPPER_BOUND + 20
+                    score = get_complexity_score(node.cumulative_node_complexity)
+                    if self.is_node_valid_to_breakdown(
+                        score, child.pipeline_breaker_category
                     ):
-                        if (
-                            child.pipeline_breaker_category
-                            == PipelineBreakerCategory.PIPELINE_BREAKER
-                        ):
-                            pipeline_breaker_list.add((score, child))
+                        pipeline_breaker_list.add((score, child))
 
             current_level = next_level
 
@@ -111,26 +103,52 @@ class LargeQueryBreakdown:
         child = pipeline_breaker_list[-1][1]
 
         # Create a temporary table and replace the child node with the temporary table reference
-        temp_table_name = self.session.get_fully_qualified_name_if_possible(
-            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
-        )
+        temp_table_name = self.get_temp_table_name()
         temp_table_plan = self.session._analyzer.resolve(
             CreateTempTableCommand(child, temp_table_name)
         )
-        # Drop the temporary table after the root node is executed
-        root.post_actions.append(Query(f"DROP TABLE IF EXISTS {temp_table_name}"))
 
-        if self.session.sql_simplifier_enabled:
-            temp_table_node = self.session._analyzer.create_selectable_entity(
-                temp_table_name, analyzer=self.session._analyzer
-            )
-        else:
-            temp_table_node = TempTableReference(temp_table_name)
+        self.update_ancestors(parent_map, child, temp_table_name)
+        self.update_root_query(root, temp_table_name)
+
+        return temp_table_plan
+
+    def get_temp_table_name(self) -> str:
+        return self.session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        )
+
+    def is_node_valid_to_breakdown(
+        self, score: int, pipeline_breaker_category: PipelineBreakerCategory
+    ) -> bool:
+        """Check if the node is valid to break down based on the complexity score and pipeline breaker category."""
+
+        valid_score_range = (
+            score > self.COMPLEXITY_SCORE_LOWER_BOUND
+            and score <= self.COMPLEXITY_SCORE_UPPER_BOUND + 20
+        )
+
+        valid_pipeline_breaker_category = (
+            pipeline_breaker_category == PipelineBreakerCategory.PIPELINE_BREAKER
+        )
+
+        return valid_score_range and valid_pipeline_breaker_category
+
+    def update_ancestors(self, parent_map, child, temp_table_name):
+        """For the replaced child node, update the direct parent(s) with the temporary table
+        reference. For all the ancestors of the child node, update the SnowflakePlan and
+        complexity of the nodes.
+        """
+        temp_table_ref_node = self.session._analyzer.create_selectable_entity(
+            temp_table_name, analyzer=self.session._analyzer
+        )
+
+        # Replace the child node with the temporary table reference
         parents = parent_map[child]
         for parent in parents:
-            parent.replace_child(child, temp_table_node)
+            parent.replace_child(child, temp_table_ref_node)
 
-        # Update the SQL and complexity of the parent nodes
+        # Update the SQL and complexity of the ancestors nodes
         nodes_to_reset = list(parents)
         while nodes_to_reset:
             node = nodes_to_reset.pop()
@@ -139,8 +157,12 @@ class LargeQueryBreakdown:
             node.reset_snowflake_plan()
             node.reset_cumulative_node_complexity()
 
-        updated_root_plan = self.session._analyzer.resolve(root.source_plan)
-
+    def update_root_query(
+        self, root: SnowflakePlan, temp_table_name: str
+    ) -> SnowflakePlan:
+        """Update the final query in the root node and add a post action to drop the temporary table."""
         # Update the final query in the root node
+        updated_root_plan = self.session._analyzer.resolve(root.source_plan)
         root.queries[-1] = updated_root_plan.queries[-1]
-        return temp_table_plan
+        # Drop the temporary table after the root node is executed
+        root.post_actions.append(Query(f"DROP TABLE IF EXISTS {temp_table_name}"))
