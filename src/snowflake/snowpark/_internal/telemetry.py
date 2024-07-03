@@ -36,6 +36,10 @@ class TelemetryField(Enum):
     TYPE_SESSION_CREATED = "snowpark_session_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
+    # telemetry for optimization that eliminates the extra cast expression generated for expressions
+    TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
+        "snowpark_eliminate_numeric_sql_value_cast_enabled"
+    )
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -372,6 +376,20 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.CTE_OPTIMIZATION_ENABLED.value: True,
+            },
+        }
+        self.send(message)
+
+    def send_eliminate_numeric_sql_value_cast_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED.value: value,
             },
         }
         self.send(message)
