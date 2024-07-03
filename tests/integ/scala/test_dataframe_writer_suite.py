@@ -135,6 +135,56 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
+def test_write_with_target_column_name_order_all_kinds_of_dataframes_without_truncates(
+    session,
+):
+    table_name = Utils.random_table_name()
+
+    def create_table():
+        session.create_dataframe(
+            [],
+            schema=StructType(
+                [StructField("a", IntegerType()), StructField("b", IntegerType())]
+            ),
+        ).write.save_as_table(table_name, table_type="temporary")
+
+    create_table()
+    try:
+        df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
+        # DataFrame.cache_result()
+        df_cached = df1.cache_result()
+        df_cached.write.save_as_table(
+            table_name, mode="append", column_order="name", table_type="temp"
+        )
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
+    finally:
+        session.table(table_name).drop_table()
+
+    create_table()
+    try:
+        # copy DataFrame
+        df_cloned = copy.copy(df1)
+        df_cloned.write.save_as_table(
+            table_name, mode="append", column_order="name", table_type="temp"
+        )
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
+    finally:
+        session.table(table_name).drop_table()
+
+    create_table()
+    try:
+        large_df = session.create_dataframe([[1, 2]] * 1024, schema=["b", "a"])
+        large_df.write.save_as_table(
+            table_name, mode="append", column_order="name", table_type="temp"
+        )
+        rows = session.table(table_name).collect()
+        assert len(rows) == 1024
+        for row in rows:
+            assert row["B"] == 1 and row["A"] == 2
+    finally:
+        session.table(table_name).drop_table()
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Inserting data into table by matching columns is not supported",
