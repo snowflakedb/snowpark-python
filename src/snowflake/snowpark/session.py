@@ -645,6 +645,15 @@ class Session:
             )
         self._cte_optimization_enabled = value
 
+    @eliminate_numeric_sql_value_cast_enabled.setter
+    @experimental_parameter(version="1.20.0")
+    def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
+        if value is not None:
+            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                self._session_id, value
+            )
+        self._eliminate_numeric_sql_value_cast_enabled = value
+
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:

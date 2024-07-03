@@ -9,7 +9,7 @@
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
-- Avoid casting for numeric sql values for binary expression, multiExpression and InExpression. The change is controlled by session parameter _eliminate_numeric_sql_value_cast_enabled.
+- Avoid casting for numeric sql values for binary expression, multiExpression and InExpression. This is a performance improvement especially for InExpression, and can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
 
 ### Snowpark pandas API Updates
 

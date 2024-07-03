@@ -50,11 +50,11 @@ paramList = [True, False]
 @pytest.fixture(params=paramList, autouse=True)
 def setup(request, session):
     is_eliminate_numeric_sql_value_cast_enabled = (
-        session._eliminate_numeric_sql_value_cast_enabled
+        session.eliminate_numeric_sql_value_cast_enabled
     )
-    session._eliminate_numeric_sql_value_cast_enabled = request.param
+    session.eliminate_numeric_sql_value_cast_enabled = request.param
     yield
-    session._eliminate_numeric_sql_value_cast_enabled = (
+    session.eliminate_numeric_sql_value_cast_enabled = (
         is_eliminate_numeric_sql_value_cast_enabled
     )
 
