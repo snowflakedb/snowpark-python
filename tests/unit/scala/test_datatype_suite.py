@@ -70,6 +70,36 @@ def test_string_type():
     assert repr(tpe) == "StringType(17)"
 
 
+def test_string_type_max():
+    """
+    Test that various edge cases with max length strings work as expected.
+    Although contrived, it is possible that StringType objects will be compared that are created
+    from sessions with different size limiations.
+    """
+    max_string = StringType()
+    max_w_length_1 = StringType(16, True)
+    max_w_length_2 = StringType(32, True)
+    small_string = StringType(16)
+
+    # Max strings all have the same repr
+    assert all(
+        repr(s) == "StringType()" for s in [max_string, max_w_length_1, max_w_length_2]
+    )
+
+    # Non-max strings include length in repr
+    assert repr(small_string) == "StringType(16)"
+
+    # Max string without defined length is equal to a max string with defined length
+    assert max_string == max_w_length_1
+    assert max_string == max_w_length_2
+
+    # Max strings with defined lengths are not equal if their lengths are not equal
+    assert max_w_length_1 != max_w_length_2
+
+    # Strings of same length are equal regardless of if they are max length
+    assert small_string == max_w_length_1
+
+
 def test_boolean_type():
     tpe = BooleanType()
     assert isinstance(tpe, _AtomicType)
