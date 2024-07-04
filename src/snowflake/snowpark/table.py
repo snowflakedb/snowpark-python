@@ -279,7 +279,6 @@ class Table(DataFrame):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         constructor: _TableAstVariant = _TableAstVariant.TABLE_INIT,
     ) -> None:
-        # Begin AST
         if session is not None:
             stmt = session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table)
