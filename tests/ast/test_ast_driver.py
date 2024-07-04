@@ -87,6 +87,7 @@ def run_test(session, test_source):
     source = f"""
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import col
+from snowflake.snowpark import Table
 
 # Set up mock data.
 mock = session.create_dataframe(
