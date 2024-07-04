@@ -62,8 +62,8 @@ class Sort(UnaryNode):
 
     @property
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        # we should not materialize a sort node as the order is not preserved
-        return PipelineBreakerCategory.NON_BREAKER
+        # this needs to be tested carefully
+        return PipelineBreakerCategory.PIPELINE_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

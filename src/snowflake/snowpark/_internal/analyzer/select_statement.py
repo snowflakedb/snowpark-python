@@ -773,6 +773,9 @@ class SelectStatement(Selectable):
 
     @property
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
+        # TODO: needs to be tested carefully
+        if self.order_by:
+            return PipelineBreakerCategory.PIPELINE_BREAKER
         return PipelineBreakerCategory.NON_BREAKER
 
     def to_subqueryable(self) -> "Selectable":
