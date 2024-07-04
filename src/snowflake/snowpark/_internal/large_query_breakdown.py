@@ -43,17 +43,17 @@ class LargeQueryBreakdown:
             List[SnowflakePlan]: A list of smaller SnowflakePlans.
 
         """
+        if not self.session._large_query_breakdown_enabled:
+            return [root]
+
         plans = []
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
         root = copy.copy(root)
         while complexity_score > self.COMPLEXITY_SCORE_UPPER_BOUND:
-            partition = self.get_partitioned_node(root)
+            partition = self.get_partitioned_plan(root)
             if partition is None:
                 _logger.debug("No appropriate node found to break down the query plan")
                 break
-            _logger.debug(
-                f"Partition complexity breakdown: {partition.cumulative_node_complexity}"
-            )
             plans.append(partition)
             complexity_score = get_complexity_score(root.cumulative_node_complexity)
             _logger.debug(f"Post breakdown {complexity_score=} for root node")
@@ -61,7 +61,7 @@ class LargeQueryBreakdown:
         plans.append(root)
         return plans
 
-    def get_partitioned_node(self, root: SnowflakePlan) -> SnowflakePlan:
+    def get_partitioned_plan(self, root: SnowflakePlan) -> SnowflakePlan:
         """
         This function finds an appropriate node to break the plan into two parts and returns the root of the partitioned tree.
         It also modifies the original root passed into the function.
