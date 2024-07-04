@@ -659,7 +659,6 @@ class SelectStatement(Selectable):
     def reset_snowflake_plan(self):
         # snowflake plan for SelectStatement is created from _sql_query, so reset it.
         self._sql_query = None
-        self._schema_query = None
         self._snowflake_plan = None
         self.from_.reset_snowflake_plan()
 
