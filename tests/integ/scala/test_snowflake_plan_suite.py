@@ -187,9 +187,10 @@ def test_create_scoped_temp_table(session):
             .queries[0]
             .sql
         )
-        expected_sql = f'CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        expected_sql = (
+            f'CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        )
         assert expected_sql in (
-
             session._plan_builder.create_temp_table(
                 temp_table_name,
                 df._plan,
@@ -200,7 +201,9 @@ def test_create_scoped_temp_table(session):
             .queries[0]
             .sql
         )
-        expected_sql = f'CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        expected_sql = (
+            f'CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        )
         assert expected_sql in (
             session._plan_builder.create_temp_table(
                 temp_table_name,
