@@ -9,6 +9,9 @@ from typing import List
 
 from sortedcontainers import SortedList
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    drop_table_if_exists_statement,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PipelineBreakerCategory,
     get_complexity_score,
@@ -165,4 +168,9 @@ class LargeQueryBreakdown:
         updated_root_plan = self.session._analyzer.resolve(root.source_plan)
         root.queries[-1] = updated_root_plan.queries[-1]
         # Drop the temporary table after the root node is executed
-        root.post_actions.append(Query(f"DROP TABLE IF EXISTS {temp_table_name}"))
+        root.post_actions.append(
+            Query(
+                drop_table_if_exists_statement(temp_table_name),
+                is_ddl_on_temp_object=True,
+            )
+        )

@@ -982,6 +982,7 @@ class SnowflakePlanBuilder:
             ),
             child,
             source_plan,
+            is_ddl_on_temp_object=True,
         )
 
     def create_table_and_insert(
