@@ -1183,7 +1183,11 @@ class SetStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return self._nodes
 
-    def replace_child(self, old_node: Union[Selectable, SnowflakePlan], new_node: Union[Selectable, SnowflakePlan]) -> None:
+    def replace_child(
+        self,
+        old_node: Union[Selectable, SnowflakePlan],
+        new_node: Union[Selectable, SnowflakePlan],
+    ) -> None:
         self._nodes = [node if node != old_node else new_node for node in self._nodes]
 
     @property
