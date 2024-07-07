@@ -2,7 +2,26 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
+
 from snowflake.snowpark.functions import avg, col, lit
+
+"""
+1. Sorted list is working correctly
+2. Sort if broken down correctly
+    i. Inner sort is materialized
+    ii. Outer sort is not materialized
+3. When there is no PIPELINE_BREAKER, the query is not broken down
+4. Breakdown parameters can be set at runtime.
+"""
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Breaking down queries is done for SQL translation",
+        run=False,
+    )
+]
 
 
 def test_large_query_breakdown(session):
