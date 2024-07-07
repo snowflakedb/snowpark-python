@@ -60,7 +60,7 @@ class LogicalPlan:
     def pipeline_breaker_category(self) -> PipelineBreakerCategory:
         return PipelineBreakerCategory.NON_BREAKER
 
-    def replace_child(self, old_node: "LogicalPlan", new_node: "LogicalPlan") -> None:
+    def replace_child(self, old_node, new_node) -> None:
         self.children = [
             child if child != old_node else new_node for child in self.children
         ]
