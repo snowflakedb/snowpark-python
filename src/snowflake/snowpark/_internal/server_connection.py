@@ -535,6 +535,14 @@ class ServerConnection:
                     result_set["data"], result_meta, case_sensitive=case_sensitive
                 )
 
+    def merge_queries(self, plans: List[SnowflakePlan]):
+        queries = []
+        post_actions = []
+        for plan in plans:
+            queries.extend(plan.queries)
+            post_actions.extend(plan.post_actions)
+        return queries, post_actions
+
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
         self,
@@ -563,21 +571,24 @@ class ServerConnection:
         action_id = plan.session._generate_new_action_id()
         # potentially optimize the query using CTEs
         plan = plan.replace_repeated_subquery_with_cte()
+        # break down blocking queries first
+        query_breaker = LargeQueryBreakdown(plan.session)
+        plans = query_breaker.breakdown_if_large_plan(plan)
+        queries, post_actions = self.merge_queries(plans)
         result, result_meta = None, None
         try:
             placeholders = {}
             is_batch_insert = False
-            for q in plan.queries:
+            for q in queries:
                 if isinstance(q, BatchInsertQuery):
                     is_batch_insert = True
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
-            plans = [plan]
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
+            if len(queries) > 1 and not block and not is_batch_insert:
                 params = []
                 final_queries = []
                 last_place_holder = None
-                for q in plan.queries:
+                for q in queries:
                     final_queries.append(
                         q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder
@@ -590,13 +601,15 @@ class ServerConnection:
                     ";".join(final_queries),
                     to_pandas,
                     to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
+                    is_ddl_on_temp_object=plan.queries[
+                        0
+                    ].is_ddl_on_temp_object,  # TODO: this needs to be fixed
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
                     log_on_exception=log_on_exception,
                     case_sensitive=case_sensitive,
-                    num_statements=len(plan.queries),
+                    num_statements=len(queries),
                     params=params,
                     ignore_results=ignore_results,
                     **kwargs,
@@ -608,57 +621,38 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
-                # break down blocking queries first
-                query_breaker = LargeQueryBreakdown(plan.session)
-                plans = query_breaker.breakdown_if_large_plan(plan)
-                executed_queries = set()
-
-                for j, plan in enumerate(plans):
-                    for i, query in enumerate(plan.queries):
-                        is_last = (
-                            (j == len(plans) - 1)
-                            and (i == len(plan.queries) - 1)
-                            and not block
+                for i, query in enumerate(queries):
+                    if isinstance(query, BatchInsertQuery):
+                        self.run_batch_insert(query.sql, query.rows, **kwargs)
+                    else:
+                        is_last = i == len(queries) - 1 and not block
+                        final_query = query.sql
+                        for holder, id_ in placeholders.items():
+                            final_query = final_query.replace(holder, id_)
+                        result = self.run_query(
+                            final_query,
+                            to_pandas,
+                            to_iter and (i == len(queries) - 1),
+                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
+                            block=not is_last,
+                            data_type=data_type,
+                            async_job_plan=plan,
+                            log_on_exception=log_on_exception,
+                            case_sensitive=case_sensitive,
+                            params=query.params,
+                            ignore_results=ignore_results,
+                            **kwargs,
                         )
-                        if isinstance(query, BatchInsertQuery):
-                            self.run_batch_insert(query.sql, query.rows, **kwargs)
-                        else:
-                            is_last = i == len(plan.queries) - 1 and not block
-                            final_query = query.sql
-                            # pre-actions might be executed twice since they are
-                            # present in partition and root
-                            if final_query in executed_queries:
-                                continue
-                            executed_queries.add(final_query)
-                            for holder, id_ in placeholders.items():
-                                final_query = final_query.replace(holder, id_)
-                            result = self.run_query(
-                                final_query,
-                                to_pandas,
-                                to_iter
-                                and (
-                                    i == len(plan.queries) - 1 and j == len(plans) - 1
-                                ),
-                                is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                                block=not is_last,
-                                data_type=data_type,
-                                async_job_plan=plan,
-                                log_on_exception=log_on_exception,
-                                case_sensitive=case_sensitive,
-                                params=query.params,
-                                ignore_results=ignore_results,
-                                **kwargs,
-                            )
-                            placeholders[query.query_id_place_holder] = (
-                                result["sfqid"] if not is_last else result.query_id
-                            )
-                            result_meta = get_new_description(self._cursor)
-                        if action_id < plan.session._last_canceled_id:
-                            raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
+                        placeholders[query.query_id_place_holder] = (
+                            result["sfqid"] if not is_last else result.query_id
+                        )
+                        result_meta = get_new_description(self._cursor)
+                    if action_id < plan.session._last_canceled_id:
+                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
         finally:
             # delete created tmp object
             if block:
-                for action in plans[-1].post_actions:
+                for action in post_actions:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,

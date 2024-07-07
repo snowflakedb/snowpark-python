@@ -179,6 +179,7 @@ def test_create_scoped_temp_table(session):
             session._plan_builder.create_temp_table(
                 temp_table_name,
                 df._plan,
+                None,
                 use_scoped_temp_objects=True,
                 is_generated=True,
             )
@@ -190,6 +191,7 @@ def test_create_scoped_temp_table(session):
             session._plan_builder.create_temp_table(
                 temp_table_name,
                 df._plan,
+                None,
                 use_scoped_temp_objects=False,
                 is_generated=True,
             )
@@ -201,6 +203,7 @@ def test_create_scoped_temp_table(session):
             session._plan_builder.create_temp_table(
                 temp_table_name,
                 df._plan,
+                None,
                 use_scoped_temp_objects=True,
                 is_generated=False,
             )
