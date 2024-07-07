@@ -971,11 +971,12 @@ class SnowflakePlanBuilder:
         is_generated: bool = False,
     ) -> SnowflakePlan:
         child = child.replace_repeated_subquery_with_cte()
+        attributes = self.session._get_result_attributes(child.schema_query)
         return self.build(
             lambda x: create_table_as_select_statement(
                 name,
                 x,
-                None,
+                attribute_to_schema_string(attributes),
                 table_type=get_temp_type_for_object(
                     use_scoped_temp_objects, is_generated
                 ),
