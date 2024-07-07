@@ -322,10 +322,10 @@ class Selectable(LogicalPlan, ABC):
             else []
         )
 
-    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
+    def replace_child(self, old_node, new_node) -> None:
         """Replaces a child node with a new node in the select statement."""
-        if self.snowflake_plan:
-            self.snowflake_plan.replace_child(old_node, new_node)
+        if self.snowflake_plan.source_plan:
+            self.snowflake_plan.source_plan.replace_child(old_node, new_node)
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -712,7 +712,7 @@ class SelectStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return [self.from_]
 
-    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
+    def replace_child(self, old_node: Selectable, new_node: Selectable) -> None:
         if self.from_ == old_node:
             self.from_ = new_node
 
@@ -1183,7 +1183,7 @@ class SetStatement(Selectable):
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         return self._nodes
 
-    def replace_child(self, old_node: LogicalPlan, new_node: LogicalPlan) -> None:
+    def replace_child(self, old_node: Union[Selectable, SnowflakePlan], new_node: Union[Selectable, SnowflakePlan]) -> None:
         self._nodes = [node if node != old_node else new_node for node in self._nodes]
 
     @property
