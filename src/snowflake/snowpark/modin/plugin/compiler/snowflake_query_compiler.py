@@ -216,7 +216,9 @@ from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     set_frame_2d_positional,
 )
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
+    TO_CSV_DEFAULTS,
     get_columns_to_keep_for_usecols,
+    get_compression_algorithm_for_csv,
     get_non_pandas_kwargs,
     is_local_filepath,
     upload_local_path_to_snowflake_stage,
@@ -1087,10 +1089,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         index: bool = True,
         index_label: Optional[IndexLabel] = None,
+        data_column_labels: Optional[List[Hashable]] = None,
     ) -> SnowparkDataFrame:
         """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
-        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns.
+        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns
+        if data_column_labels is None.
         For example:
         With a Snowpark pandas Dataframe (df) has index=[`A`, `B`], columns = [`C`, `D`],
         the result Snowpark Dataframe after calling _to_snowpark_dataframe_from_snowpark_pandas_dataframe(index=True),
@@ -1108,6 +1112,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_label: Optional[IndexLabel], default None
                 the new label used for the index columns, the length must be the same as the number of index column
                 of the current dataframe. If None, the original index name is used.
+            data_column_labels: Optional[Hashable], default None
+                Data columns to include. If none include all data columns.
 
         Returns:
             SnowparkDataFrame
@@ -1132,7 +1138,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 index_column_labels = self._modin_frame.index_column_pandas_labels
 
-        data_column_labels = self._modin_frame.data_column_pandas_labels
+        if data_column_labels is None:
+            data_column_labels = self._modin_frame.data_column_pandas_labels
         if self._modin_frame.is_unnamed_series():
             # this is an unnamed Snowpark pandas series, there is no customer visible pandas
             # label for the data column, set the label to be None
@@ -1172,7 +1179,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.index_column_snowflake_quoted_identifiers
             )
         identifiers_to_retain.extend(
-            self._modin_frame.data_column_snowflake_quoted_identifiers
+            [
+                t[0]
+                for t in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    data_column_labels, include_index=False
+                )
+            ]
         )
         for pandas_label, snowflake_identifier in zip(
             index_column_labels + data_column_labels,
@@ -1189,6 +1201,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return ordered_dataframe.to_projected_snowpark_dataframe(
             col_mapper=rename_mapper
+        )
+
+    def to_csv_with_snowflake(self, **kwargs: Any) -> None:
+        """
+        Write data to a csv file in snowflake stage.
+        Args:
+            **kwargs: to_csv arguments.
+        """
+        # Raise not implemented error for unsupported parameters.
+        unsupported_params = [
+            "float_format",
+            "mode",
+            "encoding",
+            "quoting",
+            "quotechar",
+            "lineterminator",
+            "doublequote",
+            "decimal",
+        ]
+        for param in unsupported_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                ErrorMessage.parameter_not_implemented_error(param, "to_csv")
+
+        ignored_params = ["chunksize", "errors", "storage_options"]
+        for param in ignored_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                WarningMessage.ignored_argument("to_csv", param, "")
+
+        def _get_param(param_name: str) -> Any:
+            """
+            Extract parameter value from kwargs. If missing return default value.
+            """
+            return kwargs.get(param_name, TO_CSV_DEFAULTS[param_name])
+
+        path = _get_param("path_or_buf")
+        compression = get_compression_algorithm_for_csv(_get_param("compression"), path)
+
+        index = _get_param("index")
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, _get_param("index_label"), _get_param("columns")
+        )
+        na_sep = _get_param("na_rep")
+        snowpark_df.write.csv(
+            location=path,
+            format_type_options={
+                "COMPRESSION": compression if compression else "NONE",
+                "FIELD_DELIMITER": _get_param("sep"),
+                "NULL_IF": na_sep if na_sep else (),
+                "ESCAPE": _get_param("escapechar"),
+                "DATE_FORMAT": _get_param("date_format"),
+            },
+            header=_get_param("header"),
+            single=True,
         )
 
     def to_snowflake(

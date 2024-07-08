@@ -216,3 +216,10 @@ DataFrame
     DataFrame.first_valid_index
     DataFrame.last_valid_index
     DataFrame.resample
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.to_csv
