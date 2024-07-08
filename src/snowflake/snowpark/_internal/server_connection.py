@@ -33,6 +33,9 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
+from snowflake.snowpark._internal.analyzer.common_subdataframe_elimination import (
+    CommonSubDataframeElimination,
+)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
@@ -60,7 +63,6 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryHistory, QueryRecord
 from snowflake.snowpark.row import Row
-from snowflake.snowpark._internal.analyzer.common_subdataframe_elimination import CommonSubDataframeElimination
 
 if TYPE_CHECKING:
     try:

@@ -214,10 +214,9 @@ class Selectable(LogicalPlan, ABC):
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         new_selectable = Selectable(
-            analyzer=self.analyzer,
-            api_calls=deepcopy(self._api_calls)
+            analyzer=self.analyzer, api_calls=deepcopy(self._api_calls)
         )
         new_selectable.pre_actions = deepcopy(self.pre_actions)
         new_selectable.post_actions = deepcopy(self.post_actions)
@@ -225,10 +224,13 @@ class Selectable(LogicalPlan, ABC):
         new_selectable._column_states = deepcopy(self._column_states)
         new_selectable._snowflake_plan = deepcopy(self._snowflake_plan)
         new_selectable.expr_to_alias = deepcopy(self.expr_to_alias)
-        new_selectable.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
-        new_selectable._cumulative_node_complexity = deepcopy(self._cumulative_node_complexity)
+        new_selectable.df_aliased_col_name_to_real_col_name = deepcopy(
+            self.df_aliased_col_name_to_real_col_name
+        )
+        new_selectable._cumulative_node_complexity = deepcopy(
+            self._cumulative_node_complexity
+        )
         return new_selectable
-
 
     @property
     @abstractmethod
@@ -308,8 +310,10 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query):
         if self._snowflake_plan is None:
-            with_block_queries = [with_plan.queries[-1].sql for with_plan in self.with_query_block_plans]
-            with_query = ','.join(with_block_queries)
+            with_block_queries = [
+                with_plan.queries[-1].sql for with_plan in self.with_query_block_plans
+            ]
+            with_query = ",".join(with_block_queries)
             query = Query(self.sql_query, params=self.query_params, with_sql=with_query)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             if skip_schema_query is True:
@@ -396,12 +400,13 @@ class SelectableEntity(Selectable):
         super().__init__(analyzer)
         self.entity_name = entity_name
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         new_plan = SelectableEntity(
-            entity_name=self.entity_name,
-            analyzer=self.analyzer
+            entity_name=self.entity_name, analyzer=self.analyzer
         )
-        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
+        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(
+            self.df_aliased_col_name_to_real_col_name
+        )
         new_plan.expr_to_alias = deepcopy(self.expr_to_alias)
         new_plan.pre_actions = deepcopy(self.pre_actions)
         new_plan.post_actions = deepcopy(self.post_actions)
@@ -543,12 +548,13 @@ class SelectSnowflakePlan(Selectable):
             if query.params:
                 self._query_params.extend(query.params)
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         new_plan = SelectSnowflakePlan(
-            snowflake_plan=deepcopy(self._snowflake_plan),
-            analyzer=self.analyzer
+            snowflake_plan=deepcopy(self._snowflake_plan), analyzer=self.analyzer
         )
-        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(self.df_aliased_col_name_to_real_col_name)
+        new_plan.df_aliased_col_name_to_real_col_name = deepcopy(
+            self.df_aliased_col_name_to_real_col_name
+        )
         new_plan.expr_to_alias = deepcopy(self.expr_to_alias)
         new_plan.pre_actions = deepcopy(self.pre_actions)
         new_plan.post_actions = deepcopy(self.post_actions)
@@ -556,7 +562,6 @@ class SelectSnowflakePlan(Selectable):
         new_plan._query_params = deepcopy(self._query_params)
 
         return new_plan
-
 
     @property
     def snowflake_plan(self):
@@ -654,7 +659,7 @@ class SelectStatement(Selectable):
 
         return new
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         new = SelectStatement(
             projection=deepcopy(self.projection),
             from_=deepcopy(self.from_),
@@ -672,7 +677,9 @@ class SelectStatement(Selectable):
         new._column_states = deepcopy(self._column_states)
         new._snowflake_plan = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
-        new._api_calls = deepcopy(self._api_calls) if self._api_calls is not None else None
+        new._api_calls = (
+            deepcopy(self._api_calls) if self._api_calls is not None else None
+        )
         new.df_aliased_col_name_to_real_col_name = (
             self.df_aliased_col_name_to_real_col_name
         )
@@ -683,7 +690,6 @@ class SelectStatement(Selectable):
     def with_query_block_plans(self) -> Set[SnowflakePlan]:
         from_plan = self.from_.get_snowflake_plan(skip_schema_query=True)
         return from_plan.with_query_block_plans
-
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -1205,10 +1211,9 @@ class SetStatement(Selectable):
                 self.post_actions.extend(operand.selectable.post_actions)
             self._nodes.append(operand.selectable)
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         new_set_statement = SetStatement(
-            *deepcopy(self.set_operands),
-            analyzer=self.analyzer
+            *deepcopy(self.set_operands), analyzer=self.analyzer
         )
         new_set_statement._sql_query = deepcopy(self._sql_query)
         new_set_statement._placeholder_query = deepcopy(self._placeholder_query)
@@ -1223,10 +1228,11 @@ class SetStatement(Selectable):
         with_block_plans = set()
         for operand in self.set_operands:
             operand_plan = operand.selectable.get_snowflake_plan(skip_schema_query=True)
-            with_block_plans = with_block_plans.union(operand_plan.with_query_block_plans)
+            with_block_plans = with_block_plans.union(
+                operand_plan.with_query_block_plans
+            )
 
         return with_block_plans
-
 
     @property
     def sql_query(self) -> str:

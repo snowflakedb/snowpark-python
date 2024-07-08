@@ -17,9 +17,9 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Union,
-    Set,
 )
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -72,12 +72,11 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     schema_value_statement,
     select_from_path_with_format_statement,
     set_operator_statement,
+    single_cte_statement,
     sort_statement,
     table_function_statement,
     unpivot_statement,
     update_statement,
-    cte_statement,
-    single_cte_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -241,7 +240,9 @@ class SnowflakePlan(LogicalPlan):
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
-        self.with_query_block_plans = with_query_block_plans if with_query_block_plans else set()
+        self.with_query_block_plans = (
+            with_query_block_plans if with_query_block_plans else set()
+        )
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -407,7 +408,7 @@ class SnowflakePlan(LogicalPlan):
                 placeholder_query=self.placeholder_query,
             )
 
-    def __deepcopy__(self, memodict={}):
+    def __deepcopy__(self, memodict={}):  # noqa: B006
         return SnowflakePlan(
             copy.deepcopy(self.queries) if self.queries else [],
             self.schema_query,
@@ -426,7 +427,11 @@ class SnowflakePlan(LogicalPlan):
 
 
 class SnowflakePlanBuilder:
-    def __init__(self, session: "snowflake.snowpark.session.Session", skip_schema_query: bool = False) -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        skip_schema_query: bool = False,
+    ) -> None:
         self.session = session
         self.skip_schema_query = skip_schema_query
 
@@ -516,7 +521,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             session=self.session,
             placeholder_query=placeholder_query,
-            with_query_block_plans=child.with_query_block_plans
+            with_query_block_plans=child.with_query_block_plans,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -581,7 +586,9 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             placeholder_query=placeholder_query,
-            with_query_block_plans=left.with_query_block_plans.union(right.with_query_block_plans)
+            with_query_block_plans=left.with_query_block_plans.union(
+                right.with_query_block_plans
+            ),
         )
 
     def query(
@@ -953,7 +960,12 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str], source_plan: Optional[LogicalPlan]
+        self,
+        name: str,
+        child: SnowflakePlan,
+        is_temp: bool,
+        comment: Optional[str],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -1371,7 +1383,7 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-       #  source_data = source_data.replace_repeated_subquery_with_cte()
+        #  source_data = source_data.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
@@ -1441,14 +1453,18 @@ class SnowflakePlanBuilder:
                 session=self.session,
             )
 
-    def with_query_block(self, name: str, child: SnowflakePlan, source_plan: LogicalPlan) -> SnowflakePlan:
+    def with_query_block(
+        self, name: str, child: SnowflakePlan, source_plan: LogicalPlan
+    ) -> SnowflakePlan:
         return self.build(
             lambda x: single_cte_statement(x, name),
             child,
             source_plan,
         )
 
-    def with_object_ref(self, name: str, with_query_plan: SnowflakePlan, source_plan: LogicalPlan) -> SnowflakePlan:
+    def with_object_ref(
+        self, name: str, with_query_plan: SnowflakePlan, source_plan: LogicalPlan
+    ) -> SnowflakePlan:
         new_query = f"SELECT * FROM {name}"
         with_query_plans = {with_query_plan}
         if with_query_plan.with_query_block_plans is not None:

@@ -29,7 +29,6 @@ class LogicalPlan:
         self.children = []
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
-
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.OTHERS
@@ -248,7 +247,7 @@ class CopyIntoLocationNode(LogicalPlan):
 
 
 class WithQueryBlock(LogicalPlan):
-    def __init__(self, name: str, child: LogicalPlan):
+    def __init__(self, name: str, child: LogicalPlan) -> None:
         super().__init__()
         self.name = name
         self.children.append(child)
@@ -258,7 +257,7 @@ class WithQueryBlock(LogicalPlan):
 
 
 class WithObjectRef(LogicalPlan):
-    def __init__(self, with_query_block: WithQueryBlock):
+    def __init__(self, with_query_block: WithQueryBlock) -> None:
         super().__init__()
         self.children.append(with_query_block)
 
