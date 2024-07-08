@@ -16,8 +16,6 @@ from typing import List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import span
 
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
@@ -1455,24 +1453,6 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
-
-
-def attr_to_dict(tracing: span):
-    dict_attr = {}
-    for name in tracing.attributes:
-        dict_attr[name] = tracing.attributes[name]
-    dict_attr["code.filepath"] = os.path.basename(dict_attr["code.filepath"])
-    dict_attr["status_code"] = tracing.status.status_code
-    dict_attr["status_description"] = tracing.status.description
-    return dict_attr
-
-
-def span_extractor(dict_exporter: InMemorySpanExporter):
-    spans = []
-    raw_spans = dict_exporter.get_finished_spans()
-    for raw_span in raw_spans:
-        spans.append((raw_span.name, attr_to_dict(raw_span), raw_span))
-    return spans
 
 
 def check_tracing_span_single_answer(result: dict, expected_answer: dict):
