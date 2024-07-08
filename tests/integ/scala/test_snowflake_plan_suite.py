@@ -166,6 +166,13 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
         assert union1._plan.plan_height == 9
 
 
+def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
+    df1 = session.sql(f"describe table {temp_table}")
+    with session.query_history() as query_history:
+        assert df1._plan.num_duplicate_nodes == 0
+    assert len(query_history.queries) == 0
+
+
 def test_create_scoped_temp_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
