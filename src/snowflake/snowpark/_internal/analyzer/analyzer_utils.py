@@ -1525,4 +1525,3 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
         for query, table_name in zip(queries, table_names)
     )
     return f"{WITH}{result}"
-

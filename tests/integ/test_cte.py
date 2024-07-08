@@ -9,7 +9,6 @@ import pytest
 
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
-from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.utils import (
     TEMP_OBJECT_NAME_PREFIX,
     TempObjectType,

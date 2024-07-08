@@ -99,8 +99,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
+    WithObjectRef,
     WithQueryBlock,
-    WithObjectRef
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -162,9 +162,15 @@ if TYPE_CHECKING:
 
 
 class Analyzer:
-    def __init__(self, session: "snowflake.snowpark.session.Session", skip_schema_query: bool = False) -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        skip_schema_query: bool = False,
+    ) -> None:
         self.session = session
-        self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=skip_schema_query)
+        self.plan_builder = SnowflakePlanBuilder(
+            self.session, skip_schema_query=skip_schema_query
+        )
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
@@ -1113,7 +1119,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 is_temp,
                 logical_plan.comment,
-                logical_plan
+                logical_plan,
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
@@ -1123,7 +1129,7 @@ class Analyzer:
                 logical_plan.lag,
                 logical_plan.comment,
                 resolved_children[logical_plan.child],
-                logical_plan
+                logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
@@ -1169,7 +1175,7 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
-                source_plan = logical_plan,
+                source_plan=logical_plan,
                 **logical_plan.copy_options,
             )
 
@@ -1224,14 +1230,14 @@ class Analyzer:
             return self.plan_builder.with_object_ref(
                 logical_plan.children[0].name,
                 resolved_children[logical_plan.children[0]],
-                logical_plan
+                logical_plan,
             )
 
         if isinstance(logical_plan, WithQueryBlock):
             return self.plan_builder.with_query_block(
                 logical_plan.name,
                 resolved_children[logical_plan.children[0]],
-                logical_plan
+                logical_plan,
             )
 
         raise TypeError(

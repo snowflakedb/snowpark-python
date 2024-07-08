@@ -1,17 +1,27 @@
-import logging
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
 
-import copy
 from collections import defaultdict
-from typing import TYPE_CHECKING, List, Union, Set, Dict, DefaultDict
+from typing import Dict, Set, Union
+
+from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    Selectable,
+    SelectSnowflakePlan,
+    SelectStatement,
+    SetStatement,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    WithObjectRef,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan, WithQueryBlock, WithObjectRef
-
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable, SelectStatement, SetStatement, SelectSnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 TreeNode = Union[SnowflakePlan, Selectable]
 
@@ -25,7 +35,7 @@ class CommonSubDataframeElimination:
     _duplicated_nodes: Set[LogicalPlan]
     _analyzer: Analyzer
 
-    def __init__(self, plan: SnowflakePlan):
+    def __init__(self, plan: SnowflakePlan) -> None:
         self._plan = plan
         self._node_count_map = defaultdict(int)
         self._node_parents_map = defaultdict(set)
@@ -63,6 +73,7 @@ class CommonSubDataframeElimination:
 
         This function is used to only include nodes that should be converted to CTEs.
         """
+
         def traverse(root: TreeNode) -> None:
             """
             This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
@@ -104,7 +115,9 @@ class CommonSubDataframeElimination:
             from snowflake.snowpark._internal.analyzer.select_statement import (
                 SelectSnowflakePlan,
             )
-            from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+            from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+                SnowflakePlan,
+            )
             from snowflake.snowpark._internal.analyzer.unary_plan_node import Pivot
 
             if isinstance(node, SelectSnowflakePlan):
@@ -116,7 +129,9 @@ class CommonSubDataframeElimination:
             return isinstance(source_plan, Pivot) and source_plan.pivot_values is None
 
         traverse(self._plan)
-        self._duplicated_nodes = {node for node in self._node_count_map if is_duplicate_subtree(node)}
+        self._duplicated_nodes = {
+            node for node in self._node_count_map if is_duplicate_subtree(node)
+        }
 
     def _cte_transformation(self) -> "SnowflakePlan":
         stack1, stack2 = [self._plan], []
@@ -130,7 +145,9 @@ class CommonSubDataframeElimination:
         # bottom up visitor, and re-do the resolving of whole plan tree node
         resolved_nodes = {}
         # there should be no change to alias map
-        df_aliased_col_name_to_real_col_name = self._plan.df_aliased_col_name_to_real_col_name
+        df_aliased_col_name_to_real_col_name = (
+            self._plan.df_aliased_col_name_to_real_col_name
+        )
         while stack2:
             node = stack2.pop()
             if node in resolved_nodes:
@@ -138,15 +155,18 @@ class CommonSubDataframeElimination:
             if node in self._duplicated_nodes:
                 parents = self._node_parents_map[node]
                 # resolve current node first
-                resolved_node = self._analyzer.do_resolve_with_resolved_children(node, resolved_nodes, df_aliased_col_name_to_real_col_name)
+                resolved_node = self._analyzer.do_resolve_with_resolved_children(
+                    node, resolved_nodes, df_aliased_col_name_to_real_col_name
+                )
                 resolved_nodes[node] = resolved_node
                 # convert the node into WithQueryBlock
                 with_block = WithQueryBlock(
-                    name=random_name_for_temp_object(TempObjectType.CTE),
-                    child=node
+                    name=random_name_for_temp_object(TempObjectType.CTE), child=node
                 )
                 # resolve with block
-                resolved_with_block = self._analyzer.do_resolve_with_resolved_children(with_block, resolved_nodes, df_aliased_col_name_to_real_col_name)
+                resolved_with_block = self._analyzer.do_resolve_with_resolved_children(
+                    with_block, resolved_nodes, df_aliased_col_name_to_real_col_name
+                )
                 resolved_nodes[with_block] = resolved_with_block
                 for parent in parents:
                     if isinstance(parent, SelectStatement):
@@ -160,11 +180,11 @@ class CommonSubDataframeElimination:
                                 with_object_plan = self._analyzer.do_resolve_with_resolved_children(
                                     with_object_ref_node,
                                     resolved_nodes,
-                                    resolved_with_block.df_aliased_col_name_to_real_col_name
+                                    resolved_with_block.df_aliased_col_name_to_real_col_name,
                                 )
                                 new_selectable = SelectSnowflakePlan(
                                     snowflake_plan=with_object_plan,
-                                    analyzer=self._analyzer
+                                    analyzer=self._analyzer,
                                 )
                                 operand.selectable = new_selectable
                                 parent._nodes.append(new_selectable)
@@ -179,8 +199,10 @@ class CommonSubDataframeElimination:
                         for i in range(len(parent.source_plan.children)):
                             try:
                                 if parent.source_plan.children[i] == node:
-                                    parent.source_plan.children[i] = WithObjectRef(with_block)
-                            except Exception as e:
+                                    parent.source_plan.children[i] = WithObjectRef(
+                                        with_block
+                                    )
+                            except Exception:
                                 pass
 
             else:
@@ -188,7 +210,7 @@ class CommonSubDataframeElimination:
                     res = self._analyzer.do_resolve_with_resolved_children(
                         node.source_plan,
                         resolved_nodes,
-                        df_aliased_col_name_to_real_col_name
+                        df_aliased_col_name_to_real_col_name,
                     )
                     node.schema_query = res.schema_query
                     node.queries = res.queries
@@ -199,9 +221,7 @@ class CommonSubDataframeElimination:
                         node._snowflake_pan = None
                         node._sql_query = None
                     res = self._analyzer.do_resolve_with_resolved_children(
-                        node,
-                        resolved_nodes,
-                        df_aliased_col_name_to_real_col_name
+                        node, resolved_nodes, df_aliased_col_name_to_real_col_name
                     )
                     resolved_nodes[node] = res
 
