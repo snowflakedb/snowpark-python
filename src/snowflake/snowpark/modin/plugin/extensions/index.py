@@ -1006,7 +1006,7 @@ class Index:
     @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
-        Determine if two Index object are equal.
+        Determine if two Index objects are equal.
 
         The things that are being compared are:
 
