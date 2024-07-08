@@ -219,7 +219,7 @@ def test_df_loc_get_col_non_boolean_key(
     "key",
     boolean_indexer,
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=9)
 def test_df_loc_get_col_boolean_indexer(
     key, str_index_snowpark_pandas_df, str_index_native_df
 ):
@@ -230,7 +230,10 @@ def test_df_loc_get_col_boolean_indexer(
             lambda df: df.loc[:, key],
         )
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=8):
+        # The query count is 8 because Index.__contains__ is called several
+        # times which calls Index.to_pandas. Index.__contains__ has not yet
+        # been implemented.
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
             str_index_native_df,
@@ -288,21 +291,23 @@ def test_df_loc_get_int_index_row_snowpark_pandas_input(
     "key",
     snowpark_pandas_col_inputs,
 )
-@sql_count_checker(query_count=2)
 def test_df_loc_get_col_snowpark_pandas_input(
     key,
     str_index_snowpark_pandas_df,
     str_index_native_df,
     loc_snowpark_pandas_input_map,
 ):
-
-    eval_snowpark_pandas_result(
-        str_index_snowpark_pandas_df,
-        str_index_native_df,
-        lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
-        if isinstance(df, DataFrame)
-        else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
-    )
+    # In the case of "series[bool]_col", Index.__contains__ is called multiple
+    # times which is calling Index.to_pandas multiple times. Index.__contains__
+    # has not yet been implemented.
+    with SqlCounter(query_count=8 if key == "series[bool]_col" else 2):
+        eval_snowpark_pandas_result(
+            str_index_snowpark_pandas_df,
+            str_index_native_df,
+            lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
+            if isinstance(df, DataFrame)
+            else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
+        )
 
 
 @pytest.mark.parametrize(
@@ -647,8 +652,11 @@ def test_mi_df_loc_get_boolean_series_row_key(mi_table_df):
     )
 
 
-@sql_count_checker(query_count=3, join_count=0)
+@sql_count_checker(query_count=4, join_count=0)
 def test_mi_df_loc_get_boolean_series_col_key(mi_table_df):
+    # One extra query from Index.__contains__ because the MultIndex is specified
+    # when creating the Series object below. Index.__contains__ has not yet
+    # been implemented.
     df = pd.DataFrame(mi_table_df)
     bool_indexer = [False, True]
 
@@ -1166,6 +1174,11 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
         query_count = 2
     if isinstance(col_key, native_pd.Series):
         query_count += 1
+        if col_key.dtype == bool:
+            # 3 extra queries come from Index.to_pandas and Index.__contains__
+            # because the index was specified during creation of the Series object.
+            # Index.__contains__ has not yet been implemented.
+            query_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
 
