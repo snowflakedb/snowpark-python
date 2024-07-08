@@ -749,23 +749,25 @@ class DataFrame(BasePandasDataset):
             )
         )
 
-    @dataframe_not_implemented()
     def corr(
-        self, method="pearson", min_periods=1, numeric_only=False
+        self,
+        method: str | Callable = "pearson",
+        min_periods: int | None = None,
+        numeric_only: bool = False,
     ):  # noqa: PR01, RT01, D200
         """
         Compute pairwise correlation of columns, excluding NA/null values.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-        if not numeric_only:
-            return self._default_to_pandas(
-                pandas.DataFrame.corr,
-                method=method,
-                min_periods=min_periods,
-                numeric_only=numeric_only,
+        corr_df = self
+        if numeric_only:
+            corr_df = self.drop(
+                columns=[
+                    i for i in self.dtypes.index if not is_numeric_dtype(self.dtypes[i])
+                ]
             )
         return self.__constructor__(
-            query_compiler=self._query_compiler.corr(
+            query_compiler=corr_df._query_compiler.corr(
                 method=method,
                 min_periods=min_periods,
             )

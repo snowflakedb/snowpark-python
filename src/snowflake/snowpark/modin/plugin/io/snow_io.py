@@ -597,11 +597,6 @@ class PandasOnSnowflakeIO(BaseIO):
 
     @classmethod
     @pandas_module_level_function_not_implemented()
-    def read_excel(cls, **kwargs):
-        pass  # pragma: no cover
-
-    @classmethod
-    @pandas_module_level_function_not_implemented()
     def read_hdf(
         cls,
         path_or_buf,
