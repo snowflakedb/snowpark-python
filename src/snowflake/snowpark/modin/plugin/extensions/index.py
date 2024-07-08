@@ -425,8 +425,13 @@ class Index:
         """
         # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
         return Index(
-            data=self._query_compiler.unique(
-                is_index=True, level=0 if level is None else level
+            data=self._query_compiler.groupby_agg(
+                by=self._query_compiler.get_index_names(axis=0),
+                agg_func={},
+                axis=0,
+                groupby_kwargs={"sort": False, "as_index": True, "dropna": False},
+                agg_args=[],
+                agg_kwargs={},
             )
         )
 
@@ -1410,8 +1415,19 @@ class Index:
         >>> s.nunique()
         4
         """
+        from snowflake.snowpark.functions import col
+
         return (
-            self._query_compiler.reset_index()
+            SnowflakeQueryCompiler(
+                self._query_compiler._modin_frame.append_column(
+                    "index",
+                    col(
+                        self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
+                            0
+                        ]
+                    ),
+                )
+            )
             .nunique(axis=0, dropna=dropna)
             .to_pandas()
             .iloc[0, 0]

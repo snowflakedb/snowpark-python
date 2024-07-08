@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.index.conftest import NATIVE_INDEX_UNIQUE_TEST_DATA
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
 
 
@@ -40,6 +40,7 @@ def test_index_nunique(native_index, dropna):
     assert snow_index.nunique(dropna=dropna) == native_index.nunique(dropna=dropna)
 
 
+@sql_count_checker(query_count=4)
 def test_index_unique_data_columns_should_not_affect_index_column():
     native_df = native_pd.DataFrame(
         {
@@ -51,18 +52,15 @@ def test_index_unique_data_columns_should_not_affect_index_column():
     )
     snow_df = pd.DataFrame(native_df)
 
+    # The index column and data columns in a DataFrame object can have
+    # the same column names. We need to ensure that the correct column is
+    # picked during access to df.index and df.col_name, and the results
+    # for df.col_name.unique() and df.index.unique() are different.
+    # In this test, both the index and a data column have the name "A".
+    # Check that they produce different results with unique.
+    # 2 queries to perform snow_df.A.unique(), 1 query for snow_df.index.unique()
     with pytest.raises(AssertionError):
-        # Assert that even though the index column and a data column have
-        # the same name "A", the correct column is picked for both cases and
-        # different results are produced.
-        snow_index = snow_df.index
-        snow_df_a = snow_df.A
-        with SqlCounter(query_count=1):
-            assert_index_equal(snow_index.unique(), snow_df_a.unique())
+        assert_index_equal(snow_df.index.unique(), snow_df.A.unique())
 
-    with SqlCounter(query_count=1):
-        assert_index_equal(snow_df.index.unique(), native_df.index.unique())
-    # TODO: SNOW-1524901: snow_df.A.unique() does not produce the correct result here.
-    #  Right now an empty result is returned: []. This is because the index name and
-    #  the column name are the same here.
-    # assert snow_df.A.unique() == native_df.A.unique()
+    # Verify that Index.unique is working as expected. 1 query for snow_df.index.unique().
+    assert_index_equal(snow_df.index.unique(), native_df.index.unique())
