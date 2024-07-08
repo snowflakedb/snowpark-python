@@ -42,19 +42,19 @@ WITH = "WITH"
 @pytest.fixture(autouse=True)
 def setup(session):
     is_cte_optimization_enabled = session.cte_optimization_enabled
-    session.cte_optimization_enabled = True
+    session._thread_store.cte_optimization_enabled = True
     yield
-    session.cte_optimization_enabled = is_cte_optimization_enabled
+    session._thread_store.cte_optimization_enabled = is_cte_optimization_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
     df = df.sort(sql_expr("$1"))
-    session.cte_optimization_enabled = False
+    session._thread_store.cte_optimization_enabled = False
     result = df.collect()
     result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
 
-    session.cte_optimization_enabled = True
+    session._thread_store.cte_optimization_enabled = True
     cte_result = df.collect()
     cte_result_count = df.count()
     cte_result_pandas = df.to_pandas() if installed_pandas else None
