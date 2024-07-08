@@ -27,7 +27,7 @@ from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
-from pandas._typing import ArrayLike, DtypeObj, NaPosition, Scalar
+from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 
@@ -148,27 +148,23 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        if isinstance(data, SnowflakeQueryCompiler):
-            self.set_query_compiler(data=data)
-            self.is_lazy = True
+        self.is_lazy = convert_to_lazy
+        if self.is_lazy:
+            self.set_query_compiler(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
         else:
-            self.is_lazy = convert_to_lazy
-            if self.is_lazy:
-                self.set_query_compiler(
-                    data=data,
-                    dtype=dtype,
-                    copy=copy,
-                    name=name,
-                    tupleize_cols=tupleize_cols,
-                )
-            else:
-                self.set_local_index(
-                    data=data,
-                    dtype=dtype,
-                    copy=copy,
-                    name=name,
-                    tupleize_cols=tupleize_cols,
-                )
+            self.set_local_index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
 
     def set_query_compiler(
         self,
@@ -427,12 +423,11 @@ class Index:
         Index([1, 2, 3], dtype='int64')
         """
         # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
-        if level is not None:
-            ErrorMessage.not_implemented(
-                "level is not yet supported for Index.unique. It is used with "
-                "MultiIndex objects, which will be supported in the future."
+        return Index(
+            data=self._query_compiler.unique(
+                is_index=True, level=0 if level is None else level
             )
-        return Index(data=self._query_compiler.unique(is_index=True, level=0))
+        )
 
     @property
     @is_lazy_check
@@ -1379,22 +1374,6 @@ class Index:
         """
         # TODO: SNOW-1458122 implement rename
 
-    def _reduce_dimension(self, query_compiler) -> Scalar:
-        """
-        Try to reduce the dimension of data from the `query_compiler`.
-
-        Parameters
-        ----------
-        query_compiler : BaseQueryCompiler
-            Query compiler to retrieve the data.
-
-        Returns
-        -------
-        scalar
-            The projection after squeezing axis 0.
-        """
-        return query_compiler.to_pandas().squeeze()
-
     def nunique(self, dropna: bool = True) -> int:
         """
         Return number of unique elements in the object.
@@ -1429,8 +1408,11 @@ class Index:
         >>> s.nunique()
         4
         """
-        return self._reduce_dimension(
-            self._query_compiler.nunique(axis=0, dropna=dropna, **{"is_index": True})
+        return (
+            self._query_compiler.reset_index()
+            .nunique(axis=0, dropna=dropna)
+            .to_pandas()
+            .iloc[0, 0]
         )
 
     @is_lazy_check
