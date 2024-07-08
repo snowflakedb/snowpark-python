@@ -1001,3 +1001,27 @@ def test_where_series_cond_after_join():
     native_df = native_df1.join(native_df1, lsuffix="_l", rsuffix="_r")
     native_df = native_df.where(native_df["A_l"] != native_df["A_r"])
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_where_with_zero_other_mixed_types_SNOW_1372268():
+    data = {"n": ["A", "B", "B", "C", "C", "C"]}
+    df = pd.DataFrame(data)
+    native_df = native_pd.DataFrame(data)
+    df_result = df.where(df["n"] == "C", 0)
+    native_df_result = native_df.where(native_df["n"] == "C", 0)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        df_result, native_df_result.astype("str")
+    )
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_where_with_zero_other_SNOW_1372268():
+    data = {"n": [99, 99, 99, -99, -99, -99]}
+    df = pd.DataFrame(data)
+    native_df = native_pd.DataFrame(data)
+    df_result = df.where(df["n"] == -99, 0)
+    native_df_result = native_df.where(native_df["n"] == -99, 0)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        df_result, native_df_result
+    )
