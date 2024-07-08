@@ -298,13 +298,12 @@ class Session:
     class RuntimeConfig:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
-            self._original_conf = conf
             # For config that's temporary/to be removed soon, add it here
             original_default_conf = {
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
             }
-            self._original_conf.update(original_default_conf)
+            self._original_conf = {**original_default_conf, **conf}
             self._thread_store = threading.local()
 
         @property
@@ -397,6 +396,9 @@ class Session:
                 session = Session(MockServerConnection(self._options), self._options)
                 if "password" in self._options:
                     self._options["password"] = None
+                    session.conf.set(
+                        "password", None
+                    )  # TODO: Clear password from original config
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
@@ -443,6 +445,7 @@ class Session:
 
             if "password" in self._options:
                 self._options["password"] = None
+                new_session.conf.set("password", None)
             _add_session(new_session)
             return new_session
 
@@ -565,6 +568,11 @@ class Session:
                 TempObjectType.STAGE
             )
         return self._thread_store.session_stage
+
+    @_session_stage.setter
+    def _session_stage(self, value: str) -> None:
+        # used only in tests
+        self._thread_store.session_stage = value
 
     @property
     def _stage_created(self) -> bool:
