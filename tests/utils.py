@@ -1465,3 +1465,27 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
+
+
+def check_tracing_span_single_answer(result: dict, expected_answer: dict):
+    # this is a helper function to check one result from all results stored in exporter
+    for answer_name in expected_answer:
+        if answer_name == "status_description":
+            if expected_answer[answer_name] not in result[answer_name]:
+                return False
+            else:
+                continue
+        if expected_answer[answer_name] != result[answer_name]:
+            return False
+    return True
+
+
+def check_tracing_span_answers(results: list, expected_answer: tuple):
+    # this function meant to check if there is one match among all the results stored in exporter
+    # The answers are checked in this way because exporter is a public resource that only one exporter can
+    # exist globally, which could lead to race condition if cleaning exporter after every test
+    for result in results:
+        if expected_answer[0] == result[0]:
+            if check_tracing_span_single_answer(result[1], expected_answer[1]):
+                return True
+    return False
