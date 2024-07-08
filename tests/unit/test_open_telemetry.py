@@ -93,7 +93,6 @@ def dict_exporter():
     trace_provider.add_span_processor(processor)
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
-    dict_exporter.shutdown()
 
 
 def test_without_open_telemetry(monkeypatch, dict_exporter):

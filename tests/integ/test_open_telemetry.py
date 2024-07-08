@@ -64,7 +64,6 @@ def dict_exporter():
     trace_provider.add_span_processor(processor)
     trace.set_tracer_provider(trace_provider)
     yield dict_exporter
-    dict_exporter.shutdown()
 
 
 def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
