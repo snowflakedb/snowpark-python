@@ -1166,6 +1166,7 @@ class DataFrame:
         Args:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
         """
         exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
@@ -1373,7 +1374,7 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
-    def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
+    def filter(self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1390,20 +1391,24 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression or SQL text.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
         :meth:`where` is an alias of :meth:`filter`.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_filter
-        self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
-        if isinstance(expr, Column):
-            pass  # TODO
-        elif isinstance(expr, str):
-            ast.condition.sp_column_sql_expr.sql = expr
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_filter
+            self.set_ast_ref(ast.df)
+            set_src_position(ast.src)
+            if isinstance(expr, Column):
+                pass  # TODO
+            elif isinstance(expr, str):
+                ast.condition.sp_column_sql_expr.sql = expr
+            else:
+                raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
         else:
-            raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
+            stmt = _ast_stmt
 
         if self._select_statement:
             return self._with_plan(
@@ -1920,7 +1925,7 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: int = 0) -> "DataFrame":
+    def limit(self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
@@ -1929,6 +1934,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
+            _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
 
         Example::
 
@@ -1948,6 +1954,7 @@ class DataFrame:
             -------------
             <BLANKLINE>
         """
+        # TODO: AST
         if self._select_statement:
             return self._with_plan(self._select_statement.limit(n, offset=offset))
         return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
