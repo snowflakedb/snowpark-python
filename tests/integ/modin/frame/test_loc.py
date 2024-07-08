@@ -1255,6 +1255,12 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         query_count, join_count, expect_exception = 1, 4, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
+        if col_key.dtype == bool:
+            # 3 extra queries come from Index.to_pandas and Index.__contains__
+            # because the index was specified during the creation of the Series object.
+            # Index.__contains__ has not yet been implemented.
+            query_count += 3
+
     # one extra query to convert to native pandas to initialize series and set item
     if key_type == "index":
         query_count += 1

@@ -17,29 +17,29 @@ from tests.integ.modin.utils import assert_index_equal
     "index, type",
     [
         # convert int to type
-        (native_pd.Index([1, 2, 3, 4], dtype=int), float),
-        (native_pd.Index([1, 2, 3, 4], dtype=int, name="imaginary numbers"), bool),
-        (native_pd.Index([10, 20, 90, 80], dtype=int), str),
+        (native_pd.Index([1, 2, 3, 4], dtype=np.int64), np.float64),
+        (native_pd.Index([1, 2, 3, 4], dtype=np.int64, name="imaginary numbers"), bool),
+        (native_pd.Index([10, 20, 90, 80], dtype=np.int64), str),
         # convert float to type
-        (native_pd.Index([1.2, 2, -0.1113, 4.07], dtype=float), int),
-        (native_pd.Index([1.111, 2.222, -3.3333, -4.4444, 0], dtype=float), bool),
+        (native_pd.Index([1.2, 2, -0.1113, 4.07], dtype=float), np.int64),
+        (native_pd.Index([1.111, 2.222, -3.3333, -4.4444, 0], dtype=np.float64), bool),
         # convert str to type
         (
             native_pd.Index(["a", "b", "c"], dtype=str, name="pandas.Index the Great!"),
             "object",
         ),
         (native_pd.Index(["1", "2", "3"], dtype="string"), np.int64),
-        (native_pd.Index(["-2", "-5.6", "-0.008"], dtype="string"), float),
+        (native_pd.Index(["-2", "-5.6", "-0.008"], dtype="string"), np.float64),
         (native_pd.Index(["True", "False", "True", "False"], dtype=str), bool),
         (native_pd.Index(["a", "b", "c", None], dtype=str), bool),
         # convert bool to type
         (native_pd.Index([True, False, True, False], dtype=bool), str),
         (native_pd.Index([True, True, True, False], dtype=bool), np.int8),
-        (native_pd.Index([True, False, False, False], dtype=bool), float),
+        (native_pd.Index([True, False, False, False], dtype=bool), np.float64),
         # convert object to type
         (native_pd.Index(["a", "b", "c", 1, 2, 4], dtype="O"), str),
         (native_pd.Index([1, 2, 3, 4], dtype="O"), np.int64),
-        (native_pd.Index([1.11, 2.1111, 3.0002, 4.111], dtype=object), float),
+        (native_pd.Index([1.11, 2.1111, 3.0002, 4.111], dtype=object), np.float64),
     ],
 )
 @pytest.mark.parametrize("is_lazy", [True, False])
@@ -53,12 +53,15 @@ def test_index_astype(index, type, is_lazy):
     "index, type",
     [
         # convert int to type
-        (native_pd.Index([1, 2, 3, 4, 5], dtype=int), float),
-        (native_pd.Index([1, 2, 3, 4, 5], dtype=int, name="imaginary numbers"), bool),
-        (native_pd.Index([10, 20, 90, 80, 20], dtype=int), str),
+        (native_pd.Index([1, 2, 3, 4, 5], dtype=np.int64), np.float64),
+        (
+            native_pd.Index([1, 2, 3, 4, 5], dtype=np.int64, name="imaginary numbers"),
+            bool,
+        ),
+        (native_pd.Index([10, 20, 90, 80, 20], dtype=np.int64), str),
         # convert float to type
-        (native_pd.Index([1.2, 2, -0.1113, 4.07, 0.111], dtype=float), int),
-        (native_pd.Index([1.111, 2.222, -3.3333, -4.4444, 0], dtype=float), bool),
+        (native_pd.Index([1.2, 2, -0.1113, 4.07, 0.111], dtype=np.float64), np.int64),
+        (native_pd.Index([1.111, 2.222, -3.3333, -4.4444, 0], dtype=np.float64), bool),
         # convert str to type
         (
             native_pd.Index(
@@ -69,18 +72,21 @@ def test_index_astype(index, type, is_lazy):
         (native_pd.Index(["1", "2", "3", "4", "5"], dtype="string"), np.int64),
         (
             native_pd.Index(["-2", "-5.6", "-0.008", "3.14", "-6.28"], dtype="string"),
-            float,
+            np.float64,
         ),
         (native_pd.Index(["True", "False", "True", "True", "False"], dtype=str), bool),
         (native_pd.Index(["a", "b", "c", None, "d"], dtype=str), bool),
         # convert bool to type
         (native_pd.Index([True, False, True, False, False], dtype=bool), str),
         (native_pd.Index([True, True, True, False, False], dtype=bool), np.int8),
-        (native_pd.Index([True, False, False, False, True], dtype=bool), float),
+        (native_pd.Index([True, False, False, False, True], dtype=bool), np.float64),
         # convert object to type
         (native_pd.Index(["a", "b", "c", 1, 2], dtype="O"), str),
         (native_pd.Index([1, 2, 3, 4, 5], dtype="O"), np.int64),
-        (native_pd.Index([1.11, 2.1111, 3.0002, 4.111, 5.001], dtype=object), float),
+        (
+            native_pd.Index([1.11, 2.1111, 3.0002, 4.111, 5.001], dtype=object),
+            np.float64,
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
