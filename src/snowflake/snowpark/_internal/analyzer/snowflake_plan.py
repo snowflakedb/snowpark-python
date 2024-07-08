@@ -265,7 +265,7 @@ class SnowflakePlan(LogicalPlan):
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        if not self.session._cte_optimization_enabled:
+        if not self.session.cte_optimization_enabled:
             return self
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
@@ -375,7 +375,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity = value
 
     def __copy__(self) -> "SnowflakePlan":
-        if self.session._cte_optimization_enabled:
+        if self.session.cte_optimization_enabled:
             return SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
@@ -433,7 +433,7 @@ class SnowflakePlanBuilder:
         )
         placeholder_query = (
             sql_generator(select_child._id)
-            if self.session._cte_optimization_enabled and select_child._id is not None
+            if self.session.cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -475,7 +475,7 @@ class SnowflakePlanBuilder:
         )
         placeholder_query = (
             multi_sql_generator(Query(select_child._id))[-1].sql
-            if self.session._cte_optimization_enabled and select_child._id is not None
+            if self.session.cte_optimization_enabled and select_child._id is not None
             else None
         )
 
@@ -521,7 +521,7 @@ class SnowflakePlanBuilder:
         schema_query = sql_generator(left_schema_query, right_schema_query)
         placeholder_query = (
             sql_generator(select_left._id, select_right._id)
-            if self.session._cte_optimization_enabled
+            if self.session.cte_optimization_enabled
             and select_left._id is not None
             and select_right._id is not None
             else None
