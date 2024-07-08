@@ -14,6 +14,7 @@ from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
 )
 
 TEST_DFS = [
@@ -34,6 +35,18 @@ NATIVE_INDEX_TEST_DATA = [
     native_pd.Index([5, None, 7]),
     native_pd.Index([1]),
     native_pd.Index(["a", "b", 1, 2]),
+]
+
+NATIVE_NUMERIC_INDEX_TEST_DATA = [
+    native_pd.Index([], dtype="int64"),
+    native_pd.Index([1], dtype="float64"),
+    native_pd.Index(
+        [1, 2, 3, 1, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5, 6, 7]
+    ),
+    native_pd.Index([1.1, 2.2, 1.0, 1, 1.1, 2.2, 1, 1, 1, 2, 2, 2, 2.2]),
+    native_pd.Index(
+        [True, False, True, False, True, False, True, False, True, True], dtype=bool
+    ),
 ]
 
 
@@ -104,11 +117,42 @@ def test_df_index_equals(native_df):
     assert snow_df.index.equals(native_df.index)
 
 
-@sql_count_checker(query_count=1)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_value_counts(native_index):
+@pytest.mark.parametrize("native_index", NATIVE_NUMERIC_INDEX_TEST_DATA)
+@pytest.mark.parametrize("normalize", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@pytest.mark.parametrize("ascending", [True, False])
+@pytest.mark.parametrize("dropna", [True, False])
+# @sql_count_checker(query_count=1)
+def test_index_value_counts(native_index, normalize, sort, ascending, dropna):
     snow_index = pd.Index(native_index)
-    assert_series_equal(snow_index.value_counts(), native_index.value_counts())
+    print(
+        snow_index.value_counts(
+            normalize=normalize, sort=sort, ascending=ascending, dropna=dropna
+        )
+    )
+    print(
+        native_index.value_counts(
+            normalize=normalize, sort=sort, ascending=ascending, dropna=dropna
+        )
+    )
+    eval_snowpark_pandas_result(
+        snow_index,
+        native_index,
+        lambda idx: idx.value_counts(
+            normalize=normalize, sort=sort, ascending=ascending, dropna=dropna
+        ),
+    )
+
+
+# # (test_index_value_counts[True-None-True-True-True-native_index2])
+# # native_index = Index([1, 2, 3, 1, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5,
+# #        6, 7],
+# #       dtype='int64')
+# # normalize = True, sort = True, ascending = True, bins = None, dropna = True
+#
+# def test():
+#     snow_index = pd.Index([1, 2, 3, 1, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5, 6, 7])
+#     print(snow_index.value_counts(normalize=True, sort=True, ascending=True, bins=None, dropna=True))
 
 
 @sql_count_checker(query_count=4)

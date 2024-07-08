@@ -10127,12 +10127,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ascending: bool = False,
         bins: Optional[int] = None,
         dropna: bool = True,
+        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
-        Counts the number of unique values (frequency) of SnowflakeQueryCompiler.
+        Counts the frequency or number of unique values of SnowflakeQueryCompiler.
 
         The resulting object will be in descending order so that the
-        first element is the most frequently-occurring element.
+        first element is the most frequently occurring element.
         Excludes NA values by default.
 
         Args:
@@ -10151,6 +10152,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 This argument is not supported yet.
             dropna : bool, default True
                 Don't include counts of NaN.
+            include_index : bool, default False
+                Whether to use index columns along with data columns when counting the number
+                of unique values. Set `include_index` to True when calling `value_counts` with
+                an Index object. When called with an Index object, only index columns are used
+                in the result since Index objects have no data columns.
+                Only single Index objects are currently supported, MultiIndex is not yet
+                implemented in Snowpark pandas.
         """
         # TODO: SNOW-924742 Support bins in Series.value_counts
         if bins is not None:
@@ -10161,7 +10169,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 subset = [subset]
             by = subset
         else:
-            by = self._modin_frame.data_column_pandas_labels
+            by = []
+            if include_index:
+                if self.is_multiindex():
+                    ErrorMessage.not_implemented(
+                        "`value_counts` is not yet implemented for MultiIndex objects"
+                    )
+                by += self._modin_frame.index_column_pandas_labels
+            by += self._modin_frame.data_column_pandas_labels
 
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
