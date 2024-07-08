@@ -8,13 +8,13 @@
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
-- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
 
 ### Snowpark pandas API Updates
 
 #### New Features
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
+- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
