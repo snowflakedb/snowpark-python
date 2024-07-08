@@ -4059,6 +4059,53 @@ def arrays_zip(*cols: ColumnOrName) -> Column:
 
     Returns:
         A new array of structured objects.
+
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_zip(df.a, df.b).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 10     |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 20     |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": 30     |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(1, 2) as B, array_construct(1.1) as C")
+        >>> df.select(arrays_zip(df.a, df.b, df.c).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 1,     |
+        |    "$3": 1.1    |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 2,     |
+        |    "$3": null   |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": null,  |
+        |    "$3": null   |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
     """
     cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
     return builtin("arrays_zip")(*cols)
