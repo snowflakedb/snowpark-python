@@ -1551,7 +1551,7 @@ class Series(BasePandasDataset):
         if self._query_compiler.has_multiindex:
             result = DataFrame(
                 query_compiler=self._query_compiler.unstack(
-                    level, fill_value, sort, is_series_output=False
+                    level, fill_value, sort, is_series_input=True
                 )
             )
         else:
@@ -1559,10 +1559,6 @@ class Series(BasePandasDataset):
                 f"index must be a MultiIndex to unstack, {type(self.index)} was passed"
             )
 
-        if result.columns.nlevels > 1:
-            # Modin just calls result.droplevel(0, axis=1), but we work around that
-            # Snowpark pandas `DataFrame.droplevel()` is not implemented
-            result.columns = result.columns.droplevel()
         return result
 
     @series_not_implemented()

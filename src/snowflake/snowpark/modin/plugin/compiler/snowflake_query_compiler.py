@@ -15032,6 +15032,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 na_position="last",
                 ignore_index=False,
             )
+            # TODO: SNOW-1524695: Fix `NULL_REPLACE` values in output of `melt`
             .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
             .set_index_from_columns(index_cols + [col_label])  # type: ignore
         )
@@ -15058,7 +15059,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level: Union[int, str, list] = -1,
         fill_value: Optional[Union[int, str, dict]] = None,
         sort: bool = True,
-        is_series_output: bool = False,
+        is_series_input: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Pivot a level of the (necessarily hierarchical) index labels.
@@ -15080,8 +15081,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort : bool, default True
             Sort the level(s) in the resulting MultiIndex columns.
 
-        is_series_output : bool, default False
-            Whether the output is a Series, used by `fillna`
+        is_series_input : bool, default False
+            Whether the input is a Series, in which case we call `droplevel`
         """
         if not isinstance(level, int):
             ErrorMessage.not_implemented(
@@ -15122,7 +15123,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 index=index_cols,
                 values=vals,
                 aggfunc="min",
-                fill_value=None,
+                fill_value=fill_value,
                 margins=False,
                 dropna=True,
                 margins_name="All",
@@ -15183,6 +15184,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     value_name=MODIN_UNNAMED_SERIES_LABEL,
                     ignore_index=False,
                 )
+                # TODO: SNOW-1524695: Fix `NULL_REPLACE` values in output of `melt`
                 .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
                 .set_index_from_columns([col_label] + index_cols)  # type: ignore
             )
@@ -15195,8 +15197,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             elif does_index_names_contain_none:
                 qc = qc.set_index_names([col_label, None])
 
-        if fill_value:
-            qc = qc.fillna(value=fill_value, self_is_series=is_series_output)
+        if is_series_input and qc.columns.nlevels > 1:
+            # If input is Series and output is MultiIndex, drop the top level of the MultiIndex
+            qc = qc.set_columns(qc.columns.droplevel())
         return qc
 
     def corr(

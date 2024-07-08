@@ -1815,13 +1815,13 @@ class DataFrame(BasePandasDataset):
         ):
             return self._reduce_dimension(
                 query_compiler=self._query_compiler.unstack(
-                    level, fill_value, sort, is_series_output=True
+                    level, fill_value, sort, is_series_input=False
                 )
             )
         else:
             return self.__constructor__(
                 query_compiler=self._query_compiler.unstack(
-                    level, fill_value, sort, is_series_output=False
+                    level, fill_value, sort, is_series_input=False
                 )
             )
 
