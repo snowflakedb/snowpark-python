@@ -158,7 +158,7 @@ class ServerConnection:
         self._conn = conn if conn else connect(**self._lower_case_parameters)
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self.thread_store = threading.local()
+        self._thread_store = threading.local()
         self._telemetry_client = TelemetryClient(self._conn)
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
@@ -172,15 +172,15 @@ class ServerConnection:
 
     @property
     def _cursor(self) -> SnowflakeCursor:
-        if not hasattr(self.thread_store, "cursor"):
-            self.thread_store.cursor = self._conn.cursor()
-        return self.thread_store.cursor
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+        return self._thread_store.cursor
 
     @property
     def _query_listener(self) -> Set[QueryHistory]:
-        if not hasattr(self.thread_store, "query_listener"):
-            self.thread_store.query_listener = set()
-        return self.thread_store.query_listener
+        if not hasattr(self._thread_store, "query_listener"):
+            self._thread_store.query_listener = set()
+        return self._thread_store.query_listener
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
