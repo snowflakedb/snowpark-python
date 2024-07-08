@@ -15213,12 +15213,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 for i in range(len(output_column_names))
             ]
             if None in output_column_names_replace_level_with_none:
-                from snowflake.snowpark.modin.pandas.dataframe import DataFrame
-
-                qc = (
-                    DataFrame(query_compiler=qc)
-                    .rename_axis(output_column_names_replace_level_with_none, axis=1)
-                    ._query_compiler
+                qc = qc.set_columns(
+                    qc.columns.set_names(output_column_names_replace_level_with_none)
                 )
         else:
             # N.B. normally non-MultiIndex cases would throw an error in pandas
