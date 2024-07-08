@@ -101,6 +101,16 @@ def register_dataframe_accessor(name: str):
     ```
     df.new_method(*my_args, **my_kwargs)
     ```
+
+    If you want a property accessor, you must annotate with @property
+    after the call to this function:
+    ```
+    @register_dataframe_accessor("new_prop")
+    @property
+    def my_new_dataframe_property(*args, **kwargs):
+        return _prop
+    ```
+
     Parameters
     ----------
     name : str
@@ -134,6 +144,16 @@ def register_series_accessor(name: str):
     ```
     s.new_method(*my_args, **my_kwargs)
     ```
+
+    If you want a property accessor, you must annotate with @property
+    after the call to this function:
+    ```
+    @register_series_accessor("new_prop")
+    @property
+    def my_new_series_property(*args, **kwargs):
+        return _prop
+    ```
+
     Parameters
     ----------
     name : str
