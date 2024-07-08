@@ -13,6 +13,7 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import span
 
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.open_telemetry import (
@@ -31,7 +32,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import check_tracing_span_answers, span_extractor
+from tests.utils import check_tracing_span_answers
 
 pytestmark = [
     pytest.mark.udf,
@@ -40,6 +41,24 @@ pytestmark = [
         reason="Flaky in CTE mode",
     ),
 ]
+
+
+def attr_to_dict(tracing: span):
+    dict_attr = {}
+    for name in tracing.attributes:
+        dict_attr[name] = tracing.attributes[name]
+    dict_attr["code.filepath"] = os.path.basename(dict_attr["code.filepath"])
+    dict_attr["status_code"] = tracing.status.status_code
+    dict_attr["status_description"] = tracing.status.description
+    return dict_attr
+
+
+def span_extractor(dict_exporter: InMemorySpanExporter):
+    spans = []
+    raw_spans = dict_exporter.get_finished_spans()
+    for raw_span in raw_spans:
+        spans.append((raw_span.name, attr_to_dict(raw_span), raw_span))
+    return spans
 
 
 def dummy_decorator(func):
