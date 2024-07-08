@@ -27,6 +27,7 @@
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -101,7 +102,6 @@
 - Added support for `DataFrame.expanding` and `Series.expanding` for aggregations `count`, `sum`, `min`, `max`, `mean`, `std`, `var`, and `sem` with `axis=0`.
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `DataFrameGroupBy.get_group`.
-- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `Series.str.match`.
 - Added support for `DataFrame.resample` and `Series.resample` for aggregations `size`, `first`, and `last`.
 
@@ -117,7 +117,6 @@
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 - Initial work to support an `pd.Index` directly in Snowpark pandas. Support for `pd.Index` as a first-class component of Snowpark pandas is coming soon.
 - Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
-- For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
 
 ## 1.18.0 (2024-05-28)
