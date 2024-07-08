@@ -16,6 +16,8 @@ from typing import List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import span
 
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.snowpark import DataFrame, Row, Session
@@ -1455,25 +1457,28 @@ TYPE_MAP = [
 ]
 
 
-def attr_to_dict(span):
+def attr_to_dict(tracing: span):
     dict_attr = {}
-    for name in span.attributes:
-        dict_attr[name] = span.attributes[name]
+    for name in tracing.attributes:
+        dict_attr[name] = tracing.attributes[name]
     dict_attr["code.filepath"] = os.path.basename(dict_attr["code.filepath"])
-    dict_attr["status_code"] = span.status.status_code
-    dict_attr["status_description"] = span.status.description
+    dict_attr["status_code"] = tracing.status.status_code
+    dict_attr["status_description"] = tracing.status.description
     return dict_attr
 
 
-def span_extractor(dict_exporter):
+def span_extractor(dict_exporter: InMemorySpanExporter):
     spans = []
     raw_spans = dict_exporter.get_finished_spans()
-    for span in raw_spans:
-        spans.append((span.name, attr_to_dict(span), span))
+    for raw_span in raw_spans:
+        spans.append((raw_span.name, attr_to_dict(raw_span), raw_span))
     return spans
 
 
-def check_single_answer(result, expected_answer):
+def check_tracing_span_single_answer(result, expected_answer):
+    # this function meant to check if there is one match among all the results stored in exporter
+    # The answers are checked in this way because exporter is a public resource that only one exporter can
+    # exist globally, which could lead to race condition if cleaning exporter after every test
     for answer_name in expected_answer:
         if answer_name == "status_description":
             if expected_answer[answer_name] not in result[answer_name]:
@@ -1485,10 +1490,10 @@ def check_single_answer(result, expected_answer):
     return True
 
 
-def check_answers(results, expected_answer):
-    results = span_extractor(results)
+def check_tracing_span_answers(results: dict, expected_answer: tuple[str, dict]):
+    # this is a helper function to check one result from all results stored in exporter
     for result in results:
         if expected_answer[0] == result[0]:
-            if check_single_answer(result[1], expected_answer[1]):
+            if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
