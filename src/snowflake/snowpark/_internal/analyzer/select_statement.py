@@ -418,6 +418,14 @@ class SelectSQL(Selectable):
         return None
 
     @property
+    def _id(self) -> Optional[str]:
+        """
+        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
+        which might be a non-select SQL.
+        """
+        return encode_id(self.original_sql, self.query_params)
+
+    @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_param
 
