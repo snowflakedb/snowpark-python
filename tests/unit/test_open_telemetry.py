@@ -31,7 +31,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import check_answers
+from tests.utils import check_tracing_span_answers, span_extractor
 
 pytestmark = [
     pytest.mark.udf,
@@ -89,7 +89,7 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
 
     lineno = inspect.currentframe().f_lineno - 1
     answer = ("collect", {"code.lineno": lineno})
-    assert check_answers(dict_exporter, answer) is False
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
 
     def minus_udf(x: int, y: int) -> int:
         return x - y
@@ -97,7 +97,7 @@ def test_without_open_telemetry(monkeypatch, dict_exporter):
     session.udf.register(minus_udf, name="test_minus")
     lineno = inspect.currentframe().f_lineno - 1
     answer = ("register", {"code.lineno": lineno})
-    assert check_answers(dict_exporter, answer) is False
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
 
 
 def test_register_udaf_from_file(dict_exporter):
@@ -132,7 +132,7 @@ def test_register_udaf_from_file(dict_exporter):
             "snow.executable.handler": "MyUDAFWithoutTypeHints",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_inline_register_udaf(dict_exporter):
@@ -176,7 +176,7 @@ def test_inline_register_udaf(dict_exporter):
             "snow.executable.handler": "PythonSumUDAF",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
     # test register with @udaf
     @udaf(
@@ -210,7 +210,7 @@ def test_inline_register_udaf(dict_exporter):
             "snow.executable.handler": "PythonSumUDAF",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 @pytest.mark.skipif(
@@ -268,7 +268,7 @@ def test_register_udtf_from_file(dict_exporter):
             "snow.executable.handler": "MyUDTFWithTypeHints",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 @pytest.mark.skipif(
@@ -303,7 +303,7 @@ def test_inline_register_udtf(dict_exporter):
             "snow.executable.handler": "GeneratorUDTF",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
     # test register with @udtf
     @udtf(
@@ -324,7 +324,7 @@ def test_inline_register_udtf(dict_exporter):
             "snow.executable.handler": "GeneratorUDTFwithDecorator",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_register_udf_from_file(dict_exporter):
@@ -359,7 +359,7 @@ def test_register_udf_from_file(dict_exporter):
             "snow.executable.handler": "mod5",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_inline_register_udf(dict_exporter):
@@ -390,7 +390,7 @@ def test_inline_register_udf(dict_exporter):
             "snow.executable.handler": "add_udf",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
     # test register with decorator @udf
     @udf(name="minus_decorator_unit", session=session)
@@ -405,7 +405,7 @@ def test_inline_register_udf(dict_exporter):
             "snow.executable.handler": "minus_udf",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
@@ -424,7 +424,7 @@ def test_open_telemetry_span_from_dataframe_writer_and_dataframe(dict_exporter):
             "method.chain": "DataFrame.to_df().save_as_table()",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
@@ -442,7 +442,7 @@ def test_open_telemetry_span_from_dataframe_writer(dict_exporter):
             "method.chain": "DataFrame.to_df().collect()",
         },
     )
-    assert check_answers(dict_exporter, answer)
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
 
 def test_decorator_count():
