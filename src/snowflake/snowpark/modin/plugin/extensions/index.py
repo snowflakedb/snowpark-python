@@ -395,6 +395,7 @@ class Index:
         # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
+    @is_lazy_check
     def unique(self, level: Hashable | None = None) -> Index:
         """
         Return unique values in the index.
@@ -1374,6 +1375,7 @@ class Index:
         """
         # TODO: SNOW-1458122 implement rename
 
+    @is_lazy_check
     def nunique(self, dropna: bool = True) -> int:
         """
         Return number of unique elements in the object.
