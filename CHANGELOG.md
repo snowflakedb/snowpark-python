@@ -9,6 +9,26 @@
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 
+#### Bug Fixes
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - random
+- Added new parameters to `patch` function when registering a mocked function:
+  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
+  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
+  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
+  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
+
+#### Bug Fixes
+- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -53,27 +73,20 @@
 #### New Features
 
 - Added support for `to_boolean` function.
+- Added documentation pages for Index and its APIs.
 
 #### Bug Fixes
 
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
-- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
+
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
 - Added support for the `strict` parameter when registering UDFs and Stored Procedures.
-- Added support for the following APIs:
-  - snowflake.snowpark.functions
-    - random
-- Added new parameters to `patch` function when registering a mocked function:
-  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
-  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
-  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
-  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
 
 #### Bug Fixes
 
@@ -83,7 +96,6 @@
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in handling of `CaseExpr` expressions that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in implementation of `Column.like` that raises `IndexError` when incoming column has nonconsecutive row index.
-- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
 
 #### Improvements
 
