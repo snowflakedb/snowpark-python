@@ -348,6 +348,11 @@ class Session:
                     f'Configuration "{key}" does not exist or is not mutable in runtime'
                 )
 
+        def _erase_password(self) -> None:
+            if "password" in self._conf:
+                self.set("password", None)
+                self._original_conf["password"] = None
+
     class SessionBuilder:
         """
         Provides methods to set connection parameters and create a :class:`Session`.
@@ -396,9 +401,7 @@ class Session:
                 session = Session(MockServerConnection(self._options), self._options)
                 if "password" in self._options:
                     self._options["password"] = None
-                    session.conf.set(
-                        "password", None
-                    )  # TODO: Clear password from original config
+                    session.conf._erase_password()
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
@@ -445,7 +448,7 @@ class Session:
 
             if "password" in self._options:
                 self._options["password"] = None
-                new_session.conf.set("password", None)
+                new_session.conf._erase_password()
             _add_session(new_session)
             return new_session
 
