@@ -15099,15 +15099,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Check to see if we have a MultiIndex, if we do, make sure we remove
         # the appropriate level(s), and we pivot accordingly.
         if len(index_names) > 1:
-            if does_index_names_contain_none:
-                # Index name defaults to "level_{i}" after reset_index() operation
-                # if index name is None
-                index_cols = [
-                    f"level_{i}" if index_names[i] is None else index_names[i]
-                    for i in range(len(index_names))
-                ]
-            else:
-                index_cols = index_names  # type: ignore
+            index_col_names_after_reset_index = [
+                f"level_{i}" if index_names[i] is None else index_names[i]
+                for i in range(len(index_names))
+            ]
+            index_cols = index_col_names_after_reset_index
 
             pivot_cols = [index_cols[lev] for lev in level]  # type: ignore
             index_cols = [
@@ -15118,7 +15114,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             vals = [
                 c for c in self.columns if c not in index_cols and c not in pivot_cols
             ]
-            qc = self.reset_index().pivot_table(
+            qc = self.reset_index(names=index_col_names_after_reset_index).pivot_table(
                 columns=pivot_cols,
                 index=index_cols,
                 values=vals,
@@ -15166,17 +15162,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # an error in the modin API layer for Series without MultiIndex indices,
             # we can assume that this must be a DataFrame. This assumption might
             # change in the future, so this code should be changed along with it.
-            if does_index_names_contain_none:
-                # Index name defaults to "index" after reset_index() operation if index name is None
-                index_cols = ["index"]
-            else:
-                index_cols = index_names  # type: ignore
+
+            # Index name defaults to "index" after reset_index() operation if index name is None
+            index_cols = ["index"] if does_index_names_contain_none else index_names
 
             col_label = (
                 "index_second_level" if self.columns.name is None else self.columns.name
             )
             qc = (
-                self.reset_index()
+                self.reset_index(names=index_cols)
                 .melt(
                     id_vars=index_cols,  # type: ignore
                     value_vars=self.columns,
@@ -15189,13 +15183,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 .set_index_from_columns([col_label] + index_cols)  # type: ignore
             )
 
-            # Set the correct index names based on column and index names
-            if self.columns.name is None and not does_index_names_contain_none:
-                qc = qc.set_index_names([None] + index_cols)
-            elif self.columns.name is None and does_index_names_contain_none:
-                qc = qc.set_index_names([None, None])
-            elif does_index_names_contain_none:
-                qc = qc.set_index_names([col_label, None])
+            # Set the correct index names based on index names
+            output_index_names = qc.get_index_names()
+            output_index_names = [
+                None
+                if isinstance(output_index_names[i], str)
+                and output_index_names[i] in ("index", "index_second_level")
+                else output_index_names[i]
+                for i in range(len(output_index_names))
+            ]
+            qc = qc.set_index_names(output_index_names)
 
         if is_series_input and qc.columns.nlevels > 1:
             # If input is Series and output is MultiIndex, drop the top level of the MultiIndex
