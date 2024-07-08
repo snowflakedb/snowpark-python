@@ -1155,7 +1155,7 @@ res277 = res112.select(when(col("a") % 2 == 0, lit("even")))
 
 res278 = res112.select(iff(col("a") % 2 == 0, lit("even"), lit("odd")))
 
-res279 = res112.select(in_(Empty$, Empty$), in_([col("A"), col("B"), col("A")], Empty$), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
+res279 = res112.select(in_(Add a handler for Empty$ in Unparser.expr(), Add a handler for Empty$ in Unparser.expr()), in_([col("A"), col("B"), col("A")], Add a handler for Empty$ in Unparser.expr()), in_([col("col1"), col("col2")], [[1, "a"], [2, "b"]]))
 
 res280 = res112.select(cume_dist())
 
