@@ -121,7 +121,11 @@ class MockServerConnection:
                 )
 
         def write_table(
-            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
+            self,
+            name: Union[str, Iterable[str]],
+            table: TableEmulator,
+            mode: SaveMode,
+            column_names: Optional[List[str]],
         ) -> Row:
             for column in table.columns:
                 if not table[column].sf_type.nullable and table[column].isnull().any():
@@ -133,38 +137,39 @@ class MockServerConnection:
             name = get_fully_qualified_name(name, current_schema, current_database)
             table = copy(table)
             if mode == SaveMode.APPEND:
-                # Fix append by index
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
                     input_schema = table.columns.to_list()
                     existing_schema = target_table.columns.to_list()
 
-                    if len(input_schema) <= len(existing_schema) and (
-                        all(
-                            target_table[col].sf_type.nullable
-                            for col in (existing_schema[len(input_schema) :])
-                        )
-                    ):
-                        for col in existing_schema[len(input_schema) :]:
-                            table[col] = None
-                            table.sf_types[col] = target_table[col].sf_type
-                    else:
-                        raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
-                        )
-
-                    # This should only happen if column_order == "name" but we have no way to check the column_order
-                    for col in input_schema:
-                        if col in existing_schema:
-                            continue
-                        raise SnowparkLocalTestingException(f"Invalid identifier {col}")
-
-                    # This should only happen if column_order == "name" but we have no way to check the column_order
-                    table = table[target_table.columns]
+                    if not column_names:  # append with column_order being index
+                        if len(input_schema) != len(existing_schema):
+                            raise SnowparkLocalTestingException(
+                                f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                            )
+                        # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                        table.columns = range(table.shape[1])
+                        target_table.columns = range(target_table.shape[1])
+                    else:  # append with column_order being name
+                        for invalid_col in set(input_schema) - set(existing_schema):
+                            raise SnowparkLocalTestingException(
+                                f"invalid identifier '{unquote_if_quoted(invalid_col)}'"
+                            )
+                        for missing_col in set(existing_schema) - set(input_schema):
+                            if target_table[missing_col].sf_type.nullable:
+                                table[missing_col] = None
+                                table.sf_types[missing_col] = target_table[
+                                    missing_col
+                                ].sf_type
+                            else:
+                                raise SnowparkLocalTestingException(
+                                    "NULL result in a non-nullable column"
+                                )
 
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
+                    self.table_registry[name].columns = existing_schema
                     self.table_registry[name].sf_types = target_table.sf_types
                 else:
                     self.table_registry[name] = table

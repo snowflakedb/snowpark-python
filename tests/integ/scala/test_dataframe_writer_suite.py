@@ -6,10 +6,12 @@ import copy
 
 import pytest
 
+import snowflake.connector.errors
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -20,7 +22,7 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-def test_write_with_target_column_name_order(session):
+def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
     empty_df = session.create_dataframe(
         [],
@@ -37,7 +39,7 @@ def test_write_with_target_column_name_order(session):
 
         # By default, it is by index
         df1.write.save_as_table(table_name, mode="append", table_type="temp")
-        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # Explicitly use "index"
         empty_df.write.save_as_table(
@@ -46,7 +48,7 @@ def test_write_with_target_column_name_order(session):
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
-        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # use order by "name"
         empty_df.write.save_as_table(
@@ -66,20 +68,23 @@ def test_write_with_target_column_name_order(session):
     finally:
         session.table(table_name).drop_table()
 
-    # This condition doesn't work due to SQL not being allowed in `local_testing` mode, hence commenting out
-    # # column name and table name with special characters
-    # special_table_name = '"test table name"'
-    # Utils.create_table(
-    #     session, special_table_name, '"a a" int, "b b" int', is_temporary=True
-    # )
-    # try:
-    #     df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
-    #     df2.write.save_as_table(
-    #         special_table_name, mode="append", column_order="name", table_type="temp"
-    #     )
-    #     Utils.check_answer(session.table(special_table_name), [Row(**{"A": 2, "B": 1})])
-    # finally:
-    #     Utils.drop_table(session, special_table_name)
+    if not local_testing_mode:
+        # column name and table name with special characters
+        special_table_name = '"test table name"'
+        Utils.create_table(
+            session, special_table_name, '"a a" int, "b b" int', is_temporary=True
+        )
+        try:
+            df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
+            df2.write.save_as_table(
+                special_table_name,
+                mode="append",
+                column_order="name",
+                table_type="temp",
+            )
+            Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
+        finally:
+            Utils.drop_table(session, special_table_name)
 
 
 @pytest.mark.xfail(
@@ -115,7 +120,7 @@ def test_negative_write_with_target_column_name_order(session):
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["a", "c"])
         # The "columnOrder = name" needs the DataFrame has the same column name set
-        with pytest.raises(SnowparkSQLException, match='Invalid identifier "C"'):
+        with pytest.raises(SnowparkSQLException, match="invalid identifier 'C'"):
             df1.write.save_as_table(
                 table_name, mode="append", column_order="name", table_type="temp"
             )
@@ -160,9 +165,12 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes_without_tru
 
 
 def test_write_with_target_column_name_order_with_nullable_column(
-    session,
+    session, local_testing_mode
 ):
-    table_name = Utils.random_table_name()
+    table_name, non_nullable_table_name = (
+        Utils.random_table_name(),
+        Utils.random_table_name(),
+    )
 
     session.create_dataframe(
         [],
@@ -172,16 +180,25 @@ def test_write_with_target_column_name_order_with_nullable_column(
                 StructField("b", IntegerType()),
                 StructField("c", StringType(), nullable=True),
                 StructField("d", StringType(), nullable=True),
-                StructField("e", StringType(), nullable=True),
-                StructField("f", StringType(), nullable=True),
             ]
         ),
     ).write.save_as_table(table_name, table_type="temporary")
-    try:
-        df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
-        # By default, it is by index
-        df1.write.save_as_table(table_name, mode="append", table_type="temp")
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType(), nullable=False),
+            ]
+        ),
+    ).write.save_as_table(non_nullable_table_name, table_type="temporary")
+    try:
+        df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["b", "a"])
+
+        df1.write.save_as_table(
+            table_name, mode="append", table_type="temp", column_order="name"
+        )
         Utils.check_answer(
             session.table(table_name),
             [
@@ -191,14 +208,34 @@ def test_write_with_target_column_name_order_with_nullable_column(
                         "B": 1,
                         "C": None,
                         "D": None,
-                        "E": None,
-                        "F": None,
                     }
-                )
+                ),
+                Row(
+                    **{
+                        "A": 4,
+                        "B": 3,
+                        "C": None,
+                        "D": None,
+                    }
+                ),
             ],
         )
+
+        df2 = session.create_dataframe([[1], [2]], schema=["a"])
+        with pytest.raises(
+            SnowparkLocalTestingException
+            if local_testing_mode
+            else snowflake.connector.errors.IntegrityError
+        ):
+            df2.write.save_as_table(
+                non_nullable_table_name,
+                mode="append",
+                table_type="temp",
+                column_order="name",
+            )
     finally:
         session.table(table_name).drop_table()
+        session.table(non_nullable_table_name).drop_table()
 
 
 @pytest.mark.skipif(
@@ -222,8 +259,6 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         df_cached.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
-        table = session.table(table_name).select("*")
-        table.show()
         Utils.check_answer(session.table(table_name), [Row(2, 1)])
 
         # copy DataFrame
