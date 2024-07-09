@@ -49,6 +49,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
+from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -2046,7 +2050,18 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
-        if isinstance(self._conn, MockServerConnection):
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_sql)
+        expr.query = query
+        if params is not None:
+            for p in params:
+                build_const_from_python_val(p, expr.params.add())
+
+        if (
+            isinstance(self._conn, MockServerConnection)
+            and not self._conn.suppress_not_implemented_error
+        ):
             if self._conn.is_closed():
                 raise SnowparkSessionException(
                     "Cannot perform this operation because the session has been closed.",
@@ -2064,6 +2079,7 @@ class Session:
                     from_=SelectSQL(query, analyzer=self._analyzer, params=params),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
             )
         else:
             d = DataFrame(
@@ -2071,6 +2087,7 @@ class Session:
                 self._analyzer.plan_builder.query(
                     query, source_plan=None, params=params
                 ),
+                ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.sql")
         return d
