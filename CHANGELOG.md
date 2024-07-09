@@ -1,6 +1,6 @@
 # Release History
 
-## 1.19.1 (TBD)
+## 1.20.0 (TBD)
 
 ### Snowpark Python API Updates
 
@@ -13,11 +13,18 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
+
+### Snowpark Local Testing Updates
+
+### New Features
+
+- Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
 
 ## 1.19.0 (2024-06-25)
 
