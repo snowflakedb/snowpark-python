@@ -29,6 +29,19 @@ def test_fillna_df():
 
 
 @pytest.fixture(scope="function")
+def test_fillna_df_limit():
+    return native_pd.DataFrame(
+        [
+            [1, 2, np.nan, 4],
+            [np.nan, np.nan, 7, np.nan],
+            [np.nan, 10, np.nan, 12],
+            [np.nan, np.nan, 15, 16],
+        ],
+        columns=list("ABCD"),
+    )
+
+
+@pytest.fixture(scope="function")
 def test_fillna_df_none_index():
     # test case to make sure fillna only fill missing values in data columns not index columns
     return native_pd.DataFrame(
@@ -260,12 +273,14 @@ def test_value_scalar_inplace(test_fillna_df):
     )
 
 
-@sql_count_checker(query_count=0)
-def test_value_scalar_limit_not_implemented(test_fillna_df):
-    df = pd.DataFrame(test_fillna_df)
-    msg = "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
-    with pytest.raises(NotImplementedError, match=msg):
-        df.fillna(1, limit=1)
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("limit", [1, 2, 3, 100])
+@pytest.mark.parametrize("method", ["ffill", "bfill"])
+def test_fillna_limit(test_fillna_df_limit, method, limit):
+    snow_df = pd.DataFrame(test_fillna_df_limit)
+    eval_snowpark_pandas_result(
+        snow_df, test_fillna_df_limit, lambda df: df.fillna(method=method, limit=limit)
+    )
 
 
 @sql_count_checker(query_count=0)

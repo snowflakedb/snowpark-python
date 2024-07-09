@@ -8857,11 +8857,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New QueryCompiler with all null values filled.
         """
-        # TODO: SNOW-891788 support limit
-        if limit:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
-            )
         if downcast:
             ErrorMessage.not_implemented(
                 "Snowpark pandas fillna API doesn't yet support 'downcast' parameter"
@@ -8883,12 +8878,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame = self._modin_frame.ensure_row_position_column()
                 if method_is_ffill:
                     func = last_value
-                    window_start = Window.UNBOUNDED_PRECEDING
+                    if limit is None:
+                        window_start = Window.UNBOUNDED_PRECEDING
+                    else:
+                        window_start = -1 * limit
                     window_end = Window.CURRENT_ROW
                 else:
                     func = first_value
                     window_start = Window.CURRENT_ROW
-                    window_end = Window.UNBOUNDED_FOLLOWING
+                    if limit is None:
+                        window_end = Window.UNBOUNDED_FOLLOWING
+                    else:
+                        window_end = limit
                 fillna_column_map = {
                     snowflake_quoted_id: coalesce(
                         snowflake_quoted_id,
