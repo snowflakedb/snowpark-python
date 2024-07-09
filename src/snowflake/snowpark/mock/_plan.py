@@ -1078,7 +1078,10 @@ def execute_mock_plan(
     if isinstance(source_plan, SnowflakeCreateTable):
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
-            source_plan.table_name, res_df, source_plan.mode
+            source_plan.table_name,
+            res_df,
+            source_plan.mode,
+            column_names=source_plan.column_names,
         )
     if isinstance(source_plan, UnresolvedRelation):
         entity_name = source_plan.name
