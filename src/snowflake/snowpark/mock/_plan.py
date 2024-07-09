@@ -2098,28 +2098,32 @@ def calculate_expression(
                     cur_idx = row_idx + delta
                     cur_count = 0
                     while 0 <= cur_idx < len(w):
-                        target_expr = calculate_expression(
+                        calc_expr = calculate_expression(
                             window_function.expr,
                             w.iloc[[cur_idx]],
                             analyzer,
                             expr_to_alias,
-                        ).iloc[0]
+                        )
+                        target_expr = calc_expr.iloc[0]
                         if target_expr is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
                                 break
                         cur_idx += delta
                     if cur_idx < 0 or cur_idx >= len(w):
+                        calc_expr = calculate_expression(
+                            window_function.expr,
+                            w.iloc[[cur_idx]],
+                            analyzer,
+                            expr_to_alias,
+                        )
                         res_cols.append(
-                            calculate_expression(
-                                window_function.default,
-                                w,
-                                analyzer,
-                                expr_to_alias,
-                            ).iloc[0]
+                            calc_expr.iloc[0]
                         )
                     else:
                         res_cols.append(target_expr)
+                    if not calculated_sf_type:
+                        calculated_sf_type = calc_expr.sf_type
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
