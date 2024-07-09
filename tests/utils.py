@@ -89,7 +89,7 @@ if RUNNING_ON_JENKINS:
 
 # SNOW-1348805: Structured types have not been rolled out to all accounts yet.
 # Once rolled out this should be updated to include all accounts.
-STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 
 
