@@ -477,21 +477,6 @@ class Session:
 """
         # constant attributes across all threads
         # TODO: verify that below are thread safe.
-        self._use_scoped_temp_objects: bool = (
-            _use_scoped_temp_objects
-            and self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-            )
-        )
-        self._plan_builder = (
-            SnowflakePlanBuilder(self)
-            if isinstance(self._conn, ServerConnection)
-            else MockSnowflakePlanBuilder(self)
-        )
-        self._file = FileOperation(self)
-        self._lineage = Lineage(self)
-        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
-
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
             self._sp_registration = MockStoredProcedureRegistration(self)
@@ -501,6 +486,21 @@ class Session:
 
         self._udtf_registration = UDTFRegistration(self)
         self._udaf_registration = UDAFRegistration(self)
+
+        self._plan_builder = (
+            SnowflakePlanBuilder(self)
+            if isinstance(self._conn, ServerConnection)
+            else MockSnowflakePlanBuilder(self)
+        )
+        self._use_scoped_temp_objects: bool = (
+            _use_scoped_temp_objects
+            and self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+            )
+        )
+        self._file = FileOperation(self)
+        self._lineage = Lineage(self)
+        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
 
         # handle state for each thread
         self._thread_store = threading.local()
