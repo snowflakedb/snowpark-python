@@ -47,6 +47,11 @@ class LargeQueryBreakdown:
             List[SnowflakePlan]: A list of smaller SnowflakePlans.
 
         """
+
+        # We use CTAS (DDL query) to break down the query plan only if the large query
+        # breakdown is enabled. Running DDL queries inside a transaction commits current
+        # transaction implicitly and executes DDL separately.
+        # See https://docs.snowflake.com/en/sql-reference/transactions#ddl
         if (not self.session._large_query_breakdown_enabled) or is_active_transaction(
             self.session
         ):
