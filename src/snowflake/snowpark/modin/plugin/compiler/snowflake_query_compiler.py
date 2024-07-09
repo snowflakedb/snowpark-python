@@ -216,7 +216,9 @@ from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     set_frame_2d_positional,
 )
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
+    TO_CSV_DEFAULTS,
     get_columns_to_keep_for_usecols,
+    get_compression_algorithm_for_csv,
     get_non_pandas_kwargs,
     is_local_filepath,
     upload_local_path_to_snowflake_stage,
@@ -1087,10 +1089,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         index: bool = True,
         index_label: Optional[IndexLabel] = None,
+        data_column_labels: Optional[List[Hashable]] = None,
     ) -> SnowparkDataFrame:
         """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
-        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns.
+        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns
+        if data_column_labels is None.
         For example:
         With a Snowpark pandas Dataframe (df) has index=[`A`, `B`], columns = [`C`, `D`],
         the result Snowpark Dataframe after calling _to_snowpark_dataframe_from_snowpark_pandas_dataframe(index=True),
@@ -1108,6 +1112,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_label: Optional[IndexLabel], default None
                 the new label used for the index columns, the length must be the same as the number of index column
                 of the current dataframe. If None, the original index name is used.
+            data_column_labels: Optional[Hashable], default None
+                Data columns to include. If none include all data columns.
 
         Returns:
             SnowparkDataFrame
@@ -1132,7 +1138,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 index_column_labels = self._modin_frame.index_column_pandas_labels
 
-        data_column_labels = self._modin_frame.data_column_pandas_labels
+        if data_column_labels is None:
+            data_column_labels = self._modin_frame.data_column_pandas_labels
         if self._modin_frame.is_unnamed_series():
             # this is an unnamed Snowpark pandas series, there is no customer visible pandas
             # label for the data column, set the label to be None
@@ -1172,7 +1179,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.index_column_snowflake_quoted_identifiers
             )
         identifiers_to_retain.extend(
-            self._modin_frame.data_column_snowflake_quoted_identifiers
+            [
+                t[0]
+                for t in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    data_column_labels, include_index=False
+                )
+            ]
         )
         for pandas_label, snowflake_identifier in zip(
             index_column_labels + data_column_labels,
@@ -1189,6 +1201,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return ordered_dataframe.to_projected_snowpark_dataframe(
             col_mapper=rename_mapper
+        )
+
+    def to_csv_with_snowflake(self, **kwargs: Any) -> None:
+        """
+        Write data to a csv file in snowflake stage.
+        Args:
+            **kwargs: to_csv arguments.
+        """
+        # Raise not implemented error for unsupported parameters.
+        unsupported_params = [
+            "float_format",
+            "mode",
+            "encoding",
+            "quoting",
+            "quotechar",
+            "lineterminator",
+            "doublequote",
+            "decimal",
+        ]
+        for param in unsupported_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                ErrorMessage.parameter_not_implemented_error(param, "to_csv")
+
+        ignored_params = ["chunksize", "errors", "storage_options"]
+        for param in ignored_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                WarningMessage.ignored_argument("to_csv", param, "")
+
+        def _get_param(param_name: str) -> Any:
+            """
+            Extract parameter value from kwargs. If missing return default value.
+            """
+            return kwargs.get(param_name, TO_CSV_DEFAULTS[param_name])
+
+        path = _get_param("path_or_buf")
+        compression = get_compression_algorithm_for_csv(_get_param("compression"), path)
+
+        index = _get_param("index")
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, _get_param("index_label"), _get_param("columns")
+        )
+        na_sep = _get_param("na_rep")
+        snowpark_df.write.csv(
+            location=path,
+            format_type_options={
+                "COMPRESSION": compression if compression else "NONE",
+                "FIELD_DELIMITER": _get_param("sep"),
+                "NULL_IF": na_sep if na_sep else (),
+                "ESCAPE": _get_param("escapechar"),
+                "DATE_FORMAT": _get_param("date_format"),
+            },
+            header=_get_param("header"),
+            single=True,
         )
 
     def to_snowflake(
@@ -7411,50 +7476,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # frame holds rows with nunique values, but result must be a series so transpose single row
         return self._nunique_columns(dropna).transpose_single_row()
 
-    def unique(
-        self, is_index: Optional[bool] = False, level: Optional[int] = None
-    ) -> "SnowflakeQueryCompiler":
-        """
-        Compute unique elements for series. Preserves the order of elements as they are encountered.
-        Keyword arguments are empty.
-
-        Parameters
-        ----------
-        is_index : bool, optional
-            Set `is_index` to True when an Index object's query compiler is invoking this method.
-            When True, use index columns to compute unique instead of data columns.
-        level : int, optional
-            When `is_index` is True, this specifies which level of the MultiIndex to use when
-            performing unique. For single-dimensional Index objects, `level` defaults to 0.
-            This functionality is not fully implemented and currently only works for `level=0`.
+    def unique(self) -> "SnowflakeQueryCompiler":
+        """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
+        empty.
 
         Returns
         -------
         Return query compiler with unique values.
         """
-        # With groupby, specify either one of `level` or `by`, not both.
-        if is_index is True:
-            # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
-            assert level is not None
-            # Reusing the groupby_agg implementation helps take care of ordering columns.
-            # Set as_index to True - this turns the column(s) we used with groupby into index columns.
-            as_index = True
-            by = [self._modin_frame.index_column_pandas_labels[level]]
-        else:
-            assert 1 == len(
-                self._modin_frame.data_column_snowflake_quoted_identifiers
-            ), "unique can be only applied to 1-D DataFrame (Series)"
-            by = self._modin_frame.data_column_pandas_labels[0]
-            as_index = False
+
+        assert 1 == len(
+            self._modin_frame.data_column_snowflake_quoted_identifiers
+        ), "unique can be only applied to 1-D DataFrame (Series)"
 
         # unique is ordered in the original occurrence of the elements, which is equivalent to
         # groupby aggregation with no aggregation function, sort = False, as_index = False and
         # dropna = False.
         return self.groupby_agg(
-            by=by,
+            by=self._modin_frame.data_column_pandas_labels[0],
             agg_func={},
             axis=0,
-            groupby_kwargs={"sort": False, "as_index": as_index, "dropna": False},
+            groupby_kwargs={"sort": False, "as_index": False, "dropna": False},
             agg_args=[],
             agg_kwargs={},
         )
