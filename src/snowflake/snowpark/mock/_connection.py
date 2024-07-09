@@ -125,7 +125,7 @@ class MockServerConnection:
             name: Union[str, Iterable[str]],
             table: TableEmulator,
             mode: SaveMode,
-            column_names: Optional[List[str]],
+            column_names: Optional[List[str]] = None,
         ) -> Row:
             for column in table.columns:
                 if not table[column].sf_type.nullable and table[column].isnull().any():
