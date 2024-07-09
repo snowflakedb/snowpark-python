@@ -10177,7 +10177,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             by=by,
             agg_func={COUNT_LABEL: "count"},
             axis=0,
-            groupby_kwargs={"dropna": dropna},
+            groupby_kwargs={"dropna": dropna, "sort": False},
             agg_args=(),
             agg_kwargs={},
         )
@@ -10196,13 +10196,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
                 0
             ]
+        internal_frame = internal_frame.ensure_row_position_column()
 
         # When sort=True, sort by the frequency (count column);
         # otherwise, respect the original order (use the original ordering columns)
         ordered_dataframe = internal_frame.ordered_dataframe
         if sort:
+            # When sort=True, sort the value counts in descending order but maintain the
+            # original row position order.
+            # Need to explicitly specify the row position identifier to enforce the original order.
             ordered_dataframe = ordered_dataframe.sort(
-                OrderingColumn(count_identifier, ascending=ascending)
+                OrderingColumn(count_identifier, ascending=ascending),
+                OrderingColumn(
+                    internal_frame.row_position_snowflake_quoted_identifier,
+                    ascending=True,
+                ),
             )
 
         return SnowflakeQueryCompiler(
