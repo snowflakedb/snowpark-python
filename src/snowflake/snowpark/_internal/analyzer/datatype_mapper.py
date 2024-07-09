@@ -237,7 +237,7 @@ def numeric_to_sql_without_cast(value: Any, datatype: DataType) -> str:
     if value is None:
         return "NULL"
 
-    if not (isinstance(datatype, _NumericType)):
+    if not isinstance(datatype, _NumericType):
         # if the value is not numeric or the datatype is not numeric, fallback to the
         # regular to_sql generation
         return to_sql(value, datatype)

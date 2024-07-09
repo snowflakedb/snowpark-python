@@ -683,7 +683,7 @@ def test_cte_optimization_enabled_on_session(db_parameters):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
-@pytest.mark.skipif(
+@pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="reading server side parameter is not supported in local testing",
 )

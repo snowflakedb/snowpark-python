@@ -328,6 +328,7 @@ def test_rank_related_function_expression(session, local_testing_mode):
             '"LAST_VALUE(""A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
         ],
         [
+            # SNOW-1527199 lag and lead is not returning the correct type under local testing mode
             LongType() if not local_testing_mode else StringType(),
             LongType() if not local_testing_mode else StringType(),
             LongType(),
@@ -341,11 +342,14 @@ def test_literal(session, local_testing_mode):
     df1 = session.create_dataframe([[]])
     df2 = df1.select(lit("a"), lit(1), lit(True), lit([1]))
 
-    expected_dtypes = (
-        [StringType(), LongType(), BooleanType(), ArrayType(LongType())]
-        if local_testing_mode
-        else [StringType(), LongType(), BooleanType(), ArrayType(StringType())]
-    )
+    expected_dtypes = [
+        StringType(),
+        LongType(),
+        BooleanType(),
+        # snowflake doesn't enforce the inner type of ArrayType, so it is expected that
+        # it returns StringType() as inner type.
+        ArrayType(LongType()) if local_testing_mode else ArrayType(StringType()),
+    ]
     verify_column_result(
         session,
         df2,
@@ -701,6 +705,8 @@ def test_binary_expression(session, local_testing_mode):
             '"("" B"" <= \'X\')"',
             '"EQUAL_NULL("" A"", "" B"")"',
             '"(("" B"" = \'X\') AND ("" A"" = 1))"'
+            # when eliminate_numeric_sql_value_cast_enabled the binary expression
+            # will not have cast expression for integer values like INT
             if session.eliminate_numeric_sql_value_cast_enabled
             else '"(("" B"" = \'X\') AND ("" A"" = 1 :: INT))"',
             '"(("" B"" = \'X\') OR ("" A"" = 1))"'
@@ -732,6 +738,8 @@ def test_binary_expression(session, local_testing_mode):
             BooleanType(),
             BooleanType(),
             BooleanType(),
+            # SNOW-1524633 local_testing_mode returns BooleanType() for bitwise operator
+            #   instead of LongType()
             LongType() if not local_testing_mode else BooleanType(),
             LongType() if not local_testing_mode else BooleanType(),
             LongType() if not local_testing_mode else BooleanType(),
@@ -804,6 +812,7 @@ def test_binary_expression(session, local_testing_mode):
             BooleanType(),
             BooleanType(),
             BooleanType(),
+            # SNOW-1524633 local testing mode returns BooleanType() for bitwise operator
             LongType() if not local_testing_mode else BooleanType(),
             LongType() if not local_testing_mode else BooleanType(),
             LongType() if not local_testing_mode else BooleanType(),
@@ -842,6 +851,7 @@ def test_inf_column_name(session, local_testing_mode):
     # string column can be casted to numeric column when possible. However, in python,
     # string to numeric cast is not possible. Therefore, local testing mode will return
     # False for df2 result, but Snowflake returns True.
+    # SNOW-1524637 fixing the INF comparison for local testing mode
     expected_rows = None if [Row(False)] else [Row(True)]
     verify_column_result(
         session,
