@@ -103,6 +103,7 @@
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
 - Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
+- Fixed bug where `value_counts` did not order the result correctly when `sort=True`.
 
 #### Improvements
 
