@@ -493,14 +493,14 @@ class Session:
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
 
         if isinstance(conn, MockServerConnection):
-            self._udf_registration = MockUDFRegistration(self)  # TODO
-            self._sp_registration = MockStoredProcedureRegistration(self)  # TODO
+            self._udf_registration = MockUDFRegistration(self)
+            self._sp_registration = MockStoredProcedureRegistration(self)
         else:
-            self._udf_registration = UDFRegistration(self)  # TODO
-            self._sp_registration = StoredProcedureRegistration(self)  # TODO
+            self._udf_registration = UDFRegistration(self)
+            self._sp_registration = StoredProcedureRegistration(self)
 
-        self._udtf_registration = UDTFRegistration(self)  # TODO
-        self._udaf_registration = UDAFRegistration(self)  # TODO
+        self._udtf_registration = UDTFRegistration(self)
+        self._udaf_registration = UDAFRegistration(self)
 
         # handle state for each thread
         self._thread_store = threading.local()
