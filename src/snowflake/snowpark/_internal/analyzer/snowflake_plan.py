@@ -967,22 +967,38 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         *,
+        use_ctas: bool = False,
         use_scoped_temp_objects: bool = False,
         is_generated: bool = False,
     ) -> SnowflakePlan:
         child = child.replace_repeated_subquery_with_cte()
-        attributes = self.session._get_result_attributes(child.schema_query)
-        return self.build(
-            lambda x: create_table_as_select_statement(
-                name,
-                x,
-                attribute_to_schema_string(attributes),
-                table_type=get_temp_type_for_object(
-                    use_scoped_temp_objects, is_generated
+        if use_ctas:
+            return self.build(
+                lambda x: create_table_as_select_statement(
+                    name,
+                    x,
+                    None,
+                    table_type=get_temp_type_for_object(
+                        use_scoped_temp_objects, is_generated
+                    ),
                 ),
+                child,
+                source_plan,
+                is_ddl_on_temp_object=True,
+            )
+
+        return self.build_from_multiple_queries(
+            lambda x: self.create_table_and_insert(
+                self.session,
+                name,
+                child.schema_query,
+                x,
+                use_scoped_temp_objects=use_scoped_temp_objects,
+                is_generated=is_generated,
             ),
             child,
-            source_plan,
+            None,
+            child.schema_query,
             is_ddl_on_temp_object=True,
         )
 

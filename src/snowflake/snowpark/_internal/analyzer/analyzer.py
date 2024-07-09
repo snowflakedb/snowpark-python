@@ -1072,6 +1072,7 @@ class Analyzer:
                 logical_plan.name,
                 resolved_children[logical_plan.child],
                 logical_plan,
+                use_ctas=logical_plan.use_ctas,
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 is_generated=True,
             )

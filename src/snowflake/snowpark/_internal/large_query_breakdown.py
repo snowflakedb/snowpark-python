@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, Snowflak
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateTempTableCommand
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    is_active_transaction,
     random_name_for_temp_object,
 )
 
@@ -46,7 +47,9 @@ class LargeQueryBreakdown:
             List[SnowflakePlan]: A list of smaller SnowflakePlans.
 
         """
-        if not self.session._large_query_breakdown_enabled:
+        if (not self.session._large_query_breakdown_enabled) or is_active_transaction(
+            self.session
+        ):
             return [root]
 
         plans = []
@@ -108,7 +111,7 @@ class LargeQueryBreakdown:
         # Create a temporary table and replace the child node with the temporary table reference
         temp_table_name = self.get_temp_table_name()
         temp_table_plan = self.session._analyzer.resolve(
-            CreateTempTableCommand(child, temp_table_name)
+            CreateTempTableCommand(child, temp_table_name, use_ctas=True)
         )
 
         self.update_ancestors(parent_map, child, temp_table_name)
