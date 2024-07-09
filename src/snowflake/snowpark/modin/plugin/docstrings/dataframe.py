@@ -1288,7 +1288,9 @@ class DataFrame:
 
         The row/column index do not need to have the same type, as long
         as the values are considered equal. Corresponding columns and
-        index must be of the same dtype.
+        index must be of the same dtype. Note: int variants (int8, int16 etc) are
+        considered equal dtype i.e int8 == int16. Similarly, float variants (float32,
+        float64 etc) are considered equal dtype.
 
         Parameters
         ----------
