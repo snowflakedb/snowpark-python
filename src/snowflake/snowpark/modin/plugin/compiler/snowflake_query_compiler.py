@@ -2176,6 +2176,61 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             False, "any", axis=axis, _bool_only=bool_only, skipna=skipna
         )
 
+    def reindex(
+        self,
+        axis: int,
+        labels: Union[pandas.Index, list[Any]],
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Align QueryCompiler data with a new index along specified axis.
+
+        Parameters
+        ----------
+        axis : {0, 1}
+            Axis to align labels along. 0 is for index, 1 is for columns.
+        labels : list-like
+            Index-labels to align with.
+        method : {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}
+            Method to use for filling holes in reindexed frame.
+        fill_value : scalar
+            Value to use for missing values in the resulted frame.
+        limit : int
+        tolerance : int
+        **kwargs : dict
+            Serves the compatibility purpose. Does not affect the result.
+
+        Returns
+        -------
+        BaseQueryCompiler
+            QueryCompiler with aligned axis.
+        """
+        if axis == 0:
+            new_index_qc = pd.Series(labels)._query_compiler
+            new_index_modin_frame = new_index_qc._modin_frame
+            modin_frame = self._modin_frame
+            result_frame, result_frame_column_mapper = join_utils.join(
+                new_index_modin_frame,
+                modin_frame,
+                how="left",
+                left_on=new_index_modin_frame.data_column_snowflake_quoted_identifiers,
+                right_on=modin_frame.index_column_snowflake_quoted_identifiers,
+            )
+            new_modin_frame = InternalFrame.create(
+                ordered_dataframe=result_frame.ordered_dataframe,
+                data_column_pandas_labels=modin_frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_right_quoted_identifiers(
+                    modin_frame.data_column_snowflake_quoted_identifiers
+                ),
+                data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
+                index_column_pandas_labels=modin_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_left_quoted_identifiers(
+                    new_index_modin_frame.data_column_snowflake_quoted_identifiers
+                ),
+            )
+            return SnowflakeQueryCompiler(new_modin_frame)
+        return self
+
     def _parse_names_arguments_from_reset_index(
         self,
         names: IndexLabel,
