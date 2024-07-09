@@ -2584,7 +2584,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 pass
         return ensure_index(index_like)
 
-    @base_not_implemented()
     def reindex(
         self,
         index=None,
