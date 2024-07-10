@@ -4564,6 +4564,43 @@ def test_lead(session, col_z, local_testing_mode):
     )
 
 
+def test_lead_lag_nulls(session):
+    data = [
+        (1, 1, 1, None),
+        (1, 1, 2, None),
+        (1, 1, 3, 1),
+        (1, 1, 4, None),
+        (1, 1, 5, None),
+        (1, 1, 6, 2),
+        (1, 1, 7, None),
+        (1, 1, 8, None),
+    ]
+    schema = ["COL1", "COL2", "COL3", "COLUMN_TO_FILL"]
+    df = session.create_dataframe(data=data, schema=schema)
+
+    window = Window.partition_by(["COL1", "COL2"]).order_by("COL3")
+
+    lead_col = lead(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    lag_col = lag(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    max_lead_lag = iff(lead_col > lag_col, lead_col, lag_col)
+
+    final_df = df.with_column("MAX_LEAD_LAG", max_lead_lag)
+    Utils.check_answer(
+        final_df,
+        [
+            Row(1, 1, 1, None, None),
+            Row(1, 1, 2, None, None),
+            Row(1, 1, 3, 1, None),
+            Row(1, 1, 4, None, 2),
+            Row(1, 1, 5, None, 2),
+            Row(1, 1, 6, 2, 1),
+            Row(1, 1, 7, None, 2),
+            Row(1, 1, 8, None, 2),
+        ],
+        sort=False,
+    )
+
+
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_last_value(session, col_z):
     Utils.check_answer(
