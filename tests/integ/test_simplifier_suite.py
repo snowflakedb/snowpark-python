@@ -57,6 +57,21 @@ def skip(pytestconfig):
         )
 
 
+boolParamList = [True, False]
+
+
+@pytest.fixture(params=boolParamList)
+def setup_reduce_cast(request, session):
+    is_eliminate_numeric_sql_value_cast_enabled = (
+        session.eliminate_numeric_sql_value_cast_enabled
+    )
+    session.eliminate_numeric_sql_value_cast_enabled = request.param
+    yield
+    session.eliminate_numeric_sql_value_cast_enabled = (
+        is_eliminate_numeric_sql_value_cast_enabled
+    )
+
+
 @pytest.fixture(scope="module")
 def simplifier_table(session) -> None:
     table_name = Utils.random_table_name()
@@ -639,14 +654,17 @@ def test_reference_non_exist_columns(session, simplifier_table):
         df.select(col("c") + 1).collect()
 
 
-def test_order_by(session, simplifier_table):
+def test_order_by(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
 
     # flatten
     df1 = df.sort("a", col("b") + 1)
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1 :: INT) ASC NULLS FIRST'
+        == f'SELECT  *  FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1{integer_literal_postfix}) ASC NULLS FIRST'
     )
 
     # flatten
@@ -667,7 +685,7 @@ def test_order_by(session, simplifier_table):
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        == f'SELECT  *  FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
@@ -678,21 +696,24 @@ def test_order_by(session, simplifier_table):
     )
 
 
-def test_filter(session, simplifier_table):
+def test_filter(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
 
     # flatten
     df1 = df.filter((col("a") > 1) & (col("b") > 2))
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
+        == f'SELECT  *  FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # flatten
     df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
+        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # no flatten because c is a new column
@@ -701,7 +722,7 @@ def test_filter(session, simplifier_table):
     )
     assert (
         df3.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) WHERE ((("A" > 1 :: INT) AND ("B" > 2 :: INT)) AND ("C" < 1 :: INT))'
+        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
     )
 
     # no flatten because a and be are changed
@@ -710,13 +731,13 @@ def test_filter(session, simplifier_table):
     )
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
+        == f'SELECT  *  FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     df5 = df4.select("a")
     assert (
         df5.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT ("A" + 1 :: INT) AS "A", ("B" + 1 :: INT) AS "B" FROM {simplifier_table}) WHERE (("A" > 1 :: INT) AND ("B" > 2 :: INT))'
+        == f'SELECT "A" FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
@@ -725,11 +746,11 @@ def test_filter(session, simplifier_table):
     )
     assert (
         df6.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) WHERE ("A" > 1 :: INT)'
+        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) WHERE ("A" > 1{integer_literal_postfix})'
     )
 
 
-def test_limit(session, simplifier_table):
+def test_limit(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10)
     assert df.queries["queries"][-1] == f"SELECT  *  FROM {simplifier_table} LIMIT 10"
@@ -751,33 +772,41 @@ def test_limit(session, simplifier_table):
     assert df.collect()[0][0] == f"Table {temp_table_name} successfully created."
 
 
-def test_filter_order_limit_together(session, simplifier_table):
+def test_filter_order_limit_together(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("a", "b").filter(col("b") > 1).sort("a").limit(5)
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
+
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1 :: INT) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+        == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
 
-def test_order_limit_filter(session, simplifier_table):
+def test_order_limit_filter(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("a", "b").sort("a").limit(1).filter(col("b") > 1)
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
+
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1{integer_literal_postfix})'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1 :: INT)'
+        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1{integer_literal_postfix})'
     )
 
 
@@ -1162,31 +1191,31 @@ def test_chained_sort(session):
         # Flattened
         (
             lambda df: df.filter(col("A") > 1).select(col("B") + 1),
-            'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
+            'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})',
         ),
         # Flattened, if there are duplicate column names across the parent/child, WHERE is evaluated on subquery first, so we could flatten in this case
         (
             lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
-            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)',
+            'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})',
         ),
         # Flattened
         (
             lambda df: df.filter(col("A") > 1)
             .select(col("A"), col("B"), col(Literal(12)).alias("TWELVE"))
             .filter(col("A") > 2),
-            'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1 :: INT) AND ("A" > 2 :: INT))',
+            'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
         ),
         # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
         (
             lambda df: df.filter(col("A") > 1)
             .select((col("B") + 1).alias("A"))
             .filter(col("A") > 2),
-            'SELECT  *  FROM ( SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT)) WHERE ("A" > 2 :: INT)',
+            'SELECT  *  FROM ( SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})) WHERE ("A" > 2{POSTFIX})',
         ),
         # Not flattened, since A is updated in the select after filter.
         (
             lambda df: df.filter(col("A") > 1).select("A", seq1(0)),
-            'SELECT "A", seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1 :: INT))',
+            'SELECT "A", seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX}))',
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
@@ -1196,16 +1225,22 @@ def test_chained_sort(session):
         # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
         (
             lambda df: df.filter(col("$1") > 1).select(col("B"), col("A")),
-            'SELECT "B", "A" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE ("$1" > 1 :: INT))',
+            'SELECT "B", "A" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE ("$1" > 1{POSTFIX}))',
         ),
     ],
 )
-def test_select_after_filter(session, operation, simplified_query):
+def test_select_after_filter(setup_reduce_cast, session, operation, simplified_query):
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
     session.sql_simplifier_enabled = True
     df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    # replace 'POSTFIX' with the expected integer literal postfix to get the final expected simplified query
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
+    simplified_query = simplified_query.format_map({"POSTFIX": integer_literal_postfix})
 
     Utils.check_answer(operation(df1), operation(df2))
     assert operation(df2).queries["queries"][0] == simplified_query
@@ -1217,7 +1252,7 @@ def test_select_after_filter(session, operation, simplified_query):
         # Flattened
         (
             lambda df: df.order_by(col("A")).select(col("B") + 1),
-            'SELECT ("B" + 1 :: INT) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
+            'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
             True,
         ),
         # Not flattened because SEQ1() is a data generator.
@@ -1229,7 +1264,7 @@ def test_select_after_filter(session, operation, simplified_query):
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
         (
             lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
-            'SELECT ("B" + 1 :: INT) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
+            'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
             True,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
@@ -1261,12 +1296,19 @@ def test_select_after_filter(session, operation, simplified_query):
         ),
     ],
 )
-def test_select_after_orderby(session, operation, simplified_query, execute_sql):
+def test_select_after_orderby(
+    setup_reduce_cast, session, operation, simplified_query, execute_sql
+):
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
     session.sql_simplifier_enabled = True
     df2 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
+
+    integer_literal_postfix = (
+        "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
+    )
+    simplified_query = simplified_query.format_map({"POSTFIX": integer_literal_postfix})
 
     assert operation(df2).queries["queries"][0] == simplified_query
     if execute_sql:
