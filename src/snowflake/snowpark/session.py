@@ -49,7 +49,10 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
-from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, with_src_position
+from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -1854,11 +1857,18 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_table)
+        if isinstance(name, str):
+            ast.name.sp_table_name_flat.name = name
+        elif isinstance(name, Iterable):
+            ast.name.sp_table_name_structured.name.extend(name)
+        ast.variant.sp_session_table = True
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self)
+        t = Table(name, self, stmt)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2056,7 +2066,10 @@ class Session:
             for p in params:
                 build_const_from_python_val(p, expr.params.add())
 
-        if isinstance(self._conn, MockServerConnection) and not self._conn._suppress_not_implemented_error:
+        if (
+            isinstance(self._conn, MockServerConnection)
+            and not self._conn._suppress_not_implemented_error
+        ):
             if self._conn.is_closed():
                 raise SnowparkSessionException(
                     "Cannot perform this operation because the session has been closed.",
