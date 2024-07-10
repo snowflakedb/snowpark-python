@@ -10202,8 +10202,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # otherwise, respect the original order (use the original ordering columns)
         ordered_dataframe = internal_frame.ordered_dataframe
         if sort:
-            # When sort=True, sort the value counts in descending order but maintain the
-            # original row position order.
             # Need to explicitly specify the row position identifier to enforce the original order.
             ordered_dataframe = ordered_dataframe.sort(
                 OrderingColumn(count_identifier, ascending=ascending),
