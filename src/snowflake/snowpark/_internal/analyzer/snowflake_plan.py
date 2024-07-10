@@ -22,7 +22,6 @@ from typing import (
 )
 
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -356,12 +355,6 @@ class SnowflakePlan(LogicalPlan):
             height += 1
             current_level = next_level
         return height
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        if self.source_plan:
-            return self.source_plan.pipeline_breaker_category
-        return PipelineBreakerCategory.NON_BREAKER
 
     @cached_property
     def num_duplicate_nodes(self) -> int:

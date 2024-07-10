@@ -23,7 +23,6 @@ from typing import (
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -509,10 +508,6 @@ class SelectSnowflakePlan(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return self.snowflake_plan.pipeline_breaker_category
-
 
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
@@ -770,13 +765,6 @@ class SelectStatement(Selectable):
             else complexity
         )
         return complexity
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        # TODO: needs to be tested carefully
-        if self.order_by:
-            return PipelineBreakerCategory.PIPELINE_BREAKER
-        return PipelineBreakerCategory.NON_BREAKER
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -1090,10 +1078,6 @@ class SelectTableFunction(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
 
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return self.snowflake_plan.pipeline_breaker_category
-
 
 class SetOperand:
     def __init__(self, selectable: Selectable, operator: Optional[str] = None) -> None:
@@ -1194,12 +1178,6 @@ class SetStatement(Selectable):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # we add #set_operands - 1 additional operators in sql query
         return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        if any(map(lambda x: x.operator == SET_UNION, self.set_operands)):
-            return PipelineBreakerCategory.PIPELINE_BREAKER
-        return PipelineBreakerCategory.UNION_ALL
 
 
 class DeriveColumnDependencyError(Exception):

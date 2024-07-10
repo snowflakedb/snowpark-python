@@ -40,22 +40,6 @@ class PlanNodeCategory(Enum):
         return self.name
 
 
-class PipelineBreakerCategory(Enum):
-    """This enum class is used to classify if a given node is a pipeline
-    breaker and can be a good candidate for materialization.
-    """
-
-    PIPELINE_BREAKER = "pipeline_breaker"  # Sort, Grouping+Aggregate, Pivot, Unpivot, Union, Row Sampling, (Percentile?)
-    UNION_ALL = "union_all"  # (EXCEPT, INTERSECT, ?) UNION ALL
-    CONSECUTIVE_JOIN = (
-        "consecutive_join"  # a join where one of the child is also a join
-    )
-    NON_CONSECUTIVE_JOIN = (
-        "non_consecutive_join"  # join where none of the children are join
-    )
-    NON_BREAKER = "non_breaker"  # all nodes that are pipelines and should not be broken
-
-
 def sum_node_complexities(
     *node_complexities: Dict[PlanNodeCategory, int]
 ) -> Dict[PlanNodeCategory, int]:
