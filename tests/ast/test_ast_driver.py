@@ -77,7 +77,9 @@ def render(ast_base64: str) -> str:
         ],
         capture_output=True,
         text=True,
+        check=True,
     )
+
     return res.stdout
 
 
@@ -104,6 +106,9 @@ session._ast_batch.flush()  # Clear the AST.
 # Retrieve the AST corresponding to the test.
 (_, result) = session._ast_batch.flush()
 """
+    # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
+    # that would otherwise be thrown.
+    session._conn.suppress_not_implemented_error = True
     locals = {"session": session}
     exec(source, locals)
     base64 = locals["result"]
