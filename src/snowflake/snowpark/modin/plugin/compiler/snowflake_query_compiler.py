@@ -2245,13 +2245,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     modin_frame.data_column_snowflake_quoted_identifiers
                 )
             )
-            if method is not None:
-                data_column_pandas_labels += ["_sort_index"]
-                data_column_snowflake_quoted_identifiers += (
-                    result_frame_column_mapper.map_right_quoted_identifiers(
-                        modin_frame.index_column_snowflake_quoted_identifiers
-                    )
-                )
             new_modin_frame = InternalFrame.create(
                 ordered_dataframe=result_frame.ordered_dataframe,
                 data_column_pandas_labels=data_column_pandas_labels,
@@ -2265,19 +2258,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_qc = SnowflakeQueryCompiler(new_modin_frame)
             if method or fill_value is not np.nan:
                 limit = kwargs.get("limit", None)
+                new_filter_column_snowflake_quoted_id = (
+                    result_frame_column_mapper.map_right_quoted_identifiers(
+                        [_filter_column_snowflake_quoted_id]
+                    )[0]
+                )
+                (
+                    new_modin_frame,
+                    mapper,
+                ) = new_modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        new_filter_column_snowflake_quoted_id: coalesce(
+                            col(new_filter_column_snowflake_quoted_id),
+                            pandas_lit(False),
+                        )
+                    }
+                )
+                new_filter_column_snowflake_quoted_id = mapper[
+                    new_filter_column_snowflake_quoted_id
+                ]
                 if method not in ["nearest", None]:
-                    new_filter_column_snowflake_quoted_id = (
-                        result_frame_column_mapper.map_right_quoted_identifiers(
-                            [_filter_column_snowflake_quoted_id]
-                        )[0]
-                    )
-                    new_modin_frame.update_snowflake_quoted_identifiers_with_expressions(
-                        {
-                            new_filter_column_snowflake_quoted_id: coalesce(
-                                new_filter_column_snowflake_quoted_id, pandas_lit(False)
-                            )
-                        }
-                    )
                     new_qc = SnowflakeQueryCompiler(
                         new_modin_frame.ensure_row_position_column()
                     )
@@ -2285,7 +2285,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         new_qc._modin_frame.row_position_snowflake_quoted_identifier
                     )
                     new_qc = new_qc.sort_rows_by_column_values(
-                        columns=["_sort_index"],
+                        columns=new_modin_frame.index_column_pandas_labels,
                         ascending=[True],
                         kind="stable",
                         na_position="last",
@@ -2294,7 +2294,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     new_qc = new_qc.fillna(
                         self_is_series=False,
                         method=method,
-                        limit=limit,
+                        limit=limit,  # type: ignore[arg-type]
+                        axis=0,
                         _filter_column_snowflake_quoted_id=new_filter_column_snowflake_quoted_id,
                     )
                     new_ordered_frame = new_qc._modin_frame.ordered_dataframe.sort(
@@ -2306,39 +2307,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     new_qc = SnowflakeQueryCompiler(
                         InternalFrame.create(
                             ordered_dataframe=new_ordered_frame,
-                            data_column_pandas_labels=modin_frame.data_column_pandas_labels[
+                            data_column_pandas_labels=new_qc._modin_frame.data_column_pandas_labels[
                                 :-1
                             ],
-                            data_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_right_quoted_identifiers(
-                                modin_frame.data_column_snowflake_quoted_identifiers[
-                                    :-1
-                                ]
-                            ),
-                            data_column_pandas_index_names=modin_frame.data_column_pandas_index_names,
-                            index_column_pandas_labels=modin_frame.index_column_pandas_labels,
-                            index_column_snowflake_quoted_identifiers=result_frame_column_mapper.map_left_quoted_identifiers(
-                                new_index_modin_frame.data_column_snowflake_quoted_identifiers
-                            ),
+                            data_column_snowflake_quoted_identifiers=new_qc._modin_frame.data_column_snowflake_quoted_identifiers[
+                                :-1
+                            ],
+                            data_column_pandas_index_names=new_qc._modin_frame.data_column_pandas_index_names,
+                            index_column_pandas_labels=new_qc._modin_frame.index_column_pandas_labels,
+                            index_column_snowflake_quoted_identifiers=new_qc._modin_frame.index_column_snowflake_quoted_identifiers,
                         )
                     )
                 if fill_value is not np.nan:
-                    new_modin_frame = new_qc.fillna(
-                        self_is_series=False, value=fill_value
-                    )._modin_frame
-                    new_qc = SnowflakeQueryCompiler(
-                        InternalFrame.create(
-                            ordered_dataframe=new_modin_frame.ordered_dataframe,
-                            data_column_pandas_labels=new_modin_frame.data_column_pandas_labels[
-                                :-1
-                            ],
-                            data_column_snowflake_quoted_identifiers=new_modin_frame.data_column_snowflake_quoted_identifiers[
-                                :-1
-                            ],
-                            data_column_pandas_index_names=new_modin_frame.data_column_pandas_index_names,
-                            index_column_pandas_labels=new_modin_frame.index_column_pandas_labels,
-                            index_column_snowflake_quoted_identifiers=new_modin_frame.index_column_snowflake_quoted_identifiers,
-                        )
+                    new_qc = new_qc.fillna(
+                        self_is_series=False,
+                        value=fill_value,
+                        axis=0,
+                        _filter_column_snowflake_quoted_id=new_filter_column_snowflake_quoted_id,
                     )
+                    if method in ["nearest", None]:
+                        # In this case, we haven't removed the dummy column that tells us which NA values
+                        # should not be replaced.
+                        new_qc = SnowflakeQueryCompiler(
+                            InternalFrame.create(
+                                ordered_dataframe=new_qc._modin_frame.ordered_dataframe,
+                                data_column_pandas_labels=new_qc._modin_frame.data_column_pandas_labels[
+                                    :-1
+                                ],
+                                data_column_snowflake_quoted_identifiers=new_qc._modin_frame.data_column_snowflake_quoted_identifiers[
+                                    :-1
+                                ],
+                                data_column_pandas_index_names=new_qc._modin_frame.data_column_pandas_index_names,
+                                index_column_pandas_labels=new_qc._modin_frame.index_column_pandas_labels,
+                                index_column_snowflake_quoted_identifiers=new_qc._modin_frame.index_column_snowflake_quoted_identifiers,
+                            )
+                        )
+
             return new_qc
         return self
 
@@ -9004,7 +9008,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: Optional[Axis] = None,
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
-        _filter_column_snowflake_quoted_id=None,
+        _filter_column_snowflake_quoted_id: Optional[str] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method.
@@ -9057,39 +9061,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     func = first_value
                     window_start = Window.CURRENT_ROW
                     window_end = Window.UNBOUNDED_FOLLOWING
-                expr_maker = None
+
+                def fillna_expr(snowflake_quoted_id: str) -> SnowparkColumn:
+                    return coalesce(
+                        snowflake_quoted_id,
+                        func(snowflake_quoted_id, ignore_nulls=True).over(
+                            Window.order_by(
+                                self._modin_frame.row_position_snowflake_quoted_identifier
+                            ).rows_between(window_start, window_end)
+                        ),
+                    )
+
                 if _filter_column_snowflake_quoted_id:
                     # This is an internal argument passed in by reindex
                     # that specifies a column to filter on when doing fillna
                     # columns that this filter is True for should have their
                     # NA values ignored.
-                    def expr_maker(snowflake_quoted_id):
-                        return iff(
-                            not_(col(_filter_column_snowflake_quoted_id)),
+                    fillna_column_map = {
+                        snowflake_quoted_id: iff(
+                            col(_filter_column_snowflake_quoted_id),
                             col(snowflake_quoted_id),
-                            func(snowflake_quoted_id, ignore_nulls=True).over(
-                                Window.order_by(
-                                    self._modin_frame.row_position_snowflake_quoted_identifier
-                                ).rows_between(window_start, window_end)
-                            ),
+                            fillna_expr(snowflake_quoted_id),
                         )
+                        for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
+                    }
 
                 else:
-
-                    def expr_maker(snowflake_quoted_id):
-                        return func(snowflake_quoted_id, ignore_nulls=True).over(
-                            Window.order_by(
-                                self._modin_frame.row_position_snowflake_quoted_identifier
-                            ).rows_between(window_start, window_end)
-                        )
-
-                fillna_column_map = {
-                    snowflake_quoted_id: coalesce(
-                        snowflake_quoted_id,
-                        expr_maker(snowflake_quoted_id),
-                    )
-                    for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
-                }
+                    fillna_column_map = {
+                        snowflake_quoted_id: fillna_expr(snowflake_quoted_id)
+                        for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
+                    }
             else:
                 fillna_column_map = {
                     snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
@@ -9135,7 +9136,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for label, id_tuple in zip(labels, id_tuples):
                 for id in id_tuple:
                     val = label_to_value_map[label]
-                    fillna_column_map[id] = coalesce(id, pandas_lit(val))
+                    if _filter_column_snowflake_quoted_id is None:
+                        fillna_column_map[id] = coalesce(id, pandas_lit(val))
+                    else:
+                        fillna_column_map[id] = iff(
+                            col(_filter_column_snowflake_quoted_id),
+                            col(id),
+                            coalesce(id, pandas_lit(val)),
+                        )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
