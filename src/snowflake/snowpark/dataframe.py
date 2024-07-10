@@ -1374,9 +1374,7 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
-    def filter(
-        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
-    ) -> "DataFrame":
+    def filter(self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1927,9 +1925,7 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(
-        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
-    ) -> "DataFrame":
+    def limit(self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 

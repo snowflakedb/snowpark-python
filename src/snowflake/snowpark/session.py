@@ -49,10 +49,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
-from snowflake.snowpark._internal.ast_utils import (
-    build_const_from_python_val,
-    with_src_position,
-)
+from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, with_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -2059,10 +2056,7 @@ class Session:
             for p in params:
                 build_const_from_python_val(p, expr.params.add())
 
-        if (
-            isinstance(self._conn, MockServerConnection)
-            and not self._conn.suppress_not_implemented_error
-        ):
+        if isinstance(self._conn, MockServerConnection) and not self._conn.suppress_not_implemented_error:
             if self._conn.is_closed():
                 raise SnowparkSessionException(
                     "Cannot perform this operation because the session has been closed.",
