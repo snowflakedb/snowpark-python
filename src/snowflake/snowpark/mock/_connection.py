@@ -254,6 +254,7 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
+        self._suppress_not_implemented_error = False
 
     def log_not_supported_error(
         self,
@@ -275,15 +276,16 @@ class MockServerConnection:
             raise_error: Set to an exception to raise exception
             warning_logger: Set logger to log a warning message
         """
-        self._oob_telemetry.log_not_supported_error(
-            external_feature_name=external_feature_name,
-            internal_feature_name=internal_feature_name,
-            parameters_info=parameters_info,
-            error_message=error_message,
-            connection_uuid=self._connection_uuid,
-            raise_error=raise_error,
-            warning_logger=warning_logger,
-        )
+        if not self._suppress_not_implemented_error:
+            self._oob_telemetry.log_not_supported_error(
+                external_feature_name=external_feature_name,
+                internal_feature_name=internal_feature_name,
+                parameters_info=parameters_info,
+                error_message=error_message,
+                connection_uuid=self._connection_uuid,
+                raise_error=raise_error,
+                warning_logger=warning_logger,
+            )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
