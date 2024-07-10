@@ -274,12 +274,16 @@ def test_value_scalar_inplace(test_fillna_df):
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("limit", [1, 2, 3, 100])
 @pytest.mark.parametrize("method", ["ffill", "bfill"])
-def test_fillna_limit(test_fillna_df_limit, method, limit):
-    snow_df = pd.DataFrame(test_fillna_df_limit)
+def test_fillna_limit(test_fillna_df_limit, method, limit, axis):
+    native_df = test_fillna_df_limit
+    if axis == 1:
+        native_df = native_df.T
+    snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
-        snow_df, test_fillna_df_limit, lambda df: df.fillna(method=method, limit=limit)
+        snow_df, native_df, lambda df: df.fillna(method=method, limit=limit, axis=axis)
     )
 
 

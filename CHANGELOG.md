@@ -15,7 +15,7 @@
 #### New Features
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
-- Added support for `limit` parameter in `fillna`.
+- Added support for `limit` parameter when `method` parameter is used in `fillna`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
