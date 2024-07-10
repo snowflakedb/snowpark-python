@@ -31,7 +31,6 @@ from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
 
-from snowflake.snowpark.functions import col
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -1416,21 +1415,7 @@ class Index:
         >>> s.nunique()
         4
         """
-        return (
-            SnowflakeQueryCompiler(
-                self._query_compiler._modin_frame.append_column(
-                    "index",
-                    col(
-                        self._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers[
-                            0
-                        ]
-                    ),
-                )
-            )
-            .nunique(axis=0, dropna=dropna)
-            .to_pandas()
-            .iloc[0, 0]
-        )
+        return self._query_compiler.nunique_index(dropna=dropna).to_pandas().iloc[0, 0]
 
     @is_lazy_check
     def value_counts(
