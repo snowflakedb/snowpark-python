@@ -44,7 +44,7 @@ NATIVE_NUMERIC_INDEX_TEST_DATA = [
         [1, 2, 3, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5, 6, 7]
     ),
     native_pd.Index([1.1, 2.2, 1.0, 1, 1.1, 2.2, 1, 1, 1, 2, 2, 2, 2.2]),
-    native_pd.Index([1, 3, 1, 1, 1, 3, 1, 1, 1, 2, 2, 2, 3]),
+    native_pd.Index([1, 3, 1, 1, 1, 3, 1, 1, 1, 2, 2, 2, 3], name="random name"),
     native_pd.Index(
         [True, False, True, False, True, False, True, False, True, True], dtype=bool
     ),
