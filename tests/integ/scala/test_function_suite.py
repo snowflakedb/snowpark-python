@@ -4536,6 +4536,14 @@ def test_lag(session, col_z, local_testing_mode):
         sort=local_testing_mode,
     )
 
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
+        ),
+        [Row(10), Row(1), Row(3), Row(1), Row(3)],
+        sort=local_testing_mode,
+    )
+
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_lead(session, col_z, local_testing_mode):

@@ -12,6 +12,10 @@
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
 - Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
 
+#### Bug Fixes
+
+- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
