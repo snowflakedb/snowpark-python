@@ -1247,6 +1247,15 @@ class Series:
         2  0.0  1.0  2.0  3.0
         3  0.0  3.0  2.0  4.0
 
+        Only replace the first NaN element.
+
+        >>> df.fillna(method="ffill", limit=1)
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  NaN  3.0 NaN  4.0
+
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
 
@@ -1259,6 +1268,10 @@ class Series:
         3  0.0  3.0  0.0  4.0
 
         Note that column D is not affected since it is not present in df2.
+
+        Notes
+        -----
+        `limit` parameter is only supported when using `method` parameter.
         """
 
     @_create_operator_docstring(

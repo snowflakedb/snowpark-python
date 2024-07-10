@@ -24,6 +24,13 @@ def test_fillna_series_2():
 
 
 @pytest.fixture(scope="function")
+def test_fillna_series_limit():
+    return native_pd.Series(
+        [np.nan, 1, 2, np.nan, np.nan, np.nan, np.nan, 7, np.nan, 9]
+    )
+
+
+@pytest.fixture(scope="function")
 def test_fillna_df():
     return native_pd.DataFrame(
         [
@@ -122,6 +129,17 @@ def test_value_scalar(test_fillna_series):
         pd.Series(test_fillna_series),
         test_fillna_series,
         lambda s: s.fillna(1),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("limit", [1, 2, 3, 100])
+@pytest.mark.parametrize("method", ["ffill", "bfill"])
+def test_fillna_limit(test_fillna_series_limit, limit, method):
+    eval_snowpark_pandas_result(
+        pd.Series(test_fillna_series_limit),
+        test_fillna_series_limit,
+        lambda s: s.fillna(method=method, limit=limit),
     )
 
 

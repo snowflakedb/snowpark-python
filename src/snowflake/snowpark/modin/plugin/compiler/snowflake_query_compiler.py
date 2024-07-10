@@ -8783,7 +8783,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     def _make_fill_expression_for_column_wise_fillna(
-        self, snowflake_quoted_identifier: str, method: FillNAMethod
+        self,
+        snowflake_quoted_identifier: str,
+        method: FillNAMethod,
+        limit: Optional[int] = None,
     ) -> SnowparkColumn:
         """
         Helper function to get the Snowpark Column expression corresponding to snowflake_quoted_id when doing a column wise fillna.
@@ -8794,6 +8797,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The snowflake quoted identifier of the column that we are generating the expression for.
         method : FillNAMethod
             Enum representing if this method is a ffill method or a bfill method.
+        limit : optional, int
+            Maximum number of consecutive NA values to fill.
 
         Returns
         -------
@@ -8815,17 +8820,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             return col(snowflake_quoted_identifier)
         if method_is_ffill:
-            return coalesce(
-                snowflake_quoted_identifier,
-                *self._modin_frame.data_column_snowflake_quoted_identifiers[:col_pos][
-                    ::-1
-                ],
-            )
-        else:
+            start_pos = 0
+            if limit is not None:
+                start_pos = max(col_pos - limit, start_pos)
             return coalesce(
                 snowflake_quoted_identifier,
                 *self._modin_frame.data_column_snowflake_quoted_identifiers[
-                    len_ids:col_pos:-1
+                    start_pos:col_pos
+                ][::-1],
+            )
+        else:
+            start_pos = len_ids
+            if limit is not None:
+                start_pos = min(col_pos + limit, len_ids)
+            return coalesce(
+                snowflake_quoted_identifier,
+                *self._modin_frame.data_column_snowflake_quoted_identifiers[
+                    start_pos:col_pos:-1
                 ][::-1],
             )
 
@@ -8857,10 +8868,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New QueryCompiler with all null values filled.
         """
-        # TODO: SNOW-891788 support limit
-        if limit:
+        if value is not None and limit is not None:
             ErrorMessage.not_implemented(
-                "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
+                "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter"
             )
         if downcast:
             ErrorMessage.not_implemented(
@@ -8883,12 +8893,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame = self._modin_frame.ensure_row_position_column()
                 if method_is_ffill:
                     func = last_value
-                    window_start = Window.UNBOUNDED_PRECEDING
+                    if limit is None:
+                        window_start = Window.UNBOUNDED_PRECEDING
+                    else:
+                        window_start = -1 * limit
                     window_end = Window.CURRENT_ROW
                 else:
                     func = first_value
                     window_start = Window.CURRENT_ROW
-                    window_end = Window.UNBOUNDED_FOLLOWING
+                    if limit is None:
+                        window_end = Window.UNBOUNDED_FOLLOWING
+                    else:
+                        window_end = limit
                 fillna_column_map = {
                     snowflake_quoted_id: coalesce(
                         snowflake_quoted_id,
@@ -8903,7 +8919,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 fillna_column_map = {
                     snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
-                        snowflake_quoted_id, method
+                        snowflake_quoted_id, method, limit=limit
                     )
                     for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
                 }
