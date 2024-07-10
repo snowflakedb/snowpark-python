@@ -95,6 +95,7 @@
 - Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 - Added support for `DataFrame.to_csv` and `Series.to_csv`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 
