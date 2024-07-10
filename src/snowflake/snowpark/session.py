@@ -194,6 +194,11 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
+# TODO (SNOW-1482588): Add parameter for PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED
+#               at server side
+_PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
+    "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
+)
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -503,6 +508,11 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
+        self._eliminate_numeric_sql_value_cast_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
+            )
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -570,6 +580,10 @@ class Session:
         return self._cte_optimization_enabled
 
     @property
+    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
+        return self._eliminate_numeric_sql_value_cast_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -630,6 +644,21 @@ class Session:
                 self._session_id
             )
         self._cte_optimization_enabled = value
+
+    @eliminate_numeric_sql_value_cast_enabled.setter
+    @experimental_parameter(version="1.20.0")
+    def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
+        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                self._session_id, value
+            )
+            self._eliminate_numeric_sql_value_cast_enabled = value
+        else:
+            raise ValueError(
+                "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
