@@ -28,7 +28,7 @@ set -euxo pipefail
 SCRIPT_DIR=$(dirname "$0")
 
 # Step 1: Build the python proto file from scratch via bazel
-ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark:py_proto'"
+ssh $HOST "bash -c 'cd Snowflake/trunk;bazel build //Snowpark:ast && bazel build //Snowpark:py_proto'"
 
 # Step 2: Fetch from source tree
 REMOTE_HOME=$(ssh $HOST "bash -c 'echo \$HOME'")
