@@ -93,9 +93,7 @@ from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_const_from_python_val,
     fill_ast_for_column,
-    get_symbol,
     set_src_position,
-    setattr_if_not_none,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -532,8 +530,6 @@ class DataFrame:
         """
         self._session = session
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
-        if ast_stmt is not None:
-            setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -1181,10 +1177,9 @@ class DataFrame:
         # AST.
         if _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = stmt.expr.sp_dataframe_select__columns
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self.set_ast_ref(ast.df)
             ast.variadic = is_variadic
-            set_src_position(ast.src)
         else:
             stmt = _ast_stmt
             ast = None
@@ -3353,7 +3348,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_flatten)
+        expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
         if isinstance(input, str):
             build_const_from_python_val(input, expr.input)
