@@ -2068,7 +2068,7 @@ class Session:
 
         if (
             isinstance(self._conn, MockServerConnection)
-            and not self._conn.suppress_not_implemented_error
+            and not self._conn._suppress_not_implemented_error
         ):
             if self._conn.is_closed():
                 raise SnowparkSessionException(
