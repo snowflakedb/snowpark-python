@@ -151,9 +151,12 @@ class MockServerConnection:
                         table.columns = range(table.shape[1])
                         target_table.columns = range(target_table.shape[1])
                     else:  # append with column_order being name
-                        for invalid_col in set(input_schema) - set(existing_schema):
+                        if invalid_cols := set(input_schema) - set(existing_schema):
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id) for id in invalid_cols
+                            )
                             raise SnowparkLocalTestingException(
-                                f"invalid identifier '{unquote_if_quoted(invalid_col)}'"
+                                f"table contains invalid identifier '{identifiers}'"
                             )
                         for missing_col in set(existing_schema) - set(input_schema):
                             if target_table[missing_col].sf_type.nullable:
