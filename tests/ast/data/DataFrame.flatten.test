@@ -1,0 +1,15 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df1 = df.flatten("STR", "path", True, False)
+
+df2 = df.flatten(col("NUM"), recursive=True, mode="ARRAY")
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.flatten("STR", Some("path"), True, False, "BOTH")
+
+res3 = res1.flatten(col("NUM"), None, False, True, "ARRAY")
