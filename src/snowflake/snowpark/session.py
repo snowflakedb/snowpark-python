@@ -1860,9 +1860,9 @@ class Session:
         stmt = self._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_table)
         if isinstance(name, str):
-            ast.name.sp_flat_table_name.name = name
+            ast.name.sp_table_name_flat.name = name
         elif isinstance(name, Iterable):
-            ast.name.sp_structured_table_name.name.extend(name)
+            ast.name.sp_table_name_structured.name.extend(name)
         ast.variant.sp_session_table = True
 
         if not isinstance(name, str) and isinstance(name, Iterable):
