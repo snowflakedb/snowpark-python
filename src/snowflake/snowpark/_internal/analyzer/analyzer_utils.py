@@ -1019,8 +1019,7 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + COMMA
-        + str(offset)
+        + (COMMA + str(offset) if offset is not None else EMPTY_STRING)
         + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)
