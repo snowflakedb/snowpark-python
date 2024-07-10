@@ -18,6 +18,7 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ([1, 2, None], [1, 2, None], True),  # nulls are considered equal
         ([1, 2, 3], [1.0, 2.0, 3.0], False),  # float and integer types are not equal
         ([1, 2, 3], ["1", "2", "3"], False),  # integer and string types are not equal
+        ([1, 2, 3], [1, 3, 2], False),  # different order
     ],
 )
 @sql_count_checker(query_count=4, join_count=2)
@@ -49,3 +50,25 @@ def test_equals_numeric_variants(ltype, rtype, expected):
     s2 = pd.Series([1, 3]).astype(rtype)
     # Snowpark pandas should return True for variants of same type.
     assert s1.equals(s2) == expected
+
+
+@sql_count_checker(query_count=4, join_count=2)
+def test_equals_with_native_object():
+    s1 = pd.Series([1, 3])
+    s2 = pandas.Series([1, 3])
+    # Native pandas should return False
+    assert s1.equals(s2)
+
+
+@pytest.mark.parametrize(
+    "lhs, rhs",
+    [
+        ([0, 1, 2], [0, 1, 3]),  # different value
+        ([0, 1, 2], [0, 2, 1]),  # different order
+    ],
+)
+@sql_count_checker(query_count=2)
+def test_equals_index_mismatch(lhs, rhs):
+    s1 = pandas.Series([1, 2, 3], index=lhs)
+    s2 = pandas.Series([1, 2, 3], index=rhs)
+    assert s1.equals(s2) == pd.Series(s1).equals(pd.Series(s2))
