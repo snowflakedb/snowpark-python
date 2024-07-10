@@ -87,6 +87,7 @@ def run_test(session, test_source):
     source = f"""
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import col
+from snowflake.snowpark import Table
 
 # Set up mock data.
 mock = session.create_dataframe(
@@ -98,6 +99,15 @@ mock = session.create_dataframe(
     schema=['num', 'str']
 )
 mock.write.save_as_table("test_table")
+mock = session.create_dataframe(
+    [
+        [1, "one"],
+        [2, "two"],
+        [3, "three"],
+    ],
+    schema=['num', 'Owner\\'s""opinion.s']
+)
+mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
 session._ast_batch.flush()  # Clear the AST.
 
 # Run the test.
@@ -135,7 +145,7 @@ def test_ast(session, test_case):
         except AssertionError as e:
             raise AssertionError(
                 f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
-            )
+            ) from e
 
 
 if __name__ == "__main__":
