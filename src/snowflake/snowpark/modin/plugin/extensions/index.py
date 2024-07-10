@@ -1818,20 +1818,18 @@ class Index:
             key=key,
             include_indexer=return_indexer,
         )
+        index = Index(res, convert_to_lazy=self.is_lazy)
         if return_indexer:
             # When `return_indexer` is True, `res` is a query compiler with one index column
             # and one data column.
             # The resultant sorted Index is the index column and the indexer is the data column.
             # Therefore, performing Index(qc) and Series(qc).to_numpy() yields the required
             # objects to return.
-            return (
-                Index(res, convert_to_lazy=self.is_lazy),
-                Series(query_compiler=res).to_numpy(),
-            )
+            return index, Series(query_compiler=res).to_numpy()
         else:
             # When `return_indexer` is False, a query compiler with only one index column
             # is returned.
-            return Index(res, convert_to_lazy=self.is_lazy)
+            return index
 
     @index_not_implemented()
     def append(self) -> None:
