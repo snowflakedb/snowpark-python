@@ -6,56 +6,17 @@
 
 #### Improvements
 
-#### Bug Fixes
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-#### Bug Fixes
-
-### Snowpark pandas API Updates
-
-#### New Features
-- Added support for `DataFrame.pivot` and `pd.pivot`.
-- Added support for `DataFrame.to_csv` and `Series.to_csv`.
-- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
-- Added support for `DataFrame.corr`.
-- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
-- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
-
-#### Bug Fixes
-- Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
-
-#### Improvements
-
-## 1.19.0 (2024-06-25)
-
-### Snowpark Python API Updates
-
-#### Improvements
-
-- Added open telemetry tracing on UDxF functions in snowpark.
-- Added open telemetry tracing on stored procedure registration in snowpark.
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
 
-#### New Features
-
-- Added support for `to_boolean` function.
-
 #### Bug Fixes
-
-- Fixed a bug where python stored procedure with table return type fails when run in a task.
-- Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
-- Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
 - Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
+
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
-- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - random
@@ -66,6 +27,68 @@
   - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
 
 #### Bug Fixes
+- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
+- Added support for `read_excel` (Uses local pandas for processing)
+- Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
+- Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
+- Added support for `DataFrame.stack`.
+- Added support for `DataFrame.pivot` and `pd.pivot`.
+- Added support for `DataFrame.to_csv` and `Series.to_csv`.
+- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+- Added support for `DataFrame.corr`.
+- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
+
+#### Bug Fixes
+- Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
+- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
+
+#### Improvements
+- Added support for `Index.copy()`
+- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
+- Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+
+
+## 1.19.0 (2024-06-25)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added open telemetry tracing on UDxF functions in snowpark.
+- Added open telemetry tracing on stored procedure registration in snowpark.
+
+#### New Features
+
+- Added support for `to_boolean` function.
+- Added documentation pages for Index and its APIs.
+
+#### Bug Fixes
+
+- Fixed a bug where python stored procedure with table return type fails when run in a task.
+- Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
+- Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the `strict` parameter when registering UDFs and Stored Procedures.
+
+#### Bug Fixes
 
 - Fixed a bug in convert_timezone that made the setting the source_timezone parameter return an error.
 - Fixed a bug where creating DataFrame with empty data of type `DateType` raises `AttributeError`.
@@ -73,7 +96,6 @@
 - Fixed a bug in mock implementation of `to_char` that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in handling of `CaseExpr` expressions that raises `IndexError` when incoming column has nonconsecutive row index.
 - Fixed a bug in implementation of `Column.like` that raises `IndexError` when incoming column has nonconsecutive row index.
-- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExoressions.
 
 #### Improvements
 
@@ -94,24 +116,12 @@
 - Added support for `DataFrameGroupBy.get_group`.
 - Added support for `Series.str.match`.
 - Added support for `DataFrame.resample` and `Series.resample` for aggregations `size`, `first`, and `last`.
-- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
-- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
-- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
-- Added support for `read_excel` (Uses local pandas for processing)
-- Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
-- Added support for `Series.dt.isocalendar`.
-- Added support for `Series.case_when` except when condition or replacement is callable.
-- Added documentation pages for `Index` and its APIs.
-- Added support for `DataFrame.assign`.
-- Added support for `DataFrame.stack`.
 
 #### Bug Fixes
 
 - Fixed a bug that causes output of GroupBy.aggregate's columns to be ordered incorrectly.
 - Fixed a bug where `DataFrame.describe` on a frame with duplicate columns of differing dtypes could cause an error or incorrect results.
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
-- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
-- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
 
@@ -120,10 +130,6 @@
 - Initial work to support an `pd.Index` directly in Snowpark pandas. Support for `pd.Index` as a first-class component of Snowpark pandas is coming soon.
 - Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
-- Added support for `Index.copy()`
-- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
-- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
-- Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 
 ## 1.18.0 (2024-05-28)
 
