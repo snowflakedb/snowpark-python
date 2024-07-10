@@ -21,7 +21,9 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.analyzer.unary_expression import (
+    Alias,
+)
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
