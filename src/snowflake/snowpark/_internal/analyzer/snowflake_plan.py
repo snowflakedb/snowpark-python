@@ -264,7 +264,13 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
+    def replace_child(self, old_node, new_node) -> None:
+        if self.source_plan is not None:
+            self.source_plan.replace_child(old_node, new_node)
+
     def reset_snowflake_plan(self) -> None:
+        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
         if isinstance(self.source_plan, Selectable):
             self.source_plan.reset_snowflake_plan()
 
