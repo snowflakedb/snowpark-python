@@ -12,12 +12,27 @@ from sortedcontainers import SortedList
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
 )
+from snowflake.snowpark._internal.analyzer.binary_plan_node import Union
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PipelineBreakerCategory,
     get_complexity_score,
 )
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SET_UNION,
+    SelectSnowflakePlan,
+    SelectStatement,
+    SelectTableFunction,
+    SetStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateTempTableCommand
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    Aggregate,
+    CreateTempTableCommand,
+    Pivot,
+    Sample,
+    Sort,
+    Unpivot,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_active_transaction,
@@ -52,9 +67,9 @@ class LargeQueryBreakdown:
         # breakdown is enabled. Running DDL queries inside a transaction commits current
         # transaction implicitly and executes DDL separately.
         # See https://docs.snowflake.com/en/sql-reference/transactions#ddl
-        if (not self.session._large_query_breakdown_enabled) or is_active_transaction(
-            self.session
-        ):
+        self.use_ctas = not is_active_transaction(self.session)
+
+        if not self.session._large_query_breakdown_enabled:
             return [root]
 
         plans = []
@@ -99,9 +114,7 @@ class LargeQueryBreakdown:
                     next_level.append(child)
                     parent_map[child].add(node)
                     score = get_complexity_score(node.cumulative_node_complexity)
-                    if self.is_node_valid_to_breakdown(
-                        score, child.pipeline_breaker_category
-                    ):
+                    if self.is_node_valid_to_breakdown(score, child):
                         pipeline_breaker_list.add((score, child))
 
             current_level = next_level
@@ -116,7 +129,7 @@ class LargeQueryBreakdown:
         # Create a temporary table and replace the child node with the temporary table reference
         temp_table_name = self.get_temp_table_name()
         temp_table_plan = self.session._analyzer.resolve(
-            CreateTempTableCommand(child, temp_table_name, use_ctas=True)
+            CreateTempTableCommand(child, temp_table_name, use_ctas=self.use_ctas)
         )
 
         self.update_ancestors(parent_map, child, temp_table_name)
@@ -129,9 +142,7 @@ class LargeQueryBreakdown:
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
 
-    def is_node_valid_to_breakdown(
-        self, score: int, pipeline_breaker_category: PipelineBreakerCategory
-    ) -> bool:
+    def is_node_valid_to_breakdown(self, score: int, node: LogicalPlan) -> bool:
         """Check if the node is valid to break down based on the complexity score and pipeline breaker category."""
 
         valid_score_range = (
@@ -139,11 +150,34 @@ class LargeQueryBreakdown:
             and score <= self.COMPLEXITY_SCORE_UPPER_BOUND + 20
         )
 
-        valid_pipeline_breaker_category = (
-            pipeline_breaker_category == PipelineBreakerCategory.PIPELINE_BREAKER
-        )
+        return valid_score_range and self.is_node_pipeline_breaker(node)
 
-        return valid_score_range and valid_pipeline_breaker_category
+    def is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
+        """Check if the node is a pipeline breaker based on the node type."""
+        if isinstance(node, (Pivot, Unpivot, Sort, Aggregate)):
+            return True
+
+        if isinstance(node, Sample):
+            return node.row_count is not None
+
+        if isinstance(node, Union):
+            return not node.is_all
+
+        if isinstance(node, SelectStatement):
+            return node.order_by is not None
+
+        if isinstance(node, SetStatement):
+            return any(map(lambda x: x.operator == SET_UNION, node.set_operands))
+
+        if isinstance(node, SnowflakePlan):
+            return node.source_plan is not None and self.is_node_pipeline_breaker(
+                node.source_plan
+            )
+
+        if isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
+            return self.is_node_pipeline_breaker(node.snowflake_plan)
+
+        return False
 
     def update_ancestors(self, parent_map, child, temp_table_name):
         """For the replaced child node, update the direct parent(s) with the temporary table

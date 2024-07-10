@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -55,10 +54,6 @@ class LogicalPlan:
 
     def reset_cumulative_node_complexity(self) -> None:
         self._cumulative_node_complexity = None
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.NON_BREAKER
 
     def replace_child(self, old_node, new_node) -> None:
         self.children = [

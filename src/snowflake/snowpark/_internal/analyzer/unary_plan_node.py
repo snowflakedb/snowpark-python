@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ScalarSubquery,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PipelineBreakerCategory,
     PlanNodeCategory,
     sum_node_complexities,
 )
@@ -39,12 +38,6 @@ class Sample(UnaryNode):
         self.seed = seed
 
     @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        if self.row_count is not None:
-            return PipelineBreakerCategory.PIPELINE_BREAKER
-        return PipelineBreakerCategory.NON_BREAKER
-
-    @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # SELECT * FROM (child) SAMPLE (probability) -- if probability is provided
         # SELECT * FROM (child) SAMPLE (row_count ROWS) -- if not probability but row count is provided
@@ -59,11 +52,6 @@ class Sort(UnaryNode):
     def __init__(self, order: List[SortOrder], child: LogicalPlan) -> None:
         super().__init__(child)
         self.order = order
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        # this needs to be tested carefully
-        return PipelineBreakerCategory.PIPELINE_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -84,10 +72,6 @@ class Aggregate(UnaryNode):
         super().__init__(child)
         self.grouping_expressions = grouping_expressions
         self.aggregate_expressions = aggregate_expressions
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.PIPELINE_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -134,10 +118,6 @@ class Pivot(UnaryNode):
         self.pivot_values = pivot_values
         self.aggregates = aggregates
         self.default_on_null = default_on_null
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.PIPELINE_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -192,10 +172,6 @@ class Unpivot(UnaryNode):
         self.value_column = value_column
         self.name_column = name_column
         self.column_list = column_list
-
-    @property
-    def pipeline_breaker_category(self) -> PipelineBreakerCategory:
-        return PipelineBreakerCategory.PIPELINE_BREAKER
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

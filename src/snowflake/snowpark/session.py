@@ -498,7 +498,7 @@ class Session:
                 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
             )
         )
-        self._large_query_breakdown_enabled: bool = False
+        self._large_query_breakdown_enabled: bool = True
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
