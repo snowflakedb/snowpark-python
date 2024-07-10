@@ -1857,10 +1857,18 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
+        stmt = self._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_table)
+        if isinstance(name, str):
+            ast.name.sp_flat_table_name.name = name
+        elif isinstance(name, Iterable):
+            ast.name.sp_structured_table_name.name.extend(name)
+        ast.variant.sp_session_table = True
+
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, Table._TableAstVariant.SESSION_TABLE)
+        t = Table(name, self, stmt)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t

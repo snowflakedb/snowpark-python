@@ -4,11 +4,11 @@
 #
 
 import sys
-from enum import Enum, auto, unique
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -268,39 +268,22 @@ class Table(DataFrame):
     with the name of the table in Snowflake. See examples in :meth:`Session.table`.
     """
 
-    @unique
-    class _TableAstVariant(Enum):
-        TABLE_INIT = auto()
-        SESSION_TABLE = auto()
-
     def __init__(
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
-        constructor: _TableAstVariant = _TableAstVariant.TABLE_INIT,
+        ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
-        if session is not None:
-            stmt = session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table)
-            # TODO(oplaton): table_name can be a qualified name, so we need to split it
-            # The caller frequently has the split version of the name and joins it for this call, so it's silly but
-            # necessary to split it again here.
-            ast.table = table_name
-            if constructor == Table._TableAstVariant.TABLE_INIT:
-                ast.variant.sp_table_init = True
-            elif constructor == Table._TableAstVariant.SESSION_TABLE:
-                ast.variant.sp_session_table = True
-            else:
-                raise ValueError("Invalid constructor type")
-        else:
-            raise NotImplementedError(
-                "Table() calls without a session are not implemented yet"
-            )
+        if ast_stmt is None and session is not None:
+            ast_stmt = session._ast_batch.assign()
+            ast = with_src_position(ast_stmt.expr.sp_table)
+            ast.name.sp_flat_table_name.name = table_name
+            ast.variant.sp_table_init = True
 
         super().__init__(
             session,
             session._analyzer.resolve(UnresolvedRelation(table_name)),
-            ast_stmt=stmt,
+            ast_stmt=ast_stmt,
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
