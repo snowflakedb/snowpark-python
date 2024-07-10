@@ -78,3 +78,26 @@ def test_reindex_index_ordered_index_unordered_new_index():
         ordered_native_dataframe,
         lambda df: df.reindex(index=[6, 8, 7], method="ffill"),
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_index_fill_value_with_old_na_values():
+    native_df = native_pd.DataFrame(
+        [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("ABC")
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.reindex(index=list("CEBFGA"), fill_value=-1)
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
+def test_reindex_index_fill_method_with_old_na_values(method):
+    native_df = native_pd.DataFrame(
+        [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("ABC")
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.reindex(index=list("CEBFGA"), method=method)
+    )
