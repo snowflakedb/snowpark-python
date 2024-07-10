@@ -91,10 +91,12 @@ from snowflake.snowpark._internal.ast import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
+    build_const_from_python_val,
     fill_ast_for_column,
     get_symbol,
     set_src_position,
     setattr_if_not_none,
+    with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -533,7 +535,11 @@ class DataFrame:
         if ast_stmt is not None:
             setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
 
-        self._plan = self._session._analyzer.resolve(plan)
+        if plan is not None:
+            self._plan = self._session._analyzer.resolve(plan)
+        else:
+            self._plan = None
+
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
@@ -3345,17 +3351,43 @@ class DataFrame:
         See Also:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_flatten)
+        self.set_ast_ref(expr.df)
+        if isinstance(input, str):
+            build_const_from_python_val(input, expr.input)
+        else:
+            expr.input.CopyFrom(input._ast)
+        if path is not None:
+            expr.path.value = path
+        expr.outer = outer
+        expr.recursive = recursive
+
         mode = mode.upper()
         if mode not in ("OBJECT", "ARRAY", "BOTH"):
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
+        if mode == "OBJECT":
+            expr.mode.sp_flatten_mode_object = True
+        elif mode == "ARRAY":
+            expr.mode.sp_flatten_mode_array = True
+        elif mode == "BOTH":
+            expr.mode.sp_flatten_mode_both = True
+
         if isinstance(input, str):
             input = self.col(input)
+
         return self._lateral(
-            FlattenFunction(input._expression, path, outer, recursive, mode)
+            FlattenFunction(input._expression, path, outer, recursive, mode),
+            _ast_stmt = stmt
         )
 
-    def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
+    def _lateral(self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None) -> "DataFrame":
+        from snowflake.snowpark.mock._connection import MockServerConnection
+        if isinstance(self._session._conn, MockServerConnection):
+            return DataFrame(self._session, ast_stmt=_ast_stmt)
+
         result_columns = [
             attr.name
             for attr in self._session._analyzer.resolve(
@@ -3364,7 +3396,7 @@ class DataFrame:
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self._session, Lateral(self._plan, table_function))
+            return DataFrame(self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt)
         prefix = _generate_prefix("a")
         child = self.select(
             [
@@ -3376,9 +3408,10 @@ class DataFrame:
                     common_col_names=common_col_names,
                 )
                 for attr in self._output
-            ]
+            ],
+            ast_stmt=False,  # Suppress AST generation for this SELECT.
         )
-        return DataFrame(self._session, Lateral(child._plan, table_function))
+        return DataFrame(self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt)
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()

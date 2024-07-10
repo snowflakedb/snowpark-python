@@ -108,7 +108,7 @@ session._ast_batch.flush()  # Clear the AST.
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
-    session._conn.suppress_not_implemented_error = True
+    session._conn._suppress_not_implemented_error = True
     locals = {"session": session}
     exec(source, locals)
     base64 = locals["result"]
