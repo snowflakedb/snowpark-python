@@ -13,9 +13,6 @@ from typing import Any, Sequence, Tuple
 from google.protobuf.json_format import ParseDict
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.connector.arrow_context import ArrowConverterContext
-from snowflake.connector.cursor import ResultMetadataV2
-from snowflake.connector.result_batch import ArrowResultBatch
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
