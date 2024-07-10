@@ -7460,6 +7460,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(frame)
 
+    def nunique_index(self, dropna: bool) -> "SnowflakeQueryCompiler":
+        """
+        Return number of unique elements in an Index object.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler where the first row in the first column contains the number
+        of unique elements.
+        """
+        return SnowflakeQueryCompiler(
+            self._modin_frame.append_column(
+                "index",
+                col(self._modin_frame.index_column_snowflake_quoted_identifiers[0]),
+            )
+        ).nunique(axis=0, dropna=dropna)
+
     def nunique(
         self, axis: Axis, dropna: bool, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
