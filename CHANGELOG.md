@@ -1,6 +1,6 @@
 # Release History
 
-## 1.19.1 (TBD)
+## 1.20.0 (TBD)
 
 ### Snowpark Python API Updates
 
@@ -8,7 +8,9 @@
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
+- Added support for function `arrays_zip`.
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
 
 ### Snowpark pandas API Updates
 
@@ -103,6 +105,7 @@
 - Fixed a bug in `DataFrame.rolling` and `Series.rolling` so `window=0` now throws `NotImplementedError` instead of `ValueError`
 - Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
+- Fixed bug where `value_counts` did not order the result correctly when `sort=True`.
 
 #### Improvements
 
@@ -110,7 +113,7 @@
 - `pd.read_csv` reads using the native pandas CSV parser, then uploads data to snowflake using parquet. This enables most of the parameters supported by `read_csv` including date parsing and numeric conversions. Uploading via parquet is roughly twice as fast as uploading via CSV.
 - Initial work to support an `pd.Index` directly in Snowpark pandas. Support for `pd.Index` as a first-class component of Snowpark pandas is coming soon.
 - Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
-- For `df.index`, Snowpark pandas creates a lazy index object. 
+- For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
 - Added support for `Index.copy()`
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
