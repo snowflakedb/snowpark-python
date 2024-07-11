@@ -29,12 +29,16 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
     Except,
+    FullOuter,
+    Inner,
     Intersect,
     Join,
     JoinType,
     LeftAnti,
+    LeftOuter,
     LeftSemi,
     NaturalJoin,
+    RightOuter,
     Union as UnionPlan,
     UsingJoin,
     create_join_type,
@@ -1375,7 +1379,9 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
-    def filter(self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def filter(
+        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1926,7 +1932,9 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def limit(
+        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
@@ -2241,14 +2249,28 @@ class DataFrame:
             --------------------
             <BLANKLINE>
         """
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         join_plan = Join(
             self._plan,
             right._plan,
-            NaturalJoin(create_join_type(join_type or "inner")),
+            NaturalJoin(join_type),
             None,
             None,
         )
+
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_natural_join, stmt)
+        self.set_ast_ref(ast.lhs)
+        right.set_ast_ref(ast.rhs)
+        if isinstance(join_type, Inner):
+            ast.join_type.sp_join_type__inner = True
+        elif isinstance(join_type, LeftOuter):
+            ast.join_type.sp_join_type__left_outer = True
+        elif isinstance(join_type, RightOuter):
+            ast.join_type.sp_join_type__right_outer = True
+        elif isinstance(join_type, FullOuter):
+            ast.join_type.sp_join_type__full_outer = True
+
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
                 from_=self._session._analyzer.create_select_snowflake_plan(
@@ -3375,11 +3397,14 @@ class DataFrame:
 
         return self._lateral(
             FlattenFunction(input._expression, path, outer, recursive, mode),
-            _ast_stmt = stmt
+            _ast_stmt=stmt,
         )
 
-    def _lateral(self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def _lateral(
+        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         from snowflake.snowpark.mock._connection import MockServerConnection
+
         if isinstance(self._session._conn, MockServerConnection):
             return DataFrame(self._session, ast_stmt=_ast_stmt)
 
@@ -3391,7 +3416,9 @@ class DataFrame:
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt)
+            return DataFrame(
+                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+            )
         prefix = _generate_prefix("a")
         child = self.select(
             [
@@ -3406,7 +3433,9 @@ class DataFrame:
             ],
             ast_stmt=False,  # Suppress AST generation for this SELECT.
         )
-        return DataFrame(self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt)
+        return DataFrame(
+            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+        )
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()

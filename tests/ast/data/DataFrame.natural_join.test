@@ -1,0 +1,27 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+df2 = session.table("test_table")
+df1.natural_join(df2)
+
+df3 = session.table("test_table")
+df4 = session.table("test_table")
+df3.natural_join(df4, "left")
+
+df1.natural_join(df4, join_type="full_outer")
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = session.table("test_table")
+
+res3 = res1.natural_join(res2, "inner")
+
+res4 = session.table("test_table")
+
+res5 = session.table("test_table")
+
+res6 = res4.natural_join(res5, "left")
+
+res7 = res1.natural_join(res5, "full_outer")
