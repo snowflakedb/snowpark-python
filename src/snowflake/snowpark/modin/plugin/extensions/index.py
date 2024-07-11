@@ -2315,8 +2315,47 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
-        WarningMessage.index_to_pandas_warning("__repr__")
-        return self.to_pandas().__repr__()
+        num_rows = native_pd.get_option("display.max_rows") or 60
+        num_cols = native_pd.get_option("display.max_columns") or 20
+
+        (
+            row_count,
+            col_count,
+            temp_df,
+        ) = self._query_compiler.build_repr_df(num_rows, num_cols)
+        if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
+            temp_df = temp_df.iloc[:, 0]
+        temp_str = repr(temp_df)
+        freq_str = (
+            f"Freq: {temp_df.index.freqstr}, "
+            if isinstance(temp_df.index, native_pd.DatetimeIndex)
+            else ""
+        )
+        if self.name is not None:
+            name_str = f"Name: {str(self.name)}, "
+        else:
+            name_str = ""
+        if row_count > num_rows:
+            len_str = f"Length: {row_count}, "
+        else:
+            len_str = ""
+        dtype_str = "dtype: {}".format(
+            str(self.dtype) + ")"
+            if temp_df.empty
+            else temp_str.rsplit("dtype: ", 1)[-1]
+        )
+        if row_count == 0:
+            return f"Index([], {freq_str}{name_str}{dtype_str}"
+        maxsplit = 1
+        if (
+            isinstance(temp_df, native_pd.Index)
+            and temp_df.name is not None
+            and temp_df.dtype == "category"
+        ):
+            maxsplit = 2
+        return temp_str.rsplit("\n", maxsplit)[0] + "\n{}{}{}{}".format(
+            freq_str, name_str, len_str, dtype_str
+        )
 
     @is_lazy_check
     def __iter__(self) -> Iterator:
