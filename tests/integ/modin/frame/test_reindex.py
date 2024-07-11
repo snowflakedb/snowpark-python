@@ -107,3 +107,33 @@ def test_reindex_index_fill_method_with_old_na_values(limit, method):
         native_df,
         lambda df: df.reindex(index=list("CEBFGA"), method=method, limit=limit),
     )
+
+
+@sql_count_checker(query_count=2, join_count=1)
+@pytest.mark.parametrize("limit", [None, 1, 2, 100])
+@pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
+def test_reindex_index_datetime_with_fill(limit, method):
+    date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
+    native_df = native_pd.DataFrame(
+        {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
+    )
+    date_index = pd.date_range("1/1/2010", periods=6, freq="D")
+    snow_df = pd.DataFrame(
+        {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
+    )
+
+    def perform_reindex(df):
+        if isinstance(df, pd.DataFrame):
+            return df.reindex(
+                pd.date_range("12/29/2009", periods=10, freq="D"),
+                method=method,
+                limit=limit,
+            )
+        else:
+            return df.reindex(
+                native_pd.date_range("12/29/2009", periods=10, freq="D"),
+                method=method,
+                limit=limit,
+            )
+
+    eval_snowpark_pandas_result(snow_df, native_df, perform_reindex, check_freq=False)
