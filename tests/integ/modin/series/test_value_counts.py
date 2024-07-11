@@ -27,6 +27,47 @@ TEST_NULL_DATA = [
 ]
 
 
+NATIVE_SERIES_TEST_DATA = [
+    native_pd.Series(
+        [1, 2, 3, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5, 6, 7]
+    ),
+    native_pd.Series([1.1, 2.2, 1.0, 1, 1.1, 2.2, 1, 1, 1, 2, 2, 2, 2.2]),
+    native_pd.Series([1, 3, 1, 1, 1, 3, 1, 1, 1, 2, 2, 2, 3]),
+    native_pd.Series(
+        [True, False, True, False, True, False, True, False, True, True], dtype=bool
+    ),
+    native_pd.Series(
+        [
+            "a",
+            "b",
+            "c",
+            "b",
+            "c",
+            "e",
+            "f",
+            "g",
+            "h",
+            "d",
+            "d",
+            "e",
+            "f",
+            "g",
+            "a",
+            "b",
+            "a",
+            "b",
+            "c",
+            "d",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+        ]
+    ),
+]
+
+
 @pytest.mark.parametrize("test_data", TEST_DATA)
 @pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("ascending", [True, False])
@@ -79,3 +120,20 @@ def test_value_counts_dropna(test_data, dropna):
 def test_value_counts_bins():
     with pytest.raises(NotImplementedError, match="bins argument is not yet supported"):
         pd.Series([1, 2, 3, 4]).value_counts(bins=3)
+
+
+@pytest.mark.parametrize("native_series", NATIVE_SERIES_TEST_DATA)
+@pytest.mark.parametrize("normalize", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@pytest.mark.parametrize("ascending", [True, False])
+@pytest.mark.parametrize("dropna", [True, False])
+@sql_count_checker(query_count=1)
+def test_series_value_counts(native_series, normalize, sort, ascending, dropna):
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda s: s.value_counts(
+            normalize=normalize, sort=sort, ascending=ascending, dropna=dropna
+        ),
+    )
