@@ -44,6 +44,7 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     Raises:
         TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
     """
+    from snowflake.snowpark.column import Column
 
     if obj is None:
         set_src_position(ast.null_val.src)
@@ -144,6 +145,9 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
         set_src_position(ast.tuple_val.src)
         for v in obj:
             build_const_from_python_val(v, ast.tuple_val.vs.add())
+
+    elif isinstance(obj, Column):
+        ast.CopyFrom(obj._ast)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
