@@ -2117,9 +2117,7 @@ def calculate_expression(
                             analyzer,
                             expr_to_alias,
                         )
-                        res_cols.append(
-                            calc_expr.iloc[0]
-                        )
+                        res_cols.append(calc_expr.iloc[0])
                     else:
                         res_cols.append(target_expr)
                     if not calculated_sf_type:
