@@ -405,3 +405,84 @@ class TestReindexAxis1:
                     native_df,
                     lambda df: df.reindex(columns=list("CEBFGA"), method=method),
                 )
+
+    @sql_count_checker(query_count=5)
+    @pytest.mark.parametrize("limit", [None, 1, 2, 100])
+    @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
+    def test_reindex_columns_datetime_with_fill(self, limit, method):
+        date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
+        native_df = native_pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+        date_index = pd.date_range("1/1/2010", periods=6, freq="D")
+        snow_df = pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+
+        def perform_reindex(df):
+            if isinstance(df, pd.DataFrame):
+                return df.reindex(
+                    columns=pd.date_range("12/29/2009", periods=10, freq="D"),
+                    method=method,
+                    limit=limit,
+                )
+            else:
+                return df.reindex(
+                    columns=native_pd.date_range("12/29/2009", periods=10, freq="D"),
+                    method=method,
+                    limit=limit,
+                )
+
+        eval_snowpark_pandas_result(
+            snow_df, native_df, perform_reindex, check_freq=False
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_reindex_columns_non_overlapping_columns(self):
+        native_df = native_pd.DataFrame(
+            np.arange(9).reshape((3, 3)), columns=list("ABC")
+        )
+        snow_df = pd.DataFrame(native_df)
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: df.reindex(axis=1, labels=list("EFG"))
+        )
+
+    @sql_count_checker(query_count=5)
+    def test_reindex_columns_non_overlapping_datetime_columns(self):
+        date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
+        native_df = native_pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+        date_index = pd.date_range("1/1/2010", periods=6, freq="D")
+        snow_df = pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+
+        def perform_reindex(df):
+            if isinstance(df, pd.DataFrame):
+                return df.reindex(
+                    columns=pd.date_range("12/29/2008", periods=10, freq="D"),
+                )
+            else:
+                return df.reindex(
+                    columns=native_pd.date_range("12/29/2008", periods=10, freq="D"),
+                )
+
+        eval_snowpark_pandas_result(
+            snow_df, native_df, perform_reindex, check_freq=False
+        )
+
+    @sql_count_checker(query_count=2)
+    def test_reindex_columns_non_overlapping_different_types_columns(self):
+        date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
+        native_df = native_pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+        date_index = pd.date_range("1/1/2010", periods=6, freq="D")
+        snow_df = pd.DataFrame(
+            [[100, 101, np.nan, 100, 89, 88]], index=["prices"], columns=date_index
+        )
+
+        eval_snowpark_pandas_result(
+            snow_df, native_df, lambda df: df.reindex(columns=list("ABCD"))
+        )

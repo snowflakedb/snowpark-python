@@ -2210,7 +2210,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             new_index_modin_frame = new_index_qc._modin_frame
             modin_frame = self._modin_frame
             method = kwargs.get("method", None)
-            fill_value = kwargs.get("fill_value", None)
+            fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
             _filter_column_snowflake_quoted_id = None
             if fill_value is not np.nan or method:
                 # If we are filling values, reindex ignores NaN values that
@@ -2349,7 +2349,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             level = kwargs.get("level", None)
             limit = kwargs.get("limit", None)
             tolerance = kwargs.get("tolerance", None)
-            fill_value = kwargs.get("fill_value", None)
+            fill_value = kwargs.get("fill_value", np.nan)  # type: ignore[arg-type]
             if not self.columns.is_lazy:
                 self.columns.to_pandas().reindex(
                     labels, method, level, limit, tolerance
