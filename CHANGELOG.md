@@ -54,6 +54,11 @@
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - random
+    - rank
+    - dense_rank
+    - percent_rank
+    - cume_dist
+    - ntile
 - Added new parameters to `patch` function when registering a mocked function:
   - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
   - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
