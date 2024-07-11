@@ -2344,7 +2344,73 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         )
 
             return new_qc
-        return self
+        else:
+            method = kwargs.get("method", None)
+            level = kwargs.get("level", None)
+            limit = kwargs.get("limit", None)
+            tolerance = kwargs.get("tolerance", None)
+            fill_value = kwargs.get("fill_value", None)
+            if not self.columns.is_lazy:
+                self.columns.to_pandas().reindex(
+                    labels, method, level, limit, tolerance
+                )
+            data_column_pandas_labels = []
+            data_column_snowflake_quoted_identifiers = []
+            modin_frame = self._modin_frame
+            for label in labels:
+                data_column_pandas_labels += [label]
+                if label in self._modin_frame.data_column_pandas_labels:
+                    snowflake_quoted_ids = list(
+                        modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                            [label], include_index=False
+                        )[
+                            0
+                        ]
+                    )
+                    data_column_snowflake_quoted_identifiers += snowflake_quoted_ids
+                    if len(snowflake_quoted_ids) > 1:
+                        data_column_pandas_labels += [label] * (
+                            len(snowflake_quoted_ids) - 1
+                        )
+                else:
+                    modin_frame = modin_frame.append_column(label, pandas_lit(np.nan))
+                    data_column_snowflake_quoted_identifiers += [
+                        modin_frame.data_column_snowflake_quoted_identifiers[-1]
+                    ]
+            new_modin_frame = InternalFrame.create(
+                ordered_dataframe=modin_frame.ordered_dataframe,
+                data_column_pandas_labels=data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+                data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
+                index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            )
+            new_qc = SnowflakeQueryCompiler(new_modin_frame)
+            ordered_columns = sorted(data_column_pandas_labels)
+            columns_to_ignore = [
+                c in self._modin_frame.data_column_pandas_labels
+                for c in ordered_columns
+            ]
+            if method not in ["nearest", None]:
+                new_qc = new_qc.take_2d_labels(
+                    index=slice(None), columns=ordered_columns
+                ).fillna(
+                    method=method, limit=limit, _columns_to_ignore=columns_to_ignore, self_is_series=False  # type: ignore[arg-type]
+                )
+            if fill_value is not np.nan:
+                new_qc = new_qc.take_2d_labels(
+                    index=slice(None), columns=ordered_columns
+                ).fillna(
+                    value=fill_value,
+                    _columns_to_ignore=columns_to_ignore,
+                    self_is_series=False,
+                )
+            if method not in ["nearest", None] or fill_value is not np.nan:
+                # We only need to reorder the columns if we sorted them above for filling.
+                new_qc = new_qc.take_2d_labels(
+                    index=slice(None), columns=data_column_pandas_labels
+                )
+            return new_qc
 
     def _parse_names_arguments_from_reset_index(
         self,
@@ -8957,6 +9023,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         snowflake_quoted_identifier: str,
         method: FillNAMethod,
         limit: Optional[int] = None,
+        _columns_to_ignore: Optional[list[bool]] = None,
     ) -> SnowparkColumn:
         """
         Helper function to get the Snowpark Column expression corresponding to snowflake_quoted_id when doing a column wise fillna.
@@ -8982,6 +9049,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         col_pos = self._modin_frame.data_column_snowflake_quoted_identifiers.index(
             snowflake_quoted_identifier
         )
+
         # If we are looking at the first column and doing an ffill, or looking at the last column and doing a bfill,
         # there are no other columns for us to coalesce with, so returning coalesce will error since it will be a
         # coalesce with one column. Instead, we just return the column.
@@ -8989,25 +9057,72 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_pos == len_ids - 1 and not method_is_ffill
         ):
             return col(snowflake_quoted_identifier)
+
         if method_is_ffill:
             start_pos = 0
             if limit is not None:
                 start_pos = max(col_pos - limit, start_pos)
+            columns_to_include = (
+                self._modin_frame.data_column_snowflake_quoted_identifiers[
+                    start_pos:col_pos
+                ][::-1]
+            )
+            if _columns_to_ignore:
+                # When _colums_to_ignore is set, we are using this to perform a column-wise fill for reindex.
+                # In that case, we will do two things:
+                # 1. We must filter so that the only columns that appear in the coalesce are columns that
+                # were previously a part of the dataframe (filter using the booleans in _columns_to_ignore).
+                # 2. We must propagate NA values from existing columns (so if we call ffill, and we are filling
+                # new column 'C', and old column 'A' has value 4 and old column 'B' has value NaN, we must fill
+                # column 'C' with NaN, unlike with standard fillna, where we would propagate 4.)
+                #
+                # Now, columns_to_include includes the columns that we can use to fill the value in this column;
+                # however, since we want to propagate NA values, we can find the first column in the list that is
+                # an old column, and only pass that in to coalesce, so that if there is a NaN, it will be propagated,
+                # and if there isn't, the correct value will be propagated.
+                column = None
+                for col_name, ignore_bool in zip(
+                    columns_to_include, _columns_to_ignore[start_pos:col_pos][::-1]
+                ):
+                    if ignore_bool:
+                        # This means that this is a column from the original data.
+                        column = col_name
+                        break
+                if column is None:
+                    columns_to_include = columns_to_include[0:1]
+                else:
+                    columns_to_include = [column]
             return coalesce(
                 snowflake_quoted_identifier,
-                *self._modin_frame.data_column_snowflake_quoted_identifiers[
-                    start_pos:col_pos
-                ][::-1],
+                *columns_to_include,
             )
         else:
-            start_pos = len_ids
+            end_pos = len_ids
             if limit is not None:
-                start_pos = min(col_pos + limit, len_ids)
+                # Add 1 since end index is exclusive.
+                end_pos = min(col_pos + limit + 1, len_ids)
+            columns_to_include = (
+                self._modin_frame.data_column_snowflake_quoted_identifiers[
+                    col_pos:end_pos
+                ]
+            )
+            if _columns_to_ignore:
+                column = None
+                for col_name, ignore_bool in zip(
+                    columns_to_include, _columns_to_ignore[col_pos:end_pos]
+                ):
+                    if ignore_bool:
+                        # This means that this is a column from the original data.
+                        column = col_name
+                        break
+                if column is None:
+                    columns_to_include = columns_to_include[0:1]
+                else:
+                    columns_to_include = [column]
+
             return coalesce(
                 snowflake_quoted_identifier,
-                *self._modin_frame.data_column_snowflake_quoted_identifiers[
-                    start_pos:col_pos:-1
-                ][::-1],
+                *columns_to_include,
             )
 
     def fillna(
@@ -9020,6 +9135,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
         _filter_column_snowflake_quoted_id: Optional[str] = None,
+        _columns_to_ignore: Optional[list[bool]] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method.
@@ -9032,6 +9148,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit : int, optional
         downcast : dict, optional
         _filter_column_snowflake_quoted_id : str, optional
+        _columns_to_ignore : list[bool], optional
         **kwargs : dict
             Serves the compatibility purpose. Does not affect the result.
 
@@ -9108,12 +9225,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
                     }
             else:
-                fillna_column_map = {
-                    snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
-                        snowflake_quoted_id, method, limit=limit
-                    )
-                    for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
-                }
+                if _columns_to_ignore is None:
+                    fillna_column_map = {
+                        snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
+                            snowflake_quoted_id,
+                            method,
+                            limit=limit,
+                        )
+                        for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
+                    }
+                else:
+                    fillna_column_map = {
+                        snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
+                            snowflake_quoted_id,
+                            method,
+                            limit=limit,
+                            _columns_to_ignore=_columns_to_ignore,
+                        )
+                        for i, snowflake_quoted_id in enumerate(
+                            self._modin_frame.data_column_snowflake_quoted_identifiers
+                        )
+                        if not _columns_to_ignore[i]
+                    }
         # case 3: fillna with a mapping
         else:
             # we create a mapping from column label to the fillin value and use coalesce to implement fillna
