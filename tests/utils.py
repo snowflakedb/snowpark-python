@@ -351,6 +351,9 @@ class Utils:
                 raise TypeError(
                     "input_data must be a DataFrame, a list of Row objects or a Row object"
                 )
+
+            # Strip column names to make errors more concise
+            rows = [Row(*list(x)) for x in rows]
             return rows
 
         actual_rows = get_rows(actual)
@@ -1159,6 +1162,21 @@ class TestData:
                 cls.Number2(2, 1, 10),
                 cls.Number2(2, 2, 1),
                 cls.Number2(2, 2, 3),
+            ]
+        )
+
+    @classmethod
+    def xyz2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                cls.Number2(1, 2, 1),
+                cls.Number2(1, 2, 3),
+                cls.Number2(2, 1, 10),
+                cls.Number2(2, 2, 1),
+                cls.Number2(2, 2, 3),
+                cls.Number2(2, 3, 5),
+                cls.Number2(2, 3, 8),
+                cls.Number2(2, 4, 7),
             ]
         )
 
