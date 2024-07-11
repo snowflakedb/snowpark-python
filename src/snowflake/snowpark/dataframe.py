@@ -1375,7 +1375,9 @@ class DataFrame:
             return self.select(list(keep_col_names))
 
     @df_api_usage
-    def filter(self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def filter(
+        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1756,15 +1758,28 @@ class DataFrame:
         )
 
     @df_api_usage
-    def distinct(self) -> "DataFrame":
+    def distinct(self, _ast_stmt: proto.Assign = None) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
+
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
+            self.set_ast_ref(ast.df)
+        else:
+            stmt = _ast_stmt
+            ast = None
+
+        df = self.group_by(
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
+
+        df._ast_id = stmt.var_id.bitfield1
+
+        return df
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -1788,6 +1803,8 @@ class DataFrame:
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
+
+        # TODO: AST, requires window expression support.
 
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
@@ -1926,7 +1943,9 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def limit(
+        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
@@ -3375,11 +3394,14 @@ class DataFrame:
 
         return self._lateral(
             FlattenFunction(input._expression, path, outer, recursive, mode),
-            _ast_stmt = stmt
+            _ast_stmt=stmt,
         )
 
-    def _lateral(self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None) -> "DataFrame":
+    def _lateral(
+        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         from snowflake.snowpark.mock._connection import MockServerConnection
+
         if isinstance(self._session._conn, MockServerConnection):
             return DataFrame(self._session, ast_stmt=_ast_stmt)
 
@@ -3391,7 +3413,9 @@ class DataFrame:
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt)
+            return DataFrame(
+                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+            )
         prefix = _generate_prefix("a")
         child = self.select(
             [
@@ -3406,7 +3430,9 @@ class DataFrame:
             ],
             ast_stmt=False,  # Suppress AST generation for this SELECT.
         )
-        return DataFrame(self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt)
+        return DataFrame(
+            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+        )
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()

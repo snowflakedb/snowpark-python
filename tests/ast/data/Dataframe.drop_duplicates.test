@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table("test_table")
+
+df1 = df.drop_duplicates()
+
+df2 = df.drop_duplicates("NUM")
+
+df3 = df.drop_duplicates("NUM", "STR")
+
+df4 = df.drop_duplicates(subset=["NUM", "STR"])
+
+df5 = df.drop_duplicates(subset=[])
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = res1.drop_duplicates()
