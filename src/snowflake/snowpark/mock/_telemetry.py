@@ -238,21 +238,5 @@ class LocalTestOOBTelemetryService(TelemetryService):
                     raise_error(error_message), error_message
                 )
 
-    def close(self) -> None:
-        """Closes the telemetry service."""
-        self.flush()
-        self.disable()
-
-    def flush(self) -> None:
-        """Flushes all telemetry events in the queue and submit them to the back-end."""
-        if not self.enabled:
-            return
-
-        if not self.queue.empty():
-            payload = self.export_queue_to_string()
-            if payload is None:
-                return
-            self._upload_payload(payload)
-
 
 atexit.register(LocalTestOOBTelemetryService.get_instance().close)
