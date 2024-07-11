@@ -176,7 +176,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkPandasException(
             f"Cannot write pandas DataFrame to table {location} "
             f"because it does not exist. Create table before "
-            f"trying to write a pandas DataFrame",
+            f"trying to write a pandas DataFrame or set auto_create_table=True.",
             error_code="1114",
         )
 
