@@ -201,7 +201,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.where(),
     lambda idx: idx.take(),
     lambda idx: idx.putmask(),
-    lambda idx: idx.nunique(),
     lambda idx: idx.droplevel(),
     lambda idx: idx.fillna(),
     lambda idx: idx.dropna(),
