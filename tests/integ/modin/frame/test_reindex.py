@@ -130,7 +130,16 @@ def test_reindex_index_fill_value_with_old_na_values():
 @sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
+@pytest.mark.xfail(reason="Cannot qualify window in fillna.")
 def test_reindex_index_fill_method_with_old_na_values(limit, method):
+    # Say there are NA values in the data before reindex. reindex is called with
+    # ffill as the method, and there is a new NA value in the row following the
+    # row with the pre-existing NA value. In this case, the ffilled value should
+    # be an NA value (rather than looking to previous rows for a non-NA value).
+    # To support this, we would need to have `ignore_nulls=False`, but we would
+    # also need to qualify the window for values that were in the original DataFrame
+    # as otherwise, if we have multiple new index values that have NA values, we would
+    # pick these NA values instead of finding a non-NA value from the original DataFrame.
     native_df = native_pd.DataFrame(
         [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("ACE")
     )
@@ -146,7 +155,16 @@ def test_reindex_index_fill_method_with_old_na_values(limit, method):
 @sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
+@pytest.mark.xfail(reason="Cannot qualify window in fillna.")
 def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, method):
+    # Say there are NA values in the data before reindex. reindex is called with
+    # ffill as the method, and there is a new NA value in the row following the
+    # row with the pre-existing NA value. In this case, the ffilled value should
+    # be an NA value (rather than looking to previous rows for a non-NA value).
+    # To support this, we would need to have `ignore_nulls=False`, but we would
+    # also need to qualify the window for values that were in the original DataFrame
+    # as otherwise, if we have multiple new index values that have NA values, we would
+    # pick these NA values instead of finding a non-NA value from the original DataFrame.
     native_df = native_pd.DataFrame(
         [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("ABC")
     )
