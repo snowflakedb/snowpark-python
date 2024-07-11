@@ -59,11 +59,14 @@ def test_reindex_index_fill_value():
 
 @sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
-def test_reindex_index_fill_method(method):
+@pytest.mark.parametrize("limit", [None, 1, 2, 1000])
+def test_reindex_index_fill_method(method, limit):
     native_df = native_pd.DataFrame(np.arange(9).reshape((3, 3)), index=list("ABC"))
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: df.reindex(index=list("CADEFG"), method=method)
+        snow_df,
+        native_df,
+        lambda df: df.reindex(index=list("CADEFG"), method=method, limit=limit),
     )
 
 
@@ -92,12 +95,15 @@ def test_reindex_index_fill_value_with_old_na_values():
 
 
 @sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("limit", [None, 1, 2, 1000])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
-def test_reindex_index_fill_method_with_old_na_values(method):
+def test_reindex_index_fill_method_with_old_na_values(limit, method):
     native_df = native_pd.DataFrame(
         [[1, np.nan, 3], [np.nan, 5, np.nan], [7, 8, np.nan]], index=list("ABC")
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
-        snow_df, native_df, lambda df: df.reindex(index=list("CEBFGA"), method=method)
+        snow_df,
+        native_df,
+        lambda df: df.reindex(index=list("CEBFGA"), method=method, limit=limit),
     )
