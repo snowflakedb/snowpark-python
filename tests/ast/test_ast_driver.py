@@ -86,7 +86,7 @@ def render(ast_base64: str) -> str:
 def run_test(session, test_source):
     source = f"""
 import snowflake.snowpark.functions as functions
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import *
 from snowflake.snowpark import Table
 
 # Set up mock data.

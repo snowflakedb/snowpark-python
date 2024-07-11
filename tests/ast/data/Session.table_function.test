@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table_function("my_fn", lit(1), lit("two"))
+
+df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+
+df3 = session.table_function(["foo", "bar"])
+
+# TODO: This isn't working; it's not clear why.
+fn = table_function("my_fn")
+# df4 = session.table_function(fn)
+
+## EXPECTED OUTPUT
+
+res1 = session.table_function("my_fn", lit(1), lit("two"))
+
+res2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+
+res3 = session.table_function("foo.bar")
