@@ -9282,17 +9282,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 include_index=False,
             )
             fillna_column_map = {}
+            if _columns_to_ignore is not None:
+                columns_to_ignore = itertools.compress(
+                    self._modin_frame.data_column_pandas_labels,
+                    _columns_to_ignore,
+                )
+            else:
+                columns_to_ignore = []  # type:ignore [assignment]
             for label, id_tuple in zip(labels, id_tuples):
-                for id in id_tuple:
-                    val = label_to_value_map[label]
-                    if _filter_column_snowflake_quoted_id is None:
-                        fillna_column_map[id] = coalesce(id, pandas_lit(val))
-                    else:
-                        fillna_column_map[id] = iff(
-                            col(_filter_column_snowflake_quoted_id),
-                            col(id),
-                            coalesce(id, pandas_lit(val)),
-                        )
+                if label not in columns_to_ignore:
+                    for id in id_tuple:
+                        val = label_to_value_map[label]
+                        if _filter_column_snowflake_quoted_id is None:
+                            fillna_column_map[id] = coalesce(id, pandas_lit(val))
+                        else:
+                            fillna_column_map[id] = iff(
+                                col(_filter_column_snowflake_quoted_id),
+                                col(id),
+                                coalesce(id, pandas_lit(val)),
+                            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
