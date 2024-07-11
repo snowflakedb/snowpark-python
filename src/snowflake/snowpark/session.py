@@ -1930,24 +1930,20 @@ class Session:
         expr = with_src_position(stmt.expr.apply_expr)
         if isinstance(func_name, TableFunctionCall):
             expr.fn.udtf.name = func_name.name
-            for arg in func.arguments:
-                build_const_from_python_val(arg, expr.pos_args.add())
-            for k in func.named_arguments:
-                entry = expr.named_args.add()
-                entry._1 = k
-                build_const_from_python_val(func.named_arguments[k], entry._2)
+            func_arguments = func.arguments
+            func_named_arguments = func.named_arguments
             # TODO: func.{_over, _partition_by, _order_by, _aliases, _api_call_source}
-        else:
-            if isinstance(func_name, str):
-                expr.fn.udtf.name = func_name
-            elif isinstance(func_name, list):
-                expr.fn.udtf.name = ".".join(func_name)
-            for arg in func_arguments:
-                build_const_from_python_val(arg, expr.pos_args.add())
-            for k in func_named_arguments:
-                entry = expr.named_args.add()
-                entry._1 = k
-                build_const_from_python_val(func_named_arguments[k], entry._2)
+        elif isinstance(func_name, str):
+            expr.fn.udtf.name = func_name
+        elif isinstance(func_name, list):
+            expr.fn.udtf.name = ".".join(func_name)
+
+        for arg in func_arguments:
+            build_const_from_python_val(arg, expr.pos_args.add())
+        for k in func_named_arguments:
+            entry = expr.named_args.add()
+            entry._1 = k
+            build_const_from_python_val(func_named_arguments[k], entry._2)
 
         if isinstance(self._conn, MockServerConnection):
             if not self._conn._suppress_not_implemented_error:
@@ -3281,15 +3277,14 @@ class Session:
         expr.recursive = recursive
 
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
-
         if mode == "OBJECT":
             expr.mode.sp_flatten_mode_object = True
         elif mode == "ARRAY":
             expr.mode.sp_flatten_mode_array = True
         elif mode == "BOTH":
             expr.mode.sp_flatten_mode_both = True
+        else:
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
@@ -3298,9 +3293,6 @@ class Session:
                 self._conn.log_not_supported_error(
                     external_feature_name="Session.flatten", raise_error=NotImplementedError
                 )
-        mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
         if isinstance(input, str):
             input = col(input)
         df = DataFrame(
