@@ -149,27 +149,23 @@ class Index:
         >>> pd.Index([1, 2, 3], dtype="uint8")
         Index([1, 2, 3], dtype='int64')
         """
-        if isinstance(data, SnowflakeQueryCompiler):
-            self.set_query_compiler(data=data)
-            self.is_lazy = True
+        self.is_lazy = convert_to_lazy
+        if self.is_lazy:
+            self.set_query_compiler(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
         else:
-            self.is_lazy = convert_to_lazy
-            if self.is_lazy:
-                self.set_query_compiler(
-                    data=data,
-                    dtype=dtype,
-                    copy=copy,
-                    name=name,
-                    tupleize_cols=tupleize_cols,
-                )
-            else:
-                self.set_local_index(
-                    data=data,
-                    dtype=dtype,
-                    copy=copy,
-                    name=name,
-                    tupleize_cols=tupleize_cols,
-                )
+            self.set_local_index(
+                data=data,
+                dtype=dtype,
+                copy=copy,
+                name=name,
+                tupleize_cols=tupleize_cols,
+            )
 
     def set_query_compiler(
         self,
