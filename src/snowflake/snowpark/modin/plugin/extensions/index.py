@@ -423,7 +423,10 @@ class Index:
         >>> idx.unique()
         Index([1, 2, 3], dtype='int64')
         """
-        # TODO: SNOW-1514782 MultiIndex - support level for Index.unique.
+        if level not in [None, 0, -1]:
+            raise IndexError(
+                f"Too many levels: Index has only 1 level, {level} is not a valid level number."
+            )
         return Index(
             data=self._query_compiler.groupby_agg(
                 by=self._query_compiler.get_index_names(axis=0),
@@ -1415,7 +1418,7 @@ class Index:
         >>> s.nunique()
         4
         """
-        return self._query_compiler.nunique_index(dropna=dropna).to_pandas().iloc[0, 0]
+        return self._query_compiler.nunique_index(dropna=dropna)
 
     @is_lazy_check
     def value_counts(

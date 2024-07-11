@@ -64,3 +64,13 @@ def test_index_unique_data_columns_should_not_affect_index_column():
 
     # Verify that Index.unique is working as expected. 1 query for snow_df.index.unique().
     assert_index_equal(snow_df.index.unique(), native_df.index.unique())
+
+
+@sql_count_checker(query_count=0)
+def test_index_unique_level_negative():
+    snow_index = pd.Index(["a", "b", 1, 2, np.nan, None, "a", 2])
+    with pytest.raises(
+        IndexError,
+        match="Too many levels: Index has only 1 level, 2 is not a valid level number.",
+    ):
+        snow_index.unique(level=2)
