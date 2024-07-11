@@ -216,7 +216,9 @@ from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     set_frame_2d_positional,
 )
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
+    TO_CSV_DEFAULTS,
     get_columns_to_keep_for_usecols,
+    get_compression_algorithm_for_csv,
     get_non_pandas_kwargs,
     is_local_filepath,
     upload_local_path_to_snowflake_stage,
@@ -1087,10 +1089,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         index: bool = True,
         index_label: Optional[IndexLabel] = None,
+        data_column_labels: Optional[List[Hashable]] = None,
     ) -> SnowparkDataFrame:
         """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
-        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns.
+        all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns
+        if data_column_labels is None.
         For example:
         With a Snowpark pandas Dataframe (df) has index=[`A`, `B`], columns = [`C`, `D`],
         the result Snowpark Dataframe after calling _to_snowpark_dataframe_from_snowpark_pandas_dataframe(index=True),
@@ -1108,6 +1112,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_label: Optional[IndexLabel], default None
                 the new label used for the index columns, the length must be the same as the number of index column
                 of the current dataframe. If None, the original index name is used.
+            data_column_labels: Optional[Hashable], default None
+                Data columns to include. If none include all data columns.
 
         Returns:
             SnowparkDataFrame
@@ -1132,7 +1138,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 index_column_labels = self._modin_frame.index_column_pandas_labels
 
-        data_column_labels = self._modin_frame.data_column_pandas_labels
+        if data_column_labels is None:
+            data_column_labels = self._modin_frame.data_column_pandas_labels
         if self._modin_frame.is_unnamed_series():
             # this is an unnamed Snowpark pandas series, there is no customer visible pandas
             # label for the data column, set the label to be None
@@ -1172,7 +1179,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.index_column_snowflake_quoted_identifiers
             )
         identifiers_to_retain.extend(
-            self._modin_frame.data_column_snowflake_quoted_identifiers
+            [
+                t[0]
+                for t in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    data_column_labels, include_index=False
+                )
+            ]
         )
         for pandas_label, snowflake_identifier in zip(
             index_column_labels + data_column_labels,
@@ -1189,6 +1201,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return ordered_dataframe.to_projected_snowpark_dataframe(
             col_mapper=rename_mapper
+        )
+
+    def to_csv_with_snowflake(self, **kwargs: Any) -> None:
+        """
+        Write data to a csv file in snowflake stage.
+        Args:
+            **kwargs: to_csv arguments.
+        """
+        # Raise not implemented error for unsupported parameters.
+        unsupported_params = [
+            "float_format",
+            "mode",
+            "encoding",
+            "quoting",
+            "quotechar",
+            "lineterminator",
+            "doublequote",
+            "decimal",
+        ]
+        for param in unsupported_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                ErrorMessage.parameter_not_implemented_error(param, "to_csv")
+
+        ignored_params = ["chunksize", "errors", "storage_options"]
+        for param in ignored_params:
+            if kwargs.get(param) is not TO_CSV_DEFAULTS[param]:
+                WarningMessage.ignored_argument("to_csv", param, "")
+
+        def _get_param(param_name: str) -> Any:
+            """
+            Extract parameter value from kwargs. If missing return default value.
+            """
+            return kwargs.get(param_name, TO_CSV_DEFAULTS[param_name])
+
+        path = _get_param("path_or_buf")
+        compression = get_compression_algorithm_for_csv(_get_param("compression"), path)
+
+        index = _get_param("index")
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, _get_param("index_label"), _get_param("columns")
+        )
+        na_sep = _get_param("na_rep")
+        snowpark_df.write.csv(
+            location=path,
+            format_type_options={
+                "COMPRESSION": compression if compression else "NONE",
+                "FIELD_DELIMITER": _get_param("sep"),
+                "NULL_IF": na_sep if na_sep else (),
+                "ESCAPE": _get_param("escapechar"),
+                "DATE_FORMAT": _get_param("date_format"),
+            },
+            header=_get_param("header"),
+            single=True,
         )
 
     def to_snowflake(
@@ -8737,7 +8802,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     def _make_fill_expression_for_column_wise_fillna(
-        self, snowflake_quoted_identifier: str, method: FillNAMethod
+        self,
+        snowflake_quoted_identifier: str,
+        method: FillNAMethod,
+        limit: Optional[int] = None,
     ) -> SnowparkColumn:
         """
         Helper function to get the Snowpark Column expression corresponding to snowflake_quoted_id when doing a column wise fillna.
@@ -8748,6 +8816,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The snowflake quoted identifier of the column that we are generating the expression for.
         method : FillNAMethod
             Enum representing if this method is a ffill method or a bfill method.
+        limit : optional, int
+            Maximum number of consecutive NA values to fill.
 
         Returns
         -------
@@ -8769,17 +8839,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             return col(snowflake_quoted_identifier)
         if method_is_ffill:
-            return coalesce(
-                snowflake_quoted_identifier,
-                *self._modin_frame.data_column_snowflake_quoted_identifiers[:col_pos][
-                    ::-1
-                ],
-            )
-        else:
+            start_pos = 0
+            if limit is not None:
+                start_pos = max(col_pos - limit, start_pos)
             return coalesce(
                 snowflake_quoted_identifier,
                 *self._modin_frame.data_column_snowflake_quoted_identifiers[
-                    len_ids:col_pos:-1
+                    start_pos:col_pos
+                ][::-1],
+            )
+        else:
+            start_pos = len_ids
+            if limit is not None:
+                start_pos = min(col_pos + limit, len_ids)
+            return coalesce(
+                snowflake_quoted_identifier,
+                *self._modin_frame.data_column_snowflake_quoted_identifiers[
+                    start_pos:col_pos:-1
                 ][::-1],
             )
 
@@ -8811,10 +8887,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New QueryCompiler with all null values filled.
         """
-        # TODO: SNOW-891788 support limit
-        if limit:
+        if value is not None and limit is not None:
             ErrorMessage.not_implemented(
-                "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
+                "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter"
             )
         if downcast:
             ErrorMessage.not_implemented(
@@ -8837,12 +8912,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame = self._modin_frame.ensure_row_position_column()
                 if method_is_ffill:
                     func = last_value
-                    window_start = Window.UNBOUNDED_PRECEDING
+                    if limit is None:
+                        window_start = Window.UNBOUNDED_PRECEDING
+                    else:
+                        window_start = -1 * limit
                     window_end = Window.CURRENT_ROW
                 else:
                     func = first_value
                     window_start = Window.CURRENT_ROW
-                    window_end = Window.UNBOUNDED_FOLLOWING
+                    if limit is None:
+                        window_end = Window.UNBOUNDED_FOLLOWING
+                    else:
+                        window_end = limit
                 fillna_column_map = {
                     snowflake_quoted_id: coalesce(
                         snowflake_quoted_id,
@@ -8857,7 +8938,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 fillna_column_map = {
                     snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
-                        snowflake_quoted_id, method
+                        snowflake_quoted_id, method, limit=limit
                     )
                     for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
                 }
@@ -10131,7 +10212,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             by=by,
             agg_func={COUNT_LABEL: "count"},
             axis=0,
-            groupby_kwargs={"dropna": dropna},
+            groupby_kwargs={"dropna": dropna, "sort": False},
             agg_args=(),
             agg_kwargs={},
         )
@@ -10150,13 +10231,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
                 0
             ]
+        internal_frame = internal_frame.ensure_row_position_column()
 
         # When sort=True, sort by the frequency (count column);
         # otherwise, respect the original order (use the original ordering columns)
         ordered_dataframe = internal_frame.ordered_dataframe
         if sort:
+            # Need to explicitly specify the row position identifier to enforce the original order.
             ordered_dataframe = ordered_dataframe.sort(
-                OrderingColumn(count_identifier, ascending=ascending)
+                OrderingColumn(count_identifier, ascending=ascending),
+                OrderingColumn(
+                    internal_frame.row_position_snowflake_quoted_identifier,
+                    ascending=True,
+                ),
             )
 
         return SnowflakeQueryCompiler(
