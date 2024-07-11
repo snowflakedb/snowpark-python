@@ -12,6 +12,8 @@ from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
 
+from snowflake.snowpark.exceptions import SnowparkSessionException
+
 logger = getLogger(__name__)
 target_modules = [
     "dataframe.py",
@@ -32,11 +34,36 @@ except ImportError:
     open_telemetry_found = False
 
 
+def enable_open_telemetry():
+    # do not trace if trace_level is set to 'OFF'
+    try:
+        from snowflake.snowpark.context import get_active_session
+
+        return (
+            get_active_session()
+            .sql("show parameters like 'TRACE_LEVEL'")
+            .collect()[0]
+            .value
+            != "OFF"
+        )
+    except SnowparkSessionException:
+        return False
+
+
+def is_in_test_mode():
+    # trace in test mode
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return False
+    if "test_open_telemetry.py" not in os.environ["PYTEST_CURRENT_TEST"]:
+        return False
+    return True
+
+
 @contextmanager
 def open_telemetry_context_manager(func, dataframe):
 
     # trace when required package is installed
-    if open_telemetry_found:
+    if open_telemetry_found and (enable_open_telemetry() or is_in_test_mode()):
         class_name = func.__qualname__
         name = func.__name__
         tracer = trace.get_tracer(extract_tracer_name(class_name))
@@ -71,7 +98,7 @@ def open_telemetry_udf_context_manager(
     file_path=None,
 ):
     # trace when required package is installed
-    if open_telemetry_found:
+    if open_telemetry_found and (enable_open_telemetry() or is_in_test_mode()):
         class_name = registration_function.__qualname__
         span_name = registration_function.__name__
         tracer = trace.get_tracer(extract_tracer_name(class_name))
