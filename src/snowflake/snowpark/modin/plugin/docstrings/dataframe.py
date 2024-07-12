@@ -1237,23 +1237,23 @@ class DataFrame:
 
         >>> df = pd.DataFrame({'A': [1, None, None, 4], 'B': [None, 5, None, 7]})
         >>> df
-              A     B
-        0   1.0   NaN
-        1   NaN   5.0
-        2   NaN   NaN
-        3   4.0   7.0
+             A    B
+        0  1.0  NaN
+        1  NaN  5.0
+        2  NaN  NaN
+        3  4.0  7.0
         >>> df.bfill()
-              A     B
-        0   1.0   5.0
-        1   4.0   5.0
-        2   4.0   7.0
-        3   4.0   7.0
+             A    B
+        0  1.0  5.0
+        1  4.0  5.0
+        2  4.0  7.0
+        3  4.0  7.0
         >>> df.bfill(limit=1)
-              A     B
-        0   1.0   5.0
-        1   NaN   5.0
-        2   4.0   7.0
-        3   4.0   7.0
+             A    B
+        0  1.0  5.0
+        1  NaN  5.0
+        2  4.0  7.0
+        3  4.0  7.0
         """
 
     def boxplot():
@@ -1412,10 +1412,10 @@ class DataFrame:
 
         >>> ser = pd.Series([1, np.nan, 2, 3])
         >>> ser.ffill()
-        0   1.0
-        1   1.0
-        2   2.0
-        3   3.0
+        0    1.0
+        1    1.0
+        2    2.0
+        3    3.0
         dtype: float64
         """
 
