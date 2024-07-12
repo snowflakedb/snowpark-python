@@ -671,24 +671,55 @@ def test_translate(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="datediff is not yet supported in local testing mode.",
-)
 def test_datediff(session):
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select(col("a"), dateadd("year", lit(1), col("a")).as_("b"))
         .select(datediff("year", col("a"), col("b"))),
+        [Row(1), Row(1)],
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select("a", dateadd("year", lit(1), "a").as_("b"))
         .select(datediff("year", "a", "b")),
+        [Row(1), Row(1)],
+    )
+
+
+@pytest.mark.parametrize(
+    "unit,v1,v2,expected",
+    [
+        ("year", "2023-01-01 00:00:00.000", "2024-01-01 00:00:00.000", 1),
+        ("month", "2023-01-01 00:00:00.000", "2024-02-01 00:00:00.000", 13),
+        ("day", "2024-01-01 00:00:00.000", "2024-02-05 00:00:00.000", 35),
+        ("hour", "2024-01-01 00:00:00.000", "2024-01-01 6:35:00.000", 6),
+        ("minute", "2024-01-01 00:00:00.000", "2024-01-01 1:12:00.000", 72),
+        ("second", "2024-01-01 00:00:00.000", "2024-01-01 1:10:00.000", 4200),
+        ("millisecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:02.100", 2100),
+        ("microsecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:00.234", 234000),
+    ],
+)
+def test_datediff_edge_cases(session, unit, v1, v2, expected):
+    df = session.create_dataframe(
+        [
+            (v1, v2),
+            (v1, None),
+            (None, v2),
+            (None, None),
+        ],
+        schema=["a", "b"],
+    ).select(to_timestamp("a").alias("a"), to_timestamp("b").alias("b"))
+
+    Utils.check_answer(
+        df.select(datediff(unit, "a", "b")),
+        [
+            Row(expected),
+            Row(None),
+            Row(None),
+            Row(None),
+        ],
     )
 
 

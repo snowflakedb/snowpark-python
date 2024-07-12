@@ -1694,6 +1694,44 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     return ColumnEmulator(truncated, sf_type=datetime_expr.sf_type)
 
 
+@patch("datediff")
+def mock_datediff(
+    part: str, col1: ColumnEmulator, col2: ColumnEmulator
+) -> ColumnEmulator:
+    from dateutil import relativedelta
+
+    time_unit = unalias_datetime_part(part)
+
+    if time_unit in {"day", "hour", "minute", "second", "millisecond", "microsecond"}:
+
+        def func(x, y):
+            return (y - x) // datetime.timedelta(**{f"{time_unit}s": 1})
+
+    elif time_unit in {"year", "month"}:
+        if time_unit == "year":
+            denom = 12
+        else:
+            denom = 1
+
+        def func(x, y):
+            delta = relativedelta.relativedelta(y, x)
+            return ((delta.years * 12) + delta.months) // denom
+
+    else:
+        raise SnowparkLocalTestingException(
+            f"Specified part {part} is not supported by local testing datediff."
+        )
+
+    data = []
+    for x, y in zip(col1, col2):
+        data.append(None if x is None or y is None else func(x, y))
+
+    return ColumnEmulator(
+        pandas.Series(data, dtype=object),
+        sf_type=ColumnType(LongType(), col1.sf_type.nullable and col2.sf_type.nullable),
+    )
+
+
 CompareType = TypeVar("CompareType")
 
 
