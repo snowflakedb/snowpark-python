@@ -151,11 +151,11 @@ def test_index_astype_float_rounding_behavior_difference():
     )
     snow_index = pd.Index(native_index)
     with pytest.raises(AssertionError):
-        assert_index_equal(snow_index.astype(int), native_index.astype(int))
+        assert_index_equal(snow_index.astype(np.int64), native_index.astype(np.int64))
     # The result in native pandas is [1, 2, 0, 5, -9, -10]
     # but in Snowpark pandas is [1, 2, 0, 4, -9, -9]
-    expected_result = native_pd.Index([1, 2, 0, 5, -9, -10], dtype=int)
-    assert_index_equal(snow_index.astype(int), expected_result)
+    expected_result = native_pd.Index([1, 2, 0, 5, -9, -10], dtype=np.int64)
+    assert_index_equal(snow_index.astype(np.int64), expected_result)
 
 
 @sql_count_checker(query_count=4)
