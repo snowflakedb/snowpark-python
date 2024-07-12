@@ -346,3 +346,5 @@ import snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default  #
 modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
     snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
 )
+
+snowflake.snowpark.Session.SessionBuilder().getOrCreate()
