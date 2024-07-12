@@ -7959,7 +7959,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         col_dtypes_map: dict[str, Union[dtype, ExtensionDtype]],
         errors: Literal["raise", "ignore"] = "raise",
-        include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Convert columns dtypes to given dtypes.
@@ -7972,12 +7971,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Control raising of exceptions on invalid data for provided dtype.
             - raise : allow exceptions to be raised
             - ignore : suppress exceptions. On error return original object.
-        include_index : bool, default=False
-            Whether to use index columns along with data columns when changing the type.
-            Set `include_index` to True when calling `astype` with an Index object.
-            When called with an Index object, only index columns are used in the result
-            since Index objects have no data columns. Only single Index objects are currently
-            supported, MultiIndex is not yet implemented in Snowpark pandas.
 
         Returns
         -------
@@ -7988,28 +7981,74 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas astype API doesn't yet support errors == '{errors}'"
             )
-
-        col_dtypes_curr = {}
-        if include_index:
-            if self.is_multiindex():
-                ErrorMessage.not_implemented(
-                    "Snowpark pandas astype API doesn't yet support MultiIndex objects"
-                )
-            # Adding index columns.
-            for column in self.get_index_names():
-                col_dtypes_curr[column] = self.index.dtype
-        # Adding data columns.
-        for k, v in self.dtypes.to_dict().items():
-            if k in col_dtypes_map:
-                col_dtypes_curr[k] = v
+        col_dtypes_curr = {
+            k: v for k, v in self.dtypes.to_dict().items() if k in col_dtypes_map
+        }
 
         astype_mapping = {}
         id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
         labels = list(col_dtypes_map.keys())
         col_ids = (
             self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                labels,
-                include_index=include_index,
+                labels, include_index=False
+            )
+        )
+        for ids, label in zip(col_ids, labels):
+            for id in ids:
+                to_dtype = col_dtypes_map[label]
+                to_sf_type = TypeMapper.to_snowflake(to_dtype)
+                from_dtype = col_dtypes_curr[label]
+                from_sf_type = id_to_sf_type_map[id]
+                if is_astype_type_error(from_sf_type, to_sf_type):
+                    raise TypeError(
+                        f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
+                    )
+                astype_mapping[id] = column_astype(
+                    id,
+                    from_sf_type,
+                    to_dtype,
+                    to_sf_type,
+                )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                astype_mapping
+            ).frame
+        )
+
+    def astype_index(
+        self,
+        col_dtypes_map: dict[Hashable, Union[dtype, ExtensionDtype]],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert index columns dtypes to given dtypes.
+
+        Parameters
+        ----------
+        col_dtypes_map : dict
+            Map for column names and new dtypes.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            New QueryCompiler with updated dtypes.
+        """
+        if self.is_multiindex():
+            ErrorMessage.not_implemented(
+                "Snowpark pandas astype API doesn't yet support MultiIndex objects"
+            )
+
+        # Adding index columns.
+        col_dtypes_curr = {}
+        for column in self.get_index_names():
+            col_dtypes_curr[column] = self.index.dtype
+
+        astype_mapping = {}
+        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
+        labels = list(col_dtypes_map.keys())
+        col_ids = (
+            self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                labels, include_index=True
             )
         )
         for ids, label in zip(col_ids, labels):
