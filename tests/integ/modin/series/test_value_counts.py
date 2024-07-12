@@ -29,42 +29,10 @@ TEST_NULL_DATA = [
 
 
 NATIVE_SERIES_TEST_DATA = [
-    native_pd.Series(
-        [1, 2, 3, 2, 3, 5, 6, 7, 8, 4, 4, 5, 6, 7, 1, 2, 1, 2, 3, 4, 3, 4, 5, 6, 7]
-    ),
     native_pd.Series([1.1, 2.2, 1.0, 1, 1.1, 2.2, 1, 1, 1, 2, 2, 2, 2.2]),
     native_pd.Series([1, 3, 1, 1, 1, 3, 1, 1, 1, 2, 2, 2, 3]),
     native_pd.Series(
         [True, False, True, False, True, False, True, False, True, True], dtype=bool
-    ),
-    native_pd.Series(
-        [
-            "a",
-            "b",
-            "c",
-            "b",
-            "c",
-            "e",
-            "f",
-            "g",
-            "h",
-            "d",
-            "d",
-            "e",
-            "f",
-            "g",
-            "a",
-            "b",
-            "a",
-            "b",
-            "c",
-            "d",
-            "c",
-            "d",
-            "e",
-            "f",
-            "g",
-        ]
     ),
 ]
 

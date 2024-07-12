@@ -2913,12 +2913,12 @@ class Series:
             Snowpark pandas will return a Series with `decimal.Decimal` values.
         sort : bool, default True
             Sort by frequencies when True. Preserve the order of the data when False.
-            When there is a tie between counts, the order is still deterministic, but
-            may be different from the result from native pandas. Snowpark pandas will
-            always respect the order of insertion during ties. Native pandas is not
-            deterministic when `sort=True` since the original order/order of insertion
-            is based on the Python hashmap which may produce different results on
-            different versions.
+            When there is a tie between counts, the order is still deterministic where
+            the order in the original data is preserved, but may be different from the
+            result from native pandas. Snowpark pandas will always respect the order of
+            insertion during ties. Native pandas is not deterministic when `sort=True`
+            since the original order/order of insertion is based on the Python hashmap
+            which may produce different results on different versions.
             Refer to: https://github.com/pandas-dev/pandas/issues/15833
         ascending : bool, default False
             Whether to sort the frequencies in ascending order or descending order.
