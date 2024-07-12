@@ -13,7 +13,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 @sql_count_checker(query_count=1)
 def test_series_ffill():
-    native_s = native_pd.Series([1, np.nan, 2, 3])
+    native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
     snow_s = pd.Series(native_s)
     eval_snowpark_pandas_result(
         snow_s,
@@ -23,8 +23,19 @@ def test_series_ffill():
 
 
 @sql_count_checker(query_count=1)
+def test_series_bfill():
+    native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
+    snow_s = pd.Series(native_s)
+    eval_snowpark_pandas_result(
+        snow_s,
+        native_s,
+        lambda s: s.bfill(),
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_series_pad():
-    native_s = native_pd.Series([1, np.nan, 2, 3])
+    native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
     snow_s = pd.Series(native_s)
     eval_snowpark_pandas_result(
         snow_s,
