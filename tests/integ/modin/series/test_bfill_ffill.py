@@ -5,40 +5,20 @@
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
+import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
+@pytest.mark.parametrize("func", ["backfill", "bfill", "ffill", "pad"])
 @sql_count_checker(query_count=1)
-def test_series_ffill():
+def test_series_ffill(func):
     native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
     snow_s = pd.Series(native_s)
     eval_snowpark_pandas_result(
         snow_s,
         native_s,
-        lambda s: s.ffill(),
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_series_bfill():
-    native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
-    snow_s = pd.Series(native_s)
-    eval_snowpark_pandas_result(
-        snow_s,
-        native_s,
-        lambda s: s.bfill(),
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_series_pad():
-    native_s = native_pd.Series([np.nan, 1, np.nan, 2, 3, np.nan])
-    snow_s = pd.Series(native_s)
-    eval_snowpark_pandas_result(
-        snow_s,
-        native_s,
-        lambda s: s.pad(),
+        lambda s: getattr(s, func)(),
     )
