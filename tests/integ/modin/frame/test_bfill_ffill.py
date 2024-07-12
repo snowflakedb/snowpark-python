@@ -19,6 +19,7 @@ def test_df_ffill():
             [3, 4, np.nan, 1],
             [np.nan, np.nan, np.nan, np.nan],
             [np.nan, 3, np.nan, 4],
+            [3, np.nan, 4, np.nan],
         ],
         columns=list("ABCD"),
     )
@@ -31,6 +32,26 @@ def test_df_ffill():
 
 
 @sql_count_checker(query_count=1)
+def test_df_bfill():
+    native_df = native_pd.DataFrame(
+        [
+            [np.nan, 2, np.nan, 0],
+            [3, 4, np.nan, 1],
+            [np.nan, np.nan, np.nan, np.nan],
+            [np.nan, 3, np.nan, 4],
+            [3, np.nan, 4, np.nan],
+        ],
+        columns=list("ABCD"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.bfill(),
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_df_pad():
     native_df = native_pd.DataFrame(
         [
@@ -38,6 +59,7 @@ def test_df_pad():
             [3, 4, np.nan, 1],
             [np.nan, np.nan, np.nan, np.nan],
             [np.nan, 3, np.nan, 4],
+            [3, np.nan, 4, np.nan],
         ],
         columns=list("ABCD"),
     )

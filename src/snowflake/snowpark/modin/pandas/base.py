@@ -1183,10 +1183,13 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
 
-    @base_not_implemented()
     def bfill(
-        self, axis=None, inplace=False, limit=None, downcast=None
-    ):  # noqa: PR01, RT01, D200
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
         """
         Synonym for `DataFrame.fillna` with ``method='bfill'``.
         """
