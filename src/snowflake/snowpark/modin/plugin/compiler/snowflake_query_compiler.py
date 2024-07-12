@@ -7396,7 +7396,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._modin_frame.num_rows if axis == 0 else len(self.columns)
 
-    def _nunique_columns(self, dropna: bool) -> "SnowflakeQueryCompiler":
+    def _nunique_columns(
+        self, dropna: bool, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper function to compute the number of unique elements in each column.
 
@@ -7404,6 +7406,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         dropna: bool
             When true, does not consider NULL values as elements.
+        include_index: bool, default False
+            When true, include index columns when counting the number of unique elements.
 
         Returns
         -------
@@ -7419,7 +7423,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )[0]
         )
 
-        if len(self.columns) == 0:
+        if not include_index and len(self.columns) == 0:
             return SnowflakeQueryCompiler.from_pandas(
                 native_pd.DataFrame([], index=["unique"], dtype=float)
             )
@@ -7437,9 +7441,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
         # get a new ordered df with nunique columns
+        snowflake_quoted_identifiers = (
+            internal_frame.data_column_snowflake_quoted_identifiers
+        )
+        pandas_labels = internal_frame.data_column_pandas_labels
+        if include_index:
+            snowflake_quoted_identifiers = (
+                internal_frame.index_column_snowflake_quoted_identifiers
+                + snowflake_quoted_identifiers
+            )
+            pandas_labels = ["unique_index"] + internal_frame.data_column_pandas_labels
         nunique_columns = [
             make_nunique(identifier, dropna).as_(identifier)
-            for identifier in internal_frame.data_column_snowflake_quoted_identifiers
+            for identifier in snowflake_quoted_identifiers
         ]
 
         # since we don't compute count on the index, we need to add a column for it
@@ -7452,13 +7466,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # get a new internal frame
         frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
-            data_column_pandas_labels=internal_frame.data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_labels=pandas_labels,
+            data_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=[INDEX_LABEL],
             index_column_snowflake_quoted_identifiers=[new_index_identifier],
         )
         return SnowflakeQueryCompiler(frame)
+
+    def nunique_index(self, dropna: bool) -> int:
+        """
+        Return number of unique elements in an Index object.
+
+        Returns
+        -------
+        int : The number of unique elements.
+        """
+        return (
+            self._nunique_columns(dropna=dropna, include_index=True)
+            .to_pandas()
+            .iloc[0, 0]
+        )
 
     def nunique(
         self, axis: Axis, dropna: bool, **kwargs: Any
@@ -8783,7 +8811,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     def _make_fill_expression_for_column_wise_fillna(
-        self, snowflake_quoted_identifier: str, method: FillNAMethod
+        self,
+        snowflake_quoted_identifier: str,
+        method: FillNAMethod,
+        limit: Optional[int] = None,
     ) -> SnowparkColumn:
         """
         Helper function to get the Snowpark Column expression corresponding to snowflake_quoted_id when doing a column wise fillna.
@@ -8794,6 +8825,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The snowflake quoted identifier of the column that we are generating the expression for.
         method : FillNAMethod
             Enum representing if this method is a ffill method or a bfill method.
+        limit : optional, int
+            Maximum number of consecutive NA values to fill.
 
         Returns
         -------
@@ -8815,17 +8848,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             return col(snowflake_quoted_identifier)
         if method_is_ffill:
-            return coalesce(
-                snowflake_quoted_identifier,
-                *self._modin_frame.data_column_snowflake_quoted_identifiers[:col_pos][
-                    ::-1
-                ],
-            )
-        else:
+            start_pos = 0
+            if limit is not None:
+                start_pos = max(col_pos - limit, start_pos)
             return coalesce(
                 snowflake_quoted_identifier,
                 *self._modin_frame.data_column_snowflake_quoted_identifiers[
-                    len_ids:col_pos:-1
+                    start_pos:col_pos
+                ][::-1],
+            )
+        else:
+            start_pos = len_ids
+            if limit is not None:
+                start_pos = min(col_pos + limit, len_ids)
+            return coalesce(
+                snowflake_quoted_identifier,
+                *self._modin_frame.data_column_snowflake_quoted_identifiers[
+                    start_pos:col_pos:-1
                 ][::-1],
             )
 
@@ -8857,10 +8896,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             New QueryCompiler with all null values filled.
         """
-        # TODO: SNOW-891788 support limit
-        if limit:
+        if value is not None and limit is not None:
             ErrorMessage.not_implemented(
-                "Snowpark pandas fillna API doesn't yet support 'limit' parameter"
+                "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter"
             )
         if downcast:
             ErrorMessage.not_implemented(
@@ -8883,12 +8921,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame = self._modin_frame.ensure_row_position_column()
                 if method_is_ffill:
                     func = last_value
-                    window_start = Window.UNBOUNDED_PRECEDING
+                    if limit is None:
+                        window_start = Window.UNBOUNDED_PRECEDING
+                    else:
+                        window_start = -1 * limit
                     window_end = Window.CURRENT_ROW
                 else:
                     func = first_value
                     window_start = Window.CURRENT_ROW
-                    window_end = Window.UNBOUNDED_FOLLOWING
+                    if limit is None:
+                        window_end = Window.UNBOUNDED_FOLLOWING
+                    else:
+                        window_end = limit
                 fillna_column_map = {
                     snowflake_quoted_id: coalesce(
                         snowflake_quoted_id,
@@ -8903,7 +8947,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             else:
                 fillna_column_map = {
                     snowflake_quoted_id: self._make_fill_expression_for_column_wise_fillna(
-                        snowflake_quoted_id, method
+                        snowflake_quoted_id, method, limit=limit
                     )
                     for snowflake_quoted_id in self._modin_frame.data_column_snowflake_quoted_identifiers
                 }
