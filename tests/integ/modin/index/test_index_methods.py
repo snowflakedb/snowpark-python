@@ -4,11 +4,11 @@
 
 import modin.pandas as pd
 import numpy as np
-import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.modin.index.conftest import NATIVE_INDEX_TEST_DATA, TEST_DFS
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,

@@ -11,12 +11,18 @@
 - Added support for function `arrays_zip`.
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
 - Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
+- Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
+
+#### Bug Fixes
+
+- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
+- Added support for `limit` parameter when `method` parameter is used in `fillna`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -120,6 +126,7 @@
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+- Added support for `Index.unique` and `Index.nunique`.
 
 ## 1.18.0 (2024-05-28)
 
