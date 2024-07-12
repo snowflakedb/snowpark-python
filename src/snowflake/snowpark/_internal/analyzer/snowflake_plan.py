@@ -734,6 +734,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
+        use_scoped_temp_objects: bool,
         is_generated: bool,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -762,7 +763,7 @@ class SnowflakePlanBuilder:
                 table_type=table_type,
                 clustering_key=clustering_keys,
                 comment=comment,
-                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                use_scoped_temp_objects=use_scoped_temp_objects,
                 is_generated=is_generated,
             )
 
@@ -803,7 +804,9 @@ class SnowflakePlanBuilder:
                     child.source_plan,
                 )
             else:
-                return get_create_and_insert_plan(child, replace=False, error=False)
+                return get_create_and_insert_plan(
+                    child, replace=False, error=is_generated
+                )
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
