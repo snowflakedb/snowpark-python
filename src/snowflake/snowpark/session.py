@@ -347,30 +347,37 @@ class Session:
         def __init__(self) -> None:
             self._options = {}
             self._app_name = None
+            self._format_json = None
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self._options.pop(key, None)
             return self
 
-        def app_name(self, app_name: str) -> "Session.SessionBuilder":
+        def app_name(
+            self, app_name: str, format_json: bool = False
+        ) -> "Session.SessionBuilder":
             """
             Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
 
-            Note:
-                Since version ``1.19.1``, the app name is set to the query tag in JSON format. For example:
+            Args:
+                app_name: The name of the application.
+                format_json: If set to `True`, it will add the app name to the session query tag in JSON format,
+                    otherwise, it will add it using a key=value format.
 
-                >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
-                >>> print(session.query_tag) # doctest: +SKIP
-                {"APPNAME": "my_app"}
+            Returns:
+                A :class:`SessionBuilder` instance.
 
-                In previous versions it is set using a key=value format. For example:
-
+            Example::
                 >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
                 >>> print(session.query_tag) # doctest: +SKIP
                 APPNAME=my_app
+                >>> session = Session.builder.app_name("my_app", format_json=True).configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                {"APPNAME": "my_app"}
             """
             self._app_name = app_name
+            self._format_json = format_json
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
@@ -405,8 +412,12 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = {"APPNAME": self._app_name}
-                session.update_query_tag(app_name_tag)
+                if self._format_json:
+                    app_name_tag = {"APPNAME": self._app_name}
+                    session.update_query_tag(app_name_tag)
+                else:
+                    app_name_tag = f"APPNAME={self._app_name}"
+                    session.append_query_tag(app_name_tag)
 
             return session
 
