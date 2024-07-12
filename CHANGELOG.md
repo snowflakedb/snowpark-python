@@ -1,6 +1,6 @@
 # Release History
 
-## 1.19.1 (TBD)
+## 1.20.0 (TBD)
 
 ### Snowpark Python API Updates
 
@@ -8,10 +8,16 @@
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
   - _execute_and_get_query_id
+- Added support for function `arrays_zip`.
+- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
+- Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
+- Added open telemetry tracing on UDxF functions in snowpark.
+- Added open telemetry tracing on stored procedure registration in snowpark.
 
 #### Bug Fixes
 - Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
-
+- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark Local Testing Updates
 
@@ -49,6 +55,7 @@
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
 - Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `DataFrameGroupBy.get_group`.
+- Added support for `limit` parameter when `method` parameter is used in `fillna`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -65,11 +72,6 @@
 ## 1.19.0 (2024-06-25)
 
 ### Snowpark Python API Updates
-
-#### Improvements
-
-- Added open telemetry tracing on UDxF functions in snowpark.
-- Added open telemetry tracing on stored procedure registration in snowpark.
 
 #### New Features
 
