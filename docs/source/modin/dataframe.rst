@@ -148,6 +148,7 @@ DataFrame
     DataFrame.drop
     DataFrame.drop_duplicates
     DataFrame.duplicated
+    DataFrame.equals
     DataFrame.first
     DataFrame.get
     DataFrame.head
