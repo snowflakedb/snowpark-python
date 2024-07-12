@@ -1462,6 +1462,20 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+def test_cache_result_query(session):
+    df = session.sql("select 1 as a, 2 as b")
+    with session.query_history() as history:
+        df.cache_result()
+
+    assert len(history.queries) == 3
+    assert "show tables like" in history.queries[0].sql_text
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[1].sql_text
+    assert (
+        "INSERT  INTO" in history.queries[2].sql_text
+        and "select 1 as a, 2 as b" in history.queries[2].sql_text
+    )
+
+
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,
