@@ -2552,7 +2552,7 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -2608,7 +2608,7 @@ class DataFrame:
             return self._join_dataframes(
                 right,
                 using_columns,
-                create_join_type(join_type or "inner"),
+                join_type,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
