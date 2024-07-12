@@ -1462,6 +1462,11 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.sql and DataFrame.cache_result not supported",
+    run=False,
+)
 def test_cache_result_query(session):
     df = session.sql("select 1 as a, 2 as b")
     with session.query_history() as history:
