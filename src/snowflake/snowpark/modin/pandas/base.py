@@ -2595,7 +2595,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Conform `BasePandasDataset` to new index with optional filling logic.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-
+        if kwargs.get("limit", None) is not None and kwargs.get("method", None) is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
         new_query_compiler = None
         if index is not None:
             if not isinstance(index, pandas.Index) or not index.equals(self.index):

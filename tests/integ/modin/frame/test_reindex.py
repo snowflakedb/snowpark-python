@@ -13,6 +13,23 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 
+@pytest.mark.parametrize("axis", [0, 1])
+def test_reindex_invalid_limit_parameter(axis):
+    native_df = native_pd.DataFrame(
+        np.arange(9).reshape((3, 3)), index=list("ABC"), columns=list("ABC")
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.reindex(axis=axis, labels=list("CAB"), fill_value=1, limit=1),
+        expect_exception=True,
+        expect_exception_match="limit argument only valid if doing pad, backfill or nearest reindexing",
+        expect_exception_type=ValueError,
+        assert_exception_equal=True,
+    )
+
+
 class TestReindexAxis0:
     @sql_count_checker(query_count=1, join_count=1)
     def test_reindex_index_basic_reorder(self):
