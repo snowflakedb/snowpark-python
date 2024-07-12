@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 # The code in this file is largely a copy of https://github.com/Snowflake-Labs/snowcli/blob/main/src/snowcli/utils.py
 import glob

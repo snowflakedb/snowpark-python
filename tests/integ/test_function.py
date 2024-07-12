@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
 import decimal
 import json
+import math
 import re
 from itertools import chain
 
@@ -37,6 +38,7 @@ from snowflake.snowpark.functions import (
     array_to_string,
     array_unique_agg,
     arrays_overlap,
+    arrays_zip,
     as_array,
     as_binary,
     as_char,
@@ -131,12 +133,17 @@ from snowflake.snowpark.functions import (
     struct,
     substring,
     substring_index,
+    sum as sum_,
     to_array,
     to_binary,
+    to_boolean,
     to_char,
     to_date,
+    to_decimal,
+    to_double,
     to_json,
     to_object,
+    to_varchar,
     to_variant,
     to_xml,
     translate,
@@ -150,16 +157,23 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
+    DecimalType,
+    DoubleType,
     FloatType,
+    IntegerType,
     MapType,
     StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
     VariantType,
 )
 from tests.utils import TestData, Utils
 
 
-@pytest.mark.localtest
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
@@ -206,24 +220,39 @@ def test_order(session):
     ]
 
 
-@pytest.mark.localtest
 def test_current_date_and_time(session):
     max_delta = 1
-    df = session.create_dataframe([1]).select(
-        current_date(), current_time(), current_timestamp()
+    df = (
+        session.create_dataframe([1, 2])
+        .to_df(["a"])
+        .select("a", current_date(), current_time(), current_timestamp())
     )
     rows = df.collect()
 
-    assert len(rows) == 1, "df1 should only contain 1 row"
-    date, time, timestamp = rows[0]
-    time1 = datetime.datetime.combine(date, time).timestamp()
-    time2 = timestamp.timestamp()
+    assert len(rows) == 2, "df should contain 2 rows"
+    for row in rows:
+        assert isinstance(
+            row[1], datetime.date
+        ), f"current_date ({row[1]}) should be datetime.date type"
+        assert isinstance(
+            row[2], datetime.time
+        ), f"current_time ({row[2]}) should be datetime.time type"
+        assert isinstance(
+            row[3], datetime.datetime
+        ), f"current_timestamp ({row[3]}) should be datetime.datetime type"
+        _, date, time, timestamp = row
+        time1 = datetime.datetime.combine(date, time).timestamp()
+        time2 = timestamp.timestamp()
 
-    assert time1 == pytest.approx(
-        time2, max_delta
-    ), f"Times should be within {max_delta} seconds of each other."
+        assert time1 == pytest.approx(
+            time2, max_delta
+        ), f"Times should be within {max_delta} seconds of each other."
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: regexp_replace function not supported",
+)
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_regexp_replace(session, col_a):
     df = session.create_dataframe(
@@ -245,6 +274,10 @@ def test_regexp_replace(session, col_a):
     assert res[0][0] == "lastname, firstname middlename"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: regexp_extract function not supported",
+)
 def test_regexp_extract(session):
     df = session.createDataFrame([["id_20_30", 10], ["id_40_50", 30]], ["id", "age"])
     res = df.select(regexp_extract("id", r"(\d+)", 1).alias("RES")).collect()
@@ -267,25 +300,122 @@ def test_concat(session, col_a, col_b, col_c):
 )
 def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
-    res = df.select(concat_ws(lit(","), col("a"), col("b"), col("c"))).collect()
+    res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
 
 
-@pytest.mark.localtest
-@pytest.mark.parametrize("col_a", ["a", col("a")])
-def test_to_char(session, col_a):
-    df = session.create_dataframe([[1]], schema=["a"])
-    res = df.select(to_char(col_a)).collect()
-    assert res[0][0] == "1"
+def test_concat_edge_cases(session):
+    df = session.create_dataframe(
+        [[None, 1, 2, 3], [4, None, 6, 7], [8, 9, None, 11], [12, 13, 14, None]]
+    ).to_df(["a", "b", "c", "d"])
+
+    single = df.select(concat("a")).collect()
+    single_ws = df.select(concat_ws(lit(","), "a")).collect()
+    assert single == single_ws == [Row(None), Row("4"), Row("8"), Row("12")]
+
+    nulls = df.select(concat("a", "b", "c")).collect()
+    nulls_ws = df.select(concat_ws(lit(","), "a", "b", "c")).collect()
+    assert nulls == [Row(None), Row(None), Row(None), Row("121314")]
+    assert nulls_ws == [Row(None), Row(None), Row(None), Row("12,13,14")]
 
 
-@pytest.mark.localtest
-def test_date_to_char(session):
-    df = session.create_dataframe([[datetime.date(2021, 12, 21)]], schema=["a"])
-    res = df.select(to_char(col("a"), "mm-dd-yyyy")).collect()
-    assert res[0][0] == "12-21-2021"
+@pytest.mark.parametrize(
+    "col_a",
+    ["a", col("a")],
+)
+@pytest.mark.parametrize(
+    "data, fmt, expected",
+    [
+        (1, None, "1"),  # IntegerType
+        (12345.6789, None, "12345.6789"),  # FloatType
+        (
+            decimal.Decimal("12345.6789"),
+            None,
+            "12345.678900000000000000",
+        ),  # DecimalType
+        ("abc", None, "abc"),  # StringType
+        (True, None, "true"),  # BooleanType
+        (None, None, None),  # NullType
+        (b"123", None, "313233"),  # BinaryType + default hex encoding
+        (b"123", "hex", "313233"),  # BinaryType + hex encoding
+        (b"123", "base64", "MTIz"),  # BinaryType + base64 encoding
+        (b"123", "utf-8", "123"),  # BinaryType + utf-8 encoding
+    ],
+)
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_primitive_to_char(session, col_a, data, fmt, expected, convert_func):
+    df = session.create_dataframe([[data]], schema=["a"])
+    res = df.select(convert_func(col_a, fmt)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_date_or_time_to_char(session, convert_func):
+    # DateType
+    df = session.create_dataframe(
+        [datetime.date(2021, 12, 21), datetime.date(1969, 12, 31)], schema=["a"]
+    )
+    assert df.select(convert_func(col("a"), "mm-dd-yyyy")).collect() == [
+        Row("12-21-2021"),
+        Row("12-31-1969"),
+    ]
+    assert df.select(convert_func(col("a"))).collect() == [
+        Row("2021-12-21"),
+        Row("1969-12-31"),
+    ]
+
+    # TimeType
+    df = session.create_dataframe(
+        [datetime.time(9, 12, 56), datetime.time(22, 33, 44)], schema=["a"]
+    )
+    assert df.select(convert_func(col("a"), "mi:hh24:ss")).collect() == [
+        Row("12:09:56"),
+        Row("33:22:44"),
+    ]
+    assert df.select(convert_func(col("a"), "mi:hh12:ss AM")).collect() == [
+        Row("12:09:56 AM"),
+        Row("33:10:44 PM"),
+    ]
+    assert df.select(convert_func(col("a"))).collect() == [
+        Row("09:12:56"),
+        Row("22:33:44"),
+    ]
+
+    # TimestampType
+    df = session.create_dataframe(
+        [
+            datetime.datetime(2021, 12, 21, 9, 12, 56),
+            datetime.datetime(1969, 1, 1, 1, 1, 1),
+        ],
+        schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
+    )
+    assert df.select(convert_func(col("a"), "mm-dd-yyyy mi:ss:hh24")).collect() == [
+        Row("12-21-2021 12:56:09"),
+        Row("01-01-1969 01:01:01"),
+    ]
+    # we explicitly set format here because in some test env the default output format is changed
+    # leading to different result
+    assert df.select(convert_func(col("a"), "yyyy-mm-dd hh24:mi:ss.FF3")).collect() == [
+        Row("2021-12-21 09:12:56.000"),
+        Row("1969-01-01 01:01:01.000"),
+    ]
+
+
+@pytest.mark.parametrize("convert_func", [to_char, to_varchar])
+def test_semi_structure_to_char(session, convert_func):
+    assert session.create_dataframe([1]).select(
+        convert_func(to_array(lit("Example"))),  # ArrayType
+        convert_func(to_variant(lit("Example"))),  # VariantType
+        convert_func(to_variant(lit(123))),  # VariantType
+        convert_func(to_variant(lit("123"))),  # VariantType
+        convert_func(to_object(parse_json(lit('{"Tree": "Pine"}')))),  # MapType
+    ).collect() == [Row('["Example"]', "Example", "123", "123", '{"Tree":"Pine"}')]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: round function not supported",
+)
 def test_format_number(session):
     # Create a dataframe with a column of numbers
     data = [
@@ -302,6 +432,10 @@ def test_format_number(session):
     assert res[2].VALUE_FORMATTED == "1.41"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: months_between function not supported",
+)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_months_between(session, col_a, col_b):
     df = session.create_dataframe(
@@ -311,7 +445,6 @@ def test_months_between(session, col_a, col_b):
     assert res[0][0] == 1.0
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_cast(session, col_a):
     df = session.create_dataframe([["2018-01-01"]], schema=["a"])
@@ -320,7 +453,6 @@ def test_cast(session, col_a):
     assert cast_res[0][0] == try_cast_res[0][0] == datetime.date(2018, 1, 1)
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("number_word", ["decimal", "number", "numeric"])
 def test_cast_decimal(session, number_word):
     df = session.create_dataframe([[5.2354]], schema=["a"])
@@ -329,21 +461,59 @@ def test_cast_decimal(session, number_word):
     )
 
 
-@pytest.mark.localtest
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
     assert json.loads(result[0][0]) == {"key": "1"}
 
 
-@pytest.mark.localtest
 def test_cast_array_type(session):
     df = session.create_dataframe([["[1,2,3]"]], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "array")).collect()
     assert json.loads(result[0][0]) == [1, 2, 3]
 
 
-@pytest.mark.localtest
+def test_cast_variant_type(session):
+    df = session.create_dataframe([[True, 1]], schema=["a", "b"])
+    Utils.check_answer(
+        df.select(cast(df["a"], "variant"), cast(df["b"], "variant")),
+        [Row("true", "1")],
+    )
+
+
+def test_to_boolean(session):
+    df = session.create_dataframe(
+        [[True, 1, "yes", True], [False, 0, "no", False]],
+        schema=StructType(
+            [
+                StructField("b", BooleanType()),
+                StructField("n", IntegerType()),
+                StructField("s", StringType()),
+                StructField("v", VariantType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df.select(*[to_boolean(col) for col in df.columns]),
+        [Row(True, True, True, True), Row(False, False, False, False)],
+        sort=False,
+    )
+
+    # Invalid coercion type
+    with pytest.raises(SnowparkSQLException):
+        df = session.create_dataframe(
+            [
+                [datetime.datetime.now()],
+            ],
+            schema=StructType(
+                [
+                    StructField("t", TimestampType()),
+                ]
+            ),
+        )
+        df.select(to_boolean("t")).collect()
+
+
 def test_startswith(session):
     Utils.check_answer(
         TestData.string4(session).select(col("a").startswith(lit("a"))),
@@ -383,6 +553,10 @@ def test_struct(session):
     assert re.sub(r"\s", "", res[1].STRUCT) == '{"A":null,"B":"Alice"}'
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: strtok_to_array function not supported",
+)
 def test_strtok_to_array(session):
     # Create a dataframe
     data = [("a.b.c")]
@@ -391,24 +565,50 @@ def test_strtok_to_array(session):
     assert res[0] == "a" and res[1] == "b" and res[2] == "c"
 
 
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 3),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 3.0),
+        ([3.1, 2, 1], 3.1),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "cde"),
+    ],
 )
-def test_greatest(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(greatest(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 3
+def test_greatest(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(greatest(*cols)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.parametrize("use_col", [True, False])
 @pytest.mark.parametrize(
-    "col_a, col_b, col_c", [("a", "b", "c"), (col("a"), col("b"), col("c"))]
+    "values,expected",
+    [
+        ([1, 2, 3], 1),
+        ([1, None, 3], None),
+        ([None, 2.0, 3], None),
+        (["1.0", 2, 3], 1.0),
+        ([3.1, 2, 1], 1.0),
+        ([None, None, None], None),
+        (["abc", "cde", "bcd"], "abc"),
+    ],
 )
-def test_least(session, col_a, col_b, col_c):
-    df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-    res = df.select(least(col_a, col_b, col_c)).collect()
-    assert res[0][0] == 1
+def test_least(session, use_col, values, expected):
+    df = session.create_dataframe([values], schema=["a", "b", "c"])
+    cols = [col(c) if use_col else c for c in df.columns]
+    res = df.select(least(*cols)).collect()
+    assert res[0][0] == expected
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: hash function not supported",
+)
 @pytest.mark.parametrize("col_a, col_b", [("a", "b"), (col("a"), col("b"))])
 def test_hash(session, col_a, col_b):
     df = session.create_dataframe([[10, "10"]], schema=["a", "b"])
@@ -419,16 +619,17 @@ def test_hash(session, col_a, col_b):
     assert res[0][1] == 3622494980440108984
 
 
-def test_basic_numerical_operations_negative(session):
+def test_basic_numerical_operations_negative(session, local_testing_mode):
     # sqrt
-    df = session.sql("select 4").to_df("a")
+    df = session.create_dataframe([4], schema=["a"])
     with pytest.raises(TypeError) as ex_info:
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sqrt(lit(-1))).collect()
-    assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
+    if not local_testing_mode:
+        assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
 
     # abs
     with pytest.raises(TypeError) as ex_info:
@@ -469,12 +670,12 @@ def test_basic_numerical_operations_negative(session):
     assert "'CEIL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-def test_basic_string_operations(session):
+def test_basic_string_operations(session, local_testing_mode):
     # Substring
-    df = session.sql("select 'a not that long string'").to_df("a")
+    df = session.create_dataframe(["a not that long string"], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
-    assert "Numeric value 'b' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'b' is not recognized" in str(ex_info)
 
     # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
@@ -484,19 +685,21 @@ def test_basic_string_operations(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", 1, "c")).collect()
-    assert "Numeric value 'c' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'c' is not recognized" in str(ex_info)
 
-    # split
-    res = df.select(split("a", lit("not"))).collect()
-    assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
+    # Split is not yet supported by local testing mode
+    if not local_testing_mode:
+        # split
+        res = df.select(split("a", lit("not"))).collect()
+        assert res == [Row("""[\n  "a ",\n  " that long string"\n]""")]
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split([1, 2, 3], "b")).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split([1, 2, 3], "b")).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    with pytest.raises(TypeError) as ex_info:
-        df.select(split("a", [1, 2, 3])).collect()
-    assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
+        with pytest.raises(TypeError) as ex_info:
+            df.select(split("a", [1, 2, 3])).collect()
+        assert "'SPLIT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     # upper
     with pytest.raises(TypeError) as ex_info:
@@ -554,6 +757,10 @@ def test_basic_string_operations(session):
     assert "'REVERSE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_to_string function not supported",
+)
 def test_substring_index(session):
     """test calling substring_index with delimiter as string"""
     df = session.create_dataframe([[0, "a.b.c.d"], [1, ""], [2, None]], ["id", "s"])
@@ -574,6 +781,10 @@ def test_substring_index(session):
     assert respos[2][0] is None
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_to_string function not supported",
+)
 def test_substring_index_col(session):
     """test calling substring_index with delimiter as column"""
     df = session.create_dataframe([["a,b,c,d", ","]], ["s", "delimiter"])
@@ -585,6 +796,10 @@ def test_substring_index_col(session):
     assert reslit[0][0] == "b,c,d"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: bitshitright function not supported",
+)
 def test_bitshiftright(session):
     # Create a dataframe
     data = [(65504), (1), (4)]
@@ -593,6 +808,10 @@ def test_bitshiftright(session):
     assert res[0][0] == 32752 and res[1][0] == 0 and res[2][0] == 2
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: round function not supported",
+)
 def test_bround(session):
     # Create a dataframe
     data = [(decimal.Decimal(1.235)), decimal.Decimal(3.5)]
@@ -603,7 +822,6 @@ def test_bround(session):
     assert str(res[0][0]) == "1" and str(res[1][0]) == "4"
 
 
-# Enable for local testing after addressing SNOW-850268
 def test_count_distinct(session):
     df = session.create_dataframe(
         [["a", 1, 1], ["b", 2, 2], ["c", 1, None], ["d", 5, None]]
@@ -709,6 +927,10 @@ def test_call_builtin_avg_from_range(session):
     assert res == expected
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: is_array function not supported",
+)
 def test_is_negative(session):
     td = TestData.string1(session)
 
@@ -841,7 +1063,6 @@ def test_is_negative(session):
     assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_parse_json(session):
     assert TestData.null_json1(session).select(parse_json(col("v"))).collect() == [
         Row('{\n  "a": null\n}'),
@@ -857,6 +1078,10 @@ def test_parse_json(session):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: as_array function not supported",
+)
 def test_as_negative(session):
     td = TestData.string1(session)
 
@@ -1035,10 +1260,11 @@ def test_as_negative(session):
     )
 
 
-@pytest.mark.localtest
-def test_to_date_to_array_to_variant_to_object(session):
+def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     df = (
-        session.create_dataframe([["2013-05-17", 1, 3.14, '{"a":1}']])
+        session.create_dataframe(
+            [["2013-05-17", 1, 3.14, '{"a":1}'], [None, None, None, None]]
+        )
         .to_df("date", "array", "var", "obj")
         .with_column("json", parse_json("obj"))
     )
@@ -1046,22 +1272,25 @@ def test_to_date_to_array_to_variant_to_object(session):
     df1 = df.select(
         to_date("date"), to_array("array"), to_variant("var"), to_object("json")
     )
-    df2 = df.select(
-        to_date(col("date")),
-        to_array(col("array")),
-        to_variant(col("var")),
-        to_object(col("json")),
-    )
 
-    res1, res2 = df1.collect(), df2.collect()
-    assert res1 == res2
+    expected_pi_repr = "3.14" if local_testing_mode else "3.140000000000000e+00"
+
+    expected = [
+        Row(
+            datetime.date(2013, 5, 17), "[\n  1\n]", expected_pi_repr, '{\n  "a": 1\n}'
+        ),
+        Row(None, None, None, None),
+    ]
+
+    res1 = df1.collect()
+    Utils.assert_rows(res1, expected)
+
     assert df1.schema.fields[0].datatype == DateType()
     assert df1.schema.fields[1].datatype == ArrayType(StringType())
     assert df1.schema.fields[2].datatype == VariantType()
     assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
 
 
-@pytest.mark.localtest
 def test_to_binary(session):
     res = (
         TestData.test_data1(session)
@@ -1084,34 +1313,46 @@ def test_to_binary(session):
     assert res == [Row(None), Row(None), Row(None), Row(None)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_min_max_functions(session):
     # array_min
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
-    res = df.select(array_min(df.a).as_("min_a")).collect()
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
+    res = df.select(array_min(df["a"]).as_("min_a")).collect()
     assert res == [Row(MIN_A="0")]
 
-    df = session.sql("select array_construct() as A")
+    df = session.create_dataframe([1]).select(array_construct().alias("A"))
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
-    df = session.sql("select array_construct(null, null, null) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(None), lit(None), lit(None)).alias("a")
+    )
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A=None)]
 
-    df = session.create_dataframe([[[None, None, None]]], schema=["A"])
+    df = session.create_dataframe([[[None, None, None]]], schema=["a"])
     res = df.select(array_min(df.a).as_("min_a")).collect()
     assert res == [Row(MIN_A="null")]
 
     # array_max
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A="20")]
 
-    df = session.sql("select array_construct() as A")
+    df = session.create_dataframe([1]).select(array_construct().alias("A"))
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
-    df = session.sql("select array_construct(null, null, null) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(None), lit(None), lit(None)).alias("A")
+    )
     res = df.select(array_max(df.a).as_("max_a")).collect()
     assert res == [Row(MAX_A=None)]
 
@@ -1120,6 +1361,10 @@ def test_array_min_max_functions(session):
     assert res == [Row(MAX_A="null")]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_flatten function not supported",
+)
 def test_array_flatten(session):
     df = session.create_dataframe(
         [
@@ -1153,9 +1398,57 @@ def test_array_flatten(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: arrays_zip function not supported",
+)
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        (
+            [([1, 2], ["a", "b"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b", "c"])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a"\n  },\n  {\n    "$1": 2,\n    "$2": "b"\n  },\n  {\n    "$1": null,\n    "$2": "c"\n  }\n]'
+                )
+            ],
+        ),
+        (
+            [([1, 2], ["a", "b"], [10.1, 10.2])],
+            [
+                Row(
+                    ZIPPED='[\n  {\n    "$1": 1,\n    "$2": "a",\n    "$3": 10.1\n  },\n  {\n    "$1": 2,\n    "$2": "b",\n    "$3": 10.2\n  }\n]'
+                )
+            ],
+        ),
+    ],
+)
+def test_arrays_zip(session, data, expected):
+    df = session.create_dataframe(data)
+    df = df.select(arrays_zip(*df.columns).as_("zipped"))
+
+    Utils.check_answer(
+        df, expected, statement_params={"enable_arrays_zip_function": "TRUE"}
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_sort(session):
     # Behavior with SQL nulls:
-    df = session.sql("select array_construct(20, 0, null, 10) as A")
+    df = session.create_dataframe([1]).select(
+        array_construct(lit(20), lit(0), lit(None), lit(10)).alias("a")
+    )
 
     res = df.select(array_sort(df.a).as_("sorted_a")).collect()
     Utils.check_answer(res, [Row(SORTED_A="[\n  0,\n  10,\n  20,\n  undefined\n]")])
@@ -1218,7 +1511,6 @@ def test_vector_distances(session):
     )
 
 
-@pytest.mark.localtest
 def test_coalesce(session):
     # Taken from FunctionSuite.scala
     Utils.check_answer(
@@ -1237,8 +1529,12 @@ def test_coalesce(session):
     assert "'COALESCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: uniform function not supported",
+)
 def test_uniform(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # both intervals are ints
     int_uniform = df.select(uniform(1, 100, random()).alias("X")).collect()[0]
@@ -1271,14 +1567,17 @@ def test_uniform(session):
     assert decimal_int == decimal_decimal
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: uniform function not supported",
+)
 def test_uniform_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(uniform(lit("z"), 11, random())).collect()
     assert "Numeric value 'z' is not recognized" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_negate_and_not_negative(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(negate(["A", "B", "C"]))
@@ -1289,15 +1588,21 @@ def test_negate_and_not_negative(session):
     assert "'NOT_' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-def test_random_negative(session):
-    df = session.sql("select 1")
+def test_random_negative(session, local_testing_mode):
+    df = session.create_dataframe([1], schema=["a"])
+
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(random("abc")).collect()
-    assert "Numeric value 'abc' is not recognized" in str(ex_info)
+    err_str = (
+        "Error executing mocked function 'random'"
+        if local_testing_mode
+        else "Numeric value 'abc' is not recognized"
+    )
+    assert err_str in str(ex_info)
 
 
 def test_check_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # check_json
     with pytest.raises(TypeError) as ex_info:
@@ -1311,7 +1616,7 @@ def test_check_functions_negative(session):
 
 
 def test_parse_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # parse_json
     with pytest.raises(TypeError) as ex_info:
@@ -1325,7 +1630,7 @@ def test_parse_functions_negative(session):
 
 
 def test_json_functions_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     # json_extract_path_text
     with pytest.raises(TypeError) as ex_info:
@@ -1344,7 +1649,7 @@ def test_json_functions_negative(session):
 
 
 def test_to_filetype_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
     # to_json
     with pytest.raises(TypeError) as ex_info:
         df.select(to_json([1])).collect()
@@ -1356,8 +1661,12 @@ def test_to_filetype_negative(session):
     assert "'TO_XML' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_construct function not supported",
+)
 def test_array_distinct(session):
-    df = session.sql("select 1 A")
+    df = session.create_dataframe([1], schema=["a"])
     df = df.withColumn(
         "array", array_construct(lit(1), lit(1), lit(1), lit(2), lit(3), lit(2), lit(2))
     )
@@ -1369,7 +1678,7 @@ def test_array_distinct(session):
 
 
 def test_array_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(array_agg([1])).collect()
@@ -1460,7 +1769,7 @@ def test_array_negative(session):
 
 
 def test_object_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(object_agg([1], "column")).collect()
@@ -1493,7 +1802,7 @@ def test_object_negative(session):
 
 
 def test_date_operations_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(datediff("year", [1], "col")).collect()
@@ -1504,7 +1813,6 @@ def test_date_operations_negative(session):
     assert "'DATEADD' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
-# TODO: enable for local testing after addressing SNOW-850263
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
         [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
@@ -1520,6 +1828,10 @@ def test_date_add_date_sub(session):
     assert res[2].DATE == datetime.date(2019, 9, 16)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: datediff function not supported",
+)
 def test_daydiff(session):
     df = session.createDataFrame([("2015-04-08", "2015-05-10")], ["d1", "d2"])
     res = df.select(daydiff(to_date(df.d2), to_date(df.d1)).alias("diff")).collect()
@@ -1527,13 +1839,17 @@ def test_daydiff(session):
 
 
 def test_get_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(get([1], 1)).collect()
     assert "'GET' expected Column, int or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_generate_range function not supported",
+)
 def test_array_generate_range(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1565,13 +1881,17 @@ def test_array_generate_range(session):
 
 
 def test_sequence_negative(session):
-    df = session.sql("select 1").to_df("a")
+    df = session.create_dataframe([1], schema=["a"])
 
     with pytest.raises(TypeError) as ex_info:
         df.select(sequence([1], 1)).collect()
     assert "'SEQUENCE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_generate_range function not supported",
+)
 def test_sequence(session):
     df = session.createDataFrame([(-2, 2)], ["C1", "C2"])
     Utils.check_answer(
@@ -1623,6 +1943,10 @@ def test_sequence(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: array_unqite_agg function not supported",
+)
 def test_array_unique_agg(session):
     def _result_str2lst(result):
         col_str = result[0][0]
@@ -1769,3 +2093,149 @@ def test_create_map_negative(session):
         "The 'create_map' function requires an even number of parameters but the actual number is 3"
         in str(ex_info)
     )
+
+
+def test_to_double(session, local_testing_mode):
+
+    # Test supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), "12", "12.34", "-inf", "3.45e-4", None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("str_col1", StringType()),
+                StructField("str_col2", StringType()),
+                StructField("str_col3", StringType()),
+                StructField("str_col4", StringType()),
+                StructField("str_col5", StringType()),
+            ]
+        ),
+    )
+
+    Utils.check_answer(
+        df.select([to_double(c) for c in df.columns]),
+        [Row(12.34, 12.0, 12.34, -float("inf"), 3.45e-4, None)],
+    )
+
+    # Test unsupported input type
+    df = session.create_dataframe(
+        [[False], [True]], schema=StructType([StructField("bool_col", BooleanType())])
+    )
+
+    with pytest.raises(SnowparkSQLException):
+        df.select([to_double(c) for c in df.columns]).collect()
+
+    # Test variant conversion
+    df = session.create_dataframe(
+        [[decimal.Decimal("56.78"), 90.12, "6.78e-10", True, False, None]],
+        StructType(
+            [
+                StructField("variant_col1", VariantType()),
+                StructField("variant_col2", VariantType()),
+                StructField("variant_col3", VariantType()),
+                StructField("variant_col4", VariantType()),
+                StructField("variant_col5", VariantType()),
+                StructField("variant_col6", VariantType()),
+            ]
+        ),
+    )
+    Utils.check_answer(
+        df.select([to_double(c) for c in df.columns]).collect(),
+        [Row(56.78, 90.12, 6.78e-10, 1.0, 0.0, None)],
+    )
+
+    # Test specifying fmt, TODO: not supported in Local Testing
+    if not local_testing_mode:
+        # Local testing only covers partial implementation of to_double
+        df = session.create_dataframe([["1.2", "2.34-", "9.99MI"]]).to_df(
+            ["a", "b", "fmt"]
+        )
+
+        Utils.check_answer(
+            df.select(
+                to_double("a"), to_double("b", "9.99MI"), to_double("b", col("fmt"))
+            ),
+            [Row(1.2, -2.34, -2.34)],
+            sort=False,
+        )
+
+
+def test_to_decimal(session, local_testing_mode):
+    # Supported input type
+    df = session.create_dataframe(
+        [[decimal.Decimal("12.34"), 12.345678, "3.14E-6", True, None]],
+        schema=StructType(
+            [
+                StructField("decimal_col", DecimalType(26, 12)),
+                StructField("float_col", DoubleType()),
+                StructField("str_col", StringType()),
+                StructField("bool_col1", BooleanType()),
+                StructField("bool_col2", BooleanType()),
+            ]
+        ),
+    )
+    # Test when scale is 0
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 0) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12"),
+                decimal.Decimal("12"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 2
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 2) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.35"),
+                decimal.Decimal("0"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Test when scale is 6
+    Utils.check_answer(
+        df.select([to_decimal(c, 38, 6) for c in df.columns]),
+        [
+            Row(
+                decimal.Decimal("12.34"),
+                decimal.Decimal("12.345678"),
+                decimal.Decimal("0.000003"),
+                decimal.Decimal("1"),
+                None,
+            )
+        ],
+    )
+
+    # Unsupported input
+    df = session.create_dataframe(
+        [[-math.inf, datetime.date.today()]],
+        schema=StructType(
+            [StructField("float_col", FloatType()), StructField("date_col", DateType())]
+        ),
+    )
+
+    # Test when input type is not supported
+    with pytest.raises(SnowparkSQLException):
+        df.select([to_decimal(df.date_col, 38, 0)]).collect()
+
+    # Test when input value is not supported
+    with pytest.raises(SnowparkSQLException):
+        df.select([to_decimal(df.float_col, 38, 0)]).collect()
+
+
+def test_negative_function_call(session):
+    df = session.create_dataframe(["a", "b"], schema=["a"])
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        df.select(sum_(col("a"))).collect()
+        assert "is not recognized" in str(ex_info)

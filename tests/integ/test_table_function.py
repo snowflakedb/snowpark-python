@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import pytest
@@ -13,6 +13,13 @@ from snowflake.snowpark.functions import (
     table_function,
 )
 from tests.utils import Utils
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Table function is not supported in Local Testing",
+    ),
+]
 
 
 def test_query_args(session):

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-import hashlib
 import re
 import sys
 import uuid
@@ -19,8 +18,13 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Union,
 )
 
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
+    sum_node_complexities,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
@@ -78,6 +82,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
+    encode_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -230,27 +235,42 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization
-        self._id = hashlib.sha256(
-            f"{queries[-1].sql}#{queries[-1].params}".encode()
-        ).hexdigest()[:10]
+        self._id = encode_id(queries[-1].sql, queries[-1].params)
+        self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
-        return isinstance(other, SnowflakePlan) and (self._id == other._id)
+        if self._id is not None and other._id is not None:
+            return isinstance(other, SnowflakePlan) and self._id == other._id
+        else:
+            return super().__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(self._id)
+        return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+        if self.source_plan:
+            if isinstance(self.source_plan, Selectable):
+                return self.source_plan.children_plan_nodes
+            else:
+                return self.source_plan.children
+        else:
+            return []
 
     def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
         # parameter protection
-        # TODO SNOW-106671: enable cte optimization with sql simplifier
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._sql_simplifier_enabled
-        ):
+        if not self.session._cte_optimization_enabled:
             return self
 
-        # if source_plan is none, it must be a leaf node, no optimization is needed
-        if self.source_plan is None:
+        # if source_plan or placeholder_query is none, it must be a leaf node,
+        # no optimization is needed
+        if self.source_plan is None or self.placeholder_query is None:
             return self
 
         # only select statement can be converted to CTEs
@@ -319,6 +339,41 @@ class SnowflakePlan(LogicalPlan):
             }
         return self._output_dict
 
+    @cached_property
+    def plan_height(self) -> int:
+        height = 0
+        current_level = [self]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children_plan_nodes)
+            height += 1
+            current_level = next_level
+        return height
+
+    @cached_property
+    def num_duplicate_nodes(self) -> int:
+        return len(find_duplicate_subtrees(self))
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self.source_plan:
+            return self.source_plan.individual_node_complexity
+        return {}
+
+    @property
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = sum_node_complexities(
+                self.individual_node_complexity,
+                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
+            )
+        return self._cumulative_node_complexity
+
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
+        self._cumulative_node_complexity = value
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             return SnowflakePlan(
@@ -376,7 +431,11 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query if schema_query else sql_generator(child.schema_query)
         )
-        placeholder_query = sql_generator(select_child._id)
+        placeholder_query = (
+            sql_generator(select_child._id)
+            if self.session._cte_optimization_enabled and select_child._id is not None
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -412,9 +471,13 @@ class SnowflakePlanBuilder:
         new_schema_query = (
             schema_query
             if schema_query is not None
-            else multi_sql_generator(Query(child.schema_query))[-1].sql
+            else multi_sql_generator(Query(select_child.schema_query))[-1].sql
         )
-        placeholder_query = multi_sql_generator(Query(child._id))[-1].sql
+        placeholder_query = (
+            multi_sql_generator(Query(select_child._id))[-1].sql
+            if self.session._cte_optimization_enabled and select_child._id is not None
+            else None
+        )
 
         return SnowflakePlan(
             queries,
@@ -456,7 +519,13 @@ class SnowflakePlanBuilder:
         left_schema_query = schema_value_statement(select_left.attributes)
         right_schema_query = schema_value_statement(select_right.attributes)
         schema_query = sql_generator(left_schema_query, right_schema_query)
-        placeholder_query = sql_generator(select_left._id, select_right._id)
+        placeholder_query = (
+            sql_generator(select_left._id, select_right._id)
+            if self.session._cte_optimization_enabled
+            and select_left._id is not None
+            and select_right._id is not None
+            else None
+        )
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
@@ -518,7 +587,9 @@ class SnowflakePlanBuilder:
             is_generated=True,
         )
         insert_stmt = batch_insert_into_statement(
-            temp_table_name, [attr.name for attr in attributes]
+            temp_table_name,
+            [attr.name for attr in attributes],
+            self.session._conn._conn._paramstyle,
         )
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
@@ -536,8 +607,8 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
         )
 
-    def table(self, table_name: str) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), None)
+    def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
+        return self.query(project_statement([], table_name), source_plan)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
@@ -650,6 +721,7 @@ class SnowflakePlanBuilder:
         mode: SaveMode,
         table_type: str,
         clustering_keys: Iterable[str],
+        comment: Optional[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -657,13 +729,13 @@ class SnowflakePlanBuilder:
         # here get the column definition from the child attributes. In certain cases we have
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
         # in save as table. So we rename ${number} with COL{number}.
-        hidden_column_pattern = r"\$(\d+)"
+        hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
             child.attributes
         )
         column_definition = re.sub(
             hidden_column_pattern,
-            lambda match: f"COL{match.group(1)}",
+            lambda match: f'"COL{match.group(1)}"',
             column_definition_with_hidden_columns,
         )
 
@@ -677,6 +749,7 @@ class SnowflakePlanBuilder:
                 error=error,
                 table_type=table_type,
                 clustering_key=clustering_keys,
+                comment=comment,
             )
 
             # so that dataframes created from non-select statements,
@@ -716,6 +789,29 @@ class SnowflakePlanBuilder:
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
+        elif mode == SaveMode.TRUNCATE:
+            if self.session._table_exists(table_name):
+                return self.build(
+                    lambda x: insert_into_statement(
+                        full_table_name, x, [x.name for x in child.attributes], True
+                    ),
+                    child,
+                    None,
+                )
+            else:
+                return self.build(
+                    lambda x: create_table_as_select_statement(
+                        full_table_name,
+                        x,
+                        column_definition,
+                        replace=True,
+                        table_type=table_type,
+                        clustering_key=clustering_keys,
+                        comment=comment,
+                    ),
+                    child,
+                    None,
+                )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
                 lambda x: create_table_as_select_statement(
@@ -725,6 +821,7 @@ class SnowflakePlanBuilder:
                     replace=True,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -738,6 +835,7 @@ class SnowflakePlanBuilder:
                     error=False,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -750,6 +848,7 @@ class SnowflakePlanBuilder:
                     column_definition,
                     table_type=table_type,
                     clustering_key=clustering_keys,
+                    comment=comment,
                 ),
                 child,
                 None,
@@ -772,13 +871,16 @@ class SnowflakePlanBuilder:
     def pivot(
         self,
         pivot_column: str,
-        pivot_values: List[str],
+        pivot_values: Optional[Union[str, List[str]]],
         aggregate: str,
+        default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: pivot_statement(pivot_column, pivot_values, aggregate, x),
+            lambda x: pivot_statement(
+                pivot_column, pivot_values, aggregate, default_on_null, x
+            ),
             child,
             source_plan,
         )
@@ -810,7 +912,7 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool
+        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str]
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -820,7 +922,7 @@ class SnowflakePlanBuilder:
 
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
-            lambda x: create_or_replace_view_statement(name, x, is_temp),
+            lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             None,
         )
@@ -830,6 +932,7 @@ class SnowflakePlanBuilder:
         name: str,
         warehouse: str,
         lag: str,
+        comment: Optional[str],
         child: SnowflakePlan,
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -841,7 +944,7 @@ class SnowflakePlanBuilder:
         child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
-                name, warehouse, lag, x
+                name, warehouse, lag, comment, x
             ),
             child,
             None,

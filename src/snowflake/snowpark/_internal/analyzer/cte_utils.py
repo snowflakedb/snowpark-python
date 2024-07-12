@@ -1,9 +1,11 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import hashlib
+import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Set
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -16,10 +18,13 @@ from snowflake.snowpark._internal.utils import (
 )
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
+    TreeNode = Union[SnowflakePlan, Selectable]
 
-def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
+
+def find_duplicate_subtrees(root: "TreeNode") -> Set["TreeNode"]:
     """
     Returns a set containing all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -45,14 +50,21 @@ def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
     node_count_map = defaultdict(int)
     node_parents_map = defaultdict(set)
 
-    def traverse(node: "SnowflakePlan") -> None:
-        node_count_map[node] += 1
-        if node.source_plan and node.source_plan.children:
-            for child in node.source_plan.children:
-                node_parents_map[child].add(node)
-                traverse(child)
+    def traverse(root: "TreeNode") -> None:
+        """
+        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
+        """
+        current_level = [root]
+        while len(current_level) > 0:
+            next_level = []
+            for node in current_level:
+                node_count_map[node] += 1
+                for child in node.children_plan_nodes:
+                    node_parents_map[child].add(node)
+                    next_level.append(child)
+            current_level = next_level
 
-    def is_duplicate_subtree(node: "SnowflakePlan") -> bool:
+    def is_duplicate_subtree(node: "TreeNode") -> bool:
         is_duplicate_node = node_count_map[node] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
@@ -70,52 +82,75 @@ def find_duplicate_subtrees(root: "SnowflakePlan") -> Set["SnowflakePlan"]:
     return {node for node in node_count_map if is_duplicate_subtree(node)}
 
 
-def create_cte_query(
-    node: "SnowflakePlan", duplicate_plan_set: Set["SnowflakePlan"]
-) -> str:
+def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
     plan_to_query_map = {}
     duplicate_plan_to_cte_map = {}
     duplicate_plan_to_table_name_map = {}
 
-    def build_plan_to_query_map_in_post_order(node: "SnowflakePlan") -> None:
+    def build_plan_to_query_map_in_post_order(root: "TreeNode") -> None:
         """
         Builds a mapping from query plans to queries that are optimized with CTEs,
         in post-traversal order. We can get the final query from the mapping value of the root node.
         The reason of using poster-traversal order is that chained CTEs have to be built
         from bottom (innermost subquery) to top (outermost query).
+        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
-        if not node.source_plan or node in plan_to_query_map:
-            return
+        stack1, stack2 = [root], []
 
-        for child in node.source_plan.children:
-            build_plan_to_query_map_in_post_order(child)
+        while stack1:
+            node = stack1.pop()
+            stack2.append(node)
+            for child in reversed(node.children_plan_nodes):
+                stack1.append(child)
 
-        if not node.placeholder_query:
-            plan_to_query_map[node] = node.queries[-1].sql
-        else:
-            plan_to_query_map[node] = node.placeholder_query
-            for child in node.source_plan.children:
-                # replace the placeholder (id) with child query
-                plan_to_query_map[node] = plan_to_query_map[node].replace(
-                    child._id, plan_to_query_map[child]
+        while stack2:
+            node = stack2.pop()
+            if node in plan_to_query_map:
+                continue
+
+            if not node.children_plan_nodes or not node.placeholder_query:
+                plan_to_query_map[node] = (
+                    node.sql_query
+                    if isinstance(node, Selectable)
+                    else node.queries[-1].sql
                 )
+            else:
+                plan_to_query_map[node] = node.placeholder_query
+                for child in node.children_plan_nodes:
+                    # replace the placeholder (id) with child query
+                    plan_to_query_map[node] = plan_to_query_map[node].replace(
+                        child._id, plan_to_query_map[child]
+                    )
 
-        # duplicate subtrees will be converted CTEs
-        if node in duplicate_plan_set:
-            # when a subquery is converted a CTE to with clause,
-            # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
-            table_name = random_name_for_temp_object(TempObjectType.CTE)
-            select_stmt = project_statement([], table_name)
-            duplicate_plan_to_table_name_map[node] = table_name
-            duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
-            plan_to_query_map[node] = select_stmt
+            # duplicate subtrees will be converted CTEs
+            if node in duplicate_plan_set:
+                # when a subquery is converted a CTE to with clause,
+                # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
+                table_name = random_name_for_temp_object(TempObjectType.CTE)
+                select_stmt = project_statement([], table_name)
+                duplicate_plan_to_table_name_map[node] = table_name
+                duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
+                plan_to_query_map[node] = select_stmt
 
-    build_plan_to_query_map_in_post_order(node)
+    build_plan_to_query_map_in_post_order(root)
 
     # construct with clause
     with_stmt = cte_statement(
         list(duplicate_plan_to_cte_map.values()),
         list(duplicate_plan_to_table_name_map.values()),
     )
-    final_query = with_stmt + SPACE + plan_to_query_map[node]
+    final_query = with_stmt + SPACE + plan_to_query_map[root]
     return final_query
+
+
+def encode_id(
+    query: str, query_params: Optional[Sequence[Any]] = None
+) -> Optional[str]:
+    string = f"{query}#{query_params}" if query_params else query
+    try:
+        return hashlib.sha256(string.encode()).hexdigest()[:10]
+    except Exception as ex:
+        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
+        return None

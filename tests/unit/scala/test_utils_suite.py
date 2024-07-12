@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -28,7 +28,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
     validate_object_name,
     warning,
-    warning_dict,
     zip_file_or_directory_to_stream,
 )
 from tests.utils import IS_WINDOWS, TestFiles
@@ -104,32 +103,32 @@ def test_calculate_checksum():
     if IS_WINDOWS:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "dacc9a957e526063c57a9d5c03644b24dfbe0f789efa224ff1b4d88138a2a6d8"
+            == "7ff46b5f3765187c7355852811c92ff232feb2f7207a12f1ab6d0b921319643b"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "c3988b8dcab346a2e8152e06276b4033"
+            == "f6c1984af9ece1bd68edf16ae1a7f992"
         )
     else:
         assert (
             calculate_checksum(test_files.test_udf_directory)
-            == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
+            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
         )
         assert (
             calculate_checksum(test_files.test_udf_directory, algorithm="md5")
-            == "728a79922e1b869dc9578c4f8d51cc73"
+            == "b72b61c8d5639fff8aa9a80278dba60f"
         )
         # Validate that hashes are different when reading whole dir.
         # Using a sufficiently small chunk size so that the hashes differ.
         assert (
             calculate_checksum(test_files.test_udf_directory, chunk_size=128)
-            == "c79d76b72bbbc2eaa149bd5d0965296e45323125cb71f3c5a4c63c1f732f9f24"
+            == "c071de824a67c083edad45c2b18729e17c50f1b13be980140437063842ea2469"
         )
         assert (
             calculate_checksum(
                 test_files.test_udf_directory, chunk_size=128, whole_file_hash=True
             )
-            == "83582388fa5d2b2f0a71666bca88a8f11a6c0d40b20096c8aeb2fccf113d3ca6"
+            == "3a2607ef293801f59e7840f5be423d4a55edfe2ac732775dcfda01205df377f0"
         )
 
 
@@ -223,6 +222,7 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "test_udf_dir/",
+                "test_udf_dir/test_another_udf_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -236,6 +236,7 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "test_udf_dir/",
+                "test_udf_dir/test_another_udf_file.py",
                 "test_udf_dir/test_pandas_udf_file.py",
                 "test_udf_dir/test_udf_file.py",
             ],
@@ -250,6 +251,7 @@ def test_zip_file_or_directory_to_stream():
             [
                 "resources/",
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_another_udf_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
             ],
@@ -275,6 +277,8 @@ def test_zip_file_or_directory_to_stream():
             [
                 "resources/",
                 "resources/broken.csv",
+                "resources/diamonds.csv",
+                "resources/iris.csv",
                 "resources/test.avro",
                 "resources/test.orc",
                 "resources/test.parquet",
@@ -285,19 +289,26 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSVcolon.csv",
                 "resources/testCSVheader.csv",
                 "resources/testCSVquotes.csv",
+                "resources/testCSVquotesSpecial.csv",
                 "resources/testCSVspecialFormat.csv",
                 "resources/testJSONspecialFormat.json.gz",
                 "resources/testJson.json",
+                "resources/testJsonNewSchema.json",
+                "resources/testJsonSameSchema.json",
                 "resources/test_all_data_types.parquet",
                 "resources/test_file_with_special_characters.parquet",
                 "resources/test_requirements.txt",
                 "resources/test_requirements_unsupported.txt",
+                "resources/test_concat_file1.csv",
+                "resources/test_concat_file2.csv",
                 "resources/test_environment.yml",
+                "resources/test_excel.xlsx",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_sp_dir/test_sp_mod3_file.py",
                 "resources/test_sp_dir/test_table_sp_file.py",
                 "resources/test_udf_dir/",
+                "resources/test_udf_dir/test_another_udf_file.py",
                 "resources/test_udf_dir/test_pandas_udf_file.py",
                 "resources/test_udf_dir/test_udf_file.py",
                 "resources/test_udtf_dir/",
@@ -438,43 +449,36 @@ def test_warning(caplog):
     def f():
         return 1
 
-    try:
-        with caplog.at_level(logging.WARNING):
-            warning("aaa", "bbb", 2)
-            warning("aaa", "bbb", 2)
-            warning("aaa", "bbb", 2)
-        assert caplog.text.count("bbb") == 2
-        with caplog.at_level(logging.WARNING):
-            warning(f.__qualname__, "ccc", 2)
-            warning(f.__qualname__, "ccc", 2)
-            warning(f.__qualname__, "ccc", 2)
-        assert caplog.text.count("ccc") == 2
-    finally:
-        warning_dict.clear()
+    with caplog.at_level(logging.WARNING):
+        warning("aaa", "bbb", 2)
+        warning("aaa", "bbb", 2)
+        warning("aaa", "bbb", 2)
+    assert caplog.text.count("bbb") == 2
+    with caplog.at_level(logging.WARNING):
+        warning(f.__qualname__, "ccc", 2)
+        warning(f.__qualname__, "ccc", 2)
+        warning(f.__qualname__, "ccc", 2)
+    assert caplog.text.count("ccc") == 2
 
 
 @pytest.mark.parametrize("decorator", [deprecated, experimental])
 def test_func_decorator(caplog, decorator):
-    try:
+    @decorator(
+        version="1.0.0",
+        extra_warning_text="extra_warning_text",
+        extra_doc_string="extra_doc_string",
+    )
+    def f():
+        return 1
 
-        @decorator(
-            version="1.0.0",
-            extra_warning_text="extra_warning_text",
-            extra_doc_string="extra_doc_string",
-        )
-        def f():
-            return 1
+    assert "extra_doc_string" in f.__doc__
+    with caplog.at_level(logging.WARNING):
+        f()
+        f()
 
-        assert "extra_doc_string" in f.__doc__
-        with caplog.at_level(logging.WARNING):
-            f()
-            f()
-
-        assert decorator.__name__ in caplog.text
-        assert caplog.text.count("1.0.0") == 1
-        assert caplog.text.count("extra_warning_text") == 1
-    finally:
-        warning_dict.clear()
+    assert decorator.__name__ in caplog.text
+    assert caplog.text.count("1.0.0") == 1
+    assert caplog.text.count("extra_warning_text") == 1
 
 
 def test_is_sql_select_statement():
@@ -557,18 +561,14 @@ def test_private_preview_decorator(caplog):
         pass
 
     caplog.clear()
-    warning_dict.clear()
-    try:
-        with caplog.at_level(logging.WARNING):
-            foo()
-        assert extra_doc in foo.__doc__
-        assert expected_warning_text in caplog.messages
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            foo()
-        assert expected_warning_text not in caplog.text
-    finally:
-        warning_dict.clear()
+    with caplog.at_level(logging.WARNING):
+        foo()
+    assert extra_doc in foo.__doc__
+    assert expected_warning_text in caplog.messages
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        foo()
+    assert expected_warning_text not in caplog.text
 
 
 @pytest.mark.parametrize("function", [result_set_to_iter, result_set_to_rows])

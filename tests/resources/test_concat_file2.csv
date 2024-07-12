@@ -1,0 +1,11 @@
+PassengerId,Pclass,Name,Sex,Age,SibSp,Parch,Ticket,Fare,Cabin,Embarked
+892,3,"Kelly, Mr. James",male,34.5,0,0,330911,7.8292,,Q
+893,3,"Wilkes, Mrs. James (Ellen Needs)",female,47,1,0,363272,7,,S
+894,2,"Myles, Mr. Thomas Francis",male,62,0,0,240276,9.6875,,Q
+895,3,"Wirz, Mr. Albert",male,27,0,0,315154,8.6625,,S
+896,3,"Hirvonen, Mrs. Alexander (Helga E Lindqvist)",female,22,1,1,3101298,12.2875,,S
+897,3,"Svensson, Mr. Johan Cervin",male,14,0,0,7538,9.225,,S
+898,3,"Connolly, Miss. Kate",female,30,0,0,330972,7.6292,,Q
+899,2,"Caldwell, Mr. Albert Francis",male,26,1,1,248738,29,,S
+900,3,"Abrahim, Mrs. Joseph (Sophie Halaut Easu)",female,18,0,0,2657,7.2292,,C
+901,3,"Davies, Mr. John Samuel",male,21,2,0,A/4 48871,24.15,,S

@@ -1,16 +1,16 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
 from typing import TYPE_CHECKING, Any, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.mock._options import pandas as pd
+from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     ArrayType,
@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
     TimestampType,
     VariantType,
 )
@@ -67,7 +68,7 @@ def _extract_schema_and_data_from_pandas_df(
         for col_idx in range(data.shape[1]):
             if plain_data[row_idx][col_idx] is None:
                 continue
-            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float_)):
+            if isinstance(plain_data[row_idx][col_idx], (float, numpy.float64)):
                 # in pandas, a float is represented in type numpy.float64
                 # which can not be inferred by snowpark python, we cast to built-in float type
                 if math.isnan(plain_data[row_idx][col_idx]):
@@ -104,8 +105,9 @@ def _extract_schema_and_data_from_pandas_df(
                 else:
                     # pandas.Timestamp.value gives nanoseconds
                     # snowpark will convert it to microseconds
-                    plain_data[row_idx][col_idx] = int(
-                        plain_data[row_idx][col_idx].value / 1000
+                    # snowflake also treats pandas int as string in a timestamp column
+                    plain_data[row_idx][col_idx] = str(
+                        int(plain_data[row_idx][col_idx].value / 1000)
                     )
             elif isinstance(plain_data[row_idx][col_idx], pd.Timedelta):
                 # pandas.Timedetla.value gives nanoseconds
@@ -114,15 +116,23 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Interval):
 
                 def convert_to_python_obj(obj):
-                    if isinstance(obj, numpy.float_):
+                    if isinstance(obj, numpy.float64):
                         return float(obj)
-                    elif isinstance(obj, numpy.int_):
+                    elif isinstance(obj, numpy.int64):
+                        # on Windows, numpy.int64 and numpy.int_ are different
+                        # while on linux and mac they are the same
                         return int(obj)
                     elif isinstance(obj, pd.Timestamp):
-                        return int(obj.value / 1000)
+                        # pd.Timestamp inside pd.Interval is treated as VariantType
+                        # and for variant type datetime is treated as string according to
+                        # https://docs.snowflake.com/en/sql-reference/data-types-semistructured
+                        return obj.to_pydatetime().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                     else:
-                        raise NotImplementedError(
-                            f"[Local Testing] {type(obj)} within pandas.Interval is not supported."
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"{type(obj).__name__} within pandas.Interval",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={"obj": type(obj).__name__},
+                            raise_error=NotImplementedError,
                         )
 
                 plain_data[row_idx][col_idx] = {
@@ -134,6 +144,8 @@ def _extract_schema_and_data_from_pandas_df(
             elif isinstance(plain_data[row_idx][col_idx], pd.Period):
                 # snowflake returns the ordinal of a period object
                 plain_data[row_idx][col_idx] = plain_data[row_idx][col_idx].ordinal
+            elif isinstance(plain_data[row_idx][col_idx], type(pd.NaT)):
+                plain_data[row_idx][col_idx] = None
             else:
                 previous_inferred_type = inferred_type_dict.get(col_idx)
                 data_type = infer_type(plain_data[row_idx][col_idx])
@@ -152,8 +164,15 @@ def _extract_schema_and_data_from_pandas_df(
                     scale = 0 if len(decimal_parts) == 1 else len(decimal_parts[1])
                     precision = integer_len + scale
                     if precision > 38:
-                        raise SnowparkClientException(
-                            f"[Local Testing] Column precision {precision} and scale {scale} are not supported."
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"Column precision {precision} and scale {scale}",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={
+                                "precision": str(precision),
+                                "scale": str(scale),
+                                "data_type": type(data_type).__name__,
+                            },
+                            raise_error=NotImplementedError,
                         )
                     # handle integer and float separately
                     data_type = DecimalType(precision=precision, scale=scale)
@@ -161,9 +180,18 @@ def _extract_schema_and_data_from_pandas_df(
                     if isinstance(previous_inferred_type, NullType):
                         inferred_type_dict[col_idx] = data_type
                     if type(data_type) != type(previous_inferred_type):
-                        raise SnowparkClientException(
-                            f"[Local Testing] Detected type {type(data_type)} and type {type(previous_inferred_type)}"
-                            f" in column, coercion is not currently supported"
+                        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                            external_feature_name=f"Coercion of detected"
+                            f" type {type(data_type).__name__} "
+                            f"and type {str(type(previous_inferred_type).__name)} in column",
+                            internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                            parameters_info={
+                                "data_type": type(data_type).__name__,
+                                "previous_inferred_type": str(
+                                    type(previous_inferred_type).__name__
+                                ),
+                            },
+                            raise_error=NotImplementedError,
                         )
                     if isinstance(inferred_type_dict[col_idx], DecimalType):
                         inferred_type_dict[col_idx] = DecimalType(
@@ -179,17 +207,23 @@ def _extract_schema_and_data_from_pandas_df(
     for idx, pandas_type in enumerate(data.dtypes):
         if isinstance(pandas_type, pd.IntervalDtype):
             data_type = VariantType()
-        elif isinstance(pandas_type, pd.DatetimeTZDtype):
-            data_type = TimestampType()
+        elif (
+            isinstance(pandas_type, pd.DatetimeTZDtype)
+            or pandas_type.type == numpy.datetime64
+        ):
+            if isinstance(pandas_type, pd.DatetimeTZDtype) and pandas_type.tz:
+                LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
+                    external_feature_name="DataFrame creation from pandas DataFrame containg pd.DatetimeTZDtype with timezone information",
+                    internal_feature_name="_pandas_util._extract_schema_and_data_from_pandas_df",
+                    raise_error=NotImplementedError,
+                )
+            else:
+                data_type = TimestampType(TimestampTimeZone.NTZ)
         elif pandas_type.type == numpy.float64:
             data_type = DoubleType()
         elif isinstance(pandas_type, (pd.Float32Dtype, pd.Float64Dtype)):
             data_type = DoubleType()
-        elif (
-            pandas_type.type == numpy.int64
-            or pandas_type.type == numpy.datetime64
-            or pandas_type.type == numpy.timedelta64
-        ):
+        elif pandas_type.type == numpy.int64 or pandas_type.type == numpy.timedelta64:
             data_type = LongType()
         elif isinstance(pandas_type, PANDAS_INTEGER_TYPES):
             data_type = LongType()
