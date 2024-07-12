@@ -1658,10 +1658,12 @@ class Series(BasePandasDataset):
     def reindex(self, *args, **kwargs):
         if args:
             if len(args) > 1:
-                raise TypeError("Only one positional argument ('index') is allowed")
+                raise TypeError(
+                    "Series.reindex() takes from 1 to 2 positional arguments but 3 were given"
+                )
             if "index" in kwargs:
                 raise TypeError(
-                    "'index' passed as both positional and keyword argument"
+                    "Series.reindex() got multiple values for argument 'index'"
                 )
             kwargs.update({"index": args[0]})
         index = kwargs.pop("index", None)
@@ -1671,10 +1673,11 @@ class Series(BasePandasDataset):
         limit = kwargs.pop("limit", None)
         tolerance = kwargs.pop("tolerance", None)
         fill_value = kwargs.pop("fill_value", None)
+        kwargs.pop("axis", None)
         if kwargs:
             raise TypeError(
-                "reindex() got an unexpected keyword "
-                + f'argument "{list(kwargs.keys())[0]}"'
+                "Series.reindex() got an unexpected keyword "
+                + f"argument '{list(kwargs.keys())[0]}'"
             )
         return super().reindex(
             index=index,
