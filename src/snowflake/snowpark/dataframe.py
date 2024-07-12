@@ -3372,25 +3372,21 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
-        if isinstance(input, str):
-            build_const_from_python_val(input, expr.input)
-        else:
-            expr.input.CopyFrom(input._ast)
+        build_const_from_python_val(input, expr.input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
         expr.recursive = recursive
 
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
-
         if mode == "OBJECT":
             expr.mode.sp_flatten_mode_object = True
         elif mode == "ARRAY":
             expr.mode.sp_flatten_mode_array = True
         elif mode == "BOTH":
             expr.mode.sp_flatten_mode_both = True
+        else:
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(input, str):
             input = self.col(input)
