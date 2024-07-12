@@ -98,8 +98,8 @@ def test_index_df_columns_astype(index, type):
     assert_index_equal(snow_index, native_index)
 
 
-@pytest.mark.parametrize("from_type", [str, int, float, object, bool])
-@pytest.mark.parametrize("to_type", [str, int, float, object, bool])
+@pytest.mark.parametrize("from_type", [str, np.int64, np.float64, object, bool])
+@pytest.mark.parametrize("to_type", [str, np.int64, np.float64, object, bool])
 @pytest.mark.parametrize("is_lazy", [True, False])
 def test_index_astype_empty_index(from_type, to_type, is_lazy):
     native_index = native_pd.Index([], dtype=from_type)
