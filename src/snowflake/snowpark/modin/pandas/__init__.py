@@ -25,6 +25,8 @@ from typing import Any
 
 import pandas
 
+from snowflake.snowpark._internal.utils import is_in_stored_procedure
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from pandas import describe_option  # noqa: F401
@@ -347,4 +349,7 @@ modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
     snowflake.snowpark.modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register
 )
 
-snowflake.snowpark.Session.SessionBuilder().getOrCreate()
+# Call getOrCreate() at import time on behalf of user so that in a stored procedure,
+# the user does not need to do it explicitly.
+if is_in_stored_procedure():
+    snowflake.snowpark.Session.SessionBuilder().getOrCreate()
