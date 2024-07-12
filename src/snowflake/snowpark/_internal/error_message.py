@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Optional
@@ -103,7 +103,7 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
-            "You must call DataFrameReader.schema() and specify the schema for the file.",
+            'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})',
             error_code="1106",
         )
 
@@ -380,6 +380,13 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def SERVER_FAILED_FETCH_LINEAGE(message: str) -> SnowparkFetchDataException:
+        return SnowparkFetchDataException(
+            f"Failed to fetch a lineage information. The error is: {message}",
+            error_code="1406",
+        )
+
+    @staticmethod
     def SERVER_UDF_UPLOAD_FILE_STREAM_CLOSED(
         dest_filename: str,
     ) -> SnowparkUploadUdfFileException:
@@ -421,13 +428,6 @@ class SnowparkClientExceptionMessages:
         return SnowparkSessionException(
             "In a stored procedure, you shouldn't create a session. The stored procedure provides a session.",
             error_code="1410",
-        )
-
-    @staticmethod
-    def DONT_CLOSE_SESSION_IN_SP() -> SnowparkSessionException:
-        return SnowparkSessionException(
-            "In a stored procedure, you shouldn't close a session. The stored procedure manages the lifecycle of the provided session.",
-            error_code="1411",
         )
 
     # General Error codes 15XX

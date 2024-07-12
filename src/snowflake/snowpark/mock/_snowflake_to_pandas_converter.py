@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -15,7 +15,7 @@ import datetime
 from decimal import Decimal
 from typing import Optional, Union
 
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
@@ -37,35 +37,16 @@ DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M:%S"
 
 
-def _process_field_optionally_enclosed_by(
-    value: str, field_optionally_enclosed_by: str = None
-):
-    if field_optionally_enclosed_by and len(field_optionally_enclosed_by) > 1:
-        raise SnowparkSQLException(
-            f"invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
-        )
-
-    if (
-        field_optionally_enclosed_by
-        and len(value) >= 2
-        and value[0] == field_optionally_enclosed_by
-        and value[-1] == field_optionally_enclosed_by
-    ):
-        return value[1:-1]
-    return value
-
-
 def _integer_converter(
     value: str, datatype: DataType, field_optionally_enclosed_by: str = None
 ) -> Optional[int]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return int(value)
-    except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -74,12 +55,11 @@ def _fraction_converter(
 ) -> Optional[float]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return float(value)
-    except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -88,7 +68,6 @@ def _decimal_converter(
 ) -> Optional[Union[int, Decimal]]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         precision = datatype.precision
         scale = datatype.scale
@@ -100,14 +79,16 @@ def _decimal_converter(
             else len(integer_part_str)
         )
         if len_integer_part > precision:
-            raise SnowparkSQLException(f"Numeric value '{value}' is out of range")
+            raise SnowparkLocalTestingException(
+                f"Numeric value '{value}' is out of range"
+            )
         if scale == 0:
             return integer_part
         remaining_decimal_len = min(precision - len(str(integer_part)), scale)
         return Decimal(str(round(float(value), remaining_decimal_len)))
-    except ValueError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Numeric value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Numeric value '{value}' is not recognized."
         )
 
 
@@ -116,7 +97,6 @@ def _bool_converter(
 ) -> Optional[bool]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     if value.lower() == "true":
         return True
     if value.lower() == "false":
@@ -124,9 +104,9 @@ def _bool_converter(
     try:
         float_value = float(value)
         return bool(float_value != 0)
-    except TypeError:
-        raise SnowparkSQLException(
-            f"[Local Testing] Boolean value '{value}' is not recognized."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"Boolean value '{value}' is not recognized."
         )
 
 
@@ -135,7 +115,6 @@ def _string_converter(
 ) -> Optional[str]:
     if value is None or value == "":
         return value
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     return value
 
 
@@ -144,12 +123,11 @@ def _date_converter(
 ) -> Optional[datetime.date]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
-    except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] DATE value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"DATE value '{value}' is not recognized."
         )
 
 
@@ -158,12 +136,11 @@ def _timestamp_converter(
 ) -> Optional[datetime.datetime]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
-    except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
         )
 
 
@@ -172,12 +149,11 @@ def _time_converter(
 ) -> Optional[datetime.time]:
     if value is None or value == "":
         return None
-    value = _process_field_optionally_enclosed_by(value, field_optionally_enclosed_by)
     try:
         return datetime.datetime.strptime(value, TIME_FORMAT).time()
-    except Exception as e:
-        raise SnowparkSQLException(
-            f"[Local Testing] TIMESTAMP value '{value}' is not recognized due to error {e!r}."
+    except Exception as exc:
+        SnowparkLocalTestingException.raise_from_error(
+            exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
         )
 
 

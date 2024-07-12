@@ -1,7 +1,8 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
 from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
@@ -20,6 +21,11 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
+from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
+    sum_node_complexities,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionExpression,
     TableFunctionJoin,
@@ -33,8 +39,6 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
         Analyzer,
     )  # pragma: no cover
-
-import sys
 
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -199,12 +203,33 @@ class Selectable(LogicalPlan, ABC):
             str, Dict[str, str]
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
+        self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+
+    def __eq__(self, other: "Selectable") -> bool:
+        if self._id is not None and other._id is not None:
+            return type(self) is type(other) and self._id == other._id
+        else:
+            return super().__eq__(other)
+
+    def __hash__(self) -> int:
+        return hash(self._id) if self._id else super().__hash__()
 
     @property
     @abstractmethod
     def sql_query(self) -> str:
         """Returns the sql query of this Selectable logical plan."""
         pass
+
+    @property
+    @abstractmethod
+    def placeholder_query(self) -> Optional[str]:
+        """Returns the placeholder query of this Selectable logical plan."""
+        pass
+
+    @property
+    def _id(self) -> Optional[str]:
+        """Returns the id of this Selectable logical plan."""
+        return encode_id(self.sql_query, self.query_params)
 
     @property
     @abstractmethod
@@ -253,12 +278,46 @@ class Selectable(LogicalPlan, ABC):
                 expr_to_alias=self.expr_to_alias,
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
+                placeholder_query=self.placeholder_query,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
             # We want Selectable and SnowflakePlan to share the same api_calls.
             self._snowflake_plan.api_calls = self.api_calls
         return self._snowflake_plan
+
+    @property
+    def plan_height(self) -> int:
+        return self.snowflake_plan.plan_height
+
+    @property
+    def num_duplicate_nodes(self) -> int:
+        return self.snowflake_plan.num_duplicate_nodes
+
+    @property
+    def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        if self._cumulative_node_complexity is None:
+            self._cumulative_node_complexity = sum_node_complexities(
+                self.individual_node_complexity,
+                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
+            )
+        return self._cumulative_node_complexity
+
+    @cumulative_node_complexity.setter
+    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
+        self._cumulative_node_complexity = value
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        """
+        This property is currently only used for traversing the query plan tree
+        when performing CTE optimization.
+        """
+        return (
+            self.snowflake_plan.source_plan.children
+            if self.snowflake_plan.source_plan
+            else []
+        )
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -295,12 +354,21 @@ class SelectableEntity(Selectable):
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return None
+
+    @property
     def sql_in_subquery(self) -> str:
         return self.entity_name
 
     @property
     def schema_query(self) -> str:
         return self.sql_query
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        # SELECT * FROM entity
+        return PlanNodeCategory.COLUMN
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -346,6 +414,18 @@ class SelectSQL(Selectable):
         return self._sql_query
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return None
+
+    @property
+    def _id(self) -> Optional[str]:
+        """
+        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
+        which might be a non-select SQL.
+        """
+        return encode_id(self.original_sql, self.query_params)
+
+    @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_param
 
@@ -353,9 +433,13 @@ class SelectSQL(Selectable):
     def schema_query(self) -> str:
         return self._schema_query
 
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.COLUMN
+
     def to_subqueryable(self) -> "SelectSQL":
         """Convert this SelectSQL to a new one that can be used as a subquery. Refer to __init__."""
-        if self.convert_to_select:
+        if self.convert_to_select or is_sql_select_statement(self._sql_query):
             return self
         new = SelectSQL(
             self._sql_query,
@@ -400,12 +484,24 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return self._snowflake_plan.placeholder_query
+
+    @property
+    def _id(self) -> Optional[str]:
+        return self._snowflake_plan._id
+
+    @property
     def schema_query(self) -> str:
         return self.snowflake_plan.schema_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_params
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        return self.snowflake_plan.individual_node_complexity
 
 
 class SelectStatement(Selectable):
@@ -444,6 +540,7 @@ class SelectStatement(Selectable):
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
+        self._placeholder_query = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -522,6 +619,42 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
+        if self.analyzer.session._cte_optimization_enabled and self.from_._id:
+            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+            self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
+        else:
+            where_clause = (
+                f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
+                if self.where is not None
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            order_by_clause = (
+                f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
+                if self.order_by
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            limit_clause = (
+                f"{analyzer_utils.LIMIT}{self.limit_}"
+                if self.limit_ is not None
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            offset_clause = (
+                f"{analyzer_utils.OFFSET}{self.offset}"
+                if self.offset
+                else snowflake.snowpark._internal.utils.EMPTY_STRING
+            )
+            self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return self._sql_query
+
+    @property
+    def placeholder_query(self) -> str:
+        if self._placeholder_query:
+            return self._placeholder_query
+        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        if not self.has_clause and not self.projection:
+            self._placeholder_query = from_clause
+            return self._placeholder_query
+
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
@@ -542,8 +675,8 @@ class SelectStatement(Selectable):
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-        return self._sql_query
+        self._placeholder_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return self._placeholder_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -558,6 +691,65 @@ class SelectStatement(Selectable):
             return self._schema_query
         self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
         return self._schema_query
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return [self.from_]
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        complexity = {}
+        # projection component
+        complexity = (
+            sum_node_complexities(
+                complexity,
+                *(
+                    getattr(
+                        expr,
+                        "cumulative_node_complexity",
+                        {PlanNodeCategory.COLUMN: 1},
+                    )  # type: ignore
+                    for expr in self.projection
+                ),
+            )
+            if self.projection
+            else complexity
+        )
+
+        # filter component - add +1 for WHERE clause and sum of expression complexity for where expression
+        complexity = (
+            sum_node_complexities(
+                complexity,
+                {PlanNodeCategory.FILTER: 1},
+                self.where.cumulative_node_complexity,
+            )
+            if self.where
+            else complexity
+        )
+
+        # order by component - add complexity for each sort expression
+        complexity = (
+            sum_node_complexities(
+                complexity,
+                *(expr.cumulative_node_complexity for expr in self.order_by),
+                {PlanNodeCategory.ORDER_BY: 1},
+            )
+            if self.order_by
+            else complexity
+        )
+
+        # limit/offset component
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
+            if self.limit_
+            else complexity
+        )
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
+            if self.offset
+            else complexity
+        )
+        return complexity
 
     def to_subqueryable(self) -> "Selectable":
         """When this SelectStatement's subquery is not subqueryable (can't be used in `from` clause of the sql),
@@ -850,12 +1042,20 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def placeholder_query(self) -> Optional[str]:
+        return self._snowflake_plan.placeholder_query
+
+    @property
     def schema_query(self) -> str:
         return self._snowflake_plan.schema_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self.snowflake_plan.queries[-1].params
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        return self.snowflake_plan.individual_node_complexity
 
 
 class SetOperand:
@@ -868,7 +1068,10 @@ class SetOperand:
 class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
+        self._sql_query = None
+        self._placeholder_query = None
         self.set_operands = set_operands
+        self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
                 if not self.pre_actions:
@@ -878,13 +1081,25 @@ class SetStatement(Selectable):
                 if not self.post_actions:
                     self.post_actions = []
                 self.post_actions.extend(operand.selectable.post_actions)
+            self._nodes.append(operand.selectable)
 
     @property
     def sql_query(self) -> str:
-        sql = f"({self.set_operands[0].selectable.sql_query})"
-        for i in range(1, len(self.set_operands)):
-            sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
-        return sql
+        if not self._sql_query:
+            sql = f"({self.set_operands[0].selectable.sql_query})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
+            self._sql_query = sql
+        return self._sql_query
+
+    @property
+    def placeholder_query(self) -> Optional[str]:
+        if not self._placeholder_query:
+            sql = f"({self.set_operands[0].selectable._id})"
+            for i in range(1, len(self.set_operands)):
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+            self._placeholder_query = sql
+        return self._placeholder_query
 
     @property
     def schema_query(self) -> str:
@@ -916,6 +1131,15 @@ class SetStatement(Selectable):
                     query_params = []
                 query_params.extend(operand.selectable.query_params)
         return query_params
+
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return self._nodes
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # we add #set_operands - 1 additional operators in sql query
+        return {PlanNodeCategory.SET_OPERATION: len(self.set_operands) - 1}
 
 
 class DeriveColumnDependencyError(Exception):

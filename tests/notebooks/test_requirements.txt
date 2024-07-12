@@ -1,0 +1,5 @@
+numpy==1.23.5
+pytest<8.0.0
+nbmake
+matplotlib
+seaborn

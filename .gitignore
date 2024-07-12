@@ -135,7 +135,8 @@ whitesource/
 # Sphinx documentation
 docs/_build/
 # Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
-docs/source/api/
+docs/source/snowpark/api/
+docs/source/modin/pandas_api/
 
 # Editor specific
 .idea/

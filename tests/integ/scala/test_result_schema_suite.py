@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import os.path
@@ -20,6 +20,14 @@ tmp_stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
 tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 tmp_full_types_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 tmp_full_types_table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is a SQL test suite",
+        run=False,
+    )
+]
 
 
 @pytest.fixture(scope="module", autouse=True)
