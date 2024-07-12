@@ -27,6 +27,9 @@
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
 
+#### Improvements
+- Call getOrCreate at package import time so that sproc user does not need to.
+
 ## 1.19.0 (2024-06-25)
 
 ### Snowpark Python API Updates
