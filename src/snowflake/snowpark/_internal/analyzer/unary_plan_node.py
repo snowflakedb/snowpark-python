@@ -236,13 +236,6 @@ class Project(UnaryNode):
         )
 
 
-class CreateTempTableCommand(UnaryNode):
-    def __init__(self, child: LogicalPlan, name: str, use_ctas: bool = False) -> None:
-        super().__init__(child)
-        self.name = name
-        self.use_ctas = use_ctas
-
-
 class ViewType:
     def __str__(self):
         return self.__class__.__name__[:-4]

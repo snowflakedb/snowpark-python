@@ -129,7 +129,6 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
-    CreateTempTableCommand,
     CreateViewCommand,
     Filter,
     LocalTempView,
@@ -1095,16 +1094,6 @@ class Analyzer:
                 logical_plan.column_map,
                 resolved_children[logical_plan.child],
                 logical_plan,
-            )
-
-        if isinstance(logical_plan, CreateTempTableCommand):
-            return self.plan_builder.create_temp_table(
-                logical_plan.name,
-                resolved_children[logical_plan.child],
-                logical_plan,
-                use_ctas=logical_plan.use_ctas,
-                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                is_generated=True,
             )
 
         if isinstance(logical_plan, CreateViewCommand):
