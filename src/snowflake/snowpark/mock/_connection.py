@@ -158,6 +158,7 @@ class MockServerConnection:
                             raise SnowparkLocalTestingException(
                                 f"table contains invalid identifier '{identifiers}'"
                             )
+                        invalid_non_nullable_cols = []
                         for missing_col in set(existing_schema) - set(input_schema):
                             if target_table[missing_col].sf_type.nullable:
                                 table[missing_col] = None
@@ -165,9 +166,15 @@ class MockServerConnection:
                                     missing_col
                                 ].sf_type
                             else:
-                                raise SnowparkLocalTestingException(
-                                    "NULL result in a non-nullable column"
-                                )
+                                invalid_non_nullable_cols.append(missing_col)
+                        if invalid_non_nullable_cols:
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id)
+                                for id in invalid_non_nullable_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"NULL result in a non-nullable column '{identifiers}'"
+                            )
 
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
