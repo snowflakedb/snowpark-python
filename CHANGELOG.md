@@ -125,6 +125,7 @@
 - Added support for Index APIs: `dtype`, `values`, `item`, `tolist`, `to_series` and `to_frame`.
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+- Added support for `Index.unique` and `Index.nunique`.
 - Added support for `Index.astype`.
 
 ## 1.18.0 (2024-05-28)
