@@ -1076,16 +1076,12 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
-        if source_plan.column_names is not None:
-            analyzer.session._conn.log_not_supported_error(
-                external_feature_name="Inserting data into table by matching columns",
-                internal_feature_name=type(source_plan).__name__,
-                parameters_info={"source_plan.column_names": "True"},
-                raise_error=NotImplementedError,
-            )
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
-            source_plan.table_name, res_df, source_plan.mode
+            source_plan.table_name,
+            res_df,
+            source_plan.mode,
+            column_names=source_plan.column_names,
         )
     if isinstance(source_plan, UnresolvedRelation):
         entity_name = source_plan.name
@@ -1122,9 +1118,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
