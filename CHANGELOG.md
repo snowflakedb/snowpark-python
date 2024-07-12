@@ -4,6 +4,9 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that allows to set the app name in the `Session.query_tag` in JSON format.
+
 #### Improvements
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
@@ -16,9 +19,6 @@
 #### Bug Fixes
 
 - Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
-
-#### Behavior Changes
-- When a new session is created, the `Session.SessionBuilder.app_name` will be set in the `Session.query_tag` in JSON format, instead of the key=value format used in previous versions.
 
 ### Snowpark pandas API Updates
 

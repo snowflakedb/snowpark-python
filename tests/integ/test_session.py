@@ -375,12 +375,23 @@ def test_create_session_from_connection_with_noise_parameters(
     run=False,
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
-def test_session_builder_app_name(session, db_parameters):
+@pytest.mark.parametrize(
+    "app_name,format_json,expected_query_tag",
+    [
+        ("my_app_name", False, "APPNAME=my_app_name"),
+        ("my_app_name", True, '{"APPNAME": "my_app_name"}'),
+    ],
+)
+def test_session_builder_app_name(
+    session, db_parameters, app_name, format_json, expected_query_tag
+):
     builder = session.builder
-    app_name = "my_app"
-    expected_query_tag = f'{{"APPNAME": "{app_name}"}}'
-    same_session = builder.app_name(app_name).getOrCreate()
-    new_session = builder.app_name(app_name).configs(db_parameters).create()
+    same_session = builder.app_name(app_name, format_json=format_json).getOrCreate()
+    new_session = (
+        builder.app_name(app_name, format_json=format_json)
+        .configs(db_parameters)
+        .create()
+    )
     try:
         assert session == same_session
         assert same_session.query_tag is None
