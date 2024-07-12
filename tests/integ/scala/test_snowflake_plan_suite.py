@@ -10,6 +10,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
@@ -186,8 +187,13 @@ def test_create_scoped_temp_table(session):
         df = session.table(table_name)
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.APPEND,
+                "temp",
+                None,
+                None,
                 df._plan,
                 use_scoped_temp_objects=True,
                 is_generated=True,
@@ -197,8 +203,13 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.APPEND,
+                "temp",
+                None,
+                None,
                 df._plan,
                 use_scoped_temp_objects=False,
                 is_generated=True,
@@ -208,15 +219,20 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.APPEND,
+                "temp",
+                None,
+                None,
                 df._plan,
                 use_scoped_temp_objects=True,
                 is_generated=False,
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name} If  NOT  EXISTS ("NUM" BIGINT, "STR" STRING(8))'
         )
     finally:
         Utils.drop_table(session, table_name)
