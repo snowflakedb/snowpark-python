@@ -75,7 +75,6 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
-    CreateTempTableCommand,
     CreateViewCommand,
     Filter,
     LocalTempView,

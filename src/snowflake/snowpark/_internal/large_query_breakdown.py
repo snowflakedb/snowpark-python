@@ -24,10 +24,13 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    SaveMode,
+    SnowflakeCreateTable,
+)
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
-    CreateTempTableCommand,
     Pivot,
     Sample,
     Sort,
@@ -74,6 +77,7 @@ class LargeQueryBreakdown:
 
         plans = []
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
+        print(f"Pre breakdown {complexity_score=} for root node")
         root = copy.copy(root)
         while complexity_score > self.COMPLEXITY_SCORE_UPPER_BOUND:
             partition = self.get_partitioned_plan(root)
@@ -129,7 +133,14 @@ class LargeQueryBreakdown:
         # Create a temporary table and replace the child node with the temporary table reference
         temp_table_name = self.get_temp_table_name()
         temp_table_plan = self.session._analyzer.resolve(
-            CreateTempTableCommand(child, temp_table_name, use_ctas=self.use_ctas)
+            SnowflakeCreateTable(
+                [temp_table_name],
+                None,
+                SaveMode.OVERWRITE if self.use_ctas else SaveMode.APPEND,
+                child,
+                table_type="temp",
+                is_generated=True,
+            )
         )
 
         self.update_ancestors(parent_map, child, temp_table_name)
