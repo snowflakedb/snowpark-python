@@ -829,6 +829,7 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     child.source_plan,
+                    is_ddl_on_temp_object=is_temp_table_type,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -843,6 +844,7 @@ class SnowflakePlanBuilder:
                 ),
                 child,
                 child.source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -857,6 +859,7 @@ class SnowflakePlanBuilder:
                 ),
                 child,
                 child.source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
@@ -870,6 +873,7 @@ class SnowflakePlanBuilder:
                 ),
                 child,
                 child.source_plan,
+                is_ddl_on_temp_object=is_temp_table_type,
             )
 
     def limit(
