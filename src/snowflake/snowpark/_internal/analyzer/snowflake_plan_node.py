@@ -138,6 +138,7 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
+        is_generated: bool = False,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -148,6 +149,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.children.append(query)
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
+        self.is_generated = is_generated
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
