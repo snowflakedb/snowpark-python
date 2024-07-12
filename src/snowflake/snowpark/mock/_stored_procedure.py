@@ -369,9 +369,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         )
 
         if sproc_name not in self._registry:
-            raise SnowparkLocalTestingException(
-                f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
-            )
+            if self._session._conn._suppress_not_implemented_error:
+                return None
+            else:
+                raise SnowparkLocalTestingException(
+                    f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
+                )
 
         return self._registry[sproc_name](
             *args, session=session, statement_params=statement_params

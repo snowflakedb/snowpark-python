@@ -44,6 +44,7 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     Raises:
         TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
     """
+    from snowflake.snowpark.column import Column
 
     if obj is None:
         set_src_position(ast.null_val.src)
@@ -90,9 +91,9 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
             ast.python_timestamp_val.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(obj).total_seconds()
             )
-            setattr_if_not_none(
-                ast.python_timestamp_val.tz.name, "value", obj.tzinfo.tzname(obj)
-            )
+            tz = obj.tzinfo.tzname(obj)
+            if tz is not None:
+                ast.python_timestamp_val.tz.name.value = tz
         else:
             obj = obj.astimezone(datetime.timezone.utc)
 
@@ -117,9 +118,9 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
             ast.python_time_val.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(datetime_val).total_seconds()
             )
-            setattr_if_not_none(
-                ast.python_time_val.tz.name, "value", obj.tzinfo.tzname(datetime_val)
-            )
+            tz = obj.tzinfo.tzname(datetime_val)
+            if tz is not None:
+                ast.python_time_val.tz.name.value = tz
         else:
             obj = datetime_val.astimezone(datetime.timezone.utc)
 
@@ -144,6 +145,9 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
         set_src_position(ast.tuple_val.src)
         for v in obj:
             build_const_from_python_val(v, ast.tuple_val.vs.add())
+
+    elif isinstance(obj, Column):
+        ast.CopyFrom(obj._ast)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
@@ -204,6 +208,7 @@ def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
     Returns:
         inspect.FrameInfo: The FrameInfo object of the lowest caller outside of the Snowpark repo.
     """
+    # TODO: Once `with_src_position()` is used exclusively, this can be abandoned.
     idx = 0
     call_stack = inspect.stack()
     curr_frame = call_stack[idx]
@@ -214,54 +219,64 @@ def get_first_non_snowpark_stack_frame() -> inspect.FrameInfo:
     return curr_frame
 
 
-# TODO: SNOW-1476291
-# TODO: better name.
-def get_symbol() -> Optional[str]:
-    """Using the code context from a FrameInfo object, and applies a regexp to match the
-    symbol left of the "=" sign in the assignment expression
-
-    Returns:
-        Optional[str]: None if symbol name could not be matched using the regexp, symbol otherwise.
-    """
-    re_symbol_name = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
-    code = get_first_non_snowpark_stack_frame().code_context
-    if code is not None:
-        for line in code:
-            match = re_symbol_name.fullmatch(line)
-            if match is not None:
-                return match.group(1)
-
-
-def set_src_position(ast: proto.SrcPosition) -> None:
+# TODO: remove this function and convert all callers to with_src_position.
+def set_src_position(src: proto.SrcPosition) -> None:
     """Uses the method to retrieve the first non snowpark stack frame, and sets the SrcPosition IR entity
     with the filename, and lineno which can be retrieved. In Python 3.11 and up the end line and column
     offsets can also be retrieved from the FrameInfo.positions field.
 
     Args:
-        ast (proto.SrcPosition): A previously created SrcPosition IR entity to be set.
+        src (proto.SrcPosition): SrcPosition builder.
     """
-    curr_frame = get_first_non_snowpark_stack_frame()
+    frame = get_first_non_snowpark_stack_frame()
 
-    ast.file = curr_frame.filename
-    ast.start_line = curr_frame.lineno
+    src.file = frame.filename
+    src.start_line = frame.lineno
 
     if sys.version_info >= (3, 11):
-        code_context = curr_frame.positions
-        setattr_if_not_none(ast, "start_line", code_context.lineno)
-        setattr_if_not_none(ast, "end_line", code_context.end_lineno)
-        setattr_if_not_none(ast, "start_column", code_context.col_offset)
-        setattr_if_not_none(ast, "end_column", code_context.end_col_offset)
+        pos = frame.positions
+        if pos.lineno is not None:
+            src.start_line = pos.lineno
+        if pos.end_lineno is not None:
+            src.end_lineno = pos.end_lineno
+        if pos.col_offset is not None:
+            src.start_column = pos.col_offset
+        if pos.end_col_offset is not None:
+            src.end_column = pos.end_col_offset
 
 
-def with_src_position(expr_ast: proto.Expr) -> proto.Expr:
-    """Sets the src_position on the supplied Expr AST node and returns it."""
-    set_src_position(expr_ast.src)
+assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
+
+
+def with_src_position(expr_ast: proto.Expr, assign: Optional[proto.Assign] = None) -> proto.Expr:
+    """
+    Sets the src_position on the supplied Expr AST node and returns it.
+    N.B. This function assumes it's always invoked from a public API, meaning that the caller's caller
+    is always the code of interest.
+    """
+    frame = get_first_non_snowpark_stack_frame()  # TODO: implement the assumption above to minimize overhead.
+    source_line = frame.code_context[0].strip() if frame.code_context else ""
+
+    src = expr_ast.src
+    src.file = frame.filename
+    src.start_line = frame.lineno
+    if sys.version_info >= (3, 11):
+        pos = frame.positions
+        if pos.lineno is not None:
+            src.start_line = pos.lineno
+        if pos.end_lineno is not None:
+            src.end_lineno = pos.end_lineno
+        if pos.col_offset is not None:
+            src.start_column = pos.col_offset
+        if pos.end_col_offset is not None:
+            src.end_column = pos.end_col_offset
+
+    if assign is not None:
+        match = assignment_re.fullmatch(source_line)
+        if match is not None:
+            assign.symbol.value = match.group(1)
+
     return expr_ast
-
-
-def setattr_if_not_none(obj: Any, attr: str, val: Any) -> None:
-    if val is not None:
-        setattr(obj, attr, val)
 
 
 def _fill_ast_with_snowpark_column_or_literal(

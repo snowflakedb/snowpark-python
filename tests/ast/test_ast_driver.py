@@ -86,7 +86,8 @@ def render(ast_base64: str) -> str:
 def run_test(session, test_source):
     source = f"""
 import snowflake.snowpark.functions as functions
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import *
+from snowflake.snowpark import Table
 
 # Set up mock data.
 mock = session.create_dataframe(
@@ -98,6 +99,15 @@ mock = session.create_dataframe(
     schema=['num', 'str']
 )
 mock.write.save_as_table("test_table")
+mock = session.create_dataframe(
+    [
+        [1, "one"],
+        [2, "two"],
+        [3, "three"],
+    ],
+    schema=['num', 'Owner\\'s""opinion.s']
+)
+mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
 session._ast_batch.flush()  # Clear the AST.
 
 # Run the test.
@@ -108,7 +118,7 @@ session._ast_batch.flush()  # Clear the AST.
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
-    session._conn.suppress_not_implemented_error = True
+    session._conn._suppress_not_implemented_error = True
     locals = {"session": session}
     exec(source, locals)
     base64 = locals["result"]
@@ -135,7 +145,7 @@ def test_ast(session, test_case):
         except AssertionError as e:
             raise AssertionError(
                 f"If the expectation is incorrect, run pytest --update-expectations:\n\n{base64}\n{e}"
-            )
+            ) from e
 
 
 if __name__ == "__main__":
