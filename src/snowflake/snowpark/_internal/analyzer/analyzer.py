@@ -99,8 +99,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     SnowflakeValues,
     UnresolvedRelation,
-    WithObjectRef,
-    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -979,6 +977,7 @@ class Analyzer:
             return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            child_plan = resolved_children[logical_plan.children[0]]
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -989,7 +988,8 @@ class Analyzer:
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                resolved_children[logical_plan.children[0]],
+                child_plan,
+                child_plan.attributes,
                 logical_plan,
             )
 
@@ -1225,20 +1225,6 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             return self.plan_builder.select_statement(logical_plan)
-
-        if isinstance(logical_plan, WithObjectRef):
-            return self.plan_builder.with_object_ref(
-                logical_plan.children[0].name,
-                resolved_children[logical_plan.children[0]],
-                logical_plan,
-            )
-
-        if isinstance(logical_plan, WithQueryBlock):
-            return self.plan_builder.with_query_block(
-                logical_plan.name,
-                resolved_children[logical_plan.children[0]],
-                logical_plan,
-            )
 
         raise TypeError(
             f"Cannot resolve type logical_plan of {type(logical_plan).__name__} to a SnowflakePlan"

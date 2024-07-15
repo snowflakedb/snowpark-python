@@ -3,9 +3,8 @@
 #
 
 from collections import defaultdict
-from typing import Dict, Set, Union
+from typing import Dict, List, Set, Union
 
-from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -18,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     WithObjectRef,
     WithQueryBlock,
 )
+from snowflake.snowpark._internal.optimizer.query_generator import QueryGenerator
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -25,30 +25,47 @@ from snowflake.snowpark._internal.utils import (
 
 TreeNode = Union[SnowflakePlan, Selectable]
 
+"""
+class CommonSubDataframeEliminationStatus:
+    optimization_applied: bool
+    num_duplicated_nodes: int
+    result_plans: List[LogicalPlan]
+
+    def __int__(self, optimization_applied: bool, num_duplicated_nodes: int, result_plans: List[LogicalPlan]) -> None:
+        self.optimization_applied = optimization_applied
+        self.num_duplicated_nodes = num_duplicated_nodes
+        self.result_plans = result_plans
+"""
+
 
 class CommonSubDataframeElimination:
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
-    _plan: SnowflakePlan
+    _plan: LogicalPlan
     _node_count_map: Dict[LogicalPlan, int]
     _node_parents_map: Dict[LogicalPlan, Set[LogicalPlan]]
     _duplicated_nodes: Set[LogicalPlan]
-    _analyzer: Analyzer
+    _analyzer: QueryGenerator
 
-    def __init__(self, plan: SnowflakePlan) -> None:
-        self._plan = plan
+    def __init__(
+        self, logical_plan: LogicalPlan, query_generator: QueryGenerator
+    ) -> None:
+        self._plan = logical_plan
+        self._analyzer = query_generator
         self._node_count_map = defaultdict(int)
         self._node_parents_map = defaultdict(set)
         self._duplicated_nodes = set()
-        self._analyzer = Analyzer(plan.session, skip_schema_query=True)
-        self._analyzer.alias_maps_to_use = {}
+        # self._analyzer = Analyzer(plan.session, skip_schema_query=True)
+        # self._analyzer = QueryGenerator(plan.session)
+        # self._analyzer.alias_maps_to_use = {}
 
-    def common_subdataframe_elimination(self) -> SnowflakePlan:
+    def common_subdataframe_elimination(self) -> List[LogicalPlan]:
         self._find_duplicate_subtrees()
         if len(self._duplicated_nodes) > 0:
-            return self._cte_transformation()
+            return [self._cte_transformation()]
+            # return self._cte_transformation()
         else:
-            return self._plan
+            return [self._plan]
+            # return self._plan
 
     def _find_duplicate_subtrees(self) -> None:
         """
@@ -133,7 +150,63 @@ class CommonSubDataframeElimination:
             node for node in self._node_count_map if is_duplicate_subtree(node)
         }
 
-    def _cte_transformation(self) -> "SnowflakePlan":
+    def _update_cte_parent(
+        self, parent: LogicalPlan, node: "TreeNode", new_node: LogicalPlan
+    ) -> None:
+        if isinstance(parent, SelectStatement):
+            parent._from = new_node
+        elif isinstance(parent, SetStatement):
+            parent._nodes.clear()
+            for operand in parent.set_operands:
+                if operand.selectable == node:
+                    # with_object_ref_node = WithObjectRef(with_block)
+                    with_object_plan = self._analyzer.resolve(new_node)
+                    new_selectable = SelectSnowflakePlan(
+                        snowflake_plan=with_object_plan,
+                        analyzer=self._analyzer,
+                    )
+                    operand.selectable = new_selectable
+                    parent._nodes.append(new_selectable)
+                else:
+                    parent._nodes.append(operand.selectable)
+        elif isinstance(parent, SnowflakePlan):
+            parent.source_plan.update_child_node(node, new_node)
+
+    def _cte_transformation(self) -> LogicalPlan:
+        stack1, stack2 = [self._plan], []
+
+        while stack1:
+            node = stack1.pop()
+            stack2.append(node)
+            for child in reversed(node.children_plan_nodes):
+                stack1.append(child)
+
+        # self._analyzer.table_create_child_attribute_map.update(self._plan.table_create_child_attribute_map)
+
+        while stack2:
+            node = stack2.pop()
+            if node in self._duplicated_nodes:
+                parents = self._node_parents_map[node]
+                # convert the node into WithQueryBlock
+                with_block = WithQueryBlock(
+                    name=random_name_for_temp_object(TempObjectType.CTE), child=node
+                )
+                with_object_ref_node = WithObjectRef(with_block)
+                for parent in parents:
+                    self._update_cte_parent(parent, node, with_object_ref_node)
+
+                self.reset_node(node)
+
+        # do one path to resolve the whole tree again
+        # final_plan = self._analyzer.resolve(self._plan.source_plan)
+        return self._plan
+
+    def reset_node(self, node: LogicalPlan) -> None:
+        if isinstance(node, Selectable):
+            node._snowflake_pan = None
+            node._sql_query = None
+
+    def _cte_transformation_old(self) -> "SnowflakePlan":
         stack1, stack2 = [self._plan], []
 
         while stack1:

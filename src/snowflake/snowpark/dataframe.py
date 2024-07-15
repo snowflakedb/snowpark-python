@@ -4053,10 +4053,15 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        # plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_execution_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan.queries],
-            "post_actions": [query.sql.strip() for query in plan.post_actions],
+            "queries": [
+                query.sql.strip() for query in plan_execution_queries["queries"]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_execution_queries["post_actions"]
+            ],
         }
 
     def explain(self) -> None:

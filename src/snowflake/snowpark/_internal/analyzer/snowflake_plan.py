@@ -212,6 +212,7 @@ class SnowflakePlan(LogicalPlan):
         ] = None,
         placeholder_query: Optional[str] = None,
         with_query_block_plans: Optional[Set["SnowflakePlan"]] = None,
+        table_create_child_attribute_map: Optional[Dict[str, List[Attribute]]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -241,7 +242,13 @@ class SnowflakePlan(LogicalPlan):
         self._id = encode_id(queries[-1].sql, queries[-1].params)
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self.with_query_block_plans = (
-            with_query_block_plans if with_query_block_plans else set()
+            with_query_block_plans.copy() if with_query_block_plans else set()
+        )
+
+        self.table_create_child_attribute_map = (
+            table_create_child_attribute_map.copy()
+            if table_create_child_attribute_map
+            else {}
         )
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
@@ -252,6 +259,13 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @cached_property
+    def execution_queries(self) -> Dict[str, List["Query"]]:
+        from snowflake.snowpark._internal.optimizer.plan_compliation import PlanCompiler
+
+        plan_compiler = PlanCompiler(plan=self)
+        return plan_compiler.compile()
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
@@ -420,6 +434,7 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
             session=self.session,
             placeholder_query=self.placeholder_query,
+            table_create_child_attribute_map=self.table_create_child_attribute_map.copy(),
         )
 
     def add_aliases(self, to_add: Dict) -> None:
@@ -478,6 +493,7 @@ class SnowflakePlanBuilder:
             session=self.session,
             placeholder_query=placeholder_query,
             with_query_block_plans=child.with_query_block_plans,
+            table_create_child_attribute_map=child.table_create_child_attribute_map,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -522,6 +538,7 @@ class SnowflakePlanBuilder:
             session=self.session,
             placeholder_query=placeholder_query,
             with_query_block_plans=child.with_query_block_plans,
+            table_create_child_attribute_map=child.table_create_child_attribute_map,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -586,8 +603,11 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             placeholder_query=placeholder_query,
-            with_query_block_plans=left.with_query_block_plans.union(
+            with_query_block_plans=left.with_query_block_plans.copy().union(
                 right.with_query_block_plans
+            ),
+            table_create_child_attribute_map=left.table_create_child_attribute_map.copy().update(
+                right.table_create_child_attribute_map
             ),
         )
 
@@ -770,6 +790,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
+        child_attributes: List[Attribute],
         logical_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
@@ -779,7 +800,7 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
-            child.attributes
+            child_attributes
         )
         column_definition = re.sub(
             hidden_column_pattern,
@@ -788,7 +809,6 @@ class SnowflakePlanBuilder:
         )
 
         # child = child.replace_repeated_subquery_with_cte()
-
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
                 full_table_name,
@@ -821,12 +841,13 @@ class SnowflakePlanBuilder:
                 {},
                 logical_plan,
                 api_calls=child.api_calls,
+                with_query_block_plans=child.with_query_block_plans,
                 session=self.session,
             )
 
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
-                return self.build(
+                res_plan = self.build(
                     lambda x: insert_into_statement(
                         table_name=full_table_name,
                         child=x,
@@ -836,10 +857,10 @@ class SnowflakePlanBuilder:
                     logical_plan,
                 )
             else:
-                return get_create_and_insert_plan(child, replace=False, error=False)
+                res_plan = get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
-                return self.build(
+                res_plan = self.build(
                     lambda x: insert_into_statement(
                         full_table_name, x, [x.name for x in child.attributes], True
                     ),
@@ -847,7 +868,7 @@ class SnowflakePlanBuilder:
                     logical_plan,
                 )
             else:
-                return self.build(
+                res_plan = self.build(
                     lambda x: create_table_as_select_statement(
                         full_table_name,
                         x,
@@ -861,7 +882,7 @@ class SnowflakePlanBuilder:
                     logical_plan,
                 )
         elif mode == SaveMode.OVERWRITE:
-            return self.build(
+            res_plan = self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name,
                     x,
@@ -875,7 +896,7 @@ class SnowflakePlanBuilder:
                 logical_plan,
             )
         elif mode == SaveMode.IGNORE:
-            return self.build(
+            res_plan = self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name,
                     x,
@@ -889,7 +910,7 @@ class SnowflakePlanBuilder:
                 None,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
-            return self.build(
+            res_plan = self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name,
                     x,
@@ -901,6 +922,13 @@ class SnowflakePlanBuilder:
                 child,
                 logical_plan,
             )
+        else:
+            raise ValueError("Unsupported MODE")
+
+        res_plan.table_create_child_attribute_map.update(
+            {full_table_name: child_attributes}
+        )
+        return res_plan
 
     def limit(
         self,
@@ -1477,6 +1505,7 @@ class SnowflakePlanBuilder:
             source_plan=source_plan,
             api_calls=with_query_plan.api_calls,
             with_query_block_plans=with_query_plans,
+            table_create_child_attribute_map=with_query_plan.table_create_child_attribute_map,
             session=self.session,
         )
 
