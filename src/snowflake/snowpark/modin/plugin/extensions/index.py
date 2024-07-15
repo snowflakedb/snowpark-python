@@ -1496,14 +1496,12 @@ class Index:
                 "`bins` is not yet supported for Index.value_counts."
             )
         return Series(
-            query_compiler=self._query_compiler.value_counts(
-                subset=None,
+            query_compiler=self._query_compiler.value_counts_index(
                 normalize=normalize,
                 sort=sort,
                 ascending=ascending,
                 bins=bins,
                 dropna=dropna,
-                include_index=True,
             ).set_index_names([self.name]),
             name="proportion" if normalize else "count",
         )
