@@ -5,7 +5,7 @@
 ### Snowpark Python API Updates
 
 #### New Features
-- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that allows to set the app name in the `Session.query_tag` in JSON format.
+- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that allows to set the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Improvements
 

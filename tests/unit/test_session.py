@@ -537,7 +537,7 @@ def test_session_builder_app_name_no_existing_query_tag(
         ),
     ],
 )
-def test_session_builder_app_name_existing_valid_query_tag(
+def test_session_builder_app_name_existing_query_tag(
     app_name, format_json, existing_query_tag, expected_query_tag
 ):
     mocked_session = Session(
@@ -566,7 +566,7 @@ def test_session_builder_app_name_existing_valid_query_tag(
         assert created_session.query_tag == expected_query_tag
 
 
-def test_session_builder_app_name_existing_invalid_query_tag():
+def test_session_builder_app_name_existing_invalid_json_query_tag():
     mocked_session = Session(
         ServerConnection(
             {"": ""},
