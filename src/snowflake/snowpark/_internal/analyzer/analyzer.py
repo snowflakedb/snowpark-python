@@ -805,6 +805,14 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
+            if logical_plan.has_reset:
+                resolved_plan_post_reset = self.do_resolve_with_resolved_children(
+                    logical_plan.source_plan,
+                    resolved_children,
+                    df_aliased_col_name_to_real_col_name,
+                )
+                logical_plan.queries[-1] = resolved_plan_post_reset.queries[-1]
+                logical_plan.has_reset = False
             return logical_plan
 
         if isinstance(logical_plan, TableFunctionJoin):
