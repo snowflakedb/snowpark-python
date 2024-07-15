@@ -8016,6 +8016,64 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    def astype_index(
+        self,
+        col_dtypes_map: dict[Hashable, Union[dtype, ExtensionDtype]],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Convert index columns dtypes to given dtypes.
+
+        Parameters
+        ----------
+        col_dtypes_map : dict
+            Map for column names and new dtypes.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            New QueryCompiler with updated dtypes.
+        """
+        if self.is_multiindex():
+            ErrorMessage.not_implemented(
+                "Snowpark pandas astype API doesn't yet support MultiIndex objects"
+            )
+
+        # Adding index columns.
+        col_dtypes_curr = {}
+        for column in self.get_index_names():
+            col_dtypes_curr[column] = self.index.dtype
+
+        astype_mapping = {}
+        id_to_sf_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
+        labels = list(col_dtypes_map.keys())
+        col_ids = (
+            self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                labels, include_index=True
+            )
+        )
+        for ids, label in zip(col_ids, labels):
+            for id in ids:
+                to_dtype = col_dtypes_map[label]
+                to_sf_type = TypeMapper.to_snowflake(to_dtype)
+                from_dtype = col_dtypes_curr[label]
+                from_sf_type = id_to_sf_type_map[id]
+                if is_astype_type_error(from_sf_type, to_sf_type):
+                    raise TypeError(
+                        f"dtype {pandas_dtype(from_dtype)} cannot be converted to {pandas_dtype(to_dtype)}"
+                    )
+                astype_mapping[id] = column_astype(
+                    id,
+                    from_sf_type,
+                    to_dtype,
+                    to_sf_type,
+                )
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.update_snowflake_quoted_identifiers_with_expressions(
+                astype_mapping
+            ).frame
+        )
+
     def set_2d_labels(
         self,
         index: Union[Scalar, slice, "SnowflakeQueryCompiler"],
