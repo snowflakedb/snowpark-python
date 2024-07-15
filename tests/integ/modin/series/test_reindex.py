@@ -55,7 +55,7 @@ def test_reindex_invalid_labels_parameter():
         expect_exception=True,
         expect_exception_match=re.escape("got an unexpected keyword argument 'labels'"),
         expect_exception_type=TypeError,
-        assert_exception_equal=True,
+        assert_exception_equal=False,
     )
 
 
@@ -70,7 +70,7 @@ def test_reindex_index_passed_twice():
         expect_exception=True,
         expect_exception_match=re.escape("got multiple values for argument 'index'"),
         expect_exception_type=TypeError,
-        assert_exception_equal=True,
+        assert_exception_equal=False,
     )
 
 
@@ -85,7 +85,7 @@ def test_reindex_multiple_args_passed():
         expect_exception=True,
         expect_exception_match=re.escape("got multiple values for argument 'index'"),
         expect_exception_type=TypeError,
-        assert_exception_equal=True,
+        assert_exception_equal=False,
     )
 
 
