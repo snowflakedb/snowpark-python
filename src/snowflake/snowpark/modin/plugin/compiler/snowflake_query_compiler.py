@@ -10,7 +10,7 @@ import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union, get_args
 
 import numpy as np
 import numpy.typing as npt
@@ -10193,7 +10193,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             dropna : bool, default True
                 Don't include counts of NaN.
         """
-        # TODO: SNOW-924742 Support bins in Series.value_counts
         if bins is not None:
             raise ErrorMessage.not_implemented("bins argument is not yet supported")
 
@@ -10202,68 +10201,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "`value_counts` is not yet implemented for MultiIndex objects"
             )
         by = self._modin_frame.index_column_pandas_labels
-
-        # validate whether by is valid (e.g., contains duplicates or non-existing labels)
-        self.validate_groupby(by=by, axis=0, level=None)
-
-        # append a dummy column for count aggregation
-        COUNT_LABEL = "value_count"
-        query_compiler = SnowflakeQueryCompiler(
-            self._modin_frame.append_column(COUNT_LABEL, pandas_lit(1))
-        )
-
-        # count
-        query_compiler = query_compiler.groupby_agg(
-            by=by,
-            agg_func={COUNT_LABEL: "count"},
-            axis=0,
-            groupby_kwargs={"dropna": dropna, "sort": False},
-            agg_args=(),
-            agg_kwargs={},
-        )
-        internal_frame = query_compiler._modin_frame
-        count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[0]
-
-        # use ratio_to_report function to calculate the percentage
-        # for example, if the frequencies of unique values are [2, 1, 1],
-        # they are normalized to percentages as [2/(2+1+1), 1/(2+1+1), 1/(2+1+1)] = [0.5, 0.25, 0.25]
-        # by default, ratio_to_report returns a decimal column, whereas pandas returns a float column
-        if normalize:
-            internal_frame = query_compiler._modin_frame.project_columns(
-                [COUNT_LABEL],
-                builtin("ratio_to_report")(col(count_identifier)).over(),
-            )
-            count_identifier = internal_frame.data_column_snowflake_quoted_identifiers[
-                0
-            ]
-        internal_frame = internal_frame.ensure_row_position_column()
-
-        # When sort=True, sort by the frequency (count column);
-        # otherwise, respect the original order (use the original ordering columns)
-        ordered_dataframe = internal_frame.ordered_dataframe
-        if sort:
-            # Need to explicitly specify the row position identifier to enforce the original order.
-            ordered_dataframe = ordered_dataframe.sort(
-                OrderingColumn(count_identifier, ascending=ascending),
-                OrderingColumn(
-                    internal_frame.row_position_snowflake_quoted_identifier,
-                    ascending=True,
-                ),
-            )
-
-        return SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=ordered_dataframe,
-                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
-                # The result series of value_counts doesn't have a name, so set
-                # data_column_pandas_labels to [MODIN_UNNAMED_SERIES_LABEL]
-                # After pandas 2.0, it has a name `count` or `proportion`
-                data_column_pandas_labels=[MODIN_UNNAMED_SERIES_LABEL],
-                data_column_snowflake_quoted_identifiers=[count_identifier],
-                data_column_pandas_index_names=query_compiler._modin_frame.data_column_pandas_index_names,
-            )
-        )
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
 
     def value_counts(
         self,
@@ -10309,6 +10247,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             by = self._modin_frame.data_column_pandas_labels
 
+        return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
+
+    def _value_counts_groupby(
+        self,
+        by: Union[List[Hashable], Tuple[Hashable, ...]],
+        normalize: bool,
+        sort: bool,
+        ascending: bool,
+        dropna: bool,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper method to obtain the frequency or number of unique values
+        a given SnowflakeQueryCompiler using groupby.
+
+        The resulting object will be in descending order so that the
+        first element is the most frequently occurring element.
+        Excludes NA values by default.
+
+        Args:
+            by : list
+                Columns to perform value_counts on.
+            normalize : bool
+                If True then the object returned will contain the relative
+                frequencies of the unique values.
+            sort : bool
+                Sort by frequencies when True. Preserve the order of the data when False.
+            ascending : bool
+                Sort in ascending order.
+            dropna : bool
+                Don't include counts of NaN.
+        """
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
 
