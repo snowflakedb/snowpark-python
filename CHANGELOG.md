@@ -28,7 +28,7 @@
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
 
 #### Improvements
-- Call getOrCreate at package import time so that sproc user does not need to.
+- Make importing Snowpark pandas automatically create a Snowpark session in stored procedures.
 
 ## 1.19.0 (2024-06-25)
 

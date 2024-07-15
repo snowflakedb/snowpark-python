@@ -783,7 +783,12 @@ class StoredProcedureRegistration:
         if is_pandas_udf:
             raise TypeError("pandas stored procedure is not supported")
 
-        arg_names = ["session"] + [f"arg{i+1}" for i in range(len(input_types))]
+        if isinstance(func, Callable) and func.__code__.co_argcount == len(input_types):
+            # Don't include the session argument if it was not included in func.
+            arg_names = []
+        else:
+            arg_names = ["session"]
+        arg_names += [f"arg{i+1}" for i in range(len(input_types))]
         input_args = [
             UDFColumn(dt, arg_name) for dt, arg_name in zip(input_types, arg_names[1:])
         ]

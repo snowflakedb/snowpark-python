@@ -351,5 +351,7 @@ modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
 
 # Call getOrCreate() at import time on behalf of user so that in a stored procedure,
 # the user does not need to do it explicitly.
+# TODO: Remove when the pre-creation of session in XP even for session-less sproc
+# handlers is implemented and proves to be sufficient.
 if is_in_stored_procedure():
     snowflake.snowpark.Session.SessionBuilder().getOrCreate()
