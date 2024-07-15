@@ -5,7 +5,7 @@
 import gzip
 import os
 import tempfile
-from typing import Any, Tuple
+from typing import Any, List, Tuple
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -62,13 +62,13 @@ def assert_file_equal(
         is_compressed: True if outfile files are gzip compressed.
     """
 
-    def read_file_content(path: str) -> str:
+    def read_file_content(path: str) -> List[str]:
         if is_compressed:
             with gzip.open(path) as f:
-                return f.read().decode()
+                return f.read().decode().splitlines()
         else:
             with open(path) as f:
-                return f.read()
+                return f.readlines()
 
     assert_equal(read_file_content(path_actual), read_file_content(path_expected))
 
