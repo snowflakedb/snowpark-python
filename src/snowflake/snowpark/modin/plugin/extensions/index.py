@@ -1491,10 +1491,6 @@ class Index:
         apparitions of values, divide the index in the specified
         number of half-open bins.
         """
-        if bins is not None:
-            ErrorMessage.not_implemented(
-                "`bins` is not yet supported for Index.value_counts."
-            )
         return Series(
             query_compiler=self._query_compiler.value_counts_index(
                 normalize=normalize,
