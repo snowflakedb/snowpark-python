@@ -4,46 +4,17 @@
 
 import modin.pandas as pd
 import numpy as np
-import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.modin.index.conftest import NATIVE_INDEX_TEST_DATA, TEST_DFS
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
-
-TEST_DFS = [
-    native_pd.DataFrame(),
-    native_pd.DataFrame({"col1": [1, 2, 3], "col2": [3, 4, 5], "col3": [5, 6, 7]}),
-    native_pd.DataFrame(
-        data={"col1": [1, 2, 3], "col2": [3, 4, 5]},
-        index=native_pd.Index([[1, 2], [2, 3], [3, 4]]),
-    ),
-    native_pd.DataFrame([1]),
-]
-
-NATIVE_INDEX_TEST_DATA = [
-    native_pd.Index([], dtype="object"),
-    native_pd.Index([[1, 2], [2, 3], [3, 4]]),
-    native_pd.Index([1, 2, 3]),
-    native_pd.Index([3, np.nan, 5], name="my_index"),
-    native_pd.Index([5, None, 7]),
-    native_pd.Index([1]),
-    native_pd.Index(["a", "b", 1, 2]),
-]
-
-
-@sql_count_checker(query_count=2)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_astype(native_index):
-    # TODO: SNOW-1480906: Investigate astype failure for int to object conversion
-    snow_index = pd.Index(native_index)
-    snow_index = snow_index.astype("object")
-    assert repr(snow_index) == repr(native_index)
 
 
 @sql_count_checker(query_count=2)
