@@ -129,11 +129,12 @@
 - Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
-- Added support for `Index.copy()`
-- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Added support for `Index.copy`.
+- Added support for Index APIs: `dtype`, `values`, `item`, `tolist`, `to_series` and `to_frame`.
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 - Added support for `Index.unique` and `Index.nunique`.
+- Added support for `Index.astype`.
 
 ## 1.18.0 (2024-05-28)
 
