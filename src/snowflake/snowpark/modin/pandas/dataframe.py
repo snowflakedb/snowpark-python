@@ -860,21 +860,26 @@ class DataFrame(BasePandasDataset):
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
         return self._binary_op("eq", other, axis=axis, level=level)
 
-    @dataframe_not_implemented()
-    def equals(self, other):  # noqa: PR01, RT01, D200
+    def equals(self, other) -> bool:  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-
         if isinstance(other, pandas.DataFrame):
             # Copy into a Modin DataFrame to simplify logic below
             other = self.__constructor__(other)
-        return (
-            self.index.equals(other.index)
-            and self.columns.equals(other.columns)
-            and self.eq(other).all().all()
+
+        if (
+            type(self) is not type(other)
+            or not self.index.equals(other.index)
+            or not self.columns.equals(other.columns)
+        ):
+            return False
+
+        result = self.__constructor__(
+            query_compiler=self._query_compiler.equals(other._query_compiler)
         )
+        return result.all(axis=None)
 
     def _update_var_dicts_in_kwargs(self, expr, kwargs):
         """

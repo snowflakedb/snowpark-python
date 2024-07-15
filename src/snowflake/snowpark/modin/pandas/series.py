@@ -1070,17 +1070,31 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().eq(other, level=level, axis=axis)
 
-    @series_not_implemented()
-    def equals(self, other):  # noqa: PR01, RT01, D200
+    def equals(self, other) -> bool:  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return (
-            self.name == other.name
-            and self.index.equals(other.index)
-            and self.eq(other).all()
-        )
+        if isinstance(other, pandas.Series):
+            # Copy into a Modin Series to simplify logic below
+            other = self.__constructor__(other)
+
+        if type(self) is not type(other) or not self.index.equals(other.index):
+            return False
+
+        old_name_self = self.name
+        old_name_other = other.name
+        try:
+            self.name = "temp_name_for_equals_op"
+            other.name = "temp_name_for_equals_op"
+            # this function should return only scalar
+            res = self.__constructor__(
+                query_compiler=self._query_compiler.equals(other._query_compiler)
+            )
+        finally:
+            self.name = old_name_self
+            other.name = old_name_other
+        return res.all()
 
     @series_not_implemented()
     def explode(self, ignore_index: bool = False):  # noqa: PR01, RT01, D200
