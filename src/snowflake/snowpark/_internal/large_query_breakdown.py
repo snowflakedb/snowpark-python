@@ -49,10 +49,59 @@ class LargeQueryBreakdown:
     # COMPLEXITY_SCORE_LOWER_BOUND = 2_500_000
     # COMPLEXITY_SCORE_UPPER_BOUND = 5_000_000
     COMPLEXITY_SCORE_LOWER_BOUND = 300
-    COMPLEXITY_SCORE_UPPER_BOUND = 410
+    COMPLEXITY_SCORE_UPPER_BOUND = 800
 
     def __init__(self, session) -> None:
         self.session = session
+
+    def _plot_plan(self, root: SnowflakePlan, path: str) -> None:
+        """A helper function to plot the query plan tree using graphviz useful for debugging."""
+        import os
+
+        import graphviz
+
+        def get_stat(node):
+            def get_name(node):
+                addr = hex(id(node))
+                name = str(type(node)).split(".")[-1].split("'")[0]
+                return f"{name}({addr})"
+
+            name = get_name(node)
+            if isinstance(node, SnowflakePlan):
+                name = f"{name} :: ({get_name(node.source_plan)})"
+            elif isinstance(node, SelectSnowflakePlan):
+                name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
+
+            score = get_complexity_score(node.cumulative_node_complexity)
+            sql_size = (
+                len(node.queries[-1].sql)
+                if hasattr(node, "queries")
+                else len(node.sql_query)
+            )
+            sql_preview = (
+                node.queries[-1].sql[:50]
+                if hasattr(node, "queries")
+                else node.sql_query[:50]
+            )
+
+            return f"{name=}\n" f"{score=}, {sql_size=}\n" f"{sql_preview=}"
+
+        g = graphviz.Graph(format="png")
+
+        g.node(root._id, get_stat(root))
+
+        curr_level = [root]
+        while curr_level:
+            next_level = []
+            for node in curr_level:
+                for child in node.children_plan_nodes:
+                    g.node(child._id, get_stat(child))
+                    g.edge(node._id, child._id, dir="back")
+                    next_level.append(child)
+            curr_level = next_level
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        g.render(path, format="png", cleanup=True)
 
     def breakdown_if_large_plan(self, root: SnowflakePlan) -> List[SnowflakePlan]:
         """
@@ -75,9 +124,12 @@ class LargeQueryBreakdown:
         if not self.session._large_query_breakdown_enabled:
             return [root]
 
-        plans = []
         complexity_score = get_complexity_score(root.cumulative_node_complexity)
-        print(f"Pre breakdown {complexity_score=} for root node")
+        if complexity_score < self.COMPLEXITY_SCORE_UPPER_BOUND:
+            return [root]
+
+        plans = []
+        _logger.debug(f"Pre breakdown {complexity_score=} for root node")
         root = copy.copy(root)
         while complexity_score > self.COMPLEXITY_SCORE_UPPER_BOUND:
             partition = self.get_partitioned_plan(root)
@@ -106,7 +158,7 @@ class LargeQueryBreakdown:
         """
 
         # Initialize variables
-        current_level = [root.source_plan]
+        current_level = [root]
         pipeline_breaker_list = SortedList(key=lambda x: x[0])
         parent_map = defaultdict(set)
 

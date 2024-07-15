@@ -98,7 +98,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
-    get_temp_type_for_object,
     is_sql_select_statement,
     random_name_for_temp_object,
 )
@@ -239,6 +238,7 @@ class SnowflakePlan(LogicalPlan):
         # encode an id for CTE optimization
         self._id = encode_id(queries[-1].sql, queries[-1].params)
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self.has_reset: bool = False
 
     def __eq__(self, other: "SnowflakePlan") -> bool:
         if self._id is not None and other._id is not None:
@@ -270,6 +270,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan.replace_child(old_node, new_node)
 
     def reset_snowflake_plan(self) -> None:
+        self.has_reset = True
         from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
         if isinstance(self.source_plan, Selectable):
