@@ -20,12 +20,20 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
 - Added support for `limit` parameter when `method` parameter is used in `fillna`.
+- Added support for `DataFrame.equals` and `Series.equals`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
+
+### Snowpark Local Testing Updates
+
+### New Features
+
+- Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
 
 ## 1.19.0 (2024-06-25)
 
@@ -122,10 +130,12 @@
 - Added a lazy index constructor and support for `len`, `shape`, `size`, `empty`, `to_pandas()` and `names`. For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.index`, Snowpark pandas creates a lazy index object.
 - For `df.columns`, Snowpark pandas supports a non-lazy version of an `Index` since the data is already stored locally.
-- Added support for `Index.copy()`
-- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Added support for `Index.copy`.
+- Added support for Index APIs: `dtype`, `values`, `item`, `tolist`, `to_series` and `to_frame`.
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+- Added support for `Index.unique` and `Index.nunique`.
+- Added support for `Index.astype`.
 
 ## 1.18.0 (2024-05-28)
 
