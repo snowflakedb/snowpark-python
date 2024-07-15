@@ -4054,7 +4054,7 @@ class DataFrame:
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
         # plan = self._plan.replace_repeated_subquery_with_cte()
-        plan_execution_queries = self._plan.execution_queries
+        plan_execution_queries = self._plan.execution_queries()
         return {
             "queries": [
                 query.sql.strip() for query in plan_execution_queries["queries"]

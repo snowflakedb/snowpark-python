@@ -260,7 +260,7 @@ class SnowflakePlan(LogicalPlan):
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
 
-    @cached_property
+    # @cached_property
     def execution_queries(self) -> Dict[str, List["Query"]]:
         from snowflake.snowpark._internal.optimizer.plan_compliation import PlanCompiler
 
