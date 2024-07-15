@@ -2046,10 +2046,10 @@ class Series:
         Create a dataframe with some fictional data.
 
         >>> index = ['Firefox', 'Chrome', 'Safari', 'IE10', 'Konqueror']
-        ... df = pd.DataFrame({'http_status': [200, 200, 404, 404, 301],
+        >>> df = pd.DataFrame({'http_status': [200, 200, 404, 404, 301],
         ...             'response_time': [0.04, 0.02, 0.07, 0.08, 1.0]},
         ...             index=index)
-        ... df
+        >>> df
                    http_status  response_time
         Firefox            200           0.04
         Chrome             200           0.02
@@ -2062,7 +2062,7 @@ class Series:
 
         >>> new_index = ['Safari', 'Iceweasel', 'Comodo Dragon', 'IE10',
         ...              'Chrome']
-        ... df.reindex(new_index)
+        >>> df.reindex(new_index)
                        http_status  response_time
         Safari               404.0           0.07
         Iceweasel              NaN            NaN
@@ -2080,41 +2080,41 @@ class Series:
         IE10                   404           0.08
         Chrome                 200           0.02
 
-        >>> df.reindex(new_index, fill_value='missing')
-                      http_status response_time
-        Safari                404          0.07
-        Iceweasel         missing       missing
-        Comodo Dragon     missing       missing
-        IE10                  404          0.08
-        Chrome                200          0.02
+        >>> df.reindex(new_index, fill_value=-1)  # doctest: +NORMALIZE_WHITESPACE
+                       http_status    response_time
+        Safari                 404             0.07
+        Iceweasel               -1            -1.00
+        Comodo Dragon           -1            -1.00
+        IE10                   404             0.08
+        Chrome                 200             0.02
 
         We can also reindex the columns.
 
-        >>> df.reindex(columns=['http_status', 'user_agent'])
-                   http_status  user_agent
-        Firefox            200         NaN
-        Chrome             200         NaN
-        Safari             404         NaN
-        IE10               404         NaN
-        Konqueror          301         NaN
+        >>> df.reindex(columns=['http_status', 'user_agent']) # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
 
         Or we can use “axis-style” keyword arguments
 
-        >>> df.reindex(['http_status', 'user_agent'], axis="columns")
-                   http_status  user_agent
-        Firefox            200         NaN
-        Chrome             200         NaN
-        Safari             404         NaN
-        IE10               404         NaN
-        Konqueror          301         NaN
+        >>> df.reindex(['http_status', 'user_agent'], axis="columns")  # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
 
         To further illustrate the filling functionality in reindex, we will create a dataframe
         with a monotonically increasing index (for example, a sequence of dates).
 
         >>> date_index = pd.date_range('1/1/2010', periods=6, freq='D')
-        ... df2 = pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]},
+        >>> df2 = pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]},
         ...                    index=date_index)
-        ... df2
+        >>> df2
                     prices
         2010-01-01   100.0
         2010-01-02   101.0
@@ -2126,7 +2126,7 @@ class Series:
         Suppose we decide to expand the dataframe to cover a wider date range.
 
         >>> date_index2 = pd.date_range('12/29/2009', periods=10, freq='D')
-        ... df2.reindex(date_index2)
+        >>> df2.reindex(date_index2)
                     prices
         2009-12-29     NaN
         2009-12-30     NaN
@@ -2166,7 +2166,7 @@ class Series:
 
         An example illustrating Snowpark pandas' behavior when dealing with non-monotonic indices.
         >>> unordered_dataframe = pd.DataFrame([[5]*3, [8]*3, [6]*3], columns=list("ABC"), index=[5, 8, 6])
-        ... unordered_dataframe
+        >>> unordered_dataframe
            A  B  C
         5  5  5  5
         8  8  8  8
