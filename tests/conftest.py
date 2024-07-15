@@ -8,11 +8,6 @@ import os
 from pathlib import Path
 
 import pytest
-from opentelemetry import trace
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from snowflake.snowpark._internal.utils import warning_dict
 
@@ -102,12 +97,25 @@ def clear_warning_dict():
     warning_dict.clear()
 
 
-@pytest.fixture(scope="session")
-def dict_exporter():
-    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    trace_provider = TracerProvider(resource=resource)
-    dict_exporter = InMemorySpanExporter()
-    processor = SimpleSpanProcessor(dict_exporter)
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
-    yield dict_exporter
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+except ModuleNotFoundError:
+    pass
