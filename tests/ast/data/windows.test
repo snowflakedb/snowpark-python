@@ -1,0 +1,19 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, avg
+
+from snowflake.snowpark.window import Window
+
+df = session.table("test_table")
+
+df = df.select(col("NUM").as_("key"), col("STR").as_("value"))
+
+window1 = Window.partition_by("value").order_by("key").rows_between(Window.CURRENT_ROW, 2)
+
+window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
+
+df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2"))
+
+## EXPECTED OUTPUT
+
+res1 = Table("test_table", session)
