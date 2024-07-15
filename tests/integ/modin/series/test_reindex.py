@@ -53,9 +53,7 @@ def test_reindex_invalid_labels_parameter():
         native_series,
         lambda series: series.reindex(labels=list("CAB")),
         expect_exception=True,
-        expect_exception_match=re.escape(
-            "Series.reindex() got an unexpected keyword argument 'labels'"
-        ),
+        expect_exception_match=re.escape("got an unexpected keyword argument 'labels'"),
         expect_exception_type=TypeError,
         assert_exception_equal=True,
     )
@@ -70,9 +68,7 @@ def test_reindex_index_passed_twice():
         native_series,
         lambda series: series.reindex(list("CAB"), index=list("CAB")),
         expect_exception=True,
-        expect_exception_match=re.escape(
-            "Series.reindex() got multiple values for argument 'index'"
-        ),
+        expect_exception_match=re.escape("got multiple values for argument 'index'"),
         expect_exception_type=TypeError,
         assert_exception_equal=True,
     )
@@ -87,9 +83,7 @@ def test_reindex_multiple_args_passed():
         native_series,
         lambda series: series.reindex(list("CAB"), index=list("CAB")),
         expect_exception=True,
-        expect_exception_match=re.escape(
-            "Series.reindex() got multiple values for argument 'index'"
-        ),
+        expect_exception_match=re.escape("got multiple values for argument 'index'"),
         expect_exception_type=TypeError,
         assert_exception_equal=True,
     )
