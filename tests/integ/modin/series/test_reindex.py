@@ -12,7 +12,10 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 
 def test_reindex_invalid_limit_parameter():
@@ -333,3 +336,31 @@ def test_reindex_index_non_overlapping_different_types_index_negative():
 
     with pytest.raises(SnowparkSQLException, match=".*Timestamp 'A' is not recognized"):
         snow_series.reindex(list("ABC")).to_pandas()
+
+
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize(
+    "new_index", [list("ABC"), list("ABCC"), list("ABBC"), list("AABC")]
+)
+def test_reindex_index_duplicate_values(new_index):
+    native_series = native_pd.Series([0, 1, 2], index=list("ABA"))
+    snow_series = pd.Series(native_series)
+
+    with pytest.raises(
+        ValueError, match="cannot reindex on an axis with duplicate labels"
+    ):
+        native_series.reindex(index=new_index)
+
+    series_to_concat = []
+    for row in new_index:
+        if row not in list("AB"):
+            series_to_concat.append(native_pd.Series([np.nan], index=[row]))
+        else:
+            value = native_series.loc[row]
+            if not isinstance(value, native_pd.Series):
+                value = native_pd.Series([value], index=[row])
+            series_to_concat.append(value)
+    result_native_series = native_pd.concat(series_to_concat)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+        snow_series.reindex(index=new_index), result_native_series
+    )

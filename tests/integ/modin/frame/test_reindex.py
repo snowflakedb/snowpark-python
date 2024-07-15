@@ -10,7 +10,10 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    eval_snowpark_pandas_result,
+)
 
 
 @pytest.mark.parametrize("axis", [0, 1])
@@ -281,6 +284,33 @@ class TestReindexAxis0:
         ):
             snow_df.reindex(list("ABC")).to_pandas()
 
+    @sql_count_checker(query_count=1, join_count=1)
+    @pytest.mark.parametrize(
+        "new_index", [list("ABC"), list("ABCC"), list("ABBC"), list("AABC")]
+    )
+    def test_reindex_index_duplicate_values(self, new_index):
+        native_df = native_pd.DataFrame(np.arange(9).reshape((3, 3)), index=list("ABA"))
+        snow_df = pd.DataFrame(native_df)
+
+        with pytest.raises(
+            ValueError, match="cannot reindex on an axis with duplicate labels"
+        ):
+            native_df.reindex(index=new_index)
+
+        dfs_to_concat = []
+        for row in new_index:
+            if row not in list("AB"):
+                dfs_to_concat.append(native_pd.DataFrame([[np.nan] * 3], index=[row]))
+            else:
+                value = native_df.loc[row]
+                if isinstance(value, native_pd.Series):
+                    value = native_pd.DataFrame(value).T
+                dfs_to_concat.append(value)
+        result_native_df = native_pd.concat(dfs_to_concat)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            snow_df.reindex(index=new_index), result_native_df
+        )
+
 
 class TestReindexAxis1:
     @sql_count_checker(query_count=1)
@@ -502,4 +532,23 @@ class TestReindexAxis1:
 
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda df: df.reindex(columns=list("ABCD"))
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
+        "new_columns", [list("ABC"), list("ABCC"), list("ABBC"), list("AABC")]
+    )
+    def test_reindex_columns_duplicate_values(self, new_columns):
+        native_df = native_pd.DataFrame(
+            np.arange(9).reshape((3, 3)), columns=list("ABA")
+        )
+        snow_df = pd.DataFrame(native_df)
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.reindex(columns=new_columns),
+            expect_exception=True,
+            expect_exception_match="cannot reindex on an axis with duplicate labels",
+            assert_exception_equal=True,
+            expect_exception_type=ValueError,
         )

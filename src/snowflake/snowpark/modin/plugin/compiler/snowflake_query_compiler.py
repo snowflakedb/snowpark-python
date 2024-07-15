@@ -2418,7 +2418,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # This change is user-facing, so we should catch this in CI first, which we can
         # by having this assert here, as a sentinel.
         assert (
-            not self.columns.is_lazy()
+            not self.columns.is_lazy
         ), "`reindex` with axis=1 failed on error checking."
         self.columns.to_pandas().reindex(labels, method, level, limit, tolerance)
         data_column_pandas_labels = []
