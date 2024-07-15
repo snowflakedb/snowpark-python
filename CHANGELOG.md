@@ -34,6 +34,9 @@
 ### New Features
 
 - Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - datediff
 
 ## 1.19.0 (2024-06-25)
 
@@ -63,7 +66,6 @@
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - random
-    - datediff
 - Added new parameters to `patch` function when registering a mocked function:
   - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
   - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
