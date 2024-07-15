@@ -31,6 +31,8 @@
   - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
   - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
   - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
+  - Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
+
 
 #### Bug Fixes
 - Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExpressions.
@@ -56,6 +58,9 @@
 - Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
 - Added support for `DataFrameGroupBy.get_group`.
 - Added support for `limit` parameter when `method` parameter is used in `fillna`.
+- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+- Added support for `DataFrame.corr`.
+- Added support for `DataFrame.equals` and `Series.equals`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
