@@ -563,14 +563,14 @@ class ServerConnection:
         # plan = copy.deepcopy(plan)
         # subDataframeEliminator = CommonSubDataframeElimination(plan)
         # plan = subDataframeEliminator.common_subdataframe_elimination()
-        plan_execution_queries = plan.execution_queries
+        plan_execution_queries = plan.execution_queries()
         # plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
         try:
             main_execution_queries = plan_execution_queries["queries"]
             placeholders = {}
             is_batch_insert = False
-            for q in plan.queries:
+            for q in main_execution_queries:
                 if isinstance(q, BatchInsertQuery):
                     is_batch_insert = True
                     break
@@ -580,7 +580,7 @@ class ServerConnection:
                 params = []
                 final_queries = []
                 last_place_holder = None
-                for q in plan.queries:
+                for q in main_execution_queries:
                     final_queries.append(
                         q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder
@@ -611,18 +611,18 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
-                for i, query in enumerate(plan.queries):
+                for i, query in enumerate(main_execution_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
                     else:
-                        is_last = i == len(plan.queries) - 1 and not block
+                        is_last = i == len(main_execution_queries) - 1 and not block
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
+                            to_iter and (i == len(main_execution_queries) - 1),
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,

@@ -182,19 +182,21 @@ class CommonSubDataframeElimination:
                 stack1.append(child)
 
         # self._analyzer.table_create_child_attribute_map.update(self._plan.table_create_child_attribute_map)
-
+        eliminated_nodes = set()
         while stack2:
             node = stack2.pop()
             if node in self._duplicated_nodes:
-                parents = self._node_parents_map[node]
-                # convert the node into WithQueryBlock
-                with_block = WithQueryBlock(
-                    name=random_name_for_temp_object(TempObjectType.CTE), child=node
-                )
-                with_object_ref_node = WithObjectRef(with_block)
-                for parent in parents:
-                    self._update_cte_parent(parent, node, with_object_ref_node)
-
+                if node not in eliminated_nodes:
+                    parents = self._node_parents_map[node]
+                    # convert the node into WithQueryBlock
+                    with_block = WithQueryBlock(
+                        name=random_name_for_temp_object(TempObjectType.CTE), child=node
+                    )
+                    with_object_ref_node = WithObjectRef(with_block)
+                    for parent in parents:
+                        self._update_cte_parent(parent, node, with_object_ref_node)
+                    eliminated_nodes.add(node)
+            else:
                 self.reset_node(node)
 
         # do one path to resolve the whole tree again
@@ -202,8 +204,12 @@ class CommonSubDataframeElimination:
         return self._plan
 
     def reset_node(self, node: LogicalPlan) -> None:
-        if isinstance(node, Selectable):
-            node._snowflake_pan = None
+        if isinstance(node, SelectSnowflakePlan):
+            node._snowflake_plan = self._analyzer.resolve(
+                node._snowflake_plan.source_plan
+            )
+        elif isinstance(node, Selectable):
+            node._snowflake_plan = None
             node._sql_query = None
 
     def _cte_transformation_old(self) -> "SnowflakePlan":

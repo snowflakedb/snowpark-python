@@ -310,9 +310,11 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query):
         if self._snowflake_plan is None:
-            with_block_queries = [
-                with_plan.queries[-1].sql for with_plan in self.with_query_block_plans
-            ]
+            with_block_queries = (
+                [with_plan.queries[-1].sql for with_plan in self.with_query_block_plans]
+                if self.with_query_block_plans
+                else []
+            )
             with_query = ",".join(with_block_queries)
             query = Query(self.sql_query, params=self.query_params, with_sql=with_query)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
