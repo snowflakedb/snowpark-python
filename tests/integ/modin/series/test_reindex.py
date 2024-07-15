@@ -18,6 +18,7 @@ from tests.integ.modin.utils import (
 )
 
 
+@sql_count_checker(query_count=0)
 def test_reindex_invalid_limit_parameter():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
     snow_series = pd.Series(native_series)
@@ -32,6 +33,7 @@ def test_reindex_invalid_limit_parameter():
     )
 
 
+@sql_count_checker(query_count=1, join_count=1)
 def test_reindex_invalid_axis_parameter_ignored():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
     snow_series = pd.Series(native_series)
@@ -42,6 +44,7 @@ def test_reindex_invalid_axis_parameter_ignored():
     )
 
 
+@sql_count_checker(query_count=0)
 def test_reindex_invalid_labels_parameter():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
     snow_series = pd.Series(native_series)
@@ -58,6 +61,7 @@ def test_reindex_invalid_labels_parameter():
     )
 
 
+@sql_count_checker(query_count=0)
 def test_reindex_index_passed_twice():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
     snow_series = pd.Series(native_series)
@@ -74,6 +78,7 @@ def test_reindex_index_passed_twice():
     )
 
 
+@sql_count_checker(query_count=0)
 def test_reindex_multiple_args_passed():
     native_series = native_pd.Series([0, 1, 2], index=list("ABC"))
     snow_series = pd.Series(native_series)
@@ -364,3 +369,16 @@ def test_reindex_index_duplicate_values(new_index):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         snow_series.reindex(index=new_index), result_native_series
     )
+
+
+@sql_count_checker(query_count=0)
+def test_reindex_multiindex_negative():
+    snow_series = pd.Series(
+        [0, 1, 2], index=native_pd.MultiIndex.from_tuples([(1, 1), (2, 2), (3, 3)])
+    )
+
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas doesn't support `reindex` with MultiIndex",
+    ):
+        snow_series.reindex(index=[1, 2, 3])

@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
 )
 
 
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("axis", [0, 1])
 def test_reindex_invalid_limit_parameter(axis):
     native_df = native_pd.DataFrame(
@@ -552,3 +553,19 @@ class TestReindexAxis1:
             assert_exception_equal=True,
             expect_exception_type=ValueError,
         )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("axis", [0, 1])
+def test_reindex_multiindex_negative(axis):
+    snow_df = pd.DataFrame(np.arange(9).reshape((3, 3)))
+    snow_df = snow_df.set_index([0, 1])
+
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas doesn't support `reindex` with MultiIndex",
+    ):
+        if axis == 0:
+            snow_df.reindex(index=[1, 2, 3])
+        else:
+            snow_df.T.reindex(columns=[1, 2, 3])
