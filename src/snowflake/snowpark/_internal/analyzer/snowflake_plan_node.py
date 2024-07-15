@@ -56,6 +56,16 @@ class LogicalPlan:
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
         self._cumulative_node_complexity = value
 
+    def update_child_node(
+        self, original_node: "LogicalPlan", node: "LogicalPlan"
+    ) -> None:
+        for i in range(len(self.children)):
+            try:
+                if self.children[i] == original_node:
+                    self.children[i] = node
+            except Exception:
+                pass
+
 
 class LeafNode(LogicalPlan):
     pass
@@ -145,6 +155,15 @@ class SnowflakeCreateTable(LogicalPlan):
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
 
+    def update_child_node(
+        self, original_node: "LogicalPlan", node: "LogicalPlan"
+    ) -> None:
+        try:
+            if self.query == original_node:
+                self.query = node
+        except Exception:
+            pass
+
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # CREATE OR REPLACE table_type TABLE table_name (col definition) clustering_expr AS SELECT * FROM (query)
@@ -176,6 +195,16 @@ class Limit(LogicalPlan):
         self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
+
+    def update_child_node(
+        self, original_node: "LogicalPlan", node: "LogicalPlan"
+    ) -> None:
+        try:
+            if self.child == original_node:
+                self.child = node
+                self.children[0] = node
+        except Exception:
+            pass
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -244,6 +273,16 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+
+    def update_child_node(
+        self, original_node: "LogicalPlan", node: "LogicalPlan"
+    ) -> None:
+        try:
+            if self.child == original_node:
+                self.child = node
+                self.children[0] = node
+        except Exception:
+            pass
 
 
 class WithQueryBlock(LogicalPlan):

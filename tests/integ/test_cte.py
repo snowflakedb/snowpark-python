@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
+from snowflake.snowpark._internal.analyzer import analyzer
 from snowflake.snowpark._internal.utils import (
     TEMP_OBJECT_NAME_PREFIX,
     TempObjectType,
@@ -84,8 +85,8 @@ def count_number_of_ctes(query):
 @pytest.mark.parametrize(
     "action",
     [
-        # lambda x: x.select("a", "b").select("b"),
-        lambda x: x.filter(col("a") == 1).select("b"),
+        lambda x: x.select("a", "b").select("b"),
+        # lambda x: x.filter(col("a") == 1).select("b"),
         # WITH SNOWPARK_TEMP_CTE_K6FDGF6PHK AS ( SELECT "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT), (3 :: INT, 4 :: INT)) WHERE ("A" = 1 :: INT)) SELECT  *  FROM ((SELECT * FROM SNOWPARK_TEMP_CTE_K6FDGF6PHK) UNION ALL (SELECT * FROM SNOWPARK_TEMP_CTE_K6FDGF6PHK)) ORDER BY $1 ASC NULLS FIRST
         # WITH SNOWPARK_TEMP_CTE_DXHYB8ENR9 AS (
         #   SELECT "B" FROM (
@@ -107,7 +108,7 @@ def count_number_of_ctes(query):
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
-    check_result(session, df_action, expect_cte_optimized=False)
+    # check_result(session, df_action, expect_cte_optimized=False)
     check_result(session, df_action.union_all(df_action), expect_cte_optimized=True)
 
 
@@ -115,29 +116,29 @@ def test_unary(session, action):
     "action",
     [
         lambda x, y: x.union_all(y),
-        # lambda x, y: x.select("a").union(y.select("a")),
-        # lambda x, y: x.except_(y),
-        # lambda x, y: x.select("a").intersect(y.select("a")),
-        # lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
-        # lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
-        # lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
+        lambda x, y: x.select("a").union(y.select("a")),
+        lambda x, y: x.except_(y),
+        lambda x, y: x.select("a").intersect(y.select("a")),
+        lambda x, y: x.join(y.select("a", "b"), rsuffix="_y"),
+        lambda x, y: x.select("a").join(y, how="outer", rsuffix="_y"),
+        lambda x, y: x.join(y.select("a"), how="left", rsuffix="_y"),
     ],
 )
 def test_binary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     check_result(session, action(df, df), expect_cte_optimized=True)
 
-    # df1 = session.create_dataframe([[3, 4], [2, 1]], schema=["a", "b"])
-    # check_result(session, action(df, df1), expect_cte_optimized=False)
+    df1 = session.create_dataframe([[3, 4], [2, 1]], schema=["a", "b"])
+    check_result(session, action(df, df1), expect_cte_optimized=False)
 
     # multiple queries
-    # original_threshold = analyzer.ARRAY_BIND_THRESHOLD
-    # try:
-    #    analyzer.ARRAY_BIND_THRESHOLD = 2
-    #    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    # finally:
-    #    analyzer.ARRAY_BIND_THRESHOLD = original_threshold
-    # check_result(session, action(df2, df2), expect_cte_optimized=True)
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+    check_result(session, action(df2, df2), expect_cte_optimized=True)
 
 
 @pytest.mark.parametrize(

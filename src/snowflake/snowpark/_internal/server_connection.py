@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import copy
 import functools
 import importlib
 import inspect
@@ -32,9 +31,6 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
-)
-from snowflake.snowpark._internal.analyzer.common_subdataframe_elimination import (
-    CommonSubDataframeElimination,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -564,12 +560,14 @@ class ServerConnection:
     ]:
         action_id = plan.session._generate_new_action_id()
         # potentially optimize the query using CTEs
-        plan = copy.deepcopy(plan)
-        subDataframeEliminator = CommonSubDataframeElimination(plan)
-        plan = subDataframeEliminator.common_subdataframe_elimination()
+        # plan = copy.deepcopy(plan)
+        # subDataframeEliminator = CommonSubDataframeElimination(plan)
+        # plan = subDataframeEliminator.common_subdataframe_elimination()
+        plan_execution_queries = plan.execution_queries
         # plan = plan.replace_repeated_subquery_with_cte()
         result, result_meta = None, None
         try:
+            main_execution_queries = plan_execution_queries["queries"]
             placeholders = {}
             is_batch_insert = False
             for q in plan.queries:
@@ -577,7 +575,8 @@ class ServerConnection:
                     is_batch_insert = True
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
+            # if len(plan.queries) > 1 and not block and not is_batch_insert:
+            if len(main_execution_queries) > 1 and not block and not is_batch_insert:
                 params = []
                 final_queries = []
                 last_place_holder = None
@@ -643,7 +642,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan.post_actions:
+                for action in plan_execution_queries["post_actions"]:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
