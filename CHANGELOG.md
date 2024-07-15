@@ -25,6 +25,7 @@
 - Added support for `DataFrame.corr`.
 - Added support for `limit` parameter when `method` parameter is used in `fillna`.
 - Added support for `DataFrame.equals` and `Series.equals`.
+- Added support for `DataFrame.reindex` and `Series.reindex`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
