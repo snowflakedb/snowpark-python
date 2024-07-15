@@ -2315,14 +2315,19 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
-        num_rows = native_pd.get_option("display.max_rows") or 60
-        num_cols = native_pd.get_option("display.max_columns") or 20
+        num_elements = native_pd.get_option("display.max_seq_items") or 100
 
-        (
-            row_count,
-            col_count,
-            temp_df,
-        ) = self._query_compiler.build_repr_df(num_rows, num_cols)
+        # perform filter to get the first and last ten elements if the length is <= 100
+        # otherwise print everything in a list
+        # Print the length as a field after the name if len is > 100.
+        # Index([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], dtype='dtype', name='name')
+        # Index([  0,   1,   2,   3,   4,   5,   6,   7,   8,   9,
+        #        ...
+        #         91,  92,  93,  94,  95,  96,  97,  98,  99, 100],
+        #       dtype='int64', name='name', length=101)
+        # character limit for number of things on a line - don't know how much
+
+        element_count, temp_df = self._query_compiler.build_repr_df(num_rows, num_cols)
         if isinstance(temp_df, native_pd.DataFrame) and not temp_df.empty:
             temp_df = temp_df.iloc[:, 0]
         temp_str = repr(temp_df)
