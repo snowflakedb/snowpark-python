@@ -5,9 +5,10 @@
 
 """Window frames in Snowpark."""
 import sys
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -21,6 +22,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowExpression,
     WindowFrame,
     WindowSpecDefinition,
+)
+from snowflake.snowpark._internal.ast_utils import (
+    _fill_ast_with_snowpark_column_or_literal,
+    with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import parse_positional_args_to_list
@@ -169,10 +174,17 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
+        ast: Optional[proto.SpWindowSpecExpr] = None,
     ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame
+
+        if ast is None:
+            ast = proto.SpWindowSpecExpr()
+            window_ast = with_src_position(ast.sp_window_spec_empty)  # noqa: F841
+
+        self._ast = ast
 
     def partition_by(
         self,
@@ -195,7 +207,19 @@ class WindowSpec:
             for e in exprs
         ]
 
-        return WindowSpec(partition_spec, self.order_spec, self.frame)
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_partition_by)
+        window_ast.wnd.CopyFrom(self._ast)
+        for e in exprs:
+            col_ast = window_ast.cols.add()
+            col = (
+                e
+                if isinstance(e, snowflake.snowpark.column.Column)
+                else snowflake.snowpark.column.Column(e)
+            )
+            _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+
+        return WindowSpec(partition_spec, self.order_spec, self.frame, ast=ast)
 
     def order_by(
         self,
@@ -225,7 +249,19 @@ class WindowSpec:
                 elif isinstance(e._expression, Expression):
                     order_spec.append(SortOrder(e._expression, Ascending()))
 
-        return WindowSpec(self.partition_spec, order_spec, self.frame)
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_order_by)
+        window_ast.wnd.CopyFrom(self._ast)
+        for e in exprs:
+            col_ast = window_ast.cols.add()
+            col = (
+                e
+                if isinstance(e, snowflake.snowpark.column.Column)
+                else snowflake.snowpark.column.Column(e)
+            )
+            _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+
+        return WindowSpec(self.partition_spec, order_spec, self.frame, ast=ast)
 
     def rows_between(self, start: int, end: int) -> "WindowSpec":
         """
@@ -235,10 +271,18 @@ class WindowSpec:
             - :func:`Window.rows_between`
         """
         boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
+
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_rows_between)
+        window_ast.start = start
+        window_ast.end = end
+        window_ast.wnd.CopyFrom(self._ast)
+
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
             SpecifiedWindowFrame(RowFrame(), boundary_start, boundary_end),
+            ast=ast,
         )
 
     def range_between(self, start: int, end: int) -> "WindowSpec":
@@ -249,17 +293,27 @@ class WindowSpec:
             - :func:`Window.range_between`
         """
         boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
+
+        ast = proto.SpWindowSpecExpr()
+        window_ast = with_src_position(ast.sp_window_spec_range_between)
+        window_ast.wnd.CopyFrom(self._ast)
+        window_ast.start = start
+        window_ast.end = end
+
         return WindowSpec(
             self.partition_spec,
             self.order_spec,
             SpecifiedWindowFrame(RangeFrame(), boundary_start, boundary_end),
+            ast=ast,
         )
 
     def _with_aggregate(
-        self, aggregate: Expression
+        self, aggregate: Expression, ast: Optional[proto.Expr] = None
     ) -> "snowflake.snowpark.column.Column":
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
-        return snowflake.snowpark.column.Column(WindowExpression(aggregate, spec))
+        return snowflake.snowpark.column.Column(
+            WindowExpression(aggregate, spec), ast=ast
+        )
 
     orderBy = order_by
     partitionBy = partition_by
