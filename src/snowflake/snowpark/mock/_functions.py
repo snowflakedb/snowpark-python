@@ -2005,7 +2005,7 @@ def _rank(raw_input, dense=False):
 
 
 @patch("rank", pass_input_data=True, pass_row_index=True)
-def mock_rank(raw_input, row_index):
+def mock_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
     rank = _rank(raw_input)
     return ColumnEmulator(
         data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
@@ -2013,7 +2013,7 @@ def mock_rank(raw_input, row_index):
 
 
 @patch("dense_rank", pass_input_data=True, pass_row_index=True)
-def mock_dense_rank(raw_input, row_index):
+def mock_dense_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
     rank = _rank(raw_input, True)
     return ColumnEmulator(
         data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
@@ -2021,7 +2021,7 @@ def mock_dense_rank(raw_input, row_index):
 
 
 @patch("percent_rank", pass_input_data=True, pass_row_index=True)
-def mock_percent_rank(raw_input, row_index):
+def mock_percent_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
     length = len(raw_input) - 1
     rank = _rank(raw_input).apply(lambda x: (x - 1.0) / length)
     return ColumnEmulator(
@@ -2030,7 +2030,7 @@ def mock_percent_rank(raw_input, row_index):
 
 
 @patch("cume_dist", pass_input_data=True, pass_row_index=True)
-def mock_cume_dist(raw_input, row_index):
+def mock_cume_dist(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
     # Calculate dense rank
     rank = _rank(raw_input, True)
 
@@ -2052,7 +2052,7 @@ def mock_cume_dist(raw_input, row_index):
 
 
 @patch("ntile", pass_input_data=True, pass_row_index=True)
-def mock_ntile(ntile, raw_input, row_index):
+def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
     current_ntile = ntile.iloc[row_index]
     if current_ntile <= 0:
         raise SnowparkLocalTestingException("NTILE argument must be at least 1")
