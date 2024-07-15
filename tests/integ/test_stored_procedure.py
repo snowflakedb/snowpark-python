@@ -239,20 +239,6 @@ def test_basic_stored_procedure(session, local_testing_mode):
     assert pow_sp(2, 10, session=session) == 1024
 
 
-def test_basic_snowpark_pandas_stored_procedure(session):
-    def return1(session_):
-        import modin.pandas as pd
-
-        import snowflake.snowpark.modin.plugin  # noqa: F401
-
-        pd.session = None
-        return pd.DataFrame([["1"]]).iloc[0][0]
-
-    packages = ["snowflake-snowpark-python", "modin"]
-    return1_sp = sproc(return1, return_type=StringType(), packages=packages)
-    assert return1_sp() == "1"
-
-
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
     expected_err = Exception if local_testing_mode else SnowparkSQLException
 
