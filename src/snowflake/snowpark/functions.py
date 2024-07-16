@@ -6957,11 +6957,11 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
         |N           |SPY       |1          |
         |N           |AAPL      |2          |
         |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """
