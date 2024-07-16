@@ -14,6 +14,7 @@
 - Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
 - Added open telemetry tracing on UDxF functions in snowpark.
 - Added open telemetry tracing on stored procedure registration in snowpark.
+- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that allows to set the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Bug Fixes
 - Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
