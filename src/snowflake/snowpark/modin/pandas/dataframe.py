@@ -2073,7 +2073,6 @@ class DataFrame(BasePandasDataset):
             new_query_compiler=new_qc, inplace=inplace
         )
 
-    @dataframe_not_implemented()
     def reindex(
         self,
         labels=None,
