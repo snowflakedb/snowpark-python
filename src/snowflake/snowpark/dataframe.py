@@ -3244,6 +3244,44 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table)
+        self.set_ast_ref(expr.df)
+        if isinstance(table_name, str):
+            expr.table_name.append(table_name)
+        else:
+            expr.table_name.extend(table_name)
+        if files is not None:
+            expr.files.extend(files)
+        if pattern is not None:
+            expr.pattern.value = pattern
+        if validation_mode is not None:
+            expr.validation_mode.value = validation_mode
+        if target_columns is not None:
+            expr.target_columns.extend(target_columns)
+        if transformations is not None:
+            for t in transformations:
+                build_const_from_python_val(t, expr.transformations.add())
+        if format_type_options is not None:
+            for k in format_type_options:
+                entry = expr.format_type_options.add()
+                entry._1 = k
+                build_const_from_python_val(format_type_options[k], entry._2)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+        if copy_options is not None:
+            for k in copy_options:
+                entry = expr.copy_options.add()
+                entry._1 = k
+                build_const_from_python_val(copy_options[k], entry._2)
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
                 "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
@@ -3324,6 +3362,7 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
+            ast_stmt=stmt,
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
@@ -3625,6 +3664,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr.is_temp = False
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3643,6 +3699,7 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     @df_collect_api_telemetry
@@ -3673,6 +3730,27 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table)
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        expr.warehouse = warehouse
+        expr.lag = lag
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3729,6 +3807,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr.is_temp = True
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3747,10 +3842,16 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     def _do_create_or_replace_view(
-        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+        self,
+        view_name: str,
+        view_type: ViewType,
+        comment: Optional[str],
+        _ast_stmt: Optional[proto.Assign] = None,
+        **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
@@ -4214,6 +4315,16 @@ class DataFrame:
         """
         from snowflake.snowpark.mock._connection import MockServerConnection
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cache_result)
+        self.set_ast_ref(expr.df)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
@@ -4235,8 +4346,9 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name)
+        cached_df = self._session.table(temp_table_name, suppress_ast=True)
         cached_df.is_cached = True
+        cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
     @df_collect_api_telemetry
