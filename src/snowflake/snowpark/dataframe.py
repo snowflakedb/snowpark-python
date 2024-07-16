@@ -1334,7 +1334,7 @@ class DataFrame:
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
 
         # AST.
         stmt = self._session._ast_batch.assign()
@@ -1344,8 +1344,9 @@ class DataFrame:
             ast = stmt.expr.sp_dataframe_drop__columns
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
-        ast.cols = exprs
-        ast.variadic = False if len(exprs) == 1 else True
+        for c in exprs:
+            ast.cols.append(c if isinstance(c, str) else c._ast)
+        ast.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1499,24 +1500,29 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
+        # Parsing args separately since the original column expr or string
+        # needs to be recorded.
+        _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
         ast = (
             stmt.expr.sp_dataframe_sort__strings
-            if isinstance(exprs[0], str)
+            if isinstance(_cols[0], str)
             else stmt.expr.sp_dataframe_sort__columns
         )
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
-        ast.cols = cols
-        ast.variadic = True if len(exprs) == 1 else False
+        for c in _cols:
+            ast.cols.append(c if isinstance(c, str) else c._ast)
+        ast.variadic = is_variadic
 
         orders = []
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
-                ast.ascending = [True if asc else False for asc in ascending]
+                for asc in ascending:
+                    ast.ascending.list.append(True if asc else False)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
-                ast.ascending = [True if ascending else False]
+                ast.ascending.list.append(True if ascending else False)
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
@@ -1588,6 +1594,9 @@ class DataFrame:
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
         ast.name = name
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
 
         _copy = copy.copy(self)
         _copy._alias = name
@@ -1996,7 +2005,7 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_filter
+        ast = stmt.expr.sp_dataframe_limit
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
         ast.n = n
