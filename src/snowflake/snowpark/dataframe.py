@@ -2628,13 +2628,9 @@ class DataFrame:
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
             if on is not None:
-                raise ValueError(
-                    f"Unhandled 'on' AST parameter {on} of type {type(on)}"
-                )
+                build_const_from_python_val(on, ast.join_exprs)
             if match_condition is not None:
-                raise ValueError(
-                    f"Unhandled 'match_condition' AST parameter {match_condition} of type {type(match_condition)}"
-                )
+                build_const_from_python_val(match_condition, ast.match_condition)
             if lsuffix:
                 ast.lsuffix = lsuffix
             if rsuffix:
