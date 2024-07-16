@@ -38,22 +38,26 @@ res3 = res1.na.drop("all")
 
 res4 = res1.na.drop("any", 42)
 
-res5 = res1.na.drop("any", ["STR"])
+res5 = res1.limit(0, 0)
 
-res6 = res1.na.drop("all", ["NUM", "STR"])
+res6 = res1.na.drop("any", ["STR"])
 
-res7 = res1.na.drop("any", 42, ["NUM"])
+res7 = res1.na.drop("all", ["NUM", "STR"])
 
-res8 = res1.na.fill(42)
+res8 = res1.na.drop("any", 42, ["NUM"])
 
-res9 = res1.na.fill({"NUM": 42, "STR": "abc"}})
+res9 = res1.limit(0, 0)
 
-res10 = res1.na.fill(42, ["NUM"])
+res10 = res1.na.fill(42)
 
-res11 = res1.na.fill("def", ["STR"])
+res11 = res1.na.fill({"NUM": 42, "STR": "abc"}})
 
-res12 = res1.na.replace({1: 10, "three": "trzy"}, None)
+res12 = res1.na.fill(42, ["NUM"])
 
-res13 = res1.na.replace([1, 2], [10, 20])
+res13 = res1.na.fill("def", ["STR"])
 
-res14 = res1.na.replace(1, 10, ["NUM"])
+res14 = res1.na.replace({1: 10, "three": "trzy"}, None)
+
+res15 = res1.na.replace([1, 2], [10, 20])
+
+res16 = res1.na.replace(1, 10, ["NUM"])

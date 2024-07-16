@@ -16,4 +16,8 @@ res2 = res1.first(-5, True)
 
 res3 = res1.first(2, True)
 
-res4 = res1.first(1, True)
+res4 = res1.limit(2, 0)
+
+res5 = res1.first(1, True)
+
+res6 = res1.limit(1, 0)

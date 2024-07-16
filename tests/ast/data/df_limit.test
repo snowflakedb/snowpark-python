@@ -2,14 +2,18 @@
 
 df = session.table("test_table")
 
-df = df.select(*).limit(3)
+df = df.select(col("*")).limit(3)
 
-df = df.select(*).limit(n=1, offset=1)
+df = df.select(col("*")).limit(n=1, offset=1)
 
 ## EXPECTED OUTPUT
 
 res1 = session.table("test_table")
 
-res2 = res1.select(res1[*]).limit(3)
+res2 = res1.select("*")
 
-res3 = res2.select(res2[*]).limit(1, 1)
+res3 = res2.limit(3, 0)
+
+res4 = res3.select("*")
+
+res5 = res4.limit(1, 1)
