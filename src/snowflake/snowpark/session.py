@@ -1834,13 +1834,15 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    def table(self, name: Union[str, Iterable[str]], suppress_ast: bool = False) -> Table:
         """
         Returns a Table that points the specified table.
 
         Args:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
+
+            suppress_ast: Skips AST generation if True.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -1858,18 +1860,21 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_table)
-        if isinstance(name, str):
-            ast.name.sp_table_name_flat.name = name
-        elif isinstance(name, Iterable):
-            ast.name.sp_table_name_structured.name.extend(name)
-        ast.variant.sp_session_table = True
+        if not suppress_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_table)
+            if isinstance(name, str):
+                ast.name.sp_table_name_flat.name = name
+            elif isinstance(name, Iterable):
+                ast.name.sp_table_name_structured.name.extend(name)
+            ast.variant.sp_session_table = True
+        else:
+            stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt)
+        t = Table(name, self, stmt, suppress_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
