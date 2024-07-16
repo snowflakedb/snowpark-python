@@ -15571,7 +15571,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ).frame
             )
 
-    def equals(self, other: "SnowflakeQueryCompiler") -> "SnowflakeQueryCompiler":
+    def index_equals(self, other: "SnowflakeQueryCompiler") -> bool:
+        """
+        Compare self index against other index.
+        The things that are being compared are:
+        * The elements inside the Index object.
+        * The order of the elements inside the Index object.
+
+        Args:
+            other: Snowflake query compiler to compare against.
+
+        Returns:
+            True if self index is equal to other index, False otherwise.
+        """
+        if self._modin_frame.num_index_columns != other._modin_frame.num_index_columns:
+            return False
+
+        # Join on row position columsn to compare order of data.
+        self_frame = self._modin_frame.ensure_row_position_column()
+        other_frame = other._modin_frame.ensure_row_position_column()
+        join_result = join_utils.join(
+            self_frame,
+            other_frame,
+            left_on=[self_frame.row_position_snowflake_quoted_identifier],
+            right_on=[other_frame.row_position_snowflake_quoted_identifier],
+            how="outer",
+            inherit_join_index=InheritJoinIndex.FROM_BOTH,
+        )
+
+        agg_exprs = {
+            builtin("booland_agg")(col(left_id).equal_null(col(right_id))).as_(left_id)
+            for left_id, right_id in zip(
+                join_result.result_column_mapper.map_left_quoted_identifiers(
+                    self_frame.index_column_snowflake_quoted_identifiers
+                ),
+                join_result.result_column_mapper.map_right_quoted_identifiers(
+                    other_frame.index_column_snowflake_quoted_identifiers
+                ),
+            )
+        }
+
+        rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+        return len(rows) == 0 or all(rows[0])
+
+    def equals(
+        self, other: "SnowflakeQueryCompiler", include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Compare self against other, element-wise (binary operator equal_null).
         Notes:
