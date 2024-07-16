@@ -731,7 +731,7 @@ def test_datediff_negative(session):
         df.select(datediff(7, col("b"), col("a"))).collect()
 
     with pytest.raises(SnowparkSQLException):
-        df.select(datediff("eon", col("b"), col("a"))).collect()
+        df.select(datediff("week", col("b"), col("a"))).collect()
 
 
 @pytest.mark.parametrize(
