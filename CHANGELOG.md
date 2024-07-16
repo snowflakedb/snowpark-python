@@ -124,6 +124,19 @@
 - Added support for `DataFrame.rolling` and `Series.rolling` for aggregation `count` with `axis=0`.
 - Added support for `Series.str.match`.
 - Added support for `DataFrame.resample` and `Series.resample` for aggregations `size`, `first`, and `last`.
+- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
+- Added support for `read_excel` (Uses local pandas for processing)
+- Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
+- Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
+- Added support for `DataFrame.stack`.
+- Added support for `DataFrame.pivot` and `pd.pivot`.
+- Added support for `DataFrame.to_csv` and `Series.to_csv`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 
