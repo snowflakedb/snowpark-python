@@ -1,11 +1,19 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import pytest
 
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from tests.utils import IS_IN_STORED_PROC
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Query history is a SQL feature",
+        run=False,
+    ),
+]
 
 
 def test_query_history(session):

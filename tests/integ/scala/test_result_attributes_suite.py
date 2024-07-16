@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import List
@@ -24,6 +24,14 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC, Utils
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is a SQL test suite",
+        run=False,
+    )
+]
 
 
 def get_table_attributes(session: Session, name: str) -> List[Attribute]:

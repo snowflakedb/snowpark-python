@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import io
 import os
@@ -15,18 +15,16 @@ from snowflake.snowpark.mock._stage_registry import (
 )
 
 
-@pytest.mark.localtest
 def test_util():
     assert extract_stage_name_and_prefix("@stage") == ("stage", "")
     assert extract_stage_name_and_prefix("@stage/dir") == ("stage", "dir")
     assert extract_stage_name_and_prefix('@"stage.abc"/dir') == ("stage.abc", "dir")
     assert extract_stage_name_and_prefix('@"st123a/ge.abc"/dir/subdir') == (
         "st123a/ge.abc",
-        "dir/subdir",
+        f"dir{os.sep}subdir",
     )
 
 
-@pytest.mark.localtest
 def test_stage_put_file():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.create_or_replace_stage("test_stage")
@@ -34,7 +32,9 @@ def test_stage_put_file():
     stage = stage_registry["test_stage"]
 
     result_df = stage_registry.put(
-        normalize_local_file("files/test_file_1"),
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+        ),
         "@test_stage/test_parent_dir/test_child_dir",
     )
     assert len(result_df) == 1
@@ -57,14 +57,17 @@ def test_stage_put_file():
     )
 
     result_df = stage_registry.put(
-        normalize_local_file("files/*"), "@test_stage/test_parent_dir"
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file*"
+        ),
+        "@test_stage/test_parent_dir",
     )
     assert len(result_df) == 2
 
     result_1 = result_df.iloc[0]
     result_2 = result_df.iloc[1]
-    assert result_1.source == result_1.target == "test_file_1"
-    assert result_2.source == result_2.target == "test_file_2"
+    assert result_1.source == result_1.target in ("test_file_1", "test_file_2")
+    assert result_2.source == result_2.target in ("test_file_1", "test_file_2")
     assert result_1.source_size is not None and result_2.source_size is not None
     assert result_1.target_size is not None and result_1.target_size is not None
     assert result_1.source_compression == result_1.target_compression == "NONE"
@@ -89,7 +92,10 @@ def test_stage_put_file():
 
     # skip uploading if existing
     result_df = stage_registry.put(
-        normalize_local_file("files/*"), "@test_stage/test_parent_dir"
+        normalize_local_file(
+            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file*"
+        ),
+        "@test_stage/test_parent_dir",
     )
     assert len(result_df) == 2
 
@@ -101,7 +107,9 @@ def test_stage_put_file():
     # check https://snowflakecomputing.atlassian.net/browse/SNOW-1254908 for more context
     with pytest.raises(NotImplementedError):
         result_df = stage_registry.put(
-            normalize_local_file("files/test_file_1"),
+            normalize_local_file(
+                f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+            ),
             "@test_stage/test_parent_dir/test_file_1",
         )
         assert result_df.iloc[0].status == "UPLOADED"
@@ -115,7 +123,6 @@ def test_stage_put_file():
         )
 
 
-@pytest.mark.localtest
 def test_stage_put_stream():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.create_or_replace_stage("test_stage")
@@ -185,11 +192,10 @@ def test_stage_put_stream():
     }
 
 
-@pytest.mark.locatest
 def test_stage_get_file():
     stage_registry = StageEntityRegistry(MockServerConnection())
     stage_registry.put(
-        normalize_local_file("files/*"),
+        normalize_local_file(f"{os.path.dirname(os.path.abspath(__file__))}/files/*"),
         "@test_stage/test_parent_dir/test_child_dir",
     )
 

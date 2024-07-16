@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -9,7 +9,20 @@ from pathlib import Path
 
 import pytest
 
+from snowflake.snowpark._internal.utils import warning_dict
+
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+
+excluded_frontend_files = [
+    "accessor.py",
+]
+
+
+def is_excluded_frontend_file(path):
+    for excluded in excluded_frontend_files:
+        if str(path).endswith(excluded):
+            return True
+    return False
 
 
 def pytest_addoption(parser):
@@ -35,6 +48,10 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
+            elif "modin" in str(item_path):
+                if not is_excluded_frontend_file(item.fspath):
+                    item.add_marker("doctest")
+                    item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
                 raise e
 
@@ -58,6 +75,7 @@ def local_testing_telemetry_setup():
     from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 
     LocalTestOOBTelemetryService.get_instance().enable()
+    LocalTestOOBTelemetryService.get_instance()._is_internal_usage = True
     yield
     LocalTestOOBTelemetryService.get_instance().disable()
 
@@ -69,3 +87,11 @@ def cte_optimization_enabled(pytestconfig):
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def clear_warning_dict():
+    yield
+    # clear the warning dict so that warnings from one test don't affect
+    # warnings from other tests.
+    warning_dict.clear()

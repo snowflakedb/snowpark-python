@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
 import json
 import logging
-import os
-import re
-import sys
-import time
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -18,10 +14,9 @@ from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Uni
 from unittest.mock import Mock
 
 import snowflake.snowpark.mock._constants
+from snowflake.connector.connection import SnowflakeConnection
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
-from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
+from snowflake.connector.errors import NotSupportedError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     escape_quotes,
     quote_name,
@@ -29,25 +24,22 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     unquote_if_quoted,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    BatchInsertQuery,
-    SnowflakePlan,
-)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
-    normalize_local_file,
-    parse_table_name,
     result_set_to_rows,
-    unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
@@ -65,22 +57,30 @@ PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 
-def _build_put_statement(*args, **kwargs):
-    LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-        external_feature_name="PUT stream",
-        internal_feature_name="_connection._build_put_statement",
-        raise_error=NotImplementedError,
-    )
+class MockedSnowflakeConnection(SnowflakeConnection):
+    def __init__(self, *args, **kwargs) -> None:
+        # pass "application" is a trick to bypass the logic in the constructor to check input params to
+        # avoid rewrite the whole logic -- "application" is not used in any place.
+        super().__init__(*args, **kwargs, application="localtesting")
+        self._password = None
 
+    def connect(self, **kwargs) -> None:
+        self._rest = Mock()
 
-def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:
-    qualified_stage_name = unwrap_stage_location_single_quote(stage_location)
-    dest_prefix_name = (
-        dest_prefix
-        if not dest_prefix or dest_prefix.startswith("/")
-        else f"/{dest_prefix}"
-    )
-    return f"{qualified_stage_name}{dest_prefix_name if dest_prefix_name else ''}"
+    def close(self, retry: bool = True) -> None:
+        self._rest = None
+
+    def is_closed(self) -> bool:
+        """Checks whether the connection has been closed."""
+        return self.rest is None
+
+    @property
+    def telemetry_enabled(self) -> bool:
+        return False
+
+    @telemetry_enabled.setter
+    def telemetry_enabled(self, _) -> None:
+        self._telemetry_enabled = False
 
 
 class MockServerConnection:
@@ -91,47 +91,95 @@ class MockServerConnection:
             self.view_registry = {}
             self.conn = conn
 
-        def get_fully_qualified_name(self, name: Union[str, Iterable[str]]) -> str:
+        def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
             current_schema = self.conn._get_current_parameter("schema")
             current_database = self.conn._get_current_parameter("database")
-            if isinstance(name, str):
-                name = parse_table_name(name)
-            if len(name) == 1:
-                name = [current_schema] + name
-            if len(name) == 2:
-                name = [current_database] + name
-            return ".".join(quote_name(n) for n in name)
-
-        def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
-            qualified_name = self.get_fully_qualified_name(name)
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             return qualified_name in self.table_registry
 
         def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
-            qualified_name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            qualified_name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
             if qualified_name in self.table_registry:
                 return copy(self.table_registry[qualified_name])
             else:
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Object '{name}' does not exist or not authorized."
                 )
 
         def write_table(
-            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
+            self,
+            name: Union[str, Iterable[str]],
+            table: TableEmulator,
+            mode: SaveMode,
+            column_names: Optional[List[str]] = None,
         ) -> Row:
-            name = self.get_fully_qualified_name(name)
+            for column in table.columns:
+                if not table[column].sf_type.nullable and table[column].isnull().any():
+                    raise SnowparkLocalTestingException(
+                        "NULL result in a non-nullable column"
+                    )
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             table = copy(table)
             if mode == SaveMode.APPEND:
-                # Fix append by index
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
-                    table.columns = target_table.columns
+                    input_schema = table.columns.to_list()
+                    existing_schema = target_table.columns.to_list()
+
+                    if not column_names:  # append with column_order being index
+                        if len(input_schema) != len(existing_schema):
+                            raise SnowparkLocalTestingException(
+                                f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                            )
+                        # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                        table.columns = range(table.shape[1])
+                        target_table.columns = range(target_table.shape[1])
+                    else:  # append with column_order being name
+                        if invalid_cols := set(input_schema) - set(existing_schema):
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id) for id in invalid_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"table contains invalid identifier '{identifiers}'"
+                            )
+                        invalid_non_nullable_cols = []
+                        for missing_col in set(existing_schema) - set(input_schema):
+                            if target_table[missing_col].sf_type.nullable:
+                                table[missing_col] = None
+                                table.sf_types[missing_col] = target_table[
+                                    missing_col
+                                ].sf_type
+                            else:
+                                invalid_non_nullable_cols.append(missing_col)
+                        if invalid_non_nullable_cols:
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id)
+                                for id in invalid_non_nullable_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"NULL result in a non-nullable column '{identifiers}'"
+                            )
+
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
+                    self.table_registry[name].columns = existing_schema
                     self.table_registry[name].sf_types = target_table.sf_types
                 else:
                     self.table_registry[name] = table
@@ -142,73 +190,62 @@ class MockServerConnection:
                 self.table_registry[name] = table
             elif mode == SaveMode.ERROR_IF_EXISTS:
                 if name in self.table_registry:
-                    raise SnowparkSQLException(f"Table {name} already exists")
+                    raise SnowparkLocalTestingException(f"Table {name} already exists")
                 else:
                     self.table_registry[name] = table
+            elif mode == SaveMode.TRUNCATE:
+                if name in self.table_registry:
+                    target_table = self.table_registry[name]
+                    input_schema = table.columns.to_list()
+                    existing_schema = target_table.columns.to_list()
+                    if len(input_schema) <= len(existing_schema) and (
+                        all(
+                            target_table[col].sf_type.nullable
+                            for col in (existing_schema[len(input_schema) :])
+                        )
+                    ):
+                        for col in existing_schema[len(input_schema) :]:
+                            table[col] = None
+                            table.sf_types[col] = target_table[col].sf_type
+                    else:
+                        raise SnowparkLocalTestingException(
+                            f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                        )
+
+                self.table_registry[name] = table
             else:
-                raise ProgrammingError(f"Unrecognized mode: {mode}")
+                raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
             return [
                 Row(status=f"Table {name} successfully created.")
             ]  # TODO: match message
 
         def drop_table(self, name: Union[str, Iterable[str]]) -> None:
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.table_registry:
                 self.table_registry.pop(name)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
         ):
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
-            name = self.get_fully_qualified_name(name)
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            name = get_fully_qualified_name(name, current_schema, current_database)
             if name in self.view_registry:
                 return self.view_registry[name]
-            raise SnowparkSQLException(f"View {name} does not exist")
-
-    class _Decorator:
-        @classmethod
-        def wrap_exception(cls, func):
-            def wrap(*args, **kwargs):
-                try:
-                    return func(*args, **kwargs)
-                except ReauthenticationRequest as ex:
-                    raise SnowparkClientExceptionMessages.SERVER_SESSION_EXPIRED(
-                        ex.cause
-                    )
-                except Exception as ex:
-                    raise ex
-
-            return wrap
-
-        @classmethod
-        def log_msg_and_perf_telemetry(cls, msg):
-            def log_and_telemetry(func):
-                @functools.wraps(func)
-                def wrap(*args, **kwargs):
-                    logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
-                    sfqid = result["sfqid"] if result and "sfqid" in result else None
-                    # If we don't have a query id, then its pretty useless to send perf telemetry
-                    if sfqid:
-                        args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
-                        )
-                    logger.debug(f"Finished in {duration:.4f} secs")
-                    return result
-
-                return wrap
-
-            return log_and_telemetry
+            raise SnowparkLocalTestingException(f"View {name} does not exist")
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
-        self._conn = Mock()
+        self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
@@ -298,10 +335,12 @@ class MockServerConnection:
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
-    @_Decorator.wrap_exception
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
             name = getattr(self, f"_active_{param}", None)
+            if name and len(name) >= 2 and name[0] == name[-1] == '"':
+                # it is a quoted identifier, return the original value
+                return name
             name = name.upper() if name is not None else name
             return (
                 (
@@ -323,7 +362,6 @@ class MockServerConnection:
     # def get_result_attributes(self, query: str) -> List[Attribute]:
     #     return convert_result_meta_to_attribute(self._cursor.describe(query))
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
     def upload_file(
         self,
         path: str,
@@ -334,35 +372,11 @@ class MockServerConnection:
         source_compression: str = "AUTO_DETECT",
         overwrite: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if is_in_stored_procedure():  # pragma: no cover
-            file_name = os.path.basename(path)
-            target_path = _build_target_path(stage_location, dest_prefix)
-            try:
-                # upload_stream directly consume stage path, so we don't need to normalize it
-                self._cursor.upload_stream(
-                    open(path, "rb"), f"{target_path}/{file_name}"
-                )
-            except ProgrammingError as pe:
-                tb = sys.exc_info()[2]
-                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                    pe
-                )
-                raise ne.with_traceback(tb) from None
-        else:
-            uri = normalize_local_file(path)
-            return self.run_query(
-                _build_put_statement(
-                    uri,
-                    stage_location,
-                    dest_prefix,
-                    parallel,
-                    compress_data,
-                    source_compression,
-                    overwrite,
-                )
-            )
+        self.log_not_supported_error(
+            external_feature_name="MockServerConnection.upload_file",
+            raise_error=NotImplementedError,
+        )
 
-    @_Decorator.log_msg_and_perf_telemetry("Uploading stream to stage")
     def upload_stream(
         self,
         input_stream: IO[bytes],
@@ -460,7 +474,6 @@ class MockServerConnection:
             input_stream, stage_location, dest_filename, overwrite=overwrite
         )
 
-    @_Decorator.wrap_exception
     def run_query(
         self,
         query: str,
@@ -474,20 +487,11 @@ class MockServerConnection:
         ] = None,  # this argument is currently only used by AsyncJob
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        use_ddl_pattern = r"^\s*use\s+(warehouse|database|schema|role)\s+(.+)\s*$"
-        if match := re.match(use_ddl_pattern, query):
-            # if the query is "use xxx", then the object name is already verified by the upper stream
-            # we do not validate here
-            object_type = match.group(1)
-            object_name = match.group(2)
-            setattr(self, f"_active_{object_type}", object_name)
-            return {"data": [("Statement executed successfully.",)], "sfqid": None}
-        else:
-            self.log_not_supported_error(
-                external_feature_name="Running SQL queries",
-                internal_feature_name="MockServerConnection.run_query",
-                raise_error=NotImplementedError,
-            )
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.run_query",
+            raise_error=NotImplementedError,
+        )
 
     def _to_data_or_iter(
         self,
@@ -539,6 +543,11 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if self._conn.is_closed():
+            raise SnowparkSessionException(
+                "Cannot perform this operation because the session has been closed.",
+                error_code="1404",
+            )
         if not block:
             self.log_not_supported_error(
                 external_feature_name="Async job",
@@ -547,7 +556,7 @@ class MockServerConnection:
                 raise_error=NotImplementedError,
             )
 
-        res = execute_mock_plan(plan)
+        res = execute_mock_plan(plan, plan.expr_to_alias)
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df
             for col in res.columns:
@@ -558,8 +567,15 @@ class MockServerConnection:
 
                     for idx, row in res.iterrows():
                         if row[col] is not None:
+                            # Snowflake sorts maps by key before serializing
+                            if isinstance(row[col], dict):
+                                row[col] = dict(sorted(row[col].items()))
+
                             res.loc[idx, col] = json.dumps(
-                                row[col], cls=CUSTOM_JSON_ENCODER, indent=2
+                                row[col],
+                                cls=CUSTOM_JSON_ENCODER,
+                                indent=2,
+                                sort_keys=True,
                             )
                         else:
                             # snowflake returns Python None instead of the str 'null' for DataType data
@@ -578,7 +594,7 @@ class MockServerConnection:
                 keys = sorted(res.sf_types_by_col_index.keys())
                 sf_types = [res.sf_types_by_col_index[key] for key in keys]
             else:
-                sf_types = list(res.sf_types.values())
+                sf_types = [res.sf_types[col] for col in res.columns]
             for pdr in res.itertuples(index=False, name=None):
                 row_struct = (
                     Row._builder.build(*columns)
@@ -587,10 +603,12 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal(str(v))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
+                        (
+                            Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
+                            if isinstance(sf_types[i].datatype, DecimalType)
+                            and v is not None
+                            else v
+                        )
                         for i, v in enumerate(pdr)
                     ]
                 )
@@ -639,112 +657,51 @@ class MockServerConnection:
         ],
         List[ResultMetadata],
     ]:
-        action_id = plan.session._generate_new_action_id()
-
-        result, result_meta = None, None
-        try:
-            placeholders = {}
-            is_batch_insert = False
-            for q in plan.queries:
-                if isinstance(q, BatchInsertQuery):
-                    is_batch_insert = True
-                    break
-            # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
-                final_query = f"""EXECUTE IMMEDIATE $$
-DECLARE
-    res resultset;
-BEGIN
-    {";".join(q.sql for q in plan.queries[:-1])};
-    res := ({plan.queries[-1].sql});
-    return table(res);
-END;
-$$"""
-                # In multiple queries scenario, we are unable to get the query id of former query, so we replace
-                # place holder with fucntion last_query_id() here
-                for q in plan.queries:
-                    final_query = final_query.replace(
-                        f"'{q.query_id_place_holder}'", "LAST_QUERY_ID()"
-                    )
-
-                result = self.run_query(
-                    final_query,
-                    to_pandas,
-                    to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
-                    block=block,
-                    data_type=data_type,
-                    async_job_plan=plan,
-                    **kwargs,
-                )
-
-                # since we will return a AsyncJob instance, result_meta is not needed, we will create result_meta in
-                # AsyncJob instance when needed
-                result_meta = None
-                if action_id < plan.session._last_canceled_id:
-                    raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-            else:
-                for i, query in enumerate(plan.queries):
-                    if isinstance(query, BatchInsertQuery):
-                        self.run_batch_insert(query.sql, query.rows, **kwargs)
-                    else:
-                        is_last = i == len(plan.queries) - 1 and not block
-                        final_query = query.sql
-                        for holder, id_ in placeholders.items():
-                            final_query = final_query.replace(holder, id_)
-                        result = self.run_query(
-                            final_query,
-                            to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
-                            is_ddl_on_temp_object=query.is_ddl_on_temp_object,
-                            block=not is_last,
-                            data_type=data_type,
-                            async_job_plan=plan,
-                            **kwargs,
-                        )
-                        placeholders[query.query_id_place_holder] = (
-                            result["sfqid"] if not is_last else result.query_id
-                        )
-                        result_meta = self._cursor.description
-                    if action_id < plan.session._last_canceled_id:
-                        raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
-        finally:
-            # delete created tmp object
-            if block:
-                for action in plan.post_actions:
-                    self.run_query(
-                        action.sql,
-                        is_ddl_on_temp_object=action.is_ddl_on_temp_object,
-                        block=block,
-                        **kwargs,
-                    )
-
-        if result is None:
-            raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
-
-        return result, result_meta
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_set",
+            raise_error=NotImplementedError,
+        )
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        res = execute_mock_plan(plan)
+        res = execute_mock_plan(plan, plan.expr_to_alias)
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=res[column_name].sf_type,
+                datatype=(
+                    column_data.sf_type
+                    if column_data.sf_type
+                    else res.sf_types[column_name]
+                ),
             )
-            for column_name in res.columns.tolist()
+            for column_name, column_data in res.items()
         ]
 
-        rows = [
-            Row(*[res.iloc[i, j] for j in range(len(attrs))]) for i in range(len(res))
-        ]
+        rows = []
+        for i in range(len(res)):
+            values = []
+            for j, attr in enumerate(attrs):
+                value = res.iloc[i, j]
+                if (
+                    isinstance(attr.datatype.datatype, DecimalType)
+                    and value is not None
+                ):
+                    value = Decimal(
+                        "{0:.{1}f}".format(value, attr.datatype.datatype.scale)
+                    )
+                values.append(value)
+            rows.append(Row(*values))
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        # get the iterator such that the data is not fetched
-        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
-        return result_set["sfqid"]
+        self.log_not_supported_error(
+            external_feature_name="Running SQL queries",
+            internal_feature_name="MockServerConnection.get_result_query_id",
+            raise_error=NotImplementedError,
+        )
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
@@ -758,18 +715,6 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
             and col_sf_type.datatype.scale == 0
             and not str(table_res[col_name].dtype).startswith("int")
         ):
-            # if decimal is set to default 38, we auto-detect the dtype, see the following code
-            #  df = session.create_dataframe(
-            #      data=[[decimal.Decimal(1)]],
-            #      schema=StructType([StructField("d", DecimalType())])
-            #  )
-            #  df.to_pandas() # the returned df is of dtype int8, instead of dtype int64
-            if col_sf_type.datatype.precision == 38:
-                pd_df[pd_df_col_name] = pandas.to_numeric(
-                    table_res[col_name], downcast="integer"
-                )
-                continue
-
             # this is to mock the behavior that precision is explicitly set to non-default value 38
             # optimize pd.DataFrame dtype of integer to align the behavior with live connection
             if col_sf_type.datatype.precision <= 2:

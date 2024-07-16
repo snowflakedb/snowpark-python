@@ -1,16 +1,17 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
-import os
 
 import pytest
 
+import snowflake.connector.errors
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import parse_table_name, TempObjectType
-from snowflake.snowpark.functions import col
+from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.functions import col, parse_json
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -21,9 +22,9 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils
 
 
-def test_write_with_target_column_name_order(session):
+def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
-    session.create_dataframe(
+    empty_df = session.create_dataframe(
         [],
         schema=StructType(
             [
@@ -31,50 +32,66 @@ def test_write_with_target_column_name_order(session):
                 StructField("b", IntegerType()),
             ]
         ),
-    ).write.save_as_table(table_name, table_type="temporary")
+    )
+    empty_df.write.save_as_table(table_name, table_type="temporary")
     try:
         df1 = session.create_dataframe([[1, 2]], schema=["b", "a"])
 
         # By default, it is by index
         df1.write.save_as_table(table_name, mode="append", table_type="temp")
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # Explicitly use "index"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="index", table_type="temp"
         )
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 1, "B": 2})])
 
         # use order by "name"
-        session._conn.run_query(f"truncate table {table_name}", log_on_exception=True)
+        empty_df.write.save_as_table(
+            table_name, mode="truncate", table_type="temporary"
+        )
         df1.write.save_as_table(
             table_name, mode="append", column_order="name", table_type="temp"
         )
-        Utils.check_answer(session.table(table_name), [Row(2, 1)])
+        Utils.check_answer(session.table(table_name), [Row(**{"A": 2, "B": 1})])
 
-        # If target table doesn't exists, "order by name" is not actually used.
+        # If target table doesn't exist, "order by name" is not actually used.
         Utils.drop_table(session, table_name)
-        df1.write.saveAsTable(table_name, mode="append", column_order="name")
-        Utils.check_answer(session.table(table_name), [Row(1, 2)])
+        df1.write.save_as_table(table_name, mode="append", column_order="name")
+        # NOTE: Order is different in the below check
+        # because the table returns columns in the order of the order of the schema `df1`
+        Utils.check_answer(session.table(table_name), [Row(**{"B": 1, "A": 2})])
     finally:
         session.table(table_name).drop_table()
 
-    # column name and table name with special characters
-    special_table_name = '"test table name"'
-    Utils.create_table(
-        session, special_table_name, '"a a" int, "b b" int', is_temporary=True
-    )
-    try:
-        df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
-        df2.write.save_as_table(
-            special_table_name, mode="append", column_order="name", table_type="temp"
+    if not local_testing_mode:
+        # column name and table name with special characters
+        special_table_name = '"test table name"'
+        Utils.create_table(
+            session, special_table_name, '"a a" int, "b b" int', is_temporary=True
         )
-        Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
-    finally:
-        Utils.drop_table(session, special_table_name)
+        try:
+            df2 = session.create_dataframe([(1, 2)]).to_df("b b", "a a")
+            df2.write.save_as_table(
+                special_table_name,
+                mode="append",
+                column_order="name",
+                table_type="temp",
+            )
+            Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
+        finally:
+            Utils.drop_table(session, special_table_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query feature AUTOINCREMENT not supported",
+    run=False,
+)
 def test_write_with_target_table_autoincrement(
     session,
 ):  # Scala doesn't support this yet.
@@ -122,6 +139,109 @@ def test_negative_write_with_target_column_name_order(session):
         session.table(table_name).drop_table()
 
 
+def test_write_with_target_column_name_order_all_kinds_of_dataframes_without_truncates(
+    session,
+):
+    table_name = Utils.random_table_name()
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [StructField("a", IntegerType()), StructField("b", IntegerType())]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+
+    try:
+        large_df = session.create_dataframe([[1, 2]] * 1024, schema=["b", "a"])
+        large_df.write.save_as_table(
+            table_name, mode="append", column_order="name", table_type="temp"
+        )
+        rows = session.table(table_name).collect()
+        assert len(rows) == 1024
+        for row in rows:
+            assert row["B"] == 1 and row["A"] == 2
+    finally:
+        session.table(table_name).drop_table()
+
+
+def test_write_with_target_column_name_order_with_nullable_column(
+    session, local_testing_mode
+):
+    table_name, non_nullable_table_name = (
+        Utils.random_table_name(),
+        Utils.random_table_name(),
+    )
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+                StructField("c", StringType(), nullable=True),
+                StructField("d", StringType(), nullable=True),
+            ]
+        ),
+    ).write.save_as_table(table_name, table_type="temporary")
+
+    session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType(), nullable=False),
+            ]
+        ),
+    ).write.save_as_table(non_nullable_table_name, table_type="temporary")
+    try:
+        df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["b", "a"])
+
+        df1.write.save_as_table(
+            table_name, mode="append", table_type="temp", column_order="name"
+        )
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(
+                    **{
+                        "A": 2,
+                        "B": 1,
+                        "C": None,
+                        "D": None,
+                    }
+                ),
+                Row(
+                    **{
+                        "A": 4,
+                        "B": 3,
+                        "C": None,
+                        "D": None,
+                    }
+                ),
+            ],
+        )
+
+        df2 = session.create_dataframe([[1], [2]], schema=["a"])
+        with pytest.raises(
+            SnowparkLocalTestingException
+            if local_testing_mode
+            else snowflake.connector.errors.IntegrityError
+        ):
+            df2.write.save_as_table(
+                non_nullable_table_name,
+                mode="append",
+                table_type="temp",
+                column_order="name",
+            )
+    finally:
+        session.table(table_name).drop_table()
+        session.table(non_nullable_table_name).drop_table()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Inserting data into table by matching columns is not supported",
+)
 def test_write_with_target_column_name_order_all_kinds_of_dataframes(
     session, resources_path
 ):
@@ -228,6 +348,10 @@ def test_write_with_target_column_name_order_all_kinds_of_dataframes(
         Utils.drop_stage(session, target_stage_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: session._table_exists not supported",
+)
 def test_write_table_names(session, db_parameters):
     database = session.get_current_database().replace('"', "")
     schema = f"schema_{Utils.random_alphanumeric_str(10)}"
@@ -364,67 +488,165 @@ def test_write_table_names(session, db_parameters):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
+)
 def test_writer_csv(session, tmpdir_factory):
 
     """Tests for df.write.csv()."""
-    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
-    ROW_NUMBER = 3
-    schema = StructType([StructField("a", IntegerType()), StructField("b", IntegerType())])
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
+    ROWS_COUNT = 4
+    schema = StructType(
+        [StructField("a", IntegerType()), StructField("b", IntegerType())]
+    )
 
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     Utils.create_stage(session, temp_stage, is_temporary=True)
 
     try:
         # test default case
-        path1 = f"{temp_stage}/test_csv_example1/my_file.csv"
+        path1 = f"{temp_stage}/test_csv_example1"
         result1 = df.write.csv(path1)
-        assert result1[0].rows_unloaded == ROW_NUMBER
-        data1 = session.read.schema(schema).csv(f"@{path1}")
-        Utils.assert_rows_count(data1, ROW_NUMBER)
+        assert result1[0].rows_unloaded == ROWS_COUNT
+        data1 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
+        Utils.assert_rows_count(data1, ROWS_COUNT)
 
         # test overwrite case
         result2 = df.write.csv(path1, overwrite=True)
-        assert result2[0].rows_unloaded == ROW_NUMBER
-        data2 = session.read.schema(schema).csv(f"@{path1}")
-        Utils.assert_rows_count(data2, ROW_NUMBER)
+        assert result2[0].rows_unloaded == ROWS_COUNT
+        data2 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
+        Utils.assert_rows_count(data2, ROWS_COUNT)
 
         # partition by testing cases
-        path3 = f"{temp_stage}/test_csv_example3/my_file.csv"
-        result3 = df.write.csv(path3, single=False, partition_by=col("a"))
-        assert result3[0].rows_unloaded == ROW_NUMBER
+        path3 = f"{temp_stage}/test_csv_example3/"
+        result3 = df.write.csv(path3, partition_by=col("a"))
+        assert result3[0].rows_unloaded == ROWS_COUNT
         data3 = session.read.schema(schema).csv(f"@{path3}")
-        Utils.assert_rows_count(data3, ROW_NUMBER)
+        Utils.assert_rows_count(data3, ROWS_COUNT)
 
-        path4 = f"{temp_stage}/test_csv_example4/my_file.csv"
-        result4 = df.write.csv(path4, single=False, partition_by="a")
-        assert result4[0].rows_unloaded == ROW_NUMBER
+        path4 = f"{temp_stage}/test_csv_example4/"
+        result4 = df.write.csv(path4, partition_by="a")
+        assert result4[0].rows_unloaded == ROWS_COUNT
         data4 = session.read.schema(schema).csv(f"@{path4}")
-        Utils.assert_rows_count(data4, ROW_NUMBER)
+        Utils.assert_rows_count(data4, ROWS_COUNT)
 
         # test single case
         path5 = f"{temp_stage}/test_csv_example5/my_file.csv"
-        result5 = df.write.csv(path5, single=False)
-        assert result5[0].rows_unloaded == ROW_NUMBER
-        data5 = session.read.schema(schema).csv(f"@{path5}_0_0_0.csv")
-        Utils.assert_rows_count(data5, ROW_NUMBER)
+        result5 = df.write.csv(path5, single=True)
+        assert result5[0].rows_unloaded == ROWS_COUNT
+        data5 = session.read.schema(schema).csv(f"@{path5}")
+        Utils.assert_rows_count(data5, ROWS_COUNT)
 
         # test compression case
         path6 = f"{temp_stage}/test_csv_example6/my_file.csv.gz"
-        result6 = df.write.csv(path6, compression="gzip")
-        assert result6[0].rows_unloaded == ROW_NUMBER
+        result6 = df.write.csv(
+            path6, format_type_options=dict(compression="gzip"), single=True
+        )
 
-        directory = tmpdir_factory.mktemp("snowpark_test_target")
+        assert result6[0].rows_unloaded == ROWS_COUNT
+        data6 = session.read.schema(schema).csv(f"@{path6}")
+        Utils.assert_rows_count(data6, ROWS_COUNT)
+    finally:
+        Utils.drop_stage(session, temp_stage)
 
-        downloadedFile = session.file.get(
-            f"@{path6}",
-            str(directory))
 
-        downloadedFilePath = f"{directory}/{os.path.basename(path6)}"
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+)
+def test_writer_json(session, tmpdir_factory):
 
-        try:
-            assert len(downloadedFile) == 1
-            assert downloadedFile[0].status == "DOWNLOADED"
-        finally:
-            os.remove(downloadedFilePath)
+    """Tests for df.write.json()."""
+    df1 = session.create_dataframe(
+        ["[{a: 1, b: 2}, {a: 3, b: 0}]"], schema=["raw_data"]
+    )
+    df2 = session.create_dataframe(
+        ["[{a: -1, b: 4}, {a: 17, b: -6}]"], schema=["raw_data"]
+    )
+    df = df1.select(parse_json(col("raw_data"))).union_all(
+        df2.select(parse_json("raw_data"))
+    )
+
+    ROWS_COUNT = 2
+
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+
+    try:
+        # test default case
+        path1 = f"{temp_stage}/test_json_example1"
+        result1 = df.write.json(path1)
+        assert result1[0].rows_unloaded == ROWS_COUNT
+        data1 = session.read.json(f"@{path1}_0_0_0.json")
+        Utils.assert_rows_count(data1, ROWS_COUNT)
+
+        # test overwrite case
+        result2 = df.write.json(path1, overwrite=True)
+        assert result2[0].rows_unloaded == ROWS_COUNT
+        data2 = session.read.json(f"@{path1}_0_0_0.json")
+        Utils.assert_rows_count(data2, ROWS_COUNT)
+
+        # test single case
+        path3 = f"{temp_stage}/test_json_example3/my_file.json"
+        result3 = df.write.json(path3, single=True)
+        assert result3[0].rows_unloaded == ROWS_COUNT
+        data3 = session.read.json(f"@{path3}")
+        Utils.assert_rows_count(data3, ROWS_COUNT)
+
+        # test compression case
+        path4 = f"{temp_stage}/test_json_example3/my_file.json.gz"
+        result4 = df.write.json(
+            path4, format_type_options=dict(compression="gzip"), single=True
+        )
+
+        assert result4[0].rows_unloaded == ROWS_COUNT
+        data4 = session.read.json(f"@{path4}")
+        Utils.assert_rows_count(data4, ROWS_COUNT)
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte', FEAT: parquet support",
+)
+def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
+    """Tests for df.write.parquet()."""
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    ROWS_COUNT = 3
+
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+
+    try:
+        # test default case
+        path1 = f"{temp_stage}/test_parquet_example1/"
+        result1 = df.write.parquet(path1)
+        assert result1[0].rows_unloaded == ROWS_COUNT
+        data1 = session.read.parquet(f"@{path1}data_0_0_0.snappy.parquet")
+        Utils.assert_rows_count(data1, ROWS_COUNT)
+
+        # test overwrite case
+        result2 = df.write.parquet(path1, overwrite=True)
+        assert result2[0].rows_unloaded == ROWS_COUNT
+        data2 = session.read.parquet(f"@{path1}data_0_0_0.snappy.parquet")
+        Utils.assert_rows_count(data2, ROWS_COUNT)
+
+        # test single case
+        path3 = f"{temp_stage}/test_parquet_example3/my_file.parquet"
+        result3 = df.write.parquet(path3, single=True)
+        assert result3[0].rows_unloaded == ROWS_COUNT
+        data3 = session.read.parquet(f"@{path3}")
+        Utils.assert_rows_count(data3, ROWS_COUNT)
+
+        # test compression case
+        path4 = f"{temp_stage}/test_parquet_example4/"
+        result4 = df.write.parquet(
+            path4, format_type_options=dict(compression="snappy")
+        )
+        assert result4[0].rows_unloaded == ROWS_COUNT
+        data4 = session.read.parquet(f"@{path4}data_0_0_0.snappy.parquet")
+        Utils.assert_rows_count(data4, ROWS_COUNT)
     finally:
         Utils.drop_stage(session, temp_stage)

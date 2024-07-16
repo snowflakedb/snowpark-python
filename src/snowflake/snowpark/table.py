@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -69,7 +69,7 @@ class WhenMatchedClause:
 
     Args:
         condition: An optional :class:`Column` object representing the
-            specified condition.
+            specified condition. For example, ``col("a") == 1``.
     """
 
     def __init__(self, condition: Optional[Column] = None) -> None:

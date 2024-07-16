@@ -1,9 +1,9 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -11,11 +11,11 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
 )
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
 )
-from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
@@ -64,7 +64,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 
@@ -87,7 +89,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
     ) -> None:
@@ -102,7 +104,7 @@ class DataFrameWriter:
         column_order: str = "index",
         create_temp_table: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
-        clustering_keys: Iterable[Column],
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
     ) -> AsyncJob:
@@ -120,6 +122,7 @@ class DataFrameWriter:
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        comment: Optional[str] = None,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -132,7 +135,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table.
+                "overwrite": Overwrite the existing table by dropping old table.
+
+                "truncate": Overwrite the existing table by truncating old table.
 
                 "errorifexists": Throw an exception if the table already exists.
 
@@ -150,6 +155,9 @@ class DataFrameWriter:
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_. This argument is ignored if a
+                table already exists and save mode is ``append`` or ``truncate``.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
@@ -170,14 +178,18 @@ class DataFrameWriter:
         """
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
-                str_to_enum(mode.lower(), SaveMode, "'mode'") if mode else self._save_mode
+                str_to_enum(mode.lower(), SaveMode, "'mode'")
+                if mode
+                else self._save_mode
             )
             full_table_name = (
                 table_name if isinstance(table_name, str) else ".".join(table_name)
             )
             validate_object_name(full_table_name)
             table_name = (
-                parse_table_name(table_name) if isinstance(table_name, str) else table_name
+                parse_table_name(table_name)
+                if isinstance(table_name, str)
+                else table_name
             )
             if column_order is None or column_order.lower() not in ("name", "index"):
                 raise ValueError("'column_order' must be either 'name' or 'index'")
@@ -213,6 +225,7 @@ class DataFrameWriter:
                 self._dataframe._plan,
                 table_type,
                 clustering_exprs,
+                comment,
             )
             session = self._dataframe._session
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
@@ -235,8 +248,8 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = True,
-        **copy_options: Optional[str],
+        block: Literal[True] = True,
+        **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -251,8 +264,8 @@ class DataFrameWriter:
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        block: bool = False,
-        **copy_options: Optional[str],
+        block: Literal[False] = False,
+        **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -267,7 +280,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[str],
+        **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 
@@ -337,34 +350,144 @@ class DataFrameWriter:
             block=block,
         )
 
-    def csv(self, path: str, overwrite: bool = False, compression: str = None, single: bool = True,
-            partition_by: ColumnOrName = None) -> Union[List[Row], AsyncJob]:
+    def csv(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
 
-                Args:
-                    path: The destination stage location.
-                    overwrite: Specifies if it should overwrite the file if exists, the default value is ``False``.
-                    compression: String (constant) that specifies to compresses the unloaded data files using the specified compression algorithm. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__
-                    single: Boolean that specifies whether to generate a single file or multiple files. If FALSE, a filename prefix must be included in ``<path>``
-                    partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+        Args:
+            location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
 
-                Returns:
-                    A list of :class:`Row` objects containing unloading results.
+        Example::
 
-                Example::
+            >>> # save this dataframe to a csv file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
+            >>> copy_result = df.write.csv(remote_file_path, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
+        """
+        return self.copy_into_location(
+            location,
+            file_format_type="CSV",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
 
-                    >>> # save this dataframe to a parquet file on the session stage
-                    >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
-                    >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
-                    >>> copy_result = df.write.csv(remote_file_path, overwrite=True)
-                    >>> copy_result[0].rows_unloaded
-                    3
-                """
-        return self.copy_into_location(path,
-                                       file_format_type="CSV",
-                                       partition_by=partition_by,
-                                       overwrite=overwrite,
-                                       format_type_options=dict(compression=compression),
-                                       single=single)
+    def json(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a JSON file in a stage or external stage.
+
+        Args:
+            location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
+
+        Example::
+
+            >>> # save this dataframe to a json file on the session stage
+            >>> df = session.sql("select parse_json('[{a: 1, b: 2}, {a: 3, b: 0}]')")
+            >>> remote_file_path = f"{session.get_session_stage()}/names.json"
+            >>> copy_result = df.write.json(remote_file_path, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            1
+        """
+        return self.copy_into_location(
+            location,
+            file_format_type="JSON",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
+
+    def parquet(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a PARQUET file in a stage or external stage.
+
+        Args:
+            location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
+
+        Example::
+
+            >>> # save this dataframe to a parquet file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> remote_file_path = f"{session.get_session_stage()}/names.parquet"
+            >>> copy_result = df.write.parquet(remote_file_path, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
+        """
+        return self.copy_into_location(
+            location,
+            file_format_type="PARQUET",
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
+        )
 
     saveAsTable = save_as_table

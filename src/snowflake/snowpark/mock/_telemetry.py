@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import atexit
 import json
@@ -12,12 +12,25 @@ from typing import Optional
 
 from snowflake.connector.compat import OK
 from snowflake.connector.secret_detector import SecretDetector
-from snowflake.connector.telemetry_oob import REQUEST_TIMEOUT, TelemetryService
+from snowflake.connector.telemetry_oob import TelemetryService
 from snowflake.snowpark._internal.utils import (
     get_os_name,
     get_python_version,
     get_version,
 )
+
+from .exceptions import SnowparkLocalTestingException
+
+REQUESTS_AVAILABLE = True
+try:
+    # by default in stored procedure requests is not imported
+    import requests
+except ImportError:
+    REQUESTS_AVAILABLE = False
+
+# 3 seconds setting in the connector oob could be too short that the oob service is unable to handle the request,
+# 5 seconds is more tolerant
+REQUEST_TIMEOUT = 5
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +83,7 @@ class LocalTestTelemetryEventType(Enum):
 
 
 class LocalTestOOBTelemetryService(TelemetryService):
-    PROD = "https://client-telemetry.c1.us-west-2.aws.app.snowflake.com/enqueue"
+    PROD = "https://client-telemetry.snowflakecomputing.com/enqueue"
 
     def __init__(self) -> None:
         super().__init__()
@@ -78,15 +91,17 @@ class LocalTestOOBTelemetryService(TelemetryService):
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
+        self._enable = True
 
     def _upload_payload(self, payload) -> None:
+        if not REQUESTS_AVAILABLE:
+            logger.debug(
+                "request module is not available",
+            )
+            return
         success = True
         response = None
         try:
-            # import here is because stored proc doesn't have vendored request module
-            # have it at the top will cause import error in stored procedure running
-            from snowflake.connector.vendored import requests
-
             with requests.Session() as session:
                 response = session.post(
                     self._deployment_url,
@@ -127,6 +142,19 @@ class LocalTestOOBTelemetryService(TelemetryService):
             if payload is None:
                 return
             self._upload_payload(payload)
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the Telemetry service is enabled or not."""
+        return self._enabled
+
+    def enable(self) -> None:
+        """Enable Telemetry Service."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Disable Telemetry Service."""
+        self._enabled = False
 
     def export_queue_to_string(self):
         logs = list()
@@ -203,7 +231,12 @@ class LocalTestOOBTelemetryService(TelemetryService):
         if warning_logger:
             warning_logger.warning(error_message)
         if raise_error:
-            raise raise_error(error_message)
+            if raise_error in (NotImplementedError, SnowparkLocalTestingException):
+                raise raise_error(error_message)
+            else:
+                SnowparkLocalTestingException.raise_from_error(
+                    raise_error(error_message), error_message
+                )
 
 
 atexit.register(LocalTestOOBTelemetryService.get_instance().close)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import snowflake.snowpark.mock._constants
@@ -49,6 +49,7 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
     assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
     assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
+    session.close()
 
     # test no given db information
     session = Session.builder.configs(options={"local_testing": True}).create()
@@ -58,6 +59,7 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{CURRENT_SCHEMA.upper()}"'
     assert session.get_current_database() == f'"{CURRENT_DATABASE.upper()}"'
     assert session.get_current_role() == f'"{CURRENT_ROLE.upper()}"'
+    session.close()
 
     # test update module variable
     monkeypatch.setattr(
@@ -90,19 +92,21 @@ def test_session_get_current_info(monkeypatch):
     assert session.get_current_schema() == f'"{test_parameter["schema"].upper()}"'
     assert session.get_current_database() == f'"{test_parameter["database"].upper()}"'
     assert session.get_current_role() == f'"{test_parameter["role"].upper()}"'
+    session.close()
 
 
 def test_session_use_object():
     session = Session.builder.configs(options={"local_testing": True}).create()
 
     session.use_schema("test_schema")
-    session.use_role("test_role")
+    session.use_role('"teSt_rOle"')
     session.use_database("test_database")
-    session.use_warehouse("test_warehouse")
+    session.use_warehouse('"tEst_warehoHse"')
 
     assert session.get_current_account() == f'"{CURRENT_ACCOUNT.upper()}"'
     assert session.get_current_user() == f'"{CURRENT_USER.upper()}"'
-    assert session.get_current_warehouse() == '"TEST_WAREHOUSE"'
+    assert session.get_current_warehouse() == '"tEst_warehoHse"'
     assert session.get_current_schema() == '"TEST_SCHEMA"'
     assert session.get_current_database() == '"TEST_DATABASE"'
-    assert session.get_current_role() == '"TEST_ROLE"'
+    assert session.get_current_role() == '"teSt_rOle"'
+    session.close()

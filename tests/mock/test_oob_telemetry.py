@@ -1,11 +1,12 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
+from unittest import mock
 
 import pytest
 
@@ -16,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -25,16 +27,21 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
+    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
     oob_service = LocalTestOOBTelemetryService.get_instance()
+    # clean up queue first
+    oob_service.export_queue_to_string()
+    connection_uuid = str(uuid.uuid4())
     with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        connection_uuid = str(uuid.uuid4())
-        oob_service.log_session_creation()
-        assert oob_service.size() == 1
-        oob_service.log_session_creation(connection_uuid=connection_uuid)
+        with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
+            # mock datetime due to flakiness in time comparison
+            mock_datetime.now.return_value = mock_date_value
+            oob_service.log_session_creation()
+            assert oob_service.size() == 1
+            oob_service.log_session_creation(connection_uuid=connection_uuid)
         assert oob_service.size() == 2
         payload = oob_service.export_queue_to_string()
         unpacked_payload = json.loads(payload)
-        now_time = datetime.now().replace(microsecond=0)
 
         # test generated payload
         for idx, event in enumerate(unpacked_payload):
@@ -44,9 +51,10 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
             assert len(event["Tags"]) == 4
             assert event["Type"] == event["properties"]["type"] == "Snowpark Python"
             assert event["UUID"]
-            assert datetime.strptime(
-                event["Created_on"], "%Y-%m-%d %H:%M:%S"
-            ) == pytest.approx(now_time, abs=timedelta(seconds=1))
+            assert (
+                datetime.strptime(event["Created_on"], "%Y-%m-%d %H:%M:%S")
+                == mock_date_value
+            )
             assert event["Message"]["Connection_UUID"] == (
                 None if idx == 0 else connection_uuid
             )
@@ -58,53 +66,66 @@ def test_unit_oob_connection_telemetry(caplog, local_testing_telemetry_setup):
         assert oob_service.size() == 0
         assert not caplog.record_tuples
 
-        # test sending successfully
-        oob_service.log_session_creation()
-        oob_service.log_session_creation(connection_uuid=connection_uuid)
-        assert oob_service.size() == 2
-        oob_service.flush()
-        assert oob_service.size() == 0
-        assert len(caplog.record_tuples) == 2
-        assert (
-            "telemetry server request success: 200" in caplog.text
-            and "Telemetry request success=True" in caplog.text
-        )
+        max_retry = 10
+        for i in range(max_retry):
+            # test sending successfully
+            oob_service.log_session_creation()
+            oob_service.log_session_creation(connection_uuid=connection_uuid)
+            assert oob_service.size() == 2
+            oob_service.flush()
+            assert oob_service.size() == 0
+            try:
+                assert (
+                    "telemetry server request success: 200" in caplog.text
+                    and "Telemetry request success=True" in caplog.text
+                )
+                break
+            except AssertionError:
+                caplog.clear()
+                if i == max_retry - 1:
+                    raise
 
 
 def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setup):
+    mock_date_value = datetime(2024, 5, 3, 1, 2, 3)
     oob_service = LocalTestOOBTelemetryService.get_instance()
+    # clean up queue first
+    oob_service.export_queue_to_string()
     connection_uuid = str(uuid.uuid4())
     logger = logging.getLogger("LocalTestLogger")
 
-    unraise_feature_name = "Test Feature No Raise Error"
-    with caplog.at_level(logging.WARNING, logger="LocalTestLogger"):
-        # test basic case + warning
-        oob_service.log_not_supported_error(
-            external_feature_name=unraise_feature_name,
-            warning_logger=logger,
-        )
-        assert (
-            f"[Local Testing] {unraise_feature_name} is not supported." in caplog.text
-        )
-    assert oob_service.size() == 1
+    with mock.patch("snowflake.snowpark.mock._telemetry.datetime") as mock_datetime:
+        # mock datetime due to flakiness in time comparison
+        mock_datetime.now.return_value = mock_date_value
+        unraise_feature_name = "Test Feature No Raise Error"
+        with caplog.at_level(logging.WARNING, logger="LocalTestLogger"):
+            # test basic case + warning
+            oob_service.log_not_supported_error(
+                external_feature_name=unraise_feature_name,
+                warning_logger=logger,
+            )
+            assert (
+                f"[Local Testing] {unraise_feature_name} is not supported."
+                in caplog.text
+            )
+        assert oob_service.size() == 1
 
-    # test raising error
-    raise_feature_name = "Test Feature With Raise Error"
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(f"[Local Testing] {raise_feature_name} is not supported."),
-    ):
-        oob_service.log_not_supported_error(
-            external_feature_name=raise_feature_name,
-            internal_feature_name="module_a.function_b",
-            parameters_info={"param_c": "value_d"},
-            connection_uuid=connection_uuid,
-            raise_error=NotImplementedError,
-        )
+        # test raising error
+        raise_feature_name = "Test Feature With Raise Error"
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(f"[Local Testing] {raise_feature_name} is not supported."),
+        ):
+            oob_service.log_not_supported_error(
+                external_feature_name=raise_feature_name,
+                internal_feature_name="module_a.function_b",
+                parameters_info={"param_c": "value_d"},
+                connection_uuid=connection_uuid,
+                raise_error=NotImplementedError,
+            )
     assert oob_service.size() == 2
     payload = oob_service.export_queue_to_string()
     unpacked_payload = json.loads(payload)
-    now_time = datetime.now().replace(microsecond=0)
 
     # test generated payload
     for idx, event in enumerate(unpacked_payload):
@@ -114,9 +135,10 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
         assert len(event["Tags"]) == 4
         assert event["Type"] == event["properties"]["type"] == "Snowpark Python"
         assert event["UUID"]
-        assert datetime.strptime(
-            event["Created_on"], "%Y-%m-%d %H:%M:%S"
-        ) == pytest.approx(now_time, abs=timedelta(seconds=1))
+        assert (
+            datetime.strptime(event["Created_on"], "%Y-%m-%d %H:%M:%S")
+            == mock_date_value
+        )
         assert event["Message"]["Connection_UUID"] == (
             None if idx == 0 else connection_uuid
         )
@@ -135,28 +157,38 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
 
     # test sending successfully
     caplog.clear()
-    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        oob_service.log_not_supported_error(
-            external_feature_name=unraise_feature_name,
-        )
+
+    max_retry = 10
+    for i in range(max_retry):
         try:
-            oob_service.log_not_supported_error(
-                external_feature_name=raise_feature_name,
-                internal_feature_name="module_a.function_b",
-                parameters_info={"param_c": "value_d"},
-                connection_uuid=connection_uuid,
-                raise_error=NotImplementedError,
-            )
-        except Exception:
-            pass
-        assert oob_service.size() == 2
-        oob_service.flush()
-        assert oob_service.size() == 0
-        assert len(caplog.record_tuples) == 2
-        assert (
-            "telemetry server request success: 200" in caplog.text
-            and "Telemetry request success=True" in caplog.text
-        )
+            with caplog.at_level(
+                logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"
+            ):
+                oob_service.log_not_supported_error(
+                    external_feature_name=unraise_feature_name,
+                )
+                try:
+                    oob_service.log_not_supported_error(
+                        external_feature_name=raise_feature_name,
+                        internal_feature_name="module_a.function_b",
+                        parameters_info={"param_c": "value_d"},
+                        connection_uuid=connection_uuid,
+                        raise_error=NotImplementedError,
+                    )
+                except Exception:
+                    pass
+                assert oob_service.size() == 2
+                oob_service.flush()
+                assert oob_service.size() == 0
+                assert (
+                    "telemetry server request success: 200" in caplog.text
+                    and "Telemetry request success=True" in caplog.text
+                )
+            break
+        except AssertionError:
+            caplog.clear()
+            if i == max_retry - 1:
+                raise
 
     # test sending empty raise error
     with pytest.raises(ValueError):
@@ -164,6 +196,8 @@ def test_unit_oob_log_not_implemented_error(caplog, local_testing_telemetry_setu
 
 
 def test_unit_connection(caplog, local_testing_telemetry_setup):
+    # clean up queue first
+    LocalTestOOBTelemetryService.get_instance().export_queue_to_string()
     conn = MockServerConnection()
     # creating a mock connection will send connection telemetry
     error_message = "Error Message"
@@ -185,6 +219,17 @@ def test_unit_connection(caplog, local_testing_telemetry_setup):
 
 
 def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup):
+    # clean up queue first
+    telemetry_service = LocalTestOOBTelemetryService.get_instance()
+    assert telemetry_service.enabled is True
+    telemetry_service.export_queue_to_string()
+
+    telemetry_service.disable()
+    assert not telemetry_service.enabled
+
+    telemetry_service.enable()
+    assert telemetry_service.enabled is True
+
     disabled_telemetry_conn = MockServerConnection(
         options={"disable_local_testing_telemetry": True}
     )
@@ -197,7 +242,7 @@ def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup
 
     # test error raised but no telemetry sent
     error_message = "Error Message"
-    with pytest.raises(TypeError, match=re.escape(error_message)):
+    with pytest.raises(SnowparkLocalTestingException, match=re.escape(error_message)):
         disabled_telemetry_conn.log_not_supported_error(
             raise_error=TypeError, error_message=error_message
         )
@@ -205,32 +250,48 @@ def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup
 
 
 def test_snowpark_telemetry(caplog, local_testing_telemetry_setup):
-    session = Session.builder.configs(options={"local_testing": True}).create()
-    assert session._conn._oob_telemetry.get_instance().size() == 1
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape("[Local Testing] Session.sql is not supported."),
-    ):
-        session.sql("select 1")
-        assert session._conn._oob_telemetry.get_instance().size() == 2
-    payload = session._conn._oob_telemetry.export_queue_to_string()
-    unpacked_payload = json.loads(payload)
-    assert unpacked_payload[0]["Tags"]["Event_type"] == "session"
-    assert unpacked_payload[1]["Tags"]["Event_type"] == "unsupported"
-
-    # test sending successfully
-    with caplog.at_level(logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"):
-        session = Session.builder.configs(options={"local_testing": True}).create()
+    # clean up queue first
+    LocalTestOOBTelemetryService.get_instance().export_queue_to_string()
+    with Session.builder.configs(options={"local_testing": True}).create() as session:
         assert session._conn._oob_telemetry.get_instance().size() == 1
         with pytest.raises(
             NotImplementedError,
             match=re.escape("[Local Testing] Session.sql is not supported."),
         ):
             session.sql("select 1")
+            assert session._conn._oob_telemetry.get_instance().size() == 2
+        payload = session._conn._oob_telemetry.export_queue_to_string()
+        unpacked_payload = json.loads(payload)
+        assert unpacked_payload[0]["Tags"]["Event_type"] == "session"
+        assert unpacked_payload[1]["Tags"]["Event_type"] == "unsupported"
 
-        session._conn._oob_telemetry.flush()
-        assert session._conn._oob_telemetry.get_instance().size() == 0
-        assert (
-            "telemetry server request success: 200" in caplog.text
-            and "Telemetry request success=True" in caplog.text
-        )
+    # test sending successfully
+    max_retry = 10
+    for i in range(max_retry):
+        try:
+            with caplog.at_level(
+                logging.DEBUG, logger="snowflake.snowpark.mock._telemetry"
+            ):
+                with Session.builder.configs(
+                    options={"local_testing": True}
+                ).create() as session:
+                    assert session._conn._oob_telemetry.get_instance().size() == 1
+                    with pytest.raises(
+                        NotImplementedError,
+                        match=re.escape(
+                            "[Local Testing] Session.sql is not supported."
+                        ),
+                    ):
+                        session.sql("select 1")
+
+                    session._conn._oob_telemetry.flush()
+                    assert session._conn._oob_telemetry.get_instance().size() == 0
+                    assert (
+                        "telemetry server request success: 200" in caplog.text
+                        and "Telemetry request success=True" in caplog.text
+                    )
+            break
+        except AssertionError:
+            caplog.clear()
+            if i == max_retry - 1:
+                raise

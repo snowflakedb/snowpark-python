@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -9,7 +9,8 @@ import os
 import platform
 import random
 import string
-from datetime import date, datetime
+import uuid
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -29,9 +30,12 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
 )
 from snowflake.snowpark.functions import (
+    array_construct,
     col,
     lit,
+    object_construct,
     parse_json,
+    parse_xml,
     to_array,
     to_binary,
     to_date,
@@ -39,6 +43,7 @@ from snowflake.snowpark.functions import (
     to_double,
     to_object,
     to_time,
+    to_timestamp,
     to_timestamp_ltz,
     to_timestamp_ntz,
     to_timestamp_tz,
@@ -75,6 +80,43 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+
+RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
+TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+if RUNNING_ON_JENKINS:
+    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
+ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+
+
+def current_account(session):
+    return session.sql("select CURRENT_ACCOUNT_NAME()").collect()[0][0].upper()
+
+
+def structured_types_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return True
+    return current_account(session) in STRUCTURED_TYPE_ENVIRONMENTS
+
+
+def iceberg_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return False
+    return current_account(session) in ICEBERG_ENVIRONMENTS
+
+
+def running_on_public_ci() -> bool:
+    """Whether tests are currently running on one of our public CIs."""
+    return RUNNING_ON_GH
+
+
+def running_on_jenkins() -> bool:
+    """Whether tests are currently running on a Jenkins node."""
+    return RUNNING_ON_JENKINS
 
 
 class Utils:
@@ -130,12 +172,18 @@ class Utils:
 
     @staticmethod
     def create_stage(session: "Session", name: str, is_temporary: bool = True):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(
             f"create or replace {'temporary' if is_temporary else ''} stage {quote_name(name)}"
         )
 
     @staticmethod
     def drop_stage(session: "Session", name: str):
+        if isinstance(session._conn, MockServerConnection):
+            # no-op in local testing
+            return
         session._run_query(f"drop stage if exists {quote_name(name)}")
 
     @staticmethod
@@ -164,6 +212,10 @@ class Utils:
     @staticmethod
     def drop_schema(session: "Session", name: str):
         session._run_query(f"drop schema if exists {name}")
+
+    @staticmethod
+    def drop_database(session: "Session", name: str):
+        session._run_query(f"drop database if exists {name}")
 
     @staticmethod
     def unset_query_tag(session: "Session"):
@@ -358,6 +410,21 @@ class Utils:
             row_counter == row_number
         ), f"Expect {row_number} rows, Got {row_counter} instead"
 
+    @staticmethod
+    def assert_executed_with_query_tag(
+        session: Session, query_tag: str, local_testing_mode: bool = False
+    ) -> None:
+        # inside the stored proc information_schema.query_history_by_session() is not accessible
+        # which leads to "Requested information on the current user is not accessible in stored procedure."
+        if local_testing_mode or IS_IN_STORED_PROC:
+            return
+        query_details = session.sql(
+            f"select * from table(information_schema.query_history_by_session()) where QUERY_TAG='{query_tag}'"
+        )
+        assert (
+            len(query_details.collect()) > 0
+        ), f"query tag '{query_tag}' not present in query history for given session"
+
 
 class TestData:
     __test__ = (
@@ -550,8 +617,8 @@ class TestData:
 
     @classmethod
     def nan_data1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values(1.2),('NaN'::Double),(null),(2.3) as T(a)"
+        return session.create_dataframe(
+            [(1.2,), (math.nan,), (None,), (2.3,)], schema=["a"]
         )
 
     @classmethod
@@ -560,7 +627,16 @@ class TestData:
 
     @classmethod
     def duplicated_numbers(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(3),(2),(1),(3),(2) as T(a)")
+        return session.create_dataframe(
+            [
+                (3,),
+                (2,),
+                (1,),
+                (3,),
+                (2,),
+            ],
+            schema=["a"],
+        )
 
     @classmethod
     def approx_numbers(cls, session: "Session") -> DataFrame:
@@ -630,9 +706,16 @@ class TestData:
 
     @classmethod
     def array1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select array_construct(a,b,c) as arr1, array_construct(d,e,f) as arr2 "
-            "from values(1,2,3,3,4,5),(6,7,8,9,0,1) as T(a,b,c,d,e,f)"
+        df = session.create_dataframe(
+            [
+                (1, 2, 3, 3, 4, 5),
+                (6, 7, 8, 9, 0, 1),
+            ],
+            schema=["a", "b", "c", "d", "e", "f"],
+        )
+        return df.select(
+            array_construct("a", "b", "c").alias("arr1"),
+            array_construct("d", "e", "f").alias("arr2"),
         )
 
     @classmethod
@@ -651,24 +734,46 @@ class TestData:
 
     @classmethod
     def object1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values('age', 21),('zip', 94401) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21),
+                    ("zip", 94401),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
     def object2(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select object_construct(a,b,c,d,e,f) as obj, k, v, flag from "
-            "values('age', 21, 'zip', 21021, 'name', 'Joe', 'age', 0, true),"
-            "('age', 26, 'zip', 94021, 'name', 'Jay', 'key', 0, false) as T(a,b,c,d,e,f,k,v,flag)"
+        return (
+            session.create_dataframe(
+                [
+                    ("age", 21, "zip", 21021, "name", "Joe", "age", 0, True),
+                    ("age", 26, "zip", 94021, "name", "Jay", "key", 0, False),
+                ]
+            )
+            .to_df(["a", "b", "c", "d", "e", "f", "k", "v", "flag"])
+            .select(
+                object_construct("a", "b", "c", "d", "e", "f").alias("obj"),
+                "k",
+                "v",
+                "flag",
+            )
         )
 
     @classmethod
     def object3(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select key, to_variant(value) as value from "
-            "values(null, 21),('zip', null) as T(key,value)"
+        return (
+            session.create_dataframe(
+                [
+                    (None, 21),
+                    ("zip", None),
+                ]
+            )
+            .to_df(["key", "value"])
+            .select("key", to_variant("value").alias("value"))
         )
 
     @classmethod
@@ -680,7 +785,7 @@ class TestData:
 
     @classmethod
     def zero1(cls, session: "Session") -> DataFrame:
-        return session.sql("select * from values(0) as T(a)")
+        return session.create_dataframe([(0,)], schema=["a"])
 
     @classmethod
     def variant1(cls, session: "Session") -> DataFrame:
@@ -741,6 +846,7 @@ class TestData:
                 1706774400,
                 "2024-02-01 00:00:00.000000",
                 "Thu, 01 Feb 2024 00:00:00 -0600",
+                "1706774400",
                 date(2024, 2, 1),
                 datetime(2024, 2, 1, 12, 0, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -758,11 +864,77 @@ class TestData:
                 StructField("int", IntegerType()),
                 StructField("str", StringType()),
                 StructField("str_w_tz", StringType()),
+                StructField("str_ts", StringType()),
                 StructField("date", DateType()),
                 StructField("timestamp", TimestampType(TimestampTimeZone.DEFAULT)),
                 StructField("timestamp_ntz", TimestampType(TimestampTimeZone.NTZ)),
                 StructField("timestamp_ltz", TimestampType(TimestampTimeZone.LTZ)),
                 StructField("timestamp_tz", TimestampType(TimestampTimeZone.TZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def datetime_primitives2(cls, session: "Session") -> DataFrame:
+        data = [
+            "9999-12-31 00:00:00.123456",
+            "1583-01-01 23:59:59.56789",
+        ]
+        schema = StructType(
+            [
+                StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data
+        data = [("01:02:03",), ("22:33:44",), ("22:33:44.123",), ("22:33:44.56789",)]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives2(cls, session: "Session") -> DataFrame:
+        # string data needs format
+        data = [
+            ("01.02-03 PM",),
+            ("10.33-44 PM",),
+            ("12.55-19 PM",),
+        ]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives3(cls, session: "Session") -> DataFrame:
+        # timestamp data
+        data = [
+            (datetime(2024, 2, 1, 12, 13, 14),),
+            (datetime(2017, 2, 24, 20, 21, 22),),
+            ("1712265619",),
+            ("1712265619000",),
+            ("1712265619000000",),
+            ("1712265619000000000",),
+        ]
+        schema = StructType(
+            [
+                StructField("a", TimestampType(TimestampTimeZone.NTZ)),
+            ]
+        )
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def time_primitives4(cls, session: "Session") -> DataFrame:
+        # variant data
+        data = [
+            ("01:02:03",),
+            ("1712265619",),
+            (None,),
+            (time(1, 2, 3),),
+        ]
+        schema = StructType(
+            [
+                StructField("a", VariantType()),
             ]
         )
         return session.create_dataframe(data, schema)
@@ -774,6 +946,45 @@ class TestData:
             to_variant(col).alias(f"var_{col}") for col in primitives_df.columns
         ]
         return primitives_df.select(variant_cols)
+
+    @classmethod
+    def date_primitives1(cls, session: "Session") -> DataFrame:
+        # simple string data + auto detection
+        data = ["2023-03-16", "30-JUL-2010", "1713414143"]
+        schema = StructType([StructField("a", StringType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives2(cls, session: "Session") -> DataFrame:
+        # datetime type
+        data = [
+            datetime(2023, 3, 16),
+            datetime(2010, 7, 30, 1, 2, 3),
+            datetime(2024, 4, 18),
+        ]
+        schema = StructType([StructField("a", TimestampType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives3(cls, session: "Session") -> DataFrame:
+        # variant type
+        data = ["1713414143", None, "2024-06-03", "03/21/2000", datetime(2025, 12, 31)]
+        schema = StructType([StructField("a", VariantType())])
+        return session.create_dataframe(data, schema)
+
+    @classmethod
+    def date_primitives4(cls, session: "Session") -> DataFrame:
+        # string + format
+        data = [
+            ("2024-04-18", "AUTO"),
+            ("01-09-1999", "DD-MM-YYYY"),
+            ("10.2024.29", "MM.YYYY.DD"),
+            ("05/15/2015", "MM/DD/YYYY"),
+        ]
+        schema = StructType(
+            [StructField("a", StringType()), StructField("b", StringType())]
+        )
+        return session.create_dataframe(data, schema)
 
     @classmethod
     def geography(cls, session: "Session") -> DataFrame:
@@ -846,10 +1057,15 @@ class TestData:
 
     @classmethod
     def valid_json1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select parse_json(column1) as v, column2 as k from values ('{\"a\": null}','a'), "
-            "('{\"a\": \"foo\"}','a'), ('{\"a\": \"foo\"}','b'), (null,'a')"
-        )
+        return session.create_dataframe(
+            [
+                ('{"a": null}', "a"),
+                ('{"a": "foo"}', "a"),
+                ('{"a": "foo"}', "b"),
+                (None, "a"),
+            ],
+            schema=["v", "k"],
+        ).select(parse_json("v").alias("v"), "k")
 
     @classmethod
     def invalid_json1(cls, session: "Session") -> DataFrame:
@@ -859,17 +1075,30 @@ class TestData:
 
     @classmethod
     def null_xml1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select (column1) as v from values ('<t1>foo<t2>bar</t2><t3></t3></t1>'), "
-            "('<t1></t1>'), (null), ('')"
+        return session.create_dataframe(
+            [
+                ("<t1>foo<t2>bar</t2><t3></t3></t1>",),
+                ("<t1></t1>",),
+                (None,),
+                ("",),
+            ],
+            schema=["v"],
         )
 
     @classmethod
     def valid_xml1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select parse_xml(a) as v, b as t2, c as t3, d as instance from values"
-            + "('<t1>foo<t2>bar</t2><t3></t3></t1>','t2','t3',0),('<t1></t1>','t2','t3',0),"
-            + "('<t1><t2>foo</t2><t2>bar</t2></t1>','t2','t3',1) as T(a,b,c,d)"
+        return session.create_dataframe(
+            [
+                ("<t1>foo<t2>bar</t2><t3></t3></t1>", "t2", "t3", 0),
+                ("<t1></t1>", "t2", "t3", 0),
+                ("<t1><t2>foo</t2><t2>bar</t2></t1>", "t2", "t3", 1),
+            ],
+            schema=["a", "b", "c", "d"],
+        ).select(
+            parse_xml("a").alias("v"),
+            col("b").alias("t2"),
+            col("c").alias("t3"),
+            col("d").alias("instance"),
         )
 
     @classmethod
@@ -917,10 +1146,9 @@ class TestData:
 
     @classmethod
     def timestamp1(cls, session: "Session") -> DataFrame:
-        return session.sql(
-            "select * from values('2020-05-01 13:11:20.000' :: timestamp),"
-            "('2020-08-21 01:30:05.000' :: timestamp) as T(a)"
-        )
+        return session.create_dataframe(
+            [("2020-05-01 13:11:20.000",), ("2020-08-21 01:30:05.000",)], schema=["a"]
+        ).select(to_timestamp("a").alias("a"))
 
     @classmethod
     def xyz(cls, session: "Session") -> DataFrame:
@@ -1063,9 +1291,17 @@ class TestFiles:
     def test_file_csv_quotes(self):
         return os.path.join(self.resources_path, "testCSVquotes.csv")
 
+    @property
+    def test_file_csv_quotes_special(self):
+        return os.path.join(self.resources_path, "testCSVquotesSpecial.csv")
+
     @functools.cached_property
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @property
+    def test_file_excel(self):
+        return os.path.join(self.resources_path, "test_excel.xlsx")
 
     @functools.cached_property
     def test_file_json_special_format(self):
@@ -1074,6 +1310,14 @@ class TestFiles:
     @property
     def test_file_json(self):
         return os.path.join(self.resources_path, "testJson.json")
+
+    @property
+    def test_file_json_same_schema(self):
+        return os.path.join(self.resources_path, "testJsonSameSchema.json")
+
+    @property
+    def test_file_json_new_schema(self):
+        return os.path.join(self.resources_path, "testJsonNewSchema.json")
 
     @property
     def test_file_avro(self):
@@ -1169,6 +1413,14 @@ class TestFiles:
     def test_conda_environment_file(self):
         return os.path.join(self.resources_path, "test_environment.yml")
 
+    @property
+    def test_concat_file1_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file1.csv")
+
+    @property
+    def test_concat_file2_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file2.csv")
+
 
 class TypeMap(NamedTuple):
     col_name: str
@@ -1213,3 +1465,27 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
+
+
+def check_tracing_span_single_answer(result: dict, expected_answer: dict):
+    # this is a helper function to check one result from all results stored in exporter
+    for answer_name in expected_answer:
+        if answer_name == "status_description":
+            if expected_answer[answer_name] not in result[answer_name]:
+                return False
+            else:
+                continue
+        if expected_answer[answer_name] != result[answer_name]:
+            return False
+    return True
+
+
+def check_tracing_span_answers(results: list, expected_answer: tuple):
+    # this function meant to check if there is one match among all the results stored in exporter
+    # The answers are checked in this way because exporter is a public resource that only one exporter can
+    # exist globally, which could lead to race condition if cleaning exporter after every test
+    for result in results:
+        if expected_answer[0] == result[0]:
+            if check_tracing_span_single_answer(result[1], expected_answer[1]):
+                return True
+    return False

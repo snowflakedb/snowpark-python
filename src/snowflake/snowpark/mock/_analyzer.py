@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 from collections import Counter
@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     case_when_expression,
     cast_expression,
     collate_expression,
+    column_sum,
     delete_merge_statement,
     flatten_expression,
     function_expression,
@@ -44,14 +45,15 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
+    numeric_to_sql_without_cast,
     str_to_sql,
     to_sql,
-    to_sql_without_cast,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
     Collate,
+    ColumnSum,
     Expression,
     FunctionExpression,
     InExpression,
@@ -117,6 +119,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Filter,
     Pivot,
     Project,
+    Rename,
     Sample,
     Sort,
     Unpivot,
@@ -139,22 +142,7 @@ from snowflake.snowpark.mock._select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
-from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.types import _NumericType
-
-
-def serialize_expression(exp: Expression):
-    if isinstance(exp, Attribute):
-        return str(exp)
-    elif isinstance(exp, UnresolvedAttribute):
-        return str(exp)
-    else:
-        LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
-            external_feature_name=f"Expression {type(exp).__name__}",
-            internal_feature_name="_analyzer.serialize_expression",
-            parameters_info={"exp": type(exp).__name__},
-            raise_error=TypeError,
-        )
 
 
 class MockAnalyzer:
@@ -171,7 +159,6 @@ class MockAnalyzer:
         expr: Union[Expression, NamedExpression],
         expr_to_alias: Optional[Dict[str, str]] = None,
         parse_local_name=False,
-        escape_column_name=False,
         keep_alias=True,
     ) -> Union[str, List[str]]:
         """
@@ -234,20 +221,44 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, MultipleExpression):
-            return block_expression(
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.expressions
-                ]
-            )
+            block_expressions = []
+            for expression in expr.expressions:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    resolved_expr = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    resolved_expr = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                block_expressions.append(resolved_expr)
+            return block_expression(block_expressions)
 
         if isinstance(expr, InExpression):
+            in_values = []
+            for expression in expr.values:
+                if self.session.eliminate_numeric_sql_value_cast_enabled:
+                    in_value = self.to_sql_try_avoid_cast(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+                else:
+                    in_value = self.analyze(
+                        expression,
+                        expr_to_alias,
+                        parse_local_name,
+                    )
+
+                in_values.append(in_value)
             return in_expression(
                 self.analyze(expr.columns, expr_to_alias, parse_local_name),
-                [
-                    self.analyze(expression, expr_to_alias, parse_local_name)
-                    for expression in expr.values
-                ],
+                in_values,
             )
 
         if isinstance(expr, GroupingSet):
@@ -287,8 +298,8 @@ class MockAnalyzer:
         if isinstance(expr, SpecifiedWindowFrame):
             return specified_window_frame_expression(
                 expr.frame_type.sql,
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.lower, {})),
-                self.window_frame_boundary(self.to_sql_avoid_offset(expr.upper, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.lower, {})),
+                self.window_frame_boundary(self.to_sql_try_avoid_cast(expr.upper, {})),
             )
 
         if isinstance(expr, UnspecifiedFrame):
@@ -307,9 +318,6 @@ class MockAnalyzer:
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
-            if escape_column_name:
-                # TODO: ideally we should not escape here
-                return f"`{expr.name}`"
             return expr.name
 
         if isinstance(expr, FunctionExpression):
@@ -318,9 +326,18 @@ class MockAnalyzer:
                     expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
                 )
             func_name = expr.name.upper()
+
+            children = []
+            for c in expr.children:
+                extracted = self.to_sql_try_avoid_cast(c, expr_to_alias)
+                if isinstance(extracted, list):
+                    children.extend(extracted)
+                else:
+                    children.append(extracted)
+
             return function_expression(
                 func_name,
-                [self.to_sql_avoid_offset(c, expr_to_alias) for c in expr.children],
+                children,
                 expr.is_distinct,
             )
 
@@ -346,10 +363,6 @@ class MockAnalyzer:
             )
 
         if isinstance(expr, TableFunctionExpression):
-            if expr.api_call_source is not None:
-                self.session._conn._telemetry_client.send_function_usage_telemetry(
-                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
-                )
             return self.table_function_expression_extractor(expr, expr_to_alias)
 
         if isinstance(expr, TableFunctionPartitionSpecDefinition):
@@ -399,7 +412,6 @@ class MockAnalyzer:
                 expr,
                 expr_to_alias,
                 parse_local_name,
-                escape_column_name=escape_column_name,
             )
 
         if isinstance(expr, InsertMergeExpression):
@@ -428,6 +440,14 @@ class MockAnalyzer:
                 self.analyze(expr.col, expr_to_alias, parse_local_name),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
+            )
+
+        if isinstance(expr, ColumnSum):
+            return column_sum(
+                [
+                    self.analyze(col, expr_to_alias, parse_local_name)
+                    for col in expr.exprs
+                ]
             )
 
         if isinstance(expr, RankRelatedFunctionExpression):
@@ -529,41 +549,33 @@ class MockAnalyzer:
         expr: BinaryExpression,
         expr_to_alias: Dict[str, str],
         parse_local_name=False,
-        escape_column_name=False,
     ) -> str:
+        if self.session.eliminate_numeric_sql_value_cast_enabled:
+            left_sql_expr = self.to_sql_try_avoid_cast(
+                expr.left, expr_to_alias, parse_local_name
+            )
+            right_sql_expr = self.to_sql_try_avoid_cast(
+                expr.right,
+                expr_to_alias,
+                parse_local_name,
+            )
+        else:
+            left_sql_expr = self.analyze(expr.left, expr_to_alias, parse_local_name)
+            right_sql_expr = self.analyze(expr.right, expr_to_alias, parse_local_name)
+
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
                 operator,
-                self.analyze(
-                    expr.left,
-                    expr_to_alias,
-                    parse_local_name,
-                    escape_column_name=escape_column_name,
-                ),
-                self.analyze(
-                    expr.right,
-                    expr_to_alias,
-                    parse_local_name,
-                    escape_column_name=escape_column_name,
-                ),
+                left_sql_expr,
+                right_sql_expr,
             )
         else:
             return function_expression(
                 operator,
                 [
-                    self.analyze(
-                        expr.left,
-                        expr_to_alias,
-                        parse_local_name,
-                        escape_column_name=escape_column_name,
-                    ),
-                    self.analyze(
-                        expr.right,
-                        expr_to_alias,
-                        parse_local_name,
-                        escape_column_name=escape_column_name,
-                    ),
+                    left_sql_expr,
+                    right_sql_expr,
                 ],
                 False,
             )
@@ -587,13 +599,13 @@ class MockAnalyzer:
         except Exception:
             return offset
 
-    def to_sql_avoid_offset(
+    def to_sql_try_avoid_cast(
         self, expr: Expression, expr_to_alias: Dict[str, str], parse_local_name=False
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
-            return to_sql_without_cast(expr.value, expr.datatype)
+            return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
             return self.analyze(expr, expr_to_alias, parse_local_name)
 
@@ -604,9 +616,6 @@ class MockAnalyzer:
         if expr_to_alias is None:
             expr_to_alias = {}
         result = self.do_resolve(logical_plan, expr_to_alias)
-
-        if self.subquery_plans:
-            result = result.with_subqueries(self.subquery_plans)
 
         return result
 
@@ -642,6 +651,13 @@ class MockAnalyzer:
     ) -> MockExecutionPlan:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
+
+        if isinstance(logical_plan, Rename):
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
+            )
+
         if isinstance(logical_plan, TableFunctionJoin):
             self._conn.log_not_supported_error(
                 external_feature_name="table_function.TableFunctionJoin",
@@ -719,18 +735,15 @@ class MockAnalyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_avoid_offset(logical_plan.limit_expr, expr_to_alias),
-                self.to_sql_avoid_offset(logical_plan.offset_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.limit_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(logical_plan.offset_expr, expr_to_alias),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
             )
 
         if isinstance(logical_plan, Pivot):
-            self._conn.log_not_supported_error(
-                external_feature_name="RelationalGroupedDataFrame.Pivot",
-                raise_error=NotImplementedError,
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Unpivot):
             self._conn.log_not_supported_error(

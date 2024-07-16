@@ -12,7 +12,7 @@ python3.8 -m venv fips_env
 source fips_env/bin/activate
 export OPENSSL_FIPS=1
 pip install -U setuptools pip
-pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development]" "cryptography<3.3.0" --force-reinstall --no-binary cryptography
+pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]" "cryptography<3.3.0" --force-reinstall --no-binary cryptography
 pip install "pytest-timeout"
 
 echo "!!! Environment description !!!"
@@ -25,6 +25,6 @@ python -c "import hashlib; print(hashlib.md5('test_str'.encode('utf-8')).hexdige
 pip freeze
 
 cd $SNOWPARK_DIR
-pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests
+pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests --ignore=src/snowflake/snowpark/modin --ignore=tests/integ/modin --ignore=tests/unit/modin
 
 deactivate
