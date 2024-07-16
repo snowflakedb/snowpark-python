@@ -274,8 +274,8 @@ class WindowSpec:
 
         ast = proto.SpWindowSpecExpr()
         window_ast = with_src_position(ast.sp_window_spec_rows_between)
-        window_ast.start = start
-        window_ast.end = end
+        window_ast.start.sp_window_relative_position__position.n = start
+        window_ast.end.sp_window_relative_position__position.n = end
         window_ast.wnd.CopyFrom(self._ast)
 
         return WindowSpec(
@@ -297,8 +297,8 @@ class WindowSpec:
         ast = proto.SpWindowSpecExpr()
         window_ast = with_src_position(ast.sp_window_spec_range_between)
         window_ast.wnd.CopyFrom(self._ast)
-        window_ast.start = start
-        window_ast.end = end
+        window_ast.start.sp_window_relative_position__position.n = start
+        window_ast.end.sp_window_relative_position__position.n = end
 
         return WindowSpec(
             self.partition_spec,
