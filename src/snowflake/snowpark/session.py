@@ -24,10 +24,10 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 import cloudpickle
 import pkg_resources
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -1930,8 +1930,8 @@ class Session:
         expr = with_src_position(stmt.expr.apply_expr)
         if isinstance(func_name, TableFunctionCall):
             expr.fn.udtf.name = func_name.name
-            func_arguments = func.arguments
-            func_named_arguments = func.named_arguments
+            func_arguments = func_name.arguments
+            func_named_arguments = func_name.named_arguments
             # TODO: func.{_over, _partition_by, _order_by, _aliases, _api_call_source}
         elif isinstance(func_name, str):
             expr.fn.udtf.name = func_name
@@ -3291,7 +3291,8 @@ class Session:
                 return None
             else:
                 self._conn.log_not_supported_error(
-                    external_feature_name="Session.flatten", raise_error=NotImplementedError
+                    external_feature_name="Session.flatten",
+                    raise_error=NotImplementedError,
                 )
         if isinstance(input, str):
             input = col(input)

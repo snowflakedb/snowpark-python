@@ -3806,12 +3806,11 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
-        if frac is not None:
-            ast = stmt.expr.sp_dataframe_sample__double
-            ast.probability_fraction = frac
-        else:
-            ast = stmt.expr.sp_dataframe_sample__long
-            ast.num = n
+        ast = stmt.expr.sp_dataframe_sample
+        if frac:
+            ast.probability_fraction.value = frac
+        if n:
+            ast.num.value = n
         self.set_ast_ref(ast.df)
         set_src_position(ast.src)
 

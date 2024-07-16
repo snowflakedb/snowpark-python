@@ -10,6 +10,6 @@ df = df.sample(frac=0.5)
 
 res1 = session.table("test_table")
 
-res2 = res1.sample(3)
+res2 = res1.sample(None, 3)
 
-res3 = res2.sample(0.5)
+res3 = res2.sample(0.5, None)
