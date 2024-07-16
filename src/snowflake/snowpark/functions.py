@@ -6953,15 +6953,15 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).order_by(["exchange","symbol"]).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
-        |N           |SPY       |1          |
-        |N           |AAPL      |2          |
-        |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |N           |SPY       |1          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """
