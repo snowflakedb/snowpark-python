@@ -117,5 +117,7 @@ try:
         trace.set_tracer_provider(trace_provider)
         yield dict_exporter
 
+    opentelemetry_installed = True
+
 except ModuleNotFoundError:
-    pass
+    opentelemetry_installed = False

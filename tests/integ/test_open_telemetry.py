@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.conftest import opentelemetry_installed
 from tests.utils import IS_IN_STORED_PROC, check_tracing_span_answers
 
 pytestmark = [
@@ -30,6 +31,10 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="UDTF not supported in Local Testing",
+    ),
+    pytest.mark.skipif(
+        not opentelemetry_installed,
+        reason="opentelemetry is not installed",
     ),
 ]
 
