@@ -90,7 +90,7 @@ class TestDefaultParameters:
     def test_single_value_diff(self, base_df, position, new_value):
         # check that we are changing a value, so the test case is meaningful.
         assert not (
-            (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+            (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
             or base_df.iloc[position] == new_value
         ), f"base_df already has a value equivalent to {new_value} at position {position}"
         other_df = base_df.copy()
@@ -108,7 +108,7 @@ class TestDefaultParameters:
         new_value = "c"
         # check that we are changing a value, so the test case is meaningful.
         assert not (
-            (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+            (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
             or base_df.iloc[position] == new_value
         ), f"base_df already has a value equivalent to {new_value} at position {position}"
         base_df.reset_index(inplace=True)
@@ -192,7 +192,7 @@ def test_align_axis(base_df, align_axis):
     new_value = "c"
     # check that we are changing a value, so the test case is meaningful.
     assert not (
-        (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+        (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
         or base_df.iloc[position] == new_value
     ), f"base_df already has a value equivalent to {new_value} at position {position}"
     other_df = base_df.copy()
@@ -212,7 +212,7 @@ def test_keep_shape(base_df):
     new_value = "c"
     # check that we are changing a value, so the test case is meaningful.
     assert not (
-        (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+        (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
         or base_df.iloc[position] == new_value
     ), f"base_df already has a value equivalent to {new_value} at position {position}"
     other_df = base_df.copy()
@@ -232,7 +232,7 @@ def test_keep_equal(base_df):
     new_value = "c"
     # check that we are changing a value, so the test case is meaningful.
     assert not (
-        (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+        (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
         or base_df.iloc[position] == new_value
     ), f"base_df already has a value equivalent to {new_value} at position {position}"
     other_df = base_df.copy()
@@ -252,7 +252,7 @@ def test_result_names(base_df):
     new_value = "c"
     # check that we are changing a value, so the test case is meaningful.
     assert not (
-        (pd.isna(base_df.iloc[position]) and pd.isna(new_value))
+        (native_pd.isna(base_df.iloc[position]) and native_pd.isna(new_value))
         or base_df.iloc[position] == new_value
     ), f"base_df already has a value equivalent to {new_value} at position {position}"
     other_df = base_df.copy()

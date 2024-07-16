@@ -102,7 +102,6 @@ from snowflake.snowpark.functions import (
     lead,
     least,
     length,
-    lit,
     lower,
     ltrim,
     max as max_,
@@ -15194,6 +15193,78 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas `compare` does not yet support the parameter `result_names`."
             )
 
+        """
+        In examples below, use the following query compilers with a single diff at iloc[0, 0]
+
+        >>> df1 = pd.DataFrame(
+            [
+                [None, None,],
+                ["a", 1,],
+                ["b", 2,],
+                [None, 3],
+            ],
+            index=pd.MultiIndex.from_tuples(
+                [
+                    ("row1", 1),
+                    ("row1", 1),
+                    ("row3", 3),
+                    ("row4", 4),
+                ],
+                names=("row_level1", "row_level2"),
+            ),
+            columns=pd.MultiIndex.from_tuples(
+                [
+                    ("group_1", "string_col"),
+                    ("group_1", "int_col"),
+                ],
+                names=["column_level1", "column_level2"],
+            ),
+            )
+        >>> df1
+            column_level1            group_1
+            column_level2         string_col int_col
+            row_level1 row_level2
+            row1       1                None     NaN
+                    1                   a     1.0
+            row3       3                   b     2.0
+            row4       4                None     3.0
+
+        >>> df2 = pd.DataFrame(
+            [
+                ["c", None,],
+                ["a", 1,],
+                ["b", 2,],
+                [None, 3],
+            ],
+            index=pd.MultiIndex.from_tuples(
+                [
+                    ("row1", 1),
+                    ("row1", 1),
+                    ("row3", 3),
+                    ("row4", 4),
+                ],
+                names=("row_level1", "row_level2"),
+            ),
+            columns=pd.MultiIndex.from_tuples(
+                [
+                    ("group_1", "string_col"),
+                    ("group_1", "int_col"),
+                ],
+                names=["column_level1", "column_level2"],
+            ),
+            )
+        >>> df2
+            column_level1            group_1
+            column_level2         string_col int_col
+            row_level1 row_level2
+            row1       1                   c     NaN
+                    1                   a     1.0
+            row3       3                   b     2.0
+            row4       4                None     3.0
+        >>> self = df1._query_compiler
+        >>> other = df2._query_compiler
+        """
+
         # TODO(SNOW-1478684): Stop calling to_pandas() to work around Index.equals() bug.
         def pandas_index(index: Union[native_pd.Index, pd.Index]) -> native_pd.Index:
             if isinstance(index, native_pd.Index):
@@ -15235,6 +15306,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
                 ),
             )
+        """
+        >>> SnowflakeQueryCompiler(binary_op_result).to_pandas()
+
+            column_level1            group_1                            ('group_1', 'string_col')_comparison_result ('group_1', 'int_col')_comparison_result
+            column_level2         string_col int_col string_col int_col                                         NaN                                      NaN
+            row_level1 row_level2
+            row1       1                None     NaN          c     NaN                                       False                                     True
+                       1                   a     1.0          a     1.0                                        True                                     True
+            row3       3                   b     2.0          b     2.0                                        True                                     True
+            row4       4                None     3.0       None     3.0                                        True                                     True
+        """
 
         # drop the rows where all the columns are equal, i.e. where all the
         # `comparison_result_columns` are true.
@@ -15245,11 +15327,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         filtered_binary_op_result = binary_op_result.filter(
             ~functools.reduce(
-                lambda a, b: (a & col(b)), comparison_result_columns, lit(True)
+                lambda a, b: (a & col(b)), comparison_result_columns, pandas_lit(True)
             )
         )
+        """
+        In our example, we've dropped all rows but the first, which has the diff:
 
-        # Get a series that tells whether each column contains only matches.
+        >>> SnowflakeQueryCompiler(filtered_binary_op_result).to_pandas()
+            column_level1            group_1                            ('group_1', 'string_col')_comparison_result ('group_1', 'int_col')_comparison_result
+            column_level2         string_col int_col string_col int_col                                         NaN                                      NaN
+            row_level1 row_level2
+            row1       1                None     NaN          c     NaN                                       False                                     True
+        """
+
+        # Get a pandas series that tells whether each column contains only
+        # matches. We need to execute at least one intermediate SQL query to
+        # get this series.
         all_rows_match_frame = (
             SnowflakeQueryCompiler(
                 get_frame_by_col_pos(
@@ -15260,6 +15353,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             .all(axis=0, bool_only=False, skipna=False)
             .to_pandas()
         )
+        """
+        In our example, we find that the second columns of each frame match
+        completely, but the first columns do not:
+
+        >>> all_rows_match_frame
+
+                                                                       __reduced__
+            column_level1                               column_level2
+            ('group_1', 'string_col')_comparison_result NaN                  False
+            ('group_1', 'int_col')_comparison_result    NaN                   True
+        """
 
         # Construct expressions for the result.
         new_pandas_labels = []
@@ -15328,7 +15432,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 column_index_tuples.append((pandas_column_value, "self"))
                 column_index_tuples.append((pandas_column_value, "other"))
 
-        return SnowflakeQueryCompiler(
+        result = SnowflakeQueryCompiler(
             filtered_binary_op_result.project_columns(new_pandas_labels, new_values)
         ).set_columns(
             # TODO(SNOW-1510921): fix the levels and inferred_type of the
@@ -15338,3 +15442,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 column_index_tuples, names=(*self.columns.names, None)
             )
         )
+
+        """
+        In our example, the final result keeps only one pair of columns and one
+        row for the single diff:
+
+        >>> result.to_pandas()
+            column_level1            group_1
+            column_level2         string_col
+                                        self other
+            row_level1 row_level2
+            row1       1                None     c
+        """
+
+        return result
