@@ -5060,7 +5060,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + ["proportion" if normalize else "count"]
             )
         # Always sort the result by all columns except proportion/count
-        sort_cols = self._modin_frame.data_column_pandas_labels
+        sort_cols = [
+            label
+            for label in self._modin_frame.data_column_pandas_labels
+            if label in result._modin_frame.data_column_pandas_labels
+        ]
         ascending_cols = [True] * len(sort_cols)
         if sort:
             # When sort=True, also sort on the value column (always the last)
