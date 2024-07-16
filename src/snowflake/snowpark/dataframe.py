@@ -2977,7 +2977,10 @@ class DataFrame:
 
     @df_api_usage
     def with_column(
-        self, col_name: str, col: Union[Column, TableFunctionCall]
+        self,
+        col_name: str,
+        col: Union[Column, TableFunctionCall],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -3019,11 +3022,14 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
-        return self.with_columns([col_name], [col])
+        return self.with_columns([col_name], [col], ast_stmt=ast_stmt)
 
     @df_api_usage
     def with_columns(
-        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+        self,
+        col_names: List[str],
+        values: List[Union[Column, TableFunctionCall]],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3116,7 +3122,7 @@ class DataFrame:
         ]
 
         # Put it all together
-        return self.select([*old_cols, *new_cols])
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt)
 
     @overload
     def count(
@@ -3821,7 +3827,16 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_first
+        if statement_params is not None:
+            ast.statement_params.append((k, v) for k, v in statement_params)
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.block = block
         if n is None:
+            ast.num = 1
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
@@ -3833,10 +3848,12 @@ class DataFrame:
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
+            ast.num = n
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
             )
         else:
+            ast.num = n
             df = self.limit(n)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
@@ -3859,6 +3876,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_sample
+        if frac:
+            ast.probability_fraction.value = frac
+        if n:
+            ast.num.value = n
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
@@ -3867,9 +3895,10 @@ class DataFrame:
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan)
+        return self._with_plan(sample_plan, ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -4250,20 +4279,33 @@ class DataFrame:
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_random_split
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
             )
-        elif len(weights) == 1:
+        for w in weights:
+            ast.weights.append(w)
+        if seed:
+            ast.seed.value = seed
+        if statement_params:
+            ast.statement_params = statement_params
+        if len(weights) == 1:
             return [self]
         else:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
+        if self._session._conn._suppress_not_implemented_error:
+            return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % _ONE_MILLION
+                temp_column_name, abs_(random(seed)) % _ONE_MILLION, ast_stmt=stmt
             ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
