@@ -80,21 +80,33 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
-# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
-# Once rolled out this should be updated to include all accounts.
-STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
-IS_STRUCTURED_TYPES_SUPPORTED = (
-    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
-    and not IS_IN_STORED_PROC
-)
-ICEBERG_ENVIRONMENTS = {"dev", "aws"}
-IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
 TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
 if RUNNING_ON_JENKINS:
     TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
+ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+
+
+def current_account(session):
+    return session.sql("select CURRENT_ACCOUNT_NAME()").collect()[0][0].upper()
+
+
+def structured_types_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return True
+    return current_account(session) in STRUCTURED_TYPE_ENVIRONMENTS
+
+
+def iceberg_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return False
+    return current_account(session) in ICEBERG_ENVIRONMENTS
 
 
 def running_on_public_ci() -> bool:
@@ -1453,3 +1465,27 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
+
+
+def check_tracing_span_single_answer(result: dict, expected_answer: dict):
+    # this is a helper function to check one result from all results stored in exporter
+    for answer_name in expected_answer:
+        if answer_name == "status_description":
+            if expected_answer[answer_name] not in result[answer_name]:
+                return False
+            else:
+                continue
+        if expected_answer[answer_name] != result[answer_name]:
+            return False
+    return True
+
+
+def check_tracing_span_answers(results: list, expected_answer: tuple):
+    # this function meant to check if there is one match among all the results stored in exporter
+    # The answers are checked in this way because exporter is a public resource that only one exporter can
+    # exist globally, which could lead to race condition if cleaning exporter after every test
+    for result in results:
+        if expected_answer[0] == result[0]:
+            if check_tracing_span_single_answer(result[1], expected_answer[1]):
+                return True
+    return False

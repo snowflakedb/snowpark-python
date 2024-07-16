@@ -291,7 +291,11 @@ def test_sql_simplifier(session):
 
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df1 = df.filter(col("a") == 1)
-    filter_clause = 'WHERE ("A" = 1 :: INT)'
+    filter_clause = (
+        'WHERE ("A" = 1)'
+        if session.eliminate_numeric_sql_value_cast_enabled
+        else 'WHERE ("A" = 1 :: INT)'
+    )
 
     df2 = df1.select("a", "b")
     df3 = df1.select("a", "b").select("a", "b")
@@ -349,8 +353,16 @@ def test_table(session):
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
-def test_sql(session):
-    df = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
+@pytest.mark.parametrize(
+    "query",
+    [
+        "select 1 as a, 2 as b",
+        "show tables in schema limit 10",
+        "describe result last_query_id()",
+    ],
+)
+def test_sql(session, query):
+    df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
     check_result(session, df_result, expect_cte_optimized=True)
     assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1

@@ -45,6 +45,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-timeout",
     "pytest-xdist",
     "openpyxl",  # used in read_excel test, not a requirement for distribution
+    "matplotlib",  # used in plot tests
     "pre-commit",
 ]
 

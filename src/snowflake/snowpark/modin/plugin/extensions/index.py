@@ -30,6 +30,7 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
+from pandas.core.dtypes.common import pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
@@ -415,7 +416,7 @@ class Index:
         See Also
         --------
         unique : Numpy array of unique values in that column.
-        Series.unique : Return unique values of Series object.
+        Series.unique : Return unique values of a Series object.
 
         Examples
         --------
@@ -423,9 +424,20 @@ class Index:
         >>> idx.unique()
         Index([1, 2, 3], dtype='int64')
         """
-        # TODO: SNOW-1458132 implement unique
-        WarningMessage.index_to_pandas_warning("unique")
-        return Index(self.to_pandas().unique(level=level))
+        if level not in [None, 0, -1]:
+            raise IndexError(
+                f"Too many levels: Index has only 1 level, {level} is not a valid level number."
+            )
+        return Index(
+            data=self._query_compiler.groupby_agg(
+                by=self._query_compiler.get_index_names(axis=0),
+                agg_func={},
+                axis=0,
+                groupby_kwargs={"sort": False, "as_index": True, "dropna": False},
+                agg_args=[],
+                agg_kwargs={},
+            )
+        )
 
     @property
     @is_lazy_check
@@ -469,7 +481,7 @@ class Index:
         return (len(self),)
 
     @is_lazy_check
-    def astype(self, dtype: Any, copy: bool = True) -> Index:
+    def astype(self, dtype: str | type | ExtensionDtype, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
 
@@ -501,12 +513,18 @@ class Index:
         >>> idx.astype('float')
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
-        WarningMessage.index_to_pandas_warning("astype")
-        return Index(
-            self.to_pandas().astype(dtype=dtype, copy=copy),
-            dtype=dtype,
-            convert_to_lazy=self.is_lazy,
-        )
+        if dtype is not None:
+            dtype = pandas_dtype(dtype)
+
+        if self.dtype == dtype:
+            # Ensure that self.astype(self.dtype) is self
+            return self.copy() if copy else self
+
+        col_dtypes = {
+            column: dtype for column in self._query_compiler.get_index_names()
+        }
+        new_query_compiler = self._query_compiler.astype_index(col_dtypes)
+        return Index(data=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
@@ -995,7 +1013,7 @@ class Index:
     @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
-        Determine if two Index object are equal.
+        Determine if two Index objects are equal.
 
         The things that are being compared are:
 
@@ -1372,8 +1390,8 @@ class Index:
         """
         # TODO: SNOW-1458122 implement rename
 
-    @index_not_implemented()
-    def nunique(self) -> None:
+    @is_lazy_check
+    def nunique(self, dropna: bool = True) -> int:
         """
         Return number of unique elements in the object.
 
@@ -1392,8 +1410,22 @@ class Index:
         --------
         DataFrame.nunique: Method nunique for DataFrame.
         Series.count: Count non-NA/null observations in the Series.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 3, 5, 7, 7])
+        >>> s
+        0    1
+        1    3
+        2    5
+        3    7
+        4    7
+        dtype: int64
+
+        >>> s.nunique()
+        4
         """
-        # TODO: SNOW-1458132 implement nunique
+        return self._query_compiler.nunique_index(dropna=dropna)
 
     @is_lazy_check
     def value_counts(
