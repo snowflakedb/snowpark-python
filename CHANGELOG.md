@@ -62,6 +62,9 @@
 - Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Index.T`.
+- Added support for `Index.astype`.
+- Added support for `Index.unique` and `Index.nunique`.
 - Added support for `Index.value_counts`.
 
 
