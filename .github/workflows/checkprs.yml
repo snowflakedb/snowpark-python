@@ -1,0 +1,38 @@
+name: PR Checker
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs 0:0 UTC on every day
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        default: warning
+        description: "Log level"
+        required: true
+      tags:
+        description: "Check PRs"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip3 install requests
+    - name: Run script
+      env:
+        TOKEN: ${{secrets.GITHUB_TOKEN}}
+      run:
+        python3 ./scripts/longprs.py

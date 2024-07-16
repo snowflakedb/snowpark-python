@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import pytest
@@ -204,7 +204,6 @@ def test_cast():
 @pytest.mark.parametrize(
     "expression_class",
     [
-        BinaryExpression,
         Add,
         And,
         BinaryArithmeticExpression,

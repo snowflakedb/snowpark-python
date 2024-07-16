@@ -1,8 +1,11 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import csv
 import glob
+import json
 import os
+import platform
 import re
 import shutil
 import tempfile
@@ -11,17 +14,22 @@ from functools import partial
 from logging import getLogger
 from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    unwrap_stage_location_single_quote,
+)
+from snowflake.snowpark.mock._functions import mock_to_char
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
-from snowflake.snowpark.types import DecimalType, StringType
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
+from snowflake.snowpark.types import DecimalType, StringType, VariantType
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -50,12 +58,40 @@ GET_RESULT_KEYS = [
 ]
 
 
-SUPPORTED_CSV_READ_OPTIONS = (
-    "SKIP_HEADER",
-    "SKIP_BLANK_LINES",
-    "FIELD_DELIMITER",
-    "FIELD_OPTIONALLY_ENCLOSED_BY",
-)
+# option support map
+# top level:
+#   key: file format name
+#   value: dict of supported option
+# child level:
+#   key: option name
+#   value (two categories):
+#     - tuple, enum of valid option values in the string form
+#     - None, users set the value
+SUPPORT_READ_OPTIONS = {
+    "csv": {
+        "SKIP_HEADER": None,
+        "SKIP_BLANK_LINES": None,
+        "FIELD_DELIMITER": None,
+        "FIELD_OPTIONALLY_ENCLOSED_BY": None,
+        "INFER_SCHEMA": ("FALSE",),
+        "PARSE_HEADER": ("TRUE", "FALSE"),
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
+    "json": {
+        "INFER_SCHEMA": ("TRUE", "FALSE"),
+        "FILE_EXTENSION": None,
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
+}
+
+
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -93,13 +129,40 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
                 break
 
         if not stage_name_end_idx:
-            raise SnowparkSQLException(f"Invalid stage_location {stage_location}.")
+            raise SnowparkLocalTestingException(
+                f"Invalid stage_location {stage_location}."
+            )
     else:
         stage_name_end_idx = normalized.find("/")
         prefix_start_idx = stage_name_end_idx + 1
     stage_name = normalized[stage_name_start_idx:stage_name_end_idx]
     dir_path = normalized[prefix_start_idx:-1]  # remove the first and last '/'
+
+    if platform.system() == "Windows":
+        # On Windows the separator is \\, we convert non-quoted '/' to '\\'
+        # so that dirs can be created on windows
+        def replace_dir_separator(input):
+            idx, in_quote, output = 0, False, ""
+            while idx < len(input):
+                to_append_char = input[idx]
+                if input[idx] == '"':
+                    in_quote = not in_quote
+                elif input[idx] == "/" and not in_quote:
+                    to_append_char = os.sep
+                output += to_append_char
+                idx += 1
+            return output
+
+        dir_path = replace_dir_separator(dir_path)
+
     return stage_name, dir_path
+
+
+def copy_files_and_dirs(src, dst):
+    if os.path.isdir(src):
+        shutil.copytree(src, dst)
+    else:
+        shutil.copy(src, dst)
 
 
 class StageEntity:
@@ -142,7 +205,9 @@ class StageEntity:
         )
 
         if not list_of_files:
-            raise SnowparkSQLException(f"File doesn't exist: {local_file_name}")
+            raise SnowparkLocalTestingException(
+                f"File doesn't exist: {local_file_name}"
+            )
 
         for local_file_name in list_of_files:
 
@@ -168,12 +233,20 @@ class StageEntity:
                 )
 
             if not os.path.exists(stage_target_dir_path):
-                os.makedirs(stage_target_dir_path)
+                try:
+                    os.makedirs(stage_target_dir_path)
+                except BaseException:
+                    self._conn.log_not_supported_error(
+                        error_message=f"Unable to created directory {stage_target_dir_path} on the local file system. This could be caused by system limitations",
+                        internal_feature_name="StageEntity.put_file",
+                        parameters_info={"platform": platform.system()},
+                        raise_error=NotImplementedError,
+                    )
 
             if os.path.isfile(target_local_file_path) and not overwrite:
                 status = "SKIPPED"
             else:
-                shutil.copy(local_file_name, target_local_file_path)
+                copy_files_and_dirs(local_file_name, target_local_file_path)
                 status = "UPLOADED"
 
             file_size = os.path.getsize(local_file_name)
@@ -265,8 +338,8 @@ class StageEntity:
             os.path.exists(stage_source_dir_path)
             or os.path.exists(stage_source_dir_path)
         ):
-            raise SnowparkSQLException(
-                f"[Local Testing] the file does not exist: {stage_source_dir_path}"
+            raise SnowparkLocalTestingException(
+                f"the file does not exist: {stage_source_dir_path}"
             )
 
         if os.path.isfile(stage_source_dir_path):
@@ -287,7 +360,7 @@ class StageEntity:
             if pattern and not re.match(pattern[1:-1], file_name):
                 continue
             stage_file = file
-            shutil.copy(stage_file, os.path.join(target_directory, file_name))
+            copy_files_and_dirs(stage_file, os.path.join(target_directory, file_name))
             file_size = os.path.getsize(stage_file)
             result_df.loc[len(result_df)] = dict(
                 zip(
@@ -310,6 +383,8 @@ class StageEntity:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ) -> TableEmulator:
+        from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 
         if os.path.isfile(stage_source_dir_path):
@@ -321,18 +396,57 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        if format.lower() == "csv":
+        file_format = format.lower()
+        if file_format in SUPPORT_READ_OPTIONS:
+            supported_options_for_format = SUPPORT_READ_OPTIONS[file_format]
             for option in options:
-                if option not in SUPPORTED_CSV_READ_OPTIONS:
-                    _logger.warning(
-                        f"[Local Testing] read file option {option} is not supported."
+                if str(options[option]).upper() == "NONE":
+                    # ignore if option value is None, or string of "None"
+                    continue
+                if (option not in supported_options_for_format) or (
+                    supported_options_for_format[option]
+                    and str(options[option]).upper()
+                    not in supported_options_for_format[option]
+                ):
+                    # either the option is not supported or only partially supported
+                    self._conn.log_not_supported_error(
+                        external_feature_name=f"Read option '{option}' of value '{str(options[option])}' for file format '{file_format}'",
+                        internal_feature_name="StageEntity.read_file",
+                        parameters_info={
+                            "format": format,
+                            "option": option,
+                            "option_value": str(options[option]),
+                        },
+                        raise_error=NotImplementedError
+                        if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
+                        else None,
+                        warning_logger=_logger,
                     )
+
+        # process options
+        purge = options.get("PURGE", False)
+
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        pattern = options.get("PATTERN") if options else None
+
+        if pattern:
+            local_files = [f for f in local_files if re.match(pattern, f)]
+
+        if file_format == "csv":
+            # check SNOW-1355487 for improvements
             skip_header = options.get("SKIP_HEADER", 0)
             skip_blank_lines = options.get("SKIP_BLANK_LINES", False)
             field_delimiter = options.get("FIELD_DELIMITER", ",")
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+
+            if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
+                raise SnowparkLocalTestingException(
+                    f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
+                )
             if (
                 field_delimiter[0]
                 and field_delimiter[-1] == "'"
@@ -349,16 +463,18 @@ class StageEntity:
             for i in range(len(schema)):
                 column_name = analyzer.analyze(schema[i])
                 column_series = ColumnEmulator(
-                    data=None, dtype=object, name=column_name
+                    data=None,
+                    dtype=object,
+                    name=column_name,
+                    sf_type=ColumnType(schema[i].datatype, schema[i].nullable),
                 )
-                column_series.sf_type = ColumnType(
-                    schema[i].datatype, schema[i].nullable
+                result_df[column_name], result_df_sf_types[column_name] = (
+                    column_series,
+                    column_series.sf_type,
                 )
-                result_df[column_name] = column_series
-                result_df_sf_types[column_name] = column_series.sf_type
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                     self._conn.log_not_supported_error(
-                        error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
+                        error_message=f"Reading snowflake data type {type(column_series.sf_type.datatype)}"
                         " is not supported. It will be treated as a raw string in the dataframe.",
                         internal_feature_name="StageEntity.read_file",
                         parameters_info={
@@ -392,7 +508,7 @@ class StageEntity:
                 )
                 df.dtype = object
                 if len(df.columns) != len(schema):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"Number of columns in file ({len(df.columns)}) does not match that of"
                         f" the corresponding table ({len(schema)})."
                     )
@@ -406,13 +522,117 @@ class StageEntity:
                     delimiter=field_delimiter,
                     dtype=object,
                     converters=converters_dict,
-                    quoting=3,  # QUOTE_NONE
+                    # check definition here: https://docs.python.org/3/library/csv.html#csv.QUOTE_MINIMAL
+                    # csv.QUOTE_MINIMAL, the engine will parse the value for us using the quote value/field_optionally_enclosed_by
+                    # csv.QUOTE_NONE, by default snowflake FIELD_OPTIONALLY_ENCLOSED_BY is None
+                    quoting=csv.QUOTE_MINIMAL
+                    if field_optionally_enclosed_by
+                    else csv.QUOTE_NONE,
+                    quotechar=field_optionally_enclosed_by,
                 )
                 # set df columns to be result_df columns such that it can be concatenated
                 df.columns = result_df.columns
                 result_df = pd.concat([result_df, df], ignore_index=True)
             result_df.sf_types = result_df_sf_types
             return result_df
+        elif file_format == "json":
+            infer_schema_opt = options.get("INFER_SCHEMA", False)
+
+            result_df = TableEmulator()
+            result_df_sf_types = {}
+
+            if not infer_schema_opt:
+                # if infer schema option is False, then snowflake converts the data into
+                # a single column table, values are treated as raw strings
+                assert len(schema) == 1, (
+                    f"[Local Testing] Unexpected schema length {len(schema)} when loading "
+                    f"json data without inferring schema."
+                )
+                column_name = analyzer.analyze(schema[0])
+                column_series = ColumnEmulator(
+                    data=None,
+                    dtype=object,
+                    name=column_name,
+                    sf_type=ColumnType(VariantType(), True),
+                )
+                result_df[column_name], result_df_sf_types[column_name] = (
+                    column_series,
+                    column_series.sf_type,
+                )
+
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
+                        df = pd.DataFrame({result_df.columns[0]: [content]})
+                        result_df = pd.concat([result_df, df], ignore_index=True)
+            else:
+                # need to infer schema
+                contents = []
+                for local_file in local_files:
+                    with open(local_file) as file:
+                        content = json.load(file, cls=CUSTOM_JSON_DECODER)
+                        tmp_content = {}
+                        # snowflake escape double quotes by adding extra double quote
+                        for key, value in content.items():
+                            tmp_content[quote_name(key, keep_case=True)] = value
+                        content = tmp_content
+                        contents.append(content)
+                        # extract the schema from the content
+                        for column_name, value in content.items():
+                            # snowflake double quote column name read from json file
+                            target_datatype = infer_type(value)
+                            # multiple json files can be of different schema
+                            # if we find an existing schema but type is different from the inferred one
+                            # we convert the column datatype to string, this is snowflake behavior
+                            if column_name in result_df_sf_types and not isinstance(
+                                target_datatype,
+                                type(result_df_sf_types[column_name].datatype),
+                            ):
+                                # we cast target_datatype to VariantType first, and then we reuse mock_to_char
+                                # which converts the data into StringType
+                                target_datatype = VariantType()
+
+                            column_series = ColumnEmulator(
+                                data=None,
+                                dtype=object,
+                                name=column_name,
+                                sf_type=ColumnType(target_datatype, nullable=True),
+                            )
+                            result_df[column_name], result_df_sf_types[column_name] = (
+                                column_series,
+                                column_series.sf_type,
+                            )
+                # fill empty cells with None value, this aligns with snowflake
+                for content in contents:
+                    for miss_key in set(result_df_sf_types.keys()) - set(
+                        content.keys()
+                    ):
+                        content[miss_key] = None
+                    df = TableEmulator([content])
+                    result_df = pd.concat([result_df, df], ignore_index=True)
+                # when concat is called, sf_type information gets lost, so we reset the type info in the end
+                result_df.sf_types = result_df_sf_types
+
+                # in the case that there are values of different types in the same column, snowflake will
+                # convert data into string
+                for col_name in result_df.columns:
+                    if isinstance(result_df_sf_types[col_name].datatype, VariantType):
+                        result_df[col_name] = mock_to_char(result_df[col_name])
+                # snowflake output sorted column names
+                sorted_columns = sorted(list(result_df.columns))
+                result_df = result_df[sorted_columns]
+                result_df.columns = sorted_columns
+
+            result_df.sf_types = result_df_sf_types
+            return result_df
+
+        if purge and local_files:
+            for file_path in local_files:
+                try:
+                    os.remove(file_path)
+                except Exception as exc:
+                    _logger.debug(f"failed to remove file due to exception {exc}")
+
         self._conn.log_not_supported_error(
             external_feature_name=f"Read file format {format}",
             internal_feature_name="StageEntity.read_file",
@@ -477,7 +697,7 @@ class StageEntityRegistry:
         options: Dict[str, str] = None,
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
@@ -499,7 +719,7 @@ class StageEntityRegistry:
         options: Dict[str, str],
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)

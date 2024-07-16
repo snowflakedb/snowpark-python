@@ -1,4 +1,11 @@
-{% extends "!autosummary/class.rst" %}
+{% if "modin.pandas" in fullname %}
+    {% set fullname = "modin.pandas." + objname %}
+{% endif %}
+{{ fullname | escape | underline}}
+
+.. currentmodule:: {{ module }}
+
+.. autoclass:: {{ objname }}
 
 {% set methods =(methods| reject("equalto", "__init__") |list) %}
 

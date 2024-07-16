@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -193,6 +193,14 @@ def upload_files(session, tmp_stage_name1, tmp_stage_name2, resources_path):
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
     )
+
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="SNOW-952138 DataFrame.copy_into_table is not supported in Local Testing",
+    )
+]
 
 
 def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
@@ -654,7 +662,6 @@ def test_transormation_as_clause_no_effect(session, tmp_stage_name1):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_copy_with_wrong_dataframe(session):
     with pytest.raises(SnowparkDataframeException) as exec_info:
         session.table("a_table_name").copy_into_table("a_table_name")

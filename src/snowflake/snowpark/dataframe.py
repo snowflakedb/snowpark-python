@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
@@ -115,7 +116,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     parse_positional_args_to_list,
     parse_table_name,
-    private_preview,
+    prepare_pivot_arguments,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -141,7 +142,6 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -663,14 +663,15 @@ class DataFrame:
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
         """This method is only used in stored procedures."""
-        return self._session._conn.get_result_query_id(
-            self._plan,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
-        )
+        with open_telemetry_context_manager(self._execute_and_get_query_id, self):
+            return self._session._conn.get_result_query_id(
+                self._plan,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_THREE,
+                ),
+            )
 
     @overload
     def to_local_iterator(
@@ -926,6 +927,96 @@ class DataFrame:
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
+    @df_collect_api_telemetry
+    def to_snowpark_pandas(
+        self,
+        index_col: Optional[Union[str, List[str]]] = None,
+        columns: Optional[List[str]] = None,
+    ) -> "snowflake.snowpark.modin.pandas.DataFrame":
+        """
+        Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
+
+        Args:
+            index_col: A column name or a list of column names to use as index.
+            columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
+                all columns except ones configured in index_col.
+
+        Returns:
+            :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+                A Snowpark pandas DataFrame contains index and data columns based on the snapshot of the current
+                Snowpark DataFrame, which triggers an eager evaluation.
+
+                If index_col is provided, the specified index_col is selected as the index column(s) for the result dataframe,
+                otherwise, a default range index from 0 to n - 1 is created as the index column, where n is the number
+                of rows. Please note that is also used as the start row ordering for the dataframe, but there is no
+                guarantee that the default row ordering is the same for two Snowpark pandas dataframe created from
+                the same Snowpark Dataframe.
+
+                If columns are provided, the specified columns are selected as the data column(s) for the result dataframe,
+                otherwise, all Snowpark DataFrame columns (exclude index_col) are selected as data columns.
+
+        Note:
+            Transformations performed on the returned Snowpark pandas Dataframe do not affect the Snowpark DataFrame
+            from which it was created. Call
+            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            to transform a Snowpark pandas DataFrame back to a Snowpark DataFrame.
+
+            The column names used for columns or index_cols must be Normalized Snowflake Identifiers, and the
+            Normalized Snowflake Identifiers of a Snowpark DataFrame can be displayed by calling df.show().
+            For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.read_snowflake`
+
+            `to_snowpark_pandas` works only when the environment is set up correctly for Snowpark pandas. This environment
+            may require version of Python and pandas different from what Snowpark Python uses If the environment is setup
+            incorrectly, an error will be raised when `to_snowpark_pandas` is called.
+
+            For Python version support information, please refer to:
+            - the prerequisites section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#prerequisites
+            - the installation section https://docs.snowflake.com/en/developer-guide/snowpark/python/snowpark-pandas#installing-the-snowpark-pandas-api
+
+        See also:
+            - :func:`snowflake.snowpark.modin.pandas.to_snowpark <snowflake.snowpark.modin.pandas.to_snowpark>`
+            - :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowpark <snowflake.snowpark.modin.pandas.DataFrame.to_snowpark>`
+            - :func:`snowflake.snowpark.modin.pandas.Series.to_snowpark <snowflake.snowpark.modin.pandas.Series.to_snowpark>`
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+            >>> snowpark_pandas_df = df.to_snowpark_pandas()  # doctest: +SKIP
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               A  B  C
+            0  1  2  3
+
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A')  # doctest: +SKIP
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               B  C
+            A
+            1  2  3
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col='A', columns=['B'])  # doctest: +SKIP
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+               B
+            A
+            1  2
+            >>> snowpark_pandas_df = df.to_snowpark_pandas(index_col=['B', 'A'], columns=['A', 'C', 'A'])  # doctest: +SKIP
+            >>> snowpark_pandas_df      # doctest: +SKIP +NORMALIZE_WHITESPACE
+                 A  C  A
+            B A
+            2 1  1  3  1
+        """
+        import snowflake.snowpark.modin.pandas as pd  # pragma: no cover
+
+        # create a temporary table out of the current snowpark dataframe
+        temporary_table_name = random_name_for_temp_object(
+            TempObjectType.TABLE
+        )  # pragma: no cover
+        self.write.save_as_table(
+            temporary_table_name, mode="errorifexists", table_type="temporary"
+        )  # pragma: no cover
+
+        snowpandas_df = pd.read_snowflake(
+            name_or_query=temporary_table_name, index_col=index_col, columns=columns
+        )  # pragma: no cover
+
+        return snowpandas_df
+
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
         if isinstance(item, str):
             return self.col(item)
@@ -1176,6 +1267,11 @@ class DataFrame:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name
@@ -1620,7 +1716,10 @@ class DataFrame:
     def pivot(
         self,
         pivot_col: ColumnOrName,
-        values: Iterable[LiteralType],
+        values: Optional[
+            Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
+        ] = None,
+        default_on_null: Optional[LiteralType] = None,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -1649,21 +1748,43 @@ class DataFrame:
             -------------------------------
             <BLANKLINE>
 
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month").sum("amount").sort("empid").show()
+            -------------------------------
+            |"EMPID"  |"'FEB'"  |"'JAN'"  |
+            -------------------------------
+            |1        |8000     |10400    |
+            |2        |200      |39500    |
+            -------------------------------
+            <BLANKLINE>
+
+            >>> subquery_df = session.table("monthly_sales").select(col("month")).filter(col("month") == "JAN")
+            >>> df = session.table("monthly_sales")
+            >>> df.pivot("month", values=subquery_df).sum("amount").sort("empid").show()
+            ---------------------
+            |"EMPID"  |"'JAN'"  |
+            ---------------------
+            |1        |10400    |
+            |2        |39500    |
+            ---------------------
+            <BLANKLINE>
+
         Args:
             pivot_col: The column or name of the column to use.
-            values: A list of values in the column.
+            values: A list of values in the column,
+                or dynamic based on the DataFrame query,
+                or None (default) will use all values of the pivot column.
+            default_on_null: Expression to replace empty result values.
         """
-        if not values:
-            raise ValueError("values cannot be empty")
-        pc = self._convert_cols_to_exprs("pivot()", pivot_col)
-        value_exprs = [
-            v._expression if isinstance(v, Column) else Literal(v) for v in values
-        ]
+        target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
+            self, "DataFrame.pivot", pivot_col, values, default_on_null
+        )
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
+            target_df,
             [],
             snowflake.snowpark.relational_grouped_dataframe._PivotType(
-                pc[0], value_exprs
+                pc[0], pivot_values, default_on_null
             ),
         )
 
@@ -2090,7 +2211,7 @@ class DataFrame:
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
 
         See Also:
-            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
+            - Usage notes for asof join: https://docs.snowflake.com/sql-reference/constructs/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -3247,6 +3368,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -3260,6 +3382,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3274,6 +3398,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3282,13 +3407,13 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
-    @private_preview(version="1.4.0")
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
         *,
         warehouse: str,
         lag: str,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3304,6 +3429,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             warehouse: The name of the warehouse used to refresh the dynamic table.
             lag: specifies the target data freshness
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3329,6 +3456,7 @@ class DataFrame:
             formatted_name,
             warehouse,
             lag,
+            comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3339,6 +3467,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -3356,6 +3485,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3370,6 +3501,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3377,11 +3509,14 @@ class DataFrame:
             ),
         )
 
-    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
+    def _do_create_or_replace_view(
+        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+    ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            comment,
             self._plan,
         )
 
@@ -3390,13 +3525,14 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, **kwargs
+        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
     ):
         validate_object_name(name)
         cmd = CreateDynamicTableCommand(
             name,
             warehouse,
             lag,
+            comment,
             self._plan,
         )
 
@@ -3678,14 +3814,14 @@ class DataFrame:
         rename_plan = Rename(rename_map, self._plan)
 
         if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    rename_plan, analyzer=self._session._analyzer
+                ),
+                analyzer=self._session._analyzer,
             )
+            return self._with_plan(select_plan)
+
         return self._with_plan(rename_plan)
 
     @df_api_usage
@@ -3714,6 +3850,11 @@ class DataFrame:
             old_name = quote_name(existing)
         elif isinstance(existing, Column):
             if isinstance(existing._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema
+
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
             elif (
@@ -3990,6 +4131,11 @@ Query List:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name

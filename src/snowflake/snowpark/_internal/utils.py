@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import array
@@ -9,6 +9,7 @@ import datetime
 import decimal
 import functools
 import hashlib
+import importlib
 import io
 import logging
 import os
@@ -28,6 +29,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
     Literal,
@@ -40,7 +42,11 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import pandas
+from snowflake.connector.options import (
+    MissingOptionalDependency,
+    ModuleLikeObject,
+    pandas,
+)
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -53,6 +59,11 @@ if TYPE_CHECKING:
         ResultMetadataV2 = ResultMetadata
 
 STAGE_PREFIX = "@"
+SNOWURL_PREFIX = "snow://"
+SNOWFLAKE_PATH_PREFIXES = [
+    STAGE_PREFIX,
+    SNOWURL_PREFIX,
+]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
 QUERY_TAG_TRACEBACK_LIMIT = 3
@@ -176,6 +187,16 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = (
+    "Calling pivot() with the `value` parameter set to None or to a Snowpark "
+    + "DataFrame is in private preview since v1.15.0. Do not use this feature "
+    + "in production."
+)
+PIVOT_DEFAULT_ON_NULL_WARNING = (
+    "Calling pivot() with a non-None value for `default_on_null` is in "
+    + "private preview since v1.15.0. Do not use this feature in production."
+)
+
 
 class TempObjectType(Enum):
     TABLE = "TABLE"
@@ -245,6 +266,10 @@ def unwrap_single_quote(name: str) -> str:
     return new_name
 
 
+def escape_single_quotes(input_str):
+    return input_str.replace("'", r"\'")
+
+
 def is_sql_select_statement(sql: str) -> bool:
     return (
         SNOWFLAKE_SELECT_SQL_PREFIX_PATTERN.match(sql) is not None
@@ -260,14 +285,14 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    symbol = "file://" if is_local else STAGE_PREFIX
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
         path = path.replace("\\", "/")
     path = path.strip().replace("'", "\\'")
-    if not path.startswith(symbol):
-        path = f"{symbol}{path}"
+    if not any(path.startswith(prefix) for prefix in prefixes):
+        path = f"{prefixes[0]}{path}"
     return f"'{path}'"
 
 
@@ -279,9 +304,15 @@ def normalize_local_file(file: str) -> str:
     return normalize_path(file, is_local=True)
 
 
+def split_path(path: str) -> Tuple[str, str]:
+    """Split a file path into directory and file name."""
+    path = unwrap_single_quote(path)
+    return path.rsplit("/", maxsplit=1)
+
+
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if new_name.startswith(STAGE_PREFIX):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
@@ -383,7 +414,10 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
 
 
 def _hash_file(
-    hash_algo: hashlib._hashlib.HASH, path: str, chunk_size: int, whole_file_hash: bool
+    hash_algo: "hashlib._hashlib.HASH",
+    path: str,
+    chunk_size: int,
+    whole_file_hash: bool,
 ):
     """
     Reads from a file and updates the given hash algorithm with the read text.
@@ -841,10 +875,10 @@ ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
 
 
-def quote_name(name: str) -> str:
+def quote_name(name: str, keep_case: bool = False) -> str:
     if ALREADY_QUOTED.match(name):
         return validate_quoted_name(name)
-    elif UNQUOTED_CASE_INSENSITIVE.match(name):
+    elif UNQUOTED_CASE_INSENSITIVE.match(name) and not keep_case:
         return DOUBLE_QUOTE + escape_quotes(name.upper()) + DOUBLE_QUOTE
     else:
         return DOUBLE_QUOTE + escape_quotes(name) + DOUBLE_QUOTE
@@ -859,3 +893,87 @@ def validate_quoted_name(name: str) -> str:
 
 def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+
+
+should_warn_dynamic_pivot_is_in_private_preview = True
+
+
+def prepare_pivot_arguments(
+    df: "snowflake.snowpark.DataFrame",
+    df_name: str,
+    pivot_col: "snowflake.snowpark._internal.type_utils.ColumnOrName",
+    values: Optional[
+        Union[
+            Iterable["snowflake.snowpark._internal.type_utils.LiteralType"],
+            "snowflake.snowpark.DataFrame",
+        ]
+    ],
+    default_on_null: Optional["snowflake.snowpark._internal.type_utils.LiteralType"],
+):
+    """
+    Prepare dataframe pivot arguments to use in the underlying pivot call.  This includes issuing any applicable
+    warnings, ensuring column types and valid arguments.
+    Returns:
+        DateFrame, pivot column, pivot_values and default_on_null value.
+    """
+    from snowflake.snowpark.dataframe import DataFrame
+
+    if should_warn_dynamic_pivot_is_in_private_preview:
+        if values is None or isinstance(values, DataFrame):
+            warning(
+                df_name,
+                PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
+            )
+        if default_on_null is not None:
+            warning(
+                df_name,
+                PIVOT_DEFAULT_ON_NULL_WARNING,
+            )
+
+    if values is not None and not values:
+        raise ValueError("values cannot be empty")
+
+    pc = df._convert_cols_to_exprs(f"{df_name}()", pivot_col)
+
+    from snowflake.snowpark._internal.analyzer.expression import Literal, ScalarSubquery
+    from snowflake.snowpark.column import Column
+
+    if isinstance(values, Iterable):
+        pivot_values = [
+            v._expression if isinstance(v, Column) else Literal(v) for v in values
+        ]
+    else:
+        if isinstance(values, DataFrame):
+            pivot_values = ScalarSubquery(values._plan)
+        else:
+            pivot_values = None
+
+        if len(df.queries.get("post_actions", [])) > 0:
+            df = df.cache_result()
+
+    if default_on_null is not None:
+        default_on_null = (
+            default_on_null._expression
+            if isinstance(default_on_null, Column)
+            else Literal(default_on_null)
+        )
+
+    return df, pc, pivot_values, default_on_null
+
+
+class MissingModin(MissingOptionalDependency):
+    """The class is specifically for modin optional dependency."""
+
+    _dep_name = "modin"
+
+
+def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
+    """This function tries importing the following packages: modin.pandas
+
+    If available it returns modin package with a flag of whether it was imported.
+    """
+    try:
+        modin = importlib.import_module("modin.pandas")
+        return modin, True
+    except ImportError:
+        return MissingModin(), False
