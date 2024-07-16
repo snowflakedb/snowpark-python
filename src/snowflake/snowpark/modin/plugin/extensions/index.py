@@ -1010,7 +1010,6 @@ class Index:
         WarningMessage.index_to_pandas_warning("duplicated")
         return self.to_pandas().duplicated(keep=keep)
 
-    @is_lazy_check
     def equals(self, other: Any) -> bool:
         """
         Determine if two Index objects are equal.
@@ -1072,9 +1071,29 @@ class Index:
         >>> int64_idx.equals(uint64_idx)
         True
         """
-        # TODO: SNOW-1458148 implement equals
-        WarningMessage.index_to_pandas_warning("equals")
-        return self.to_pandas().equals(try_convert_index_to_native(other))
+        if self is other:
+            return True
+
+        if not isinstance(other, (Index, native_pd.Index)):
+            return False
+
+        if isinstance(other, native_pd.Index):
+            # Same as DataFrame/Series equals. Convert native Index to Snowpark pandas
+            # Index for comparison.
+            other = Index(other, convert_to_lazy=self.is_lazy)
+
+        left = self
+        right = other
+        # If both are cached compare underlying cached value locally.
+        if not left.is_lazy and not right.is_lazy:
+            return left._index.equals(right._index)
+
+        # Ensure both sides are lazy before calling index_equals on query_compiler.
+        if not left.is_lazy:
+            left = Index(left._index, convert_to_lazy=True)
+        if not right.is_lazy:
+            right = Index(right._index, convert_to_lazy=True)
+        return self._query_compiler.index_equals(other._query_compiler)
 
     @index_not_implemented()
     def identical(self) -> None:
