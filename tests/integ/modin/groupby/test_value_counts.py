@@ -43,7 +43,7 @@ TEST_DATA = [
 def test_value_counts_basic(test_data, by, as_index, subset, normalize, dropna):
     eval_snowpark_pandas_result(
         *create_test_dfs(test_data),
-        lambda df: df.groupby(by=["by"], as_index=as_index).value_counts(
+        lambda df: df.groupby(by=by, as_index=as_index).value_counts(
             subset=subset,
             normalize=normalize,
             dropna=dropna,
