@@ -217,7 +217,7 @@ def df_api_usage(func):
                     TelemetryField.KEY_SUBCALLS.value: subcalls,
                 }
             )
-        else:
+        elif plan is not None:
             plan.api_calls.append(
                 {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
             )

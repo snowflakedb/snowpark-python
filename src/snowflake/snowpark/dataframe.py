@@ -90,9 +90,11 @@ from snowflake.snowpark._internal.ast import (
     decode_ast_response_from_snowpark,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    get_symbol,
+    FAIL_ON_MISSING_AST,
+    build_const_from_python_val,
+    fill_ast_for_column,
     set_src_position,
-    setattr_if_not_none,
+    with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -528,10 +530,12 @@ class DataFrame:
         """
         self._session = session
         self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
-        if ast_stmt is not None:
-            setattr_if_not_none(ast_stmt.symbol, "value", get_symbol())
 
-        self._plan = self._session._analyzer.resolve(plan)
+        if plan is not None:
+            self._plan = self._session._analyzer.resolve(plan)
+        else:
+            self._plan = None
+
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
@@ -1095,15 +1099,22 @@ class DataFrame:
     def col(self, col_name: str) -> Column:
         """Returns a reference to a column in the DataFrame."""
         col_expr_ast = proto.Expr()
-        col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
+        elif self._ast_id is not None:
+            col_expr_ast.sp_dataframe_col.df.sp_dataframe_ref.id.bitfield1 = (
+                self._ast_id
+            )
         set_src_position(col_expr_ast.sp_dataframe_col.src)
         if col_name == "*":
             col_expr_ast.sp_dataframe_col.col_name = "*"
             return Column(Star(self._output), ast=col_expr_ast)
         else:
-            resolved_name = self._resolve(col_name)
-            col_expr_ast.sp_dataframe_col.col_name = resolved_name.name
-            return Column(resolved_name, ast=col_expr_ast)
+            col_expr_ast.sp_dataframe_col.col_name = col_name
+            return Column(self._resolve(col_name), ast=col_expr_ast)
 
     @df_api_usage
     def select(
@@ -1157,6 +1168,7 @@ class DataFrame:
         Args:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
         """
         exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
@@ -1165,10 +1177,9 @@ class DataFrame:
         # AST.
         if _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = stmt.expr.sp_dataframe_select__columns
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self.set_ast_ref(ast.df)
             ast.variadic = is_variadic
-            set_src_position(ast.src)
         else:
             stmt = _ast_stmt
             ast = None
@@ -1184,10 +1195,10 @@ class DataFrame:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                if ast:
-                    col_expr_ast = ast.cols.add()
+                col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                fill_ast_for_column(col_expr_ast, e, None)
+
                 col = Column(e, ast=col_expr_ast)
-                col_expr_ast.sp_column.name = col.get_name()
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):
@@ -1375,7 +1386,9 @@ class DataFrame:
             return self.select(list(keep_col_names), _ast_stmt=stmt)
 
     @df_api_usage
-    def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
+    def filter(
+        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
 
@@ -1392,20 +1405,24 @@ class DataFrame:
 
         Args:
             expr: a :class:`Column` expression or SQL text.
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
         :meth:`where` is an alias of :meth:`filter`.
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_filter
-        self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
-        if isinstance(expr, Column):
-            pass  # TODO
-        elif isinstance(expr, str):
-            ast.condition.sp_column_sql_expr.sql = expr
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = stmt.expr.sp_dataframe_filter
+            self.set_ast_ref(ast.df)
+            set_src_position(ast.src)
+            if isinstance(expr, Column):
+                pass  # TODO
+            elif isinstance(expr, str):
+                ast.condition.sp_column_sql_expr.sql = expr
+            else:
+                raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
         else:
-            raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
+            stmt = _ast_stmt
 
         if self._select_statement:
             return self._with_plan(
@@ -1946,7 +1963,9 @@ class DataFrame:
         return self._with_plan(unpivot_plan)
 
     @df_api_usage
-    def limit(self, n: int, offset: int = 0) -> "DataFrame":
+    def limit(
+        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
 
@@ -1955,6 +1974,7 @@ class DataFrame:
         Args:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
+            _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
 
         Example::
 
@@ -2930,7 +2950,10 @@ class DataFrame:
 
     @df_api_usage
     def with_column(
-        self, col_name: str, col: Union[Column, TableFunctionCall]
+        self,
+        col_name: str,
+        col: Union[Column, TableFunctionCall],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -2972,11 +2995,14 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
-        return self.with_columns([col_name], [col])
+        return self.with_columns([col_name], [col], ast_stmt=ast_stmt)
 
     @df_api_usage
     def with_columns(
-        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+        self,
+        col_names: List[str],
+        values: List[Union[Column, TableFunctionCall]],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3069,7 +3095,7 @@ class DataFrame:
         ]
 
         # Put it all together
-        return self.select([*old_cols, *new_cols])
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt)
 
     @overload
     def count(
@@ -3376,17 +3402,42 @@ class DataFrame:
         See Also:
             - :meth:`Session.flatten`, which creates a new :class:`DataFrame` by flattening compound values into multiple rows.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
+        self.set_ast_ref(expr.df)
+        build_const_from_python_val(input, expr.input)
+        if path is not None:
+            expr.path.value = path
+        expr.outer = outer
+        expr.recursive = recursive
+
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+        if mode == "OBJECT":
+            expr.mode.sp_flatten_mode_object = True
+        elif mode == "ARRAY":
+            expr.mode.sp_flatten_mode_array = True
+        elif mode == "BOTH":
+            expr.mode.sp_flatten_mode_both = True
+        else:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(input, str):
             input = self.col(input)
+
         return self._lateral(
-            FlattenFunction(input._expression, path, outer, recursive, mode)
+            FlattenFunction(input._expression, path, outer, recursive, mode),
+            _ast_stmt=stmt,
         )
 
-    def _lateral(self, table_function: TableFunctionExpression) -> "DataFrame":
+    def _lateral(
+        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+    ) -> "DataFrame":
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if isinstance(self._session._conn, MockServerConnection):
+            return DataFrame(self._session, ast_stmt=_ast_stmt)
+
         result_columns = [
             attr.name
             for attr in self._session._analyzer.resolve(
@@ -3395,7 +3446,9 @@ class DataFrame:
         ]
         common_col_names = [k for k, v in Counter(result_columns).items() if v > 1]
         if len(common_col_names) == 0:
-            return DataFrame(self._session, Lateral(self._plan, table_function))
+            return DataFrame(
+                self._session, Lateral(self._plan, table_function), ast_stmt=_ast_stmt
+            )
         prefix = _generate_prefix("a")
         child = self.select(
             [
@@ -3407,16 +3460,25 @@ class DataFrame:
                     common_col_names=common_col_names,
                 )
                 for attr in self._output
-            ]
+            ],
+            ast_stmt=False,  # Suppress AST generation for this SELECT.
         )
-        return DataFrame(self._session, Lateral(child._plan, table_function))
+        return DataFrame(
+            self._session, Lateral(child._plan, table_function), ast_stmt=_ast_stmt
+        )
 
     def _show_string(self, n: int = 10, max_width: int = 50, **kwargs) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
         # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
         repr = self._session._ast_batch.assign()
-        repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+        if self._ast_id is None and FAIL_ON_MISSING_AST:
+            _logger.debug(self._explain_string())
+            raise NotImplementedError(
+                f"DataFrame with API usage {self._plan.api_calls} is missing complete AST logging."
+            )
+        elif self._ast_id is not None:
+            repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
         self._session._ast_batch.eval(repr)
 
         if self._session._conn.is_phase1_enabled():
@@ -3738,7 +3800,16 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_first
+        if statement_params is not None:
+            ast.statement_params.append((k, v) for k, v in statement_params)
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.block = block
         if n is None:
+            ast.num = 1
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
@@ -3750,10 +3821,12 @@ class DataFrame:
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
+            ast.num = n
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
             )
         else:
+            ast.num = n
             df = self.limit(n)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
@@ -3776,6 +3849,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_sample
+        if frac:
+            ast.probability_fraction.value = frac
+        if n:
+            ast.num.value = n
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
@@ -3784,9 +3868,10 @@ class DataFrame:
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan)
+        return self._with_plan(sample_plan, ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -4167,20 +4252,33 @@ class DataFrame:
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_random_split
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
             )
-        elif len(weights) == 1:
+        for w in weights:
+            ast.weights.append(w)
+        if seed:
+            ast.seed.value = seed
+        if statement_params:
+            ast.statement_params = statement_params
+        if len(weights) == 1:
             return [self]
         else:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
+        if self._session._conn._suppress_not_implemented_error:
+            return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % _ONE_MILLION
+                temp_column_name, abs_(random(seed)) % _ONE_MILLION, ast_stmt=stmt
             ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
