@@ -319,6 +319,7 @@ def test_groupby_ngroups_axis_1_mi():
         snow_df.groupby(by=by, axis=1).ngroups
 
 
+@sql_count_checker(query_count=0)
 def test_non_callable_func(basic_snowpark_pandas_df):
     # pandas error messages for non-callable aggregation functions are not
     # consistent, so don't check for a match with pandas.
