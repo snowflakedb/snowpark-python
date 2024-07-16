@@ -22,6 +22,6 @@ res4 = session.table("test_table")
 
 res5 = session.table("test_table")
 
-res6 = res4.natural_join(res5, "left")
+res6 = res4.natural_join(res5, "left_outer")
 
 res7 = res1.natural_join(res5, "full_outer")
