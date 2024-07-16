@@ -1,6 +1,6 @@
 ## TEST CASE
 
-from snowflake.snowpark.functions import col, avg
+from snowflake.snowpark.functions import col, avg, stddev
 
 from snowflake.snowpark.window import Window
 
@@ -12,7 +12,31 @@ window1 = Window.partition_by("value").order_by("key").rows_between(Window.CURRE
 
 window2 = Window.order_by(col("key").desc()).range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
 
-df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2"))
+df3 = df.select(avg("value").over(window1).as_("window1"), avg("value").over(window2).as_("window2"))
+
+df4 = df.select(stddev("value").over(Window.orderBy("key")))
+
+df5 = df.select(stddev("value").over(Window.order_by("key", "value")))
+
+df6 = df.select(avg("value").over(Window.partitionBy("key")))
+
+df7 = df.select(avg("value").over(Window.partition_by("key")))
+
+df8 = df.select(avg("value").over(Window.rangeBetween(0, 2)))
+
+df9 = df.select(avg("value").over(Window.range_between(0, 2)))
+
+df10 = df.select(avg("value").over(Window.rowsBetween(0, 2)))
+
+df11 = df.select(avg("value").over(Window.rows_between(0, 2)))
+
+df12 = df.select(avg("value").over(Window.rangeBetween(Window.CURRENT_ROW, Window.UNBOUNDED_FOLLOWING)))
+
+df13 = df.select(avg("value").over(Window.rangeBetween(Window.currentRow, Window.UNBOUNDED_PRECEDING)))
+
+df14 = df.select(avg("value").over(Window.rangeBetween(Window.CURRENT_ROW, Window.unboundedFollowing)))
+
+df15 = df.select(avg("value").over(Window.rangeBetween(Window.currentRow, Window.unboundedPreceding)))
 
 ## EXPECTED OUTPUT
 
