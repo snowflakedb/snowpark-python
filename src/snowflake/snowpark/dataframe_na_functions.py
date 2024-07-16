@@ -11,7 +11,10 @@ from typing import Dict, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import ColumnSum
-from snowflake.snowpark._internal.ast_utils import build_const_from_python_val, with_src_position
+from snowflake.snowpark._internal.ast_utils import (
+    build_const_from_python_val,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import (
