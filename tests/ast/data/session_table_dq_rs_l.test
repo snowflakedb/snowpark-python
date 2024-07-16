@@ -1,0 +1,10 @@
+## TEST CASE
+
+df = session.table(["mock_schema", "\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\""])
+df = df.select("num")
+
+## EXPECTED OUTPUT
+
+res1 = session.table(["mock_schema", "\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\""])
+
+res2 = res1.select(col("num"))

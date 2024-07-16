@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
-from snowflake.snowpark._internal.ast_utils import set_src_position
+from snowflake.snowpark._internal.ast_utils import with_src_position
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
@@ -272,16 +272,18 @@ class Table(DataFrame):
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
-        # TODO: what do we do if there's no session?
-        stmt = session._ast_batch.assign()
-        stmt.expr.sp_table.table = table_name
-        set_src_position(stmt.expr.sp_table.src)
+        if ast_stmt is None and session is not None:
+            ast_stmt = session._ast_batch.assign()
+            ast = with_src_position(ast_stmt.expr.sp_table)
+            ast.name.sp_table_name_flat.name = table_name
+            ast.variant.sp_table_init = True
 
         super().__init__(
             session,
             session._analyzer.resolve(UnresolvedRelation(table_name)),
-            ast_stmt=stmt,
+            ast_stmt=ast_stmt,
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
