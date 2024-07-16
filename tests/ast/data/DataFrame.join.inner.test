@@ -8,9 +8,14 @@ df3 = df1.join(df2, df1.num == df2.num).select(df1.num.alias("num1"), df2.num.al
 
 ## EXPECTED OUTPUT
 
-
 res1 = session.table("test_table")
 
 res2 = session.table("test_table")
 
-res3 = res1.join(res2, res1.num == res2.num).select(res1.num.alias("num1"), res2.num.alias("num2"), res2.str)
+res3 = res1.join(res2, how=(res1["num"] == res2["num"]), on="inner")
+
+res4 = res1.select([res1["\"NUM\""].alias("\"l_3fu7_NUM\""), res1["\"STR\""].alias("\"l_3fu7_STR\"")])
+
+res5 = res2.select([res2["\"NUM\""].alias("\"r_p2c7_NUM\""), res2["\"STR\""].alias("\"r_p2c7_STR\"")])
+
+res6 = res3.select(res1["num"].alias("num1"), res2["num"].alias("num2"), res2["str"])
