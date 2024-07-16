@@ -16,6 +16,8 @@
 #### Bug Fixes
 
 - Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 
 ### Snowpark pandas API Updates
 
