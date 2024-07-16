@@ -12,6 +12,6 @@ df3 = df.random_split(weights, seed=24)
 
 res1 = session.table("test_table")
 
-res2 = res1.random_split([0.1, 0.2, 0.3])
+res2 = res1.random_split([0.1, 0.2, 0.3], None)
 
-res4 = res1.random_split([0.1, 0.2, 0.3], 24)
+res3 = res1.random_split([0.1, 0.2, 0.3], 24)

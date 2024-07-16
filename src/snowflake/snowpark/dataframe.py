@@ -4218,7 +4218,7 @@ class DataFrame:
         for w in weights:
             ast.weights.append(w)
         if seed:
-            ast.seed = seed
+            ast.seed.value = seed
         if statement_params:
             ast.statement_params = statement_params
         if len(weights) == 1:
@@ -4227,6 +4227,8 @@ class DataFrame:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
+        if self._session._conn._suppress_not_implemented_error:
+            return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
