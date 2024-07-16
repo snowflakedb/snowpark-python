@@ -23,6 +23,7 @@ Series
     Series.dtype
     Series.dtypes
     Series.duplicated
+    Series.equals
     Series.empty
     Series.hasnans
     Series.name

@@ -267,6 +267,11 @@ def compute_binary_op_between_snowpark_columns(
                 repeat(first_operand, second_operand),
                 pandas_lit(""),
             )
+    elif op == "equal_null":
+        if not are_equal_types(first_datatype(), second_datatype()):
+            binary_op_result_column = pandas_lit(False)
+        else:
+            binary_op_result_column = first_operand.equal_null(second_operand)
 
     # If there is no special binary_op_result_column result, it means the operator and
     # the data type of the column don't need special handling. Then we get the overloaded
@@ -275,6 +280,26 @@ def compute_binary_op_between_snowpark_columns(
         binary_op_result_column = getattr(first_operand, f"__{op}__")(second_operand)
 
     return binary_op_result_column
+
+
+def are_equal_types(type1: DataType, type2: DataType) -> bool:
+    """
+    Check if given types are considered equal in context of df.equals(other) or
+    series.equals(other) methods.
+    Args:
+        type1: First type to compare.
+        type2: Second type to compare.
+    Returns:
+        True if given types are equal, False otherwise.
+    """
+    if isinstance(type1, _IntegralType) and isinstance(type2, _IntegralType):
+        return True
+    if isinstance(type1, _FractionalType) and isinstance(type2, _FractionalType):
+        return True
+    if isinstance(type1, StringType) and isinstance(type2, StringType):
+        return True
+
+    return type1 == type2
 
 
 def compute_binary_op_between_snowpark_column_and_scalar(

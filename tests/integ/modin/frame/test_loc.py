@@ -288,21 +288,20 @@ def test_df_loc_get_int_index_row_snowpark_pandas_input(
     "key",
     snowpark_pandas_col_inputs,
 )
-@sql_count_checker(query_count=2)
 def test_df_loc_get_col_snowpark_pandas_input(
     key,
     str_index_snowpark_pandas_df,
     str_index_native_df,
     loc_snowpark_pandas_input_map,
 ):
-
-    eval_snowpark_pandas_result(
-        str_index_snowpark_pandas_df,
-        str_index_native_df,
-        lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
-        if isinstance(df, DataFrame)
-        else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
-    )
+    with SqlCounter(query_count=2):
+        eval_snowpark_pandas_result(
+            str_index_snowpark_pandas_df,
+            str_index_native_df,
+            lambda df: df.loc[:, loc_snowpark_pandas_input_map[key][0]]
+            if isinstance(df, DataFrame)
+            else df.loc[:, loc_snowpark_pandas_input_map[key][1]],
+        )
 
 
 @pytest.mark.parametrize(
@@ -1242,6 +1241,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         query_count, join_count, expect_exception = 1, 4, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
+
     # one extra query to convert to native pandas to initialize series and set item
     if key_type == "index":
         query_count += 1
