@@ -30,6 +30,7 @@ import pandas as native_pd
 from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
+from pandas.core.dtypes.common import pandas_dtype
 
 from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
@@ -480,7 +481,7 @@ class Index:
         return (len(self),)
 
     @is_lazy_check
-    def astype(self, dtype: Any, copy: bool = True) -> Index:
+    def astype(self, dtype: str | type | ExtensionDtype, copy: bool = True) -> Index:
         """
         Create an Index with values cast to dtypes.
 
@@ -512,12 +513,18 @@ class Index:
         >>> idx.astype('float')
         Index([1.0, 2.0, 3.0], dtype='float64')
         """
-        WarningMessage.index_to_pandas_warning("astype")
-        return Index(
-            self.to_pandas().astype(dtype=dtype, copy=copy),
-            dtype=dtype,
-            convert_to_lazy=self.is_lazy,
-        )
+        if dtype is not None:
+            dtype = pandas_dtype(dtype)
+
+        if self.dtype == dtype:
+            # Ensure that self.astype(self.dtype) is self
+            return self.copy() if copy else self
+
+        col_dtypes = {
+            column: dtype for column in self._query_compiler.get_index_names()
+        }
+        new_query_compiler = self._query_compiler.astype_index(col_dtypes)
+        return Index(data=new_query_compiler)
 
     @property
     def name(self) -> Hashable:
