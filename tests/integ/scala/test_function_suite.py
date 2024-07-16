@@ -724,8 +724,14 @@ def test_datediff_edge_cases(session, unit, v1, v2, expected):
 
 
 def test_datediff_negative(session):
+    df = TestData.timestamp1(session).select(
+        col("a"), dateadd("year", lit(1), col("a")).as_("b")
+    )
     with pytest.raises(ValueError, match="part must be a string"):
-        TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
+        df.select(datediff(7, col("b"), col("a"))).collect()
+
+    with pytest.raises(SnowparkSQLException):
+        df.select(datediff("eon", col("b"), col("a"))).collect()
 
 
 @pytest.mark.parametrize(
