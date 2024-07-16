@@ -44,7 +44,7 @@ res1 = session.table("test_table")
 
 res2 = res1.select(col("NUM").as_("key"), col("STR").as_("value"))
 
-res3 = res2.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(0, 2)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(-9223372036854775807, 9223372036854775807)).as_("window2"))
+res3 = res2.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(Window.currentRow, 0)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(Window.unboundedPreceding, Window.unboundedFollowing)).as_("window2"))
 
 res4 = res2.select(stddev(col("value")).over(Window.order_by(col("key"))))
 
@@ -54,18 +54,18 @@ res6 = res2.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
 res7 = res2.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
-res8 = res2.select(avg(col("value")).over(Window.range_between(0, 2)))
+res8 = res2.select(avg(col("value")).over(Window.range_between(0, 0)))
 
-res9 = res2.select(avg(col("value")).over(Window.range_between(0, 2)))
+res9 = res2.select(avg(col("value")).over(Window.range_between(0, 0)))
 
-res10 = res2.select(avg(col("value")).over(Window.rows_between(0, 2)))
+res10 = res2.select(avg(col("value")).over(Window.rows_between(0, 0)))
 
-res11 = res2.select(avg(col("value")).over(Window.rows_between(0, 2)))
+res11 = res2.select(avg(col("value")).over(Window.rows_between(0, 0)))
 
-res12 = res2.select(avg(col("value")).over(Window.range_between(0, 9223372036854775807)))
+res12 = res2.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
-res13 = res2.select(avg(col("value")).over(Window.range_between(0, -9223372036854775807)))
+res13 = res2.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
 
-res14 = res2.select(avg(col("value")).over(Window.range_between(0, 9223372036854775807)))
+res14 = res2.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
-res15 = res2.select(avg(col("value")).over(Window.range_between(0, -9223372036854775807)))
+res15 = res2.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
