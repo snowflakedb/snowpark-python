@@ -5,8 +5,10 @@
 
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.types import StringType
+from tests.integ.modin.sql_counter import sql_count_checker
 
 
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_basic_snowpark_pandas_sproc_with_session_arg():
     def return1(session_):
         import modin.pandas as pd
@@ -20,6 +22,7 @@ def test_basic_snowpark_pandas_sproc_with_session_arg():
     assert return1_sp() == "1"
 
 
+@sql_count_checker(query_count=4, sproc_count=1)
 def test_basic_snowpark_pandas_sproc_with_no_session_arg():
     def return1():
         import modin.pandas as pd

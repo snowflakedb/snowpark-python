@@ -353,5 +353,5 @@ modin.core.dataframe.algebra.default2pandas.default.DefaultMethod.register = (
 # the user does not need to do it explicitly.
 # TODO: Remove when the pre-creation of session in XP even for session-less sproc
 # handlers is implemented and proves to be sufficient.
-if is_in_stored_procedure():
+if is_in_stored_procedure():  # pragma: no cover
     snowflake.snowpark.Session.SessionBuilder().getOrCreate()
