@@ -211,7 +211,7 @@ def _fill_window_spec_ast_with_relative_positions(
         if end == WindowRelativePosition.UNBOUNDED_PRECEDING:
             ast.end.sp_window_relative_position__unbounded_preceding = True
     else:
-        ast.end.sp_window_relative_position__position.n = start
+        ast.end.sp_window_relative_position__position.n = end
 
 
 class WindowSpec:
