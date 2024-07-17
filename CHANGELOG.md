@@ -73,6 +73,7 @@
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 
+
 ## 1.19.0 (2024-06-25)
 
 ### Snowpark Python API Updates
