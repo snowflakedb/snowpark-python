@@ -182,12 +182,15 @@ class PandasOnSnowflakeIO(BaseIO):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
+        determistic_ordering=True,
     ):
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/pandas/io.py
         """
-        return cls.query_compiler_cls.from_snowflake(name_or_query, index_col, columns)
+        return cls.query_compiler_cls.from_snowflake(
+            name_or_query, index_col, columns, determistic_ordering
+        )
 
     @classmethod
     def to_snowflake(
