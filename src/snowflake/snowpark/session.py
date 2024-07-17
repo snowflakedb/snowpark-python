@@ -298,26 +298,13 @@ class Session:
     class RuntimeConfig:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
             self._session = session
-            # For config that's temporary/to be removed soon, add it here
-            original_default_conf = {
+            self._conf = {
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
-            }
-            self._original_conf = {**original_default_conf, **conf}
-            self._thread_store = threading.local()
-
-        @property
-        def _conf(self) -> Dict[str, Any]:
-            # TEST: when session is created with non-default config
-            #       all threads should have the same initial config
-            # TEST: when conf is changed in one thread, it should not
-            #       affect other threads
-            if not hasattr(self._thread_store, "conf"):
-                self._thread_store.conf = self._original_conf.copy()
-                for key, val in self._thread_store.conf.items():
-                    if self.is_mutable(key):
-                        self.set(key, val)
-            return self._thread_store.conf
+            }  # For config that's temporary/to be removed soon
+            for key, val in conf.items():
+                if self.is_mutable(key):
+                    self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
             if hasattr(Session, key):
@@ -467,6 +454,9 @@ class Session:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
+        self._query_tag = None
+        self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+        self._packages: Dict[str, str] = {}
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -475,8 +465,11 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
-        # constant attributes across all threads
-        # TODO: verify that below are thread safe.
+        self._lock = RLock()
+        self._thread_store = threading.local()
+        self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
+        self._stage_created = False
+
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
             self._sp_registration = MockStoredProcedureRegistration(self)
@@ -492,6 +485,8 @@ class Session:
             if isinstance(self._conn, ServerConnection)
             else MockSnowflakePlanBuilder(self)
         )
+        self._last_action_id = 0
+        self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
             _use_scoped_temp_objects
             and self._conn._get_client_side_session_parameter(
@@ -500,15 +495,25 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
-
-        # handle state for each thread
-        self._thread_store = threading.local()
-        self._lock = threading.RLock()
-
-        self._last_action_id = 0
-        self._last_canceled_id = 0
+        self._sql_simplifier_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
+            )
+        )
+        self._cte_optimization_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
+            )
+        )
+        self._use_logical_type_for_create_df: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
+            )
+        )
+        self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
+        self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
+        self._runtime_version_from_requirement: str = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -565,63 +570,6 @@ class Session:
         return self._thread_store.analyzer
 
     @property
-    def _session_stage(self) -> str:
-        if not hasattr(self._thread_store, "session_stage"):
-            self._thread_store.session_stage = random_name_for_temp_object(
-                TempObjectType.STAGE
-            )
-        return self._thread_store.session_stage
-
-    @_session_stage.setter
-    def _session_stage(self, value: str) -> None:
-        # used only in tests
-        self._thread_store.session_stage = value
-
-    @property
-    def _stage_created(self) -> bool:
-        return getattr(self._thread_store, "stage_created", False)
-
-    @_stage_created.setter
-    def _stage_created(self, value: bool) -> None:
-        self._thread_store.stage_created = value
-
-    @property
-    def _import_paths(self) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
-        if not hasattr(self._thread_store, "import_paths"):
-            self._thread_store.import_paths = {}
-        return self._thread_store.import_paths
-
-    @_import_paths.setter
-    def _import_paths(
-        self, value: Dict[str, Tuple[Optional[str], Optional[str]]]
-    ) -> None:
-        self._thread_store.import_paths = value
-
-    @property
-    def _packages(self) -> Dict[str, str]:
-        if not hasattr(self._thread_store, "packages"):
-            self._thread_store.packages = {}
-        return self._thread_store.packages
-
-    @_packages.setter
-    def _packages(self, value: Dict[str, str]) -> None:
-        self._thread_store.packages = value
-
-    @property
-    def _runtime_version_from_requirement(self) -> str:
-        return getattr(self._thread_store, "runtime_version_from_requirement", None)
-
-    @_runtime_version_from_requirement.setter
-    def _runtime_version_from_requirement(self, value: str) -> None:
-        self._thread_store.runtime_version_from_requirement = value
-
-    @property
-    def _use_logical_type_for_create_df(self) -> bool:
-        return self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
-        )
-
-    @property
     def conf(self) -> RuntimeConfig:
         return self._conf
 
@@ -630,48 +578,14 @@ class Session:
         """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
         The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
         """
-        if not hasattr(self._thread_store, "sql_simplifier_enabled"):
-            self._thread_store.sql_simplifier_enabled = (
-                self._conn._get_client_side_session_parameter(
-                    _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
-                )
-            )
-        return self._thread_store.sql_simplifier_enabled
-
-    @sql_simplifier_enabled.setter
-    def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
-        )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
-            )
-        except Exception:
-            pass
-        self._thread_store.sql_simplifier_enabled = value
+        return self._sql_simplifier_enabled
 
     @property
     def cte_optimization_enabled(self) -> bool:
         """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
         The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
         """
-        if not hasattr(self._thread_store, "cte_optimization_enabled"):
-            self._thread_store.cte_optimization_enabled = (
-                self._conn._get_client_side_session_parameter(
-                    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
-                )
-            )
-        return self._thread_store.cte_optimization_enabled
-
-    @cte_optimization_enabled.setter
-    @experimental_parameter(version="1.15.0")
-    def cte_optimization_enabled(self, value: bool) -> None:
-        if value:
-            self._conn._telemetry_client.send_cte_optimization_telemetry(
-                self._session_id
-            )
-        self._thread_store.cte_optimization_enabled = value
+        return self._cte_optimization_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -711,16 +625,37 @@ class Session:
             - These configurations allow custom package addition via :func:`Session.add_requirements` and :func:`Session.add_packages`.
             - These configurations also allow custom package addition for all UDFs or stored procedures created later in the current session. If you only want to add custom packages for a specific UDF, you can use ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
-        if not hasattr(self._thread_store, "custom_package_usage_config"):
-            self._thread_store.custom_package_usage_config = {}
-        return self._thread_store.custom_package_usage_config
+        return self._custom_package_usage_config
+
+    @sql_simplifier_enabled.setter
+    def sql_simplifier_enabled(self, value: bool) -> None:
+        with self._lock:
+            self._conn._telemetry_client.send_sql_simplifier_telemetry(
+                self._session_id, value
+            )
+            try:
+                self._conn._cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
+            except Exception:
+                pass
+            self._sql_simplifier_enabled = value
+
+    @cte_optimization_enabled.setter
+    @experimental_parameter(version="1.15.0")
+    def cte_optimization_enabled(self, value: bool) -> None:
+        with self._lock:
+            if value:
+                self._conn._telemetry_client.send_cte_optimization_telemetry(
+                    self._session_id
+                )
+            self._cte_optimization_enabled = value
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._thread_store.custom_package_usage_config = {
-            k.lower(): v for k, v in config.items()
-        }
+        with self._lock:
+            self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
 
     def cancel_all(self) -> None:
         """
@@ -1311,6 +1246,9 @@ class Session:
             statement_params=statement_params,
         )
 
+        with self._lock:
+            custom_package_usage_config = self.custom_package_usage_config.copy()
+
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
@@ -1349,7 +1287,7 @@ class Session:
                             )
                         )
                         continue
-                    if not self.custom_package_usage_config.get("enabled", False):
+                    if not custom_package_usage_config.get("enabled", False):
                         errors.append(
                             RuntimeError(
                                 f"Cannot add package {package_req} because it is not available in Snowflake "
@@ -1408,14 +1346,14 @@ class Session:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
             )
-            if self.custom_package_usage_config.get(
+            if custom_package_usage_config.get(
                 "cache_path", False
-            ) and not self.custom_package_usage_config.get("force_cache", False):
-                cache_path = self.custom_package_usage_config["cache_path"]
+            ) and not custom_package_usage_config.get("force_cache", False):
+                cache_path = custom_package_usage_config["cache_path"]
                 try:
                     environment_signature = get_signature(unsupported_packages)
                     dependency_packages = self._load_unsupported_packages_from_stage(
-                        environment_signature
+                        environment_signature, custom_package_usage_config["cache_path"]
                     )
                     if dependency_packages is None:
                         _logger.warning(
@@ -1433,6 +1371,7 @@ class Session:
                     unsupported_packages,
                     package_table,
                     current_packages,
+                    custom_package_usage_config,
                 )
 
         return dependency_packages
@@ -1537,6 +1476,7 @@ class Session:
         packages: List[str],
         package_table: str,
         package_dict: Dict[str, str],
+        custom_package_usage_config: Dict[str, Any],
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1555,7 +1495,7 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
-        if not self.custom_package_usage_config.get("cache_path", False):
+        if not custom_package_usage_config.get("cache_path", False):
             _logger.warning(
                 "If you are adding package(s) unavailable in Snowflake, it is highly recommended that you "
                 "include the 'cache_path' configuration parameter in order to reduce latency."
@@ -1599,7 +1539,7 @@ class Session:
                 package_dict,
             )
 
-            if len(native_packages) > 0 and not self.custom_package_usage_config.get(
+            if len(native_packages) > 0 and not custom_package_usage_config.get(
                 "force_push", False
             ):
                 raise ValueError(
@@ -1623,9 +1563,9 @@ class Session:
             # Add packages to stage
             stage_name = self.get_session_stage()
 
-            if self.custom_package_usage_config.get("cache_path", False):
+            if custom_package_usage_config.get("cache_path", False):
                 # Switch the stage used for storing zip file.
-                stage_name = self.custom_package_usage_config["cache_path"]
+                stage_name = custom_package_usage_config["cache_path"]
 
                 # Download metadata dictionary using the technique mentioned here: https://docs.snowflake.com/en/user-guide/querying-stage
                 metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
@@ -1697,7 +1637,7 @@ class Session:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
     def _load_unsupported_packages_from_stage(
-        self, environment_signature: str
+        self, environment_signature: str, cache_path: str
     ) -> List[pkg_resources.Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
@@ -1718,10 +1658,10 @@ class Session:
         Args:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
+            cache_path (str): Path to the stage where the cached environment is stored.
         Returns:
             Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
-        cache_path = self.custom_package_usage_config["cache_path"]
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
         files: Set[str] = self._list_files_in_stage(cache_path)
