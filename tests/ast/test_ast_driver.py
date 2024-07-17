@@ -84,9 +84,11 @@ def render(ast_base64: str) -> str:
 
 
 def run_test(session, test_source):
+    os.chdir(DATA_DIR)
+
     source = f"""
 import snowflake.snowpark.functions as functions
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import *
 from snowflake.snowpark import Table
 
 # Set up mock data.
@@ -119,6 +121,7 @@ session._ast_batch.flush()  # Clear the AST.
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
     # that would otherwise be thrown.
     session._conn._suppress_not_implemented_error = True
+
     locals = {"session": session}
     exec(source, locals)
     base64 = locals["result"]

@@ -2919,7 +2919,10 @@ class DataFrame:
 
     @df_api_usage
     def with_column(
-        self, col_name: str, col: Union[Column, TableFunctionCall]
+        self,
+        col_name: str,
+        col: Union[Column, TableFunctionCall],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -2961,11 +2964,14 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
-        return self.with_columns([col_name], [col])
+        return self.with_columns([col_name], [col], ast_stmt=ast_stmt)
 
     @df_api_usage
     def with_columns(
-        self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
+        self,
+        col_names: List[str],
+        values: List[Union[Column, TableFunctionCall]],
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3058,7 +3064,7 @@ class DataFrame:
         ]
 
         # Put it all together
-        return self.select([*old_cols, *new_cols])
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt)
 
     @overload
     def count(
@@ -3184,6 +3190,44 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table)
+        self.set_ast_ref(expr.df)
+        if isinstance(table_name, str):
+            expr.table_name.append(table_name)
+        else:
+            expr.table_name.extend(table_name)
+        if files is not None:
+            expr.files.extend(files)
+        if pattern is not None:
+            expr.pattern.value = pattern
+        if validation_mode is not None:
+            expr.validation_mode.value = validation_mode
+        if target_columns is not None:
+            expr.target_columns.extend(target_columns)
+        if transformations is not None:
+            for t in transformations:
+                build_const_from_python_val(t, expr.transformations.add())
+        if format_type_options is not None:
+            for k in format_type_options:
+                entry = expr.format_type_options.add()
+                entry._1 = k
+                build_const_from_python_val(format_type_options[k], entry._2)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+        if copy_options is not None:
+            for k in copy_options:
+                entry = expr.copy_options.add()
+                entry._1 = k
+                build_const_from_python_val(copy_options[k], entry._2)
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
                 "To copy into a table, the DataFrame must be created from a DataFrameReader and specify a file path."
@@ -3264,6 +3308,7 @@ class DataFrame:
                 cur_options=self._reader._cur_options,
                 create_table_from_infer_schema=create_table_from_infer_schema,
             ),
+            ast_stmt=stmt,
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
@@ -3369,25 +3414,21 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
-        if isinstance(input, str):
-            build_const_from_python_val(input, expr.input)
-        else:
-            expr.input.CopyFrom(input._ast)
+        build_const_from_python_val(input, expr.input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
         expr.recursive = recursive
 
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
-            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
-
         if mode == "OBJECT":
             expr.mode.sp_flatten_mode_object = True
         elif mode == "ARRAY":
             expr.mode.sp_flatten_mode_array = True
         elif mode == "BOTH":
             expr.mode.sp_flatten_mode_both = True
+        else:
+            raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
         if isinstance(input, str):
             input = self.col(input)
@@ -3569,6 +3610,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr.is_temp = False
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3587,6 +3645,7 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     @df_collect_api_telemetry
@@ -3617,6 +3676,27 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_dynamic_table)
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        expr.warehouse = warehouse
+        expr.lag = lag
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3673,6 +3753,23 @@ class DataFrame:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_create_or_replace_view)
+        expr.is_temp = True
+        self.set_ast_ref(expr.df)
+        if isinstance(name, str):
+            expr.name.append(name)
+        else:
+            expr.name.extend(name)
+        if comment is not None:
+            expr.comment.value = comment
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         if isinstance(name, str):
             formatted_name = name
         elif isinstance(name, (list, tuple)) and all(isinstance(n, str) for n in name):
@@ -3691,10 +3788,16 @@ class DataFrame:
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
             ),
+            _ast_stmt=stmt,
         )
 
     def _do_create_or_replace_view(
-        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+        self,
+        view_name: str,
+        view_type: ViewType, 
+        comment: Optional[str],
+        _ast_stmt: Optional[proto.Assign]=None,
+        **kwargs
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
@@ -3767,7 +3870,16 @@ class DataFrame:
              results. ``n`` is ``None``, it returns the first :class:`Row` of
              results, or ``None`` if it does not exist.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_first
+        if statement_params is not None:
+            ast.statement_params.append((k, v) for k, v in statement_params)
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        ast.block = block
         if n is None:
+            ast.num = 1
             df = self.limit(1)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
@@ -3779,10 +3891,12 @@ class DataFrame:
         elif not isinstance(n, int):
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
         elif n < 0:
+            ast.num = n
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block
             )
         else:
+            ast.num = n
             df = self.limit(n)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
@@ -3805,6 +3919,17 @@ class DataFrame:
             a :class:`DataFrame` containing the sample of rows.
         """
         DataFrame._validate_sample_input(frac, n)
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_sample
+        if frac:
+            ast.probability_fraction.value = frac
+        if n:
+            ast.num.value = n
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+
         sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
         if self._select_statement:
             return self._with_plan(
@@ -3813,9 +3938,10 @@ class DataFrame:
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan)
+        return self._with_plan(sample_plan, ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -4135,6 +4261,16 @@ class DataFrame:
         """
         from snowflake.snowpark.mock._connection import MockServerConnection
 
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cache_result)
+        self.set_ast_ref(expr.df)
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.statement_params.add()
+                entry._1 = k
+                entry._2 = statement_params[k]
+
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
@@ -4156,8 +4292,9 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name)
+        cached_df = self._session.table(temp_table_name, suppress_ast=True)
         cached_df.is_cached = True
+        cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
     @df_collect_api_telemetry
@@ -4196,20 +4333,33 @@ class DataFrame:
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_random_split
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
         if not weights:
             raise ValueError(
                 "weights can't be None or empty and must be positive numbers"
             )
-        elif len(weights) == 1:
+        for w in weights:
+            ast.weights.append(w)
+        if seed:
+            ast.seed.value = seed
+        if statement_params:
+            ast.statement_params = statement_params
+        if len(weights) == 1:
             return [self]
         else:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
+        if self._session._conn._suppress_not_implemented_error:
+            return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
-                temp_column_name, abs_(random(seed)) % _ONE_MILLION
+                temp_column_name, abs_(random(seed)) % _ONE_MILLION, ast_stmt=stmt
             ).cache_result(statement_params=statement_params)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
