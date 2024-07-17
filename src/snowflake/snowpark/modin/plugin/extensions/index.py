@@ -1370,6 +1370,9 @@ class Index:
         they are ignored, and all duplicate values are present
         in the result.
 
+        If the index is lazy, and the source and target indices
+        have no overlap, monotonicity checks are skipped.
+
         MultiIndex is not supported.
 
         Examples
