@@ -10,6 +10,7 @@
   - _execute_and_get_query_id
 - Added support for function `arrays_zip`.
 - Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Added support to create dataframe using user provided schema when snowpark dataframe is created from pandas dataframe on a best effort basis.
 - Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
 - Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
 - Added open telemetry tracing on UDxF functions in snowpark.
