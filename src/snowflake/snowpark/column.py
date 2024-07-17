@@ -923,14 +923,19 @@ class Column:
                 ast.variant_is_as.value = variant_is_as
         return Column(Alias(self._expression, quote_name(alias)), ast=expr)
 
-    # TODO: Implement AST generation for Column.over (relies on SpWindowSpec AST generation)
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
         Returns a window frame, based on the specified :class:`~snowflake.snowpark.window.WindowSpec`.
         """
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self._expression)
+
+        ast = proto.Expr()
+        expr = with_src_position(ast.sp_column_over)
+        expr.col.CopyFrom(self._ast)
+        expr.window_spec.CopyFrom(window._ast if window else WindowSpec())
+
+        return window._with_aggregate(self._expression, ast=ast)
 
     def within_group(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]
