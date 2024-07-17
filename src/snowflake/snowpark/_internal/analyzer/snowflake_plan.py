@@ -250,6 +250,14 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:
+        """
+        Get the list of queries that will be sent over to server evaluation. The queries
+        have optimizations applied of optimizations are enabled.
+
+        Returns
+        -------
+        A mapping between the PlanQueryType and the list of Queries corresponds to the type.
+        """
         # apply optimizations
         final_plan = self.replace_repeated_subquery_with_cte()
         return {
