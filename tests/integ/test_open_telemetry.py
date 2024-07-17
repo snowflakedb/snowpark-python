@@ -7,9 +7,6 @@ import os
 
 import pytest
 from opentelemetry import trace
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import span
 
@@ -26,6 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.conftest import opentelemetry_installed
 from tests.utils import IS_IN_STORED_PROC, check_tracing_span_answers
 
 pytestmark = [
@@ -33,6 +31,10 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="UDTF not supported in Local Testing",
+    ),
+    pytest.mark.skipif(
+        not opentelemetry_installed,
+        reason="opentelemetry is not installed",
     ),
 ]
 
@@ -53,17 +55,6 @@ def span_extractor(dict_exporter: InMemorySpanExporter):
     for raw_span in raw_spans:
         spans.append((raw_span.name, attr_to_dict(raw_span), raw_span))
     return spans
-
-
-@pytest.fixture(scope="module")
-def dict_exporter():
-    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    trace_provider = TracerProvider(resource=resource)
-    dict_exporter = InMemorySpanExporter()
-    processor = SimpleSpanProcessor(dict_exporter)
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
-    yield dict_exporter
 
 
 def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
