@@ -10,6 +10,7 @@
 
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+- Added support for `DataFrame.compare` and `Series.compare` with default parameters.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
