@@ -195,6 +195,11 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
 )
 _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
+# TODO (SNOW-1482588): Add parameter for PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED
+#               at server side
+_PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
+    "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
+)
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
@@ -348,17 +353,37 @@ class Session:
         def __init__(self) -> None:
             self._options = {}
             self._app_name = None
+            self._format_json = None
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self._options.pop(key, None)
             return self
 
-        def app_name(self, app_name: str) -> "Session.SessionBuilder":
+        def app_name(
+            self, app_name: str, format_json: bool = False
+        ) -> "Session.SessionBuilder":
             """
             Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
+
+            Args:
+                app_name: The name of the application.
+                format_json: If set to `True`, it will add the app name to the session query tag in JSON format,
+                    otherwise, it will add it using a key=value format.
+
+            Returns:
+                A :class:`SessionBuilder` instance.
+
+            Example::
+                >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                APPNAME=my_app
+                >>> session = Session.builder.app_name("my_app", format_json=True).configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                {"APPNAME": "my_app"}
             """
             self._app_name = app_name
+            self._format_json = format_json
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
@@ -394,8 +419,12 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f"APPNAME={self._app_name}"
-                session.append_query_tag(app_name_tag)
+                if self._format_json:
+                    app_name_tag = {"APPNAME": self._app_name}
+                    session.update_query_tag(app_name_tag)
+                else:
+                    app_name_tag = f"APPNAME={self._app_name}"
+                    session.append_query_tag(app_name_tag)
 
             return session
 
@@ -510,6 +539,11 @@ class Session:
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
             )
         )
+        self._eliminate_numeric_sql_value_cast_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
+            )
+        )
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._tmpdir_handler: Optional[tempfile.TemporaryDirectory] = None
@@ -588,6 +622,10 @@ class Session:
         return self._cte_optimization_enabled
 
     @property
+    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
+        return self._eliminate_numeric_sql_value_cast_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -650,6 +688,21 @@ class Session:
                     self._session_id
                 )
             self._cte_optimization_enabled = value
+
+    @eliminate_numeric_sql_value_cast_enabled.setter
+    @experimental_parameter(version="1.20.0")
+    def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
+        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                self._session_id, value
+            )
+            self._eliminate_numeric_sql_value_cast_enabled = value
+        else:
+            raise ValueError(
+                "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")

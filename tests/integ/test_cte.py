@@ -291,7 +291,11 @@ def test_sql_simplifier(session):
 
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df1 = df.filter(col("a") == 1)
-    filter_clause = 'WHERE ("A" = 1 :: INT)'
+    filter_clause = (
+        'WHERE ("A" = 1)'
+        if session.eliminate_numeric_sql_value_cast_enabled
+        else 'WHERE ("A" = 1 :: INT)'
+    )
 
     df2 = df1.select("a", "b")
     df3 = df1.select("a", "b").select("a", "b")
