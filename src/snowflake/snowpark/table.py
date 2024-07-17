@@ -9,7 +9,7 @@ from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -271,9 +271,7 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
-        super().__init__(
-            session, session._analyzer.resolve(UnresolvedRelation(table_name))
-        )
+        super().__init__(session, session._analyzer.resolve(SnowflakeTable(table_name)))
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
 
