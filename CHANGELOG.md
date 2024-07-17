@@ -1,5 +1,17 @@
 # Release History
 
+## 1.21.0 (TBD)
+
+### Snowpark Python API Updates
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+
+
 ## 1.20.0 (2024-07-17)
 
 ### Snowpark Python API Updates
@@ -61,7 +73,6 @@
 - Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
-- Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
