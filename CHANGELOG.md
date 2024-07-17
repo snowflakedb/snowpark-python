@@ -10,6 +10,7 @@
 
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+- Added support for `Index.reindex`.
 
 
 ## 1.20.0 (2024-07-17)
