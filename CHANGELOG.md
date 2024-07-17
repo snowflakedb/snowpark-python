@@ -6,17 +6,17 @@
 
 #### Improvements
 
-- Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
-  - _execute_and_get_query_id
-- Added support for function `arrays_zip`.
-- Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
-- Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
-- Added open telemetry tracing on UDxF functions in snowpark.
-- Added open telemetry tracing on stored procedure registration in snowpark.
-- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that allows to set the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
+- Added distributed tracing using open telemetry APIs for table stored procedure functions in ``DataFrame``:
+  - ``_execute_and_get_query_id``
+- Added support for the ``arrays_zip`` function.
+- Improved performance for binary column expressions and ``df._in`` by avoiding unnecessary casts for numeric values. You can enable this optimization by setting `session.eliminate_numeric_sql_value_cast_enabled = True`.
+- Improved error messages for `write_pandas` when the target table does not exist and `auto_create_table=False`.
+- Added open telemetry tracing on UDxF functions in Snowpark.
+- Added open telemetry tracing on stored procedure registration in Snowpark.
+- Added a new optional parameter called ``format_json`` to the `Session.SessionBuilder.app_name` function that sets the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to ``False``.
 
 #### Bug Fixes
-- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
+- Fixed a bug where the SQL generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark Local Testing Updates
 
