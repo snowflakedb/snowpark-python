@@ -59,7 +59,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
     LogicalPlan,
-    SaveMode,
     SnowflakeCreateTable,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
@@ -3966,7 +3965,7 @@ class DataFrame:
                 SnowflakeCreateTable(
                     [temp_table_name],
                     None,
-                    SaveMode.APPEND,
+                    None,
                     self._plan,
                     table_type="temp",
                     is_generated=True,

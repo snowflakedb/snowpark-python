@@ -726,7 +726,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
-        is_generated: bool,
+        is_generated: bool,  # true if the table is generated internally
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
         is_temp_table_type = table_type in TEMPORARY_STRING_SET
@@ -783,6 +783,9 @@ class SnowflakePlanBuilder:
                 session=self.session,
             )
 
+        if is_generated:
+            return get_create_and_insert_plan(child, replace=False, error=True)
+
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -795,9 +798,7 @@ class SnowflakePlanBuilder:
                     source_plan,
                 )
             else:
-                return get_create_and_insert_plan(
-                    child, replace=False, error=is_generated
-                )
+                return get_create_and_insert_plan(child, replace=False, error=False)
         elif mode == SaveMode.TRUNCATE:
             if self.session._table_exists(table_name):
                 return self.build(
