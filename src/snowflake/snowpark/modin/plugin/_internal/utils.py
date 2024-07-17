@@ -288,7 +288,7 @@ def _create_read_only_table(
 
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
-    determistic_ordering: bool = True,
+    deterministic_ordering: bool = True,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query, and create a OrderedDataFrame
@@ -319,7 +319,7 @@ def create_initial_ordered_dataframe(
     is_query = not _is_table_name(table_name_or_query)
     if not is_query:
         source_table_name_or_query = table_name_or_query
-        if determistic_ordering:
+        if deterministic_ordering:
             try:
                 source_table_name_or_query = _create_read_only_table(
                     table_name=table_name_or_query,
@@ -358,33 +358,51 @@ def create_initial_ordered_dataframe(
                         f"Failed to create Snowpark pandas DataFrame out of table {table_name_or_query} with error {ex}",
                         error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
                     ) from ex
-        initial_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(session.table(source_table_name_or_query))
-        )
-        # generate a snowflake quoted identifier for row position column that can be used for aliasing
-        snowflake_quoted_identifiers = (
-            initial_ordered_dataframe.projected_column_snowflake_quoted_identifiers
-        )
-        row_position_snowflake_quoted_identifier = (
-            initial_ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=[ROW_POSITION_COLUMN_LABEL],
-                wrap_double_underscore=True,
-            )[0]
-        )
+            initial_ordered_dataframe = OrderedDataFrame(
+                    DataFrameReference(session.table(source_table_name_or_query))
+            )
+                    # generate a snowflake quoted identifier for row position column that can be used for aliasing
+            snowflake_quoted_identifiers = (
+                initial_ordered_dataframe.projected_column_snowflake_quoted_identifiers
+            )
+            row_position_snowflake_quoted_identifier = (
+                initial_ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[ROW_POSITION_COLUMN_LABEL],
+                    wrap_double_underscore=True,
+                )[0]
+            )
 
-        # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
-        # if no snowflake_quoted_identifiers is specified, all columns will be selected
-        row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
+            # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
+            # if no snowflake_quoted_identifiers is specified, all columns will be selected
+            row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
 
-        columns_to_select = ", ".join(
-            [row_position_column_str] + snowflake_quoted_identifiers
-        )
-        # Create or get the row position columns requires access to the metadata column of the table.
-        # However, snowpark_df = session().table(table_name) generates query (SELECT * from <table_name>),
-        # which creates a view without metadata column, we won't be able to access the metadata columns
-        # with the created snowpark dataframe. In order to get the metadata column access in the created
-        # dataframe, we create dataframe through sql which access the corresponding metadata column.
-        dataframe_sql = f"SELECT {columns_to_select} FROM {source_table_name_or_query}"
+            columns_to_select = ", ".join(
+                [row_position_column_str] + snowflake_quoted_identifiers
+            )
+            # Create or get the row position columns requires access to the metadata column of the table.
+            # However, snowpark_df = session().table(table_name) generates query (SELECT * from <table_name>),
+            # which creates a view without metadata column, we won't be able to access the metadata columns
+            # with the created snowpark dataframe. In order to get the metadata column access in the created
+            # dataframe, we create dataframe through sql which access the corresponding metadata column.
+            dataframe_sql = f"SELECT {columns_to_select} FROM {source_table_name_or_query}"
+        else:
+            # todo
+            # does not account for when ROW_POSITION_COLUMN_LABEL, e.g. __row_position__ conflicts
+            initial_ordered_dataframe = OrderedDataFrame(
+                    DataFrameReference(session.table(source_table_name_or_query))
+            )
+            # generate a snowflake quoted identifier for row position column that can be used for aliasing
+            snowflake_quoted_identifiers = (
+                initial_ordered_dataframe.projected_column_snowflake_quoted_identifiers
+            )
+            row_position_snowflake_quoted_identifier = (
+                initial_ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[ROW_POSITION_COLUMN_LABEL],
+                    wrap_double_underscore=True,
+                )[0]
+            )
+            dataframe_sql = f"SELECT (ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) - 1) AS {row_position_snowflake_quoted_identifier}, * FROM {source_table_name_or_query}"
+
         snowpark_df = session.sql(dataframe_sql)
 
         result_columns_quoted_identifiers = [
@@ -417,7 +435,7 @@ def create_initial_ordered_dataframe(
             # so we lose the data isolation quality of pandas that we are attempting to replicate. By
             # creating a read only clone, we ensure that the underlying data cannot be modified by anyone
             # else.
-            if determistic_ordering:
+            if deterministic_ordering:
                 snowpark_pandas_df = session.sql(
                     table_name_or_query
                 ).to_snowpark_pandas()
