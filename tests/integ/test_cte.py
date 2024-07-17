@@ -42,19 +42,19 @@ WITH = "WITH"
 @pytest.fixture(autouse=True)
 def setup(session):
     is_cte_optimization_enabled = session.cte_optimization_enabled
-    session._thread_store.cte_optimization_enabled = True
+    session._cte_optimization_enabled = True
     yield
-    session._thread_store.cte_optimization_enabled = is_cte_optimization_enabled
+    session._cte_optimization_enabled = is_cte_optimization_enabled
 
 
 def check_result(session, df, expect_cte_optimized):
     df = df.sort(sql_expr("$1"))
-    session._thread_store.cte_optimization_enabled = False
+    session._cte_optimization_enabled = False
     result = df.collect()
     result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
 
-    session._thread_store.cte_optimization_enabled = True
+    session._cte_optimization_enabled = True
     cte_result = df.collect()
     cte_result_count = df.count()
     cte_result_pandas = df.to_pandas() if installed_pandas else None
@@ -156,7 +156,7 @@ def test_number_of_ctes(session, action):
     # if SQL simplifier is enabled, filter and select will be one query,
     # so there are only 2 CTEs
     assert count_number_of_ctes(root.queries["queries"][-1]) == (
-        2 if session.sql_simplifier_enabled else 3
+        2 if session._sql_simplifier_enabled else 3
     )
 
 
@@ -286,7 +286,7 @@ def test_explain(session):
 
 
 def test_sql_simplifier(session):
-    if not session.sql_simplifier_enabled:
+    if not session._sql_simplifier_enabled:
         pytest.skip("SQL simplifier is not enabled")
 
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])

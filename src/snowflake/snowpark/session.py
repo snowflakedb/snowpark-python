@@ -1793,9 +1793,7 @@ class Session:
     @property
     def query_tag(self) -> Optional[str]:
         """
-        The query tag for this session. When session object is shared between multiple
-        threads, each thread will have its own query tag and will need to be initialized
-        individually.
+        The query tag for this session.
 
         :getter: Returns the query tag. You can use the query tag to find all queries
             run for this session in the History page of the Snowflake web interface.
