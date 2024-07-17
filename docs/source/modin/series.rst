@@ -23,6 +23,7 @@ Series
     Series.dtype
     Series.dtypes
     Series.duplicated
+    Series.equals
     Series.empty
     Series.hasnans
     Series.name
@@ -179,6 +180,8 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.backfill
+    Series.bfill
     Series.dropna
     Series.ffill
     Series.fillna
@@ -287,3 +290,10 @@ Series
     Series.str.strip
     Series.str.translate
     Series.str.upper
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    Series.to_csv

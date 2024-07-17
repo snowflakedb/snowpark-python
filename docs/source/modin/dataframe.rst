@@ -148,6 +148,7 @@ DataFrame
     DataFrame.drop
     DataFrame.drop_duplicates
     DataFrame.duplicated
+    DataFrame.equals
     DataFrame.first
     DataFrame.get
     DataFrame.head
@@ -168,6 +169,8 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.backfill
+    DataFrame.bfill
     DataFrame.dropna
     DataFrame.ffill
     DataFrame.fillna
@@ -216,3 +219,10 @@ DataFrame
     DataFrame.first_valid_index
     DataFrame.last_valid_index
     DataFrame.resample
+
+.. rubric:: Serialization / IO / conversion
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.to_csv
