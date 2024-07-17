@@ -588,12 +588,10 @@ def test_df_stat_cov(session):
 )
 def test_df_stat_approx_quantile(session):
     STATEMENT_PARAMS_NOT_EXACT = {
-        "APPROX_PERCENTILE_EXACT_IF_POSSIBLE": 'false',
-        "ENABLE_FIX_1479433_APPROX_PERCENTILE_PRECISION": 'true'
+        "APPROX_PERCENTILE_EXACT_IF_POSSIBLE": "false",
+        "ENABLE_FIX_1479433_APPROX_PERCENTILE_PRECISION": "true",
     }
-    STATEMENT_PARAMS_EXACT = {
-        "APPROX_PERCENTILE_EXACT_IF_POSSIBLE": 'true'
-    }
+    STATEMENT_PARAMS_EXACT = {"APPROX_PERCENTILE_EXACT_IF_POSSIBLE": "true"}
 
     assert TestData.approx_numbers(session).stat.approx_quantile("a", [0.5]) == [4.5]
     assert TestData.approx_numbers(session).stat.approx_quantile(
@@ -602,10 +600,22 @@ def test_df_stat_approx_quantile(session):
 
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0, 0.1, 0.4, 0.6, 1], statement_params=STATEMENT_PARAMS_NOT_EXACT
-    ) == [-0.5, 0.5, 3.5, 5.5, 9.5]  # old behavior of Snowflake
+    ) == [
+        -0.5,
+        0.5,
+        3.5,
+        5.5,
+        9.5,
+    ]  # old behavior of Snowflake
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0, 0.1, 0.4, 0.6, 1], statement_params=STATEMENT_PARAMS_EXACT
-    ) == [0.0, 0.9, 3.6, 5.3999999999999995, 9.0]  #new behavior
+    ) == [
+        0.0,
+        0.9,
+        3.6,
+        5.3999999999999995,
+        9.0,
+    ]  # new behavior
 
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
@@ -623,13 +633,20 @@ def test_df_stat_approx_quantile(session):
     try:
         assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
 
-        res = TestData.double2(session).stat.approx_quantile(["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_NOT_EXACT)
+        res = TestData.double2(session).stat.approx_quantile(
+            ["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_NOT_EXACT
+        )
         Utils.assert_rows(
             res,
-            [[0.05, 0.08000000000000002, 0.22999999999999998], [0.45, 0.48, 0.6299999999999999]]
+            [
+                [0.05, 0.08000000000000002, 0.22999999999999998],
+                [0.45, 0.48, 0.6299999999999999],
+            ],
         )  # old behavior of Snowflake
 
-        res = TestData.double2(session).stat.approx_quantile(["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_EXACT)
+        res = TestData.double2(session).stat.approx_quantile(
+            ["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_EXACT
+        )
         Utils.assert_rows(
             res,
             [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]],
