@@ -52,9 +52,13 @@ class LogicalPlan:
             )
         return self._cumulative_node_complexity
 
-    @cumulative_node_complexity.setter
-    def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
-        self._cumulative_node_complexity = value
+    def reset_cumulative_node_complexity(self) -> None:
+        self._cumulative_node_complexity = None
+
+    def replace_child(self, old_node, new_node) -> None:
+        self.children = [
+            child if child != old_node else new_node for child in self.children
+        ]
 
 
 class LeafNode(LogicalPlan):
@@ -134,6 +138,7 @@ class SnowflakeCreateTable(LogicalPlan):
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
+        is_generated: bool = False,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -144,6 +149,7 @@ class SnowflakeCreateTable(LogicalPlan):
         self.children.append(query)
         self.clustering_exprs = clustering_exprs or []
         self.comment = comment
+        self.is_generated = is_generated
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

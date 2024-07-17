@@ -596,6 +596,10 @@ def column_to_bool(col_):
     return bool(col_)
 
 
+def is_active_transaction(session):
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
+
+
 def result_set_to_rows(
     result_set: List[Any],
     result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
