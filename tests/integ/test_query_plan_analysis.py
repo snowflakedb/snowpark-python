@@ -34,7 +34,7 @@ pytestmark = [
 
 @pytest.fixture(autouse=True)
 def setup(session):
-    is_simplifier_enabled = session.sql_simplifier_enabled
+    is_simplifier_enabled = session._sql_simplifier_enabled
     session._sql_simplifier_enabled = True
     yield
     session._sql_simplifier_enabled = is_simplifier_enabled

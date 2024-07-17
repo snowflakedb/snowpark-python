@@ -41,7 +41,7 @@ WITH = "WITH"
 
 @pytest.fixture(autouse=True)
 def setup(session):
-    is_cte_optimization_enabled = session.cte_optimization_enabled
+    is_cte_optimization_enabled = session._cte_optimization_enabled
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
