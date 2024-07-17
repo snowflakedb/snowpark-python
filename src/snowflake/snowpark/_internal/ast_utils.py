@@ -21,9 +21,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.unary_expression import (
-    Alias,
-)
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -44,6 +42,7 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     Raises:
         TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
     """
+    from snowflake.snowpark.column import Column
 
     if obj is None:
         set_src_position(ast.null_val.src)
@@ -145,6 +144,9 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
         for v in obj:
             build_const_from_python_val(v, ast.tuple_val.vs.add())
 
+    elif isinstance(obj, Column):
+        ast.CopyFrom(obj._ast)
+
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
 
@@ -234,7 +236,7 @@ def set_src_position(src: proto.SrcPosition) -> None:
         if pos.lineno is not None:
             src.start_line = pos.lineno
         if pos.end_lineno is not None:
-            src.end_lineno = pos.end_lineno
+            src.end_line = pos.end_lineno
         if pos.col_offset is not None:
             src.start_column = pos.col_offset
         if pos.end_col_offset is not None:
@@ -244,13 +246,17 @@ def set_src_position(src: proto.SrcPosition) -> None:
 assignment_re = re.compile(r"^\s*([a-zA-Z_]\w*)\s*=.*$", re.DOTALL)
 
 
-def with_src_position(expr_ast: proto.Expr, assign: Optional[proto.Assign] = None) -> proto.Expr:
+def with_src_position(
+    expr_ast: proto.Expr, assign: Optional[proto.Assign] = None
+) -> proto.Expr:
     """
     Sets the src_position on the supplied Expr AST node and returns it.
     N.B. This function assumes it's always invoked from a public API, meaning that the caller's caller
     is always the code of interest.
     """
-    frame = get_first_non_snowpark_stack_frame()  # TODO: implement the assumption above to minimize overhead.
+    frame = (
+        get_first_non_snowpark_stack_frame()
+    )  # TODO: implement the assumption above to minimize overhead.
     source_line = frame.code_context[0].strip() if frame.code_context else ""
 
     src = expr_ast.src
@@ -261,7 +267,7 @@ def with_src_position(expr_ast: proto.Expr, assign: Optional[proto.Assign] = Non
         if pos.lineno is not None:
             src.start_line = pos.lineno
         if pos.end_lineno is not None:
-            src.end_lineno = pos.end_lineno
+            src.end_line = pos.end_lineno
         if pos.col_offset is not None:
             src.start_column = pos.col_offset
         if pos.end_col_offset is not None:

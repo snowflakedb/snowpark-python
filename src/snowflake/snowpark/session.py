@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Uni
 import cloudpickle
 import pkg_resources
 
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -1833,13 +1834,15 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    def table(self, name: Union[str, Iterable[str]], suppress_ast: bool = False) -> Table:
         """
         Returns a Table that points the specified table.
 
         Args:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
+
+            suppress_ast: Skips AST generation if True.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -1857,18 +1860,21 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        stmt = self._ast_batch.assign()
-        ast = with_src_position(stmt.expr.sp_table)
-        if isinstance(name, str):
-            ast.name.sp_table_name_flat.name = name
-        elif isinstance(name, Iterable):
-            ast.name.sp_table_name_structured.name.extend(name)
-        ast.variant.sp_session_table = True
+        if not suppress_ast:
+            stmt = self._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_table)
+            if isinstance(name, str):
+                ast.name.sp_table_name_flat.name = name
+            elif isinstance(name, Iterable):
+                ast.name.sp_table_name_structured.name.extend(name)
+            ast.variant.sp_session_table = True
+        else:
+            stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt)
+        t = Table(name, self, stmt, suppress_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -1924,11 +1930,35 @@ class Session:
             - :meth:`Session.generator`, which is used to instantiate a :class:`DataFrame` using Generator table function.
                 Generator functions are not supported with :meth:`Session.table_function`.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.apply_expr)
+        if isinstance(func_name, TableFunctionCall):
+            expr.fn.udtf.name = func_name.name
+            func_arguments = func_name.arguments
+            func_named_arguments = func_name.named_arguments
+            # TODO: func.{_over, _partition_by, _order_by, _aliases, _api_call_source}
+        elif isinstance(func_name, str):
+            expr.fn.udtf.name = func_name
+        elif isinstance(func_name, list):
+            expr.fn.udtf.name = ".".join(func_name)
+
+        for arg in func_arguments:
+            build_const_from_python_val(arg, expr.pos_args.add())
+        for k in func_named_arguments:
+            entry = expr.named_args.add()
+            entry._1 = k
+            build_const_from_python_val(func_named_arguments[k], entry._2)
+
         if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.table_function",
-                raise_error=NotImplementedError,
-            )
+            if not self._conn._suppress_not_implemented_error:
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.table_function",
+                    raise_error=NotImplementedError,
+                )
+            else:
+                return None
+
         func_expr = _create_table_function_expression(
             func_name, *func_arguments, **func_named_arguments
         )
@@ -1940,11 +1970,13 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                ast_stmt=stmt,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                ast_stmt=stmt,
             )
         set_api_call_source(d, "Session.table_function")
         return d
@@ -2031,7 +2063,12 @@ class Session:
         set_api_call_source(d, "Session.generator")
         return d
 
-    def sql(self, query: str, params: Optional[Sequence[Any]] = None) -> DataFrame:
+    def sql(
+        self,
+        query: str,
+        params: Optional[Sequence[Any]] = None,
+        _ast_stmt: proto.Assign = None,
+    ) -> DataFrame:
         """
         Returns a new DataFrame representing the results of a SQL query.
 
@@ -2045,6 +2082,7 @@ class Session:
             query: The SQL statement to execute.
             params: binding parameters. We only support qmark bind variables. For more information, check
                 https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#qmark-or-numeric-binding
+            _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
 
         Example::
 
@@ -2059,12 +2097,15 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         # AST.
-        stmt = self._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_sql)
-        expr.query = query
-        if params is not None:
-            for p in params:
-                build_const_from_python_val(p, expr.params.add())
+        if _ast_stmt is None:
+            stmt = self._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_sql)
+            expr.query = query
+            if params is not None:
+                for p in params:
+                    build_const_from_python_val(p, expr.params.add())
+        else:
+            stmt = _ast_stmt
 
         if (
             isinstance(self._conn, MockServerConnection)
@@ -3126,6 +3167,19 @@ class Session:
             is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.apply_expr)
+        expr.fn.stored_procedure.name = sproc_name
+        for arg in args:
+            build_const_from_python_val(arg, expr.pos_args.add())
+        if statement_params is not None:
+            for k in statement_params:
+                entry = expr.named_args.list.add()
+                entry._1 = k
+                build_const_from_python_val(statement_params[k], entry._2)
+        expr.log_on_exception.value = log_on_exception
+
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
                 sproc_name, *args, session=self, statement_params=statement_params
@@ -3142,11 +3196,11 @@ class Session:
             qid = self._conn.execute_and_get_sfqid(
                 query, statement_params=statement_params
             )
-            df = self.sql(result_scan_statement(qid))
+            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
             set_api_call_source(df, "Session.call")
             return df
 
-        df = self.sql(query)
+        df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
         return df.collect(statement_params=statement_params)[0][0]
 
@@ -3218,13 +3272,33 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        if isinstance(self._conn, MockServerConnection):
-            self._conn.log_not_supported_error(
-                external_feature_name="Session.flatten", raise_error=NotImplementedError
-            )
+        # AST.
+        stmt = self._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_flatten, stmt)
+        build_const_from_python_val(input, expr.input)
+        if path is not None:
+            expr.path.value = path
+        expr.outer = outer
+        expr.recursive = recursive
+
         mode = mode.upper()
-        if mode not in ("OBJECT", "ARRAY", "BOTH"):
+        if mode == "OBJECT":
+            expr.mode.sp_flatten_mode_object = True
+        elif mode == "ARRAY":
+            expr.mode.sp_flatten_mode_array = True
+        elif mode == "BOTH":
+            expr.mode.sp_flatten_mode_both = True
+        else:
             raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+        if isinstance(self._conn, MockServerConnection):
+            if self._conn._suppress_not_implemented_error:
+                return None
+            else:
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.flatten",
+                    raise_error=NotImplementedError,
+                )
         if isinstance(input, str):
             input = col(input)
         df = DataFrame(
@@ -3232,6 +3306,7 @@ class Session:
             TableFunctionRelation(
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
+            ast_stmt=stmt,
         )
         set_api_call_source(df, "Session.flatten")
         return df
