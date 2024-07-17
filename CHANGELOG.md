@@ -11,6 +11,9 @@
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
 
+#### Improvements
+- Removed the public preview warning message upon importing Snowpark pandas.
+
 
 ## 1.20.0 (2024-07-17)
 
