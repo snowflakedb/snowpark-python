@@ -254,7 +254,7 @@ class SnowflakePlan(LogicalPlan):
         final_plan = self.replace_repeated_subquery_with_cte()
         return {
             PlanQueryType.QUERIES: final_plan.queries,
-            PlanQueryType.POST_ACTIONS: final_plan.post_actions
+            PlanQueryType.POST_ACTIONS: final_plan.post_actions,
         }
 
     @property
@@ -1403,6 +1403,7 @@ class SnowflakePlanBuilder:
                 api_calls=plan.api_calls,
                 session=self.session,
             )
+
 
 class PlanQueryType(Enum):
     # the queries to execute for the plan

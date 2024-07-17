@@ -4055,8 +4055,12 @@ class DataFrame:
         # plan = self._plan.replace_repeated_subquery_with_cte()
         plan_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]],
-            "post_actions": [query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]],
+            "queries": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+            ],
         }
 
     def explain(self) -> None:
