@@ -275,14 +275,16 @@ def _disambiguate(
                 [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
             )
             for name in lhs_names
-        ]
+        ],
+        suppress_ast=True,
     )
 
     rhs_remapped = rhs.select(
         [
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
-        ]
+        ],
+        suppress_ast=True,
     )
     return lhs_remapped, rhs_remapped
 
@@ -1128,6 +1130,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
+        suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1179,14 +1182,15 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        if _ast_stmt is None:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
-            self.set_ast_ref(ast.df)
-            ast.variadic = is_variadic
-        else:
-            stmt = _ast_stmt
-            ast = None
+        if not suppress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+                self.set_ast_ref(ast.df)
+                ast.variadic = is_variadic
+            else:
+                stmt = _ast_stmt
+                ast = None
 
         names = []
         table_func = None
