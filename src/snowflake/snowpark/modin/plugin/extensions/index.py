@@ -1362,6 +1362,25 @@ class Index:
         ValueError
             If non-unique index and ``method`` or ``limit`` passed.
 
+        Notes
+        -----
+        If the index is lazy, ``method=nearest`` is not supported.
+
+        If the index is lazy, and duplicate values are present,
+        they are ignored, and all duplicate values are present
+        in the result.
+
+        MultiIndex is not supported.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['car', 'bike', 'train', 'tractor'])
+        >>> idx
+        Index(['car', 'bike', 'train', 'tractor'], dtype='object')
+
+        >>> idx.reindex(['car', 'bike'])
+        (Index(['car', 'bike'], dtype='object'), array([0, 1]))
+
         See Also
         --------
         Series.reindex : Conform Series to new index with optional filling logic.
