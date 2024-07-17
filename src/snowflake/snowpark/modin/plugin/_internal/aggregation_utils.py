@@ -1133,7 +1133,7 @@ def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
     Represent an aggregation function as a string.
 
     Use this function to represent aggregation functions in error message to
-    the user. This user will hide sensitive information, like axis labels or
+    the user. This function will hide sensitive information, like axis labels or
     names of callables, in the function description.
 
     Args:
