@@ -101,8 +101,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -1083,7 +1083,7 @@ def execute_mock_plan(
             source_plan.mode,
             column_names=source_plan.column_names,
         )
-    if isinstance(source_plan, UnresolvedRelation):
+    if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
