@@ -2754,13 +2754,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def sort_index(
         self,
         axis: int,
-        level: list[Union[str, int]],
+        level: Optional[list[Union[str, int]]],
         ascending: Union[bool, list[bool]],
         kind: SortKind,
         na_position: NaPosition,
         sort_remaining: bool,
         ignore_index: bool,
         key: Optional[IndexKeyFunc] = None,
+        include_indexer: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Sort object by labels (along an axis).
@@ -2781,6 +2782,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 the key argument in the builtin sorted() function, with the notable difference that this key
                 function should be vectorized. It should expect an Index and return an Index of the same shape.
                 Apply the key function to the index values before sorting.
+            include_indexer: If True, add a data column with the original row numbers in the same order as
+                the index, i.e., add an indexer column. This is used with Index.sort_values.
 
         Returns:
             A new SnowflakeQueryCompiler instance after applying the sort.
@@ -2827,6 +2830,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             na_position=na_position,
             ignore_index=ignore_index,
             key=key,
+            include_indexer=include_indexer,
         )
 
     def sort_columns_by_row_values(
@@ -2858,6 +2862,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         na_position: NaPosition,
         ignore_index: bool,
         key: Optional[IndexKeyFunc] = None,
+        include_indexer: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Reorder the rows based on the lexicographic order of the given columns.
@@ -2871,6 +2876,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ignore_index: If True, existing index is ignored and new index is generated which is a gap free
                 sequence from 0 to n-1. Defaults to False.
             key: Apply the key function to the values before sorting.
+            include_indexer: If True, add a data column with the original row numbers in the same order as
+                the index, i.e., add an indexer column. This is used with Index.sort_values.
 
         Returns:
             A new SnowflakeQueryCompiler instance after applying the sort.
@@ -2909,7 +2916,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for identifiers, asc in zip(matched_identifiers, ascending)
         ]
 
-        # We want to provide stable sort even if user provided sort kind is not 'stable'. We are doing this make
+        # We want to provide stable sort even if user provided sort kind is not 'stable'. We are doing this to make
         # ordering deterministic.
         # Snowflake backend sort is unstable. Add row position to ordering columns to make sort stable.
         internal_frame = self._modin_frame.ensure_row_position_column()
@@ -2918,10 +2925,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             OrderingColumn(internal_frame.row_position_snowflake_quoted_identifier),
         )
 
+        data_column_pandas_labels = internal_frame.data_column_pandas_labels
+        data_column_snowflake_quoted_identifiers = (
+            internal_frame.data_column_snowflake_quoted_identifiers
+        )
+        if include_indexer:
+            data_column_pandas_labels.append("indexer")
+            data_column_snowflake_quoted_identifiers.append(
+                internal_frame.row_position_snowflake_quoted_identifier
+            )
         sorted_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
-            data_column_pandas_labels=internal_frame.data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_labels=data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
             index_column_pandas_labels=internal_frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
