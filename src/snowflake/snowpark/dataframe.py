@@ -4052,7 +4052,6 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        # plan = self._plan.replace_repeated_subquery_with_cte()
         plan_queries = self._plan.execution_queries
         return {
             "queries": [
@@ -4074,7 +4073,6 @@ class DataFrame:
         print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
-        # plan = self._plan.replace_repeated_subquery_with_cte()
         plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
             f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
