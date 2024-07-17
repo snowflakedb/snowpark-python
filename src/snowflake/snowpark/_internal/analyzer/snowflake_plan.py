@@ -7,6 +7,7 @@ import re
 import sys
 import uuid
 from collections import defaultdict
+from enum import Enum
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -246,6 +247,15 @@ class SnowflakePlan(LogicalPlan):
 
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
+
+    @property
+    def execution_queries(self) -> Dict["PlanQueryType", List["Query"]]:
+        # apply optimizations
+        final_plan = self.replace_repeated_subquery_with_cte()
+        return {
+            PlanQueryType.QUERIES: final_plan.queries,
+            PlanQueryType.POST_ACTIONS: final_plan.post_actions
+        }
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
@@ -1393,6 +1403,13 @@ class SnowflakePlanBuilder:
                 api_calls=plan.api_calls,
                 session=self.session,
             )
+
+class PlanQueryType(Enum):
+    # the queries to execute for the plan
+    QUERIES = "queries"
+    # the post action queries needs to be executed after the other queries associated
+    # to the plan are finished
+    POST_ACTIONS = "post_actions"
 
 
 class Query:
