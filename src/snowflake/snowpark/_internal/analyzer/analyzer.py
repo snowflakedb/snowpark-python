@@ -97,8 +97,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -966,7 +966,7 @@ class Analyzer:
                     schema_query=schema_query,
                 )
 
-        if isinstance(logical_plan, UnresolvedRelation):
+        if isinstance(logical_plan, SnowflakeTable):
             return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
