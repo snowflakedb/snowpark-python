@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Hashable, Iterator, Literal
+from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
@@ -1310,8 +1310,14 @@ class Index:
         """
         # TODO: SNOW-1458127 implement max
 
-    @index_not_implemented()
-    def reindex(self) -> None:
+    def reindex(
+        self,
+        target: Iterable,
+        method: str | None = None,
+        level: int | None = None,
+        limit: int | None = None,
+        tolerance: int | float | None = None,
+    ) -> tuple[Index, np.ndarray]:
         """
         Create index with target's values.
 
@@ -1361,7 +1367,43 @@ class Index:
         Series.reindex : Conform Series to new index with optional filling logic.
         DataFrame.reindex : Conform DataFrame to new index with optional filling logic.
         """
-        # TODO: SNOW-1458121 implement reindex
+
+        # This code path is only hit if our index is lazy (as an eager index would simply call
+        # the method on its underlying pandas Index object and return the result of that wrapped
+        # appropriately.) Therefore, we specify axis=0, since the QueryCompiler expects lazy indices
+        # on axis=0, but eager indices on axis=1 (used for error checking).
+        if limit is not None and method is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
+        kwargs = {
+            "method": method,
+            "level": level,
+            "limit": limit,
+            "tolerance": tolerance,
+            "_is_index": True,
+        }
+        try:
+            query_compiler, indices = self._query_compiler.reindex(
+                axis=0, labels=target, **kwargs
+            )
+            return Index(query_compiler, convert_to_lazy=self.is_lazy), indices
+        except Exception as e:
+            from snowflake.snowpark.exceptions import SnowparkSQLException
+
+            # If a pd.Index is created from a MultiIndex, it gets stored as a single column of array values.
+            # Rather than throwing an incomprehensible error message, we can determine if we are backed by
+            # a MultiIndex, and throw a nice NotImplementedError.
+            if isinstance(e, SnowparkSQLException):
+                is_mi_message = (
+                    "Can not convert parameter 'SNOWPARK_RIGHT" in e.message
+                    and "of type [ARRAY] into expected type" in e.message
+                )
+                if is_mi_message:
+                    raise NotImplementedError(
+                        "Snowpark pandas doesn't support `reindex` with MultiIndex"
+                    )
+            raise e
 
     @index_not_implemented()
     def rename(self) -> None:
