@@ -21,6 +21,8 @@
     - datediff
 
 ### Snowpark pandas API Updates
+#### New Features
+- Added support for `Index.is_unique` and `Index.has_duplicates`.
 
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
