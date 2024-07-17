@@ -727,7 +727,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
-        determistic_ordering: bool = True,
+        deterministic_ordering: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
@@ -741,7 +741,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe,
             row_position_snowflake_quoted_identifier,
         ) = create_initial_ordered_dataframe(
-            table_name_or_query=name_or_query, determistic_ordering=determistic_ordering
+            table_name_or_query=name_or_query, deterministic_ordering=deterministic_ordering
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
