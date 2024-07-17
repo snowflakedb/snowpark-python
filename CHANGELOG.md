@@ -10,6 +10,7 @@
 
 #### New Features
 - Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+- Added support for `Index.value_counts`.
 
 
 ## 1.20.0 (2024-07-17)
@@ -76,7 +77,6 @@
 - Added support for `Index.T`.
 - Added support for `Index.astype`.
 - Added support for `Index.unique` and `Index.nunique`.
-- Added support for `Index.value_counts`.
 
 
 #### Bug Fixes

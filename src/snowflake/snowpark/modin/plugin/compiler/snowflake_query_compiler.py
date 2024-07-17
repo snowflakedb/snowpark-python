@@ -10708,10 +10708,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if bins is not None:
             raise ErrorMessage.not_implemented("bins argument is not yet supported")
 
-        if self.is_multiindex():
-            ErrorMessage.not_implemented(
-                "`value_counts` is not yet implemented for MultiIndex objects"
-            )
+        assert (
+            not self.is_multiindex()
+        ), "value_counts_index only supports single index objects"
         by = self._modin_frame.index_column_pandas_labels
         return self._value_counts_groupby(by, normalize, sort, ascending, dropna)
 
@@ -10771,7 +10770,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> "SnowflakeQueryCompiler":
         """
         Helper method to obtain the frequency or number of unique values
-        a given SnowflakeQueryCompiler using groupby.
+        within a group.
 
         The resulting object will be in descending order so that the
         first element is the most frequently occurring element.
