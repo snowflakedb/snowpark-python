@@ -1191,6 +1191,9 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
                 ast = None
+        else:
+            stmt = None
+            ast = None
 
         names = []
         table_func = None
