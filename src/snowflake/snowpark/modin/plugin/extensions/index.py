@@ -1808,12 +1808,20 @@ class Index:
         -------
         Index, numpy.ndarray
             Index is returned in all cases as a sorted copy of the index.
-            ndarray is returned when return_indexer is True, represents the indices that the index itself was sorted by.
+            ndarray is returned when return_indexer is True, represents the indices
+            that the index itself was sorted by.
 
         See Also
         --------
         Series.sort_values : Sort values of a Series.
         DataFrame.sort_values : Sort values in a DataFrame.
+
+        Note
+        ----
+        The order of the indexer pandas returns is based on numpy's `argsort` which
+        defaults to quicksort. However, currently Snowpark pandas does not support quicksort;
+        instead, stable sort is performed. Therefore, the order of the indexer returned by
+        `Index.sort_values` is not guaranteed to match pandas' result indexer.
 
         Examples
         --------
@@ -1832,18 +1840,29 @@ class Index:
         >>> idx.sort_values(ascending=False, return_indexer=True)
         (Index([1000, 100, 10, 1], dtype='int64'), array([3, 1, 0, 2]))
         """
-        # TODO: SNOW-1458130 implement sort_values
-        WarningMessage.index_to_pandas_warning("sort_values")
-        ret = self.to_pandas().sort_values(
-            return_indexer=return_indexer,
+        res = self._query_compiler.sort_index(
+            axis=0,
+            level=None,
             ascending=ascending,
+            kind="quicksort",
             na_position=na_position,
+            sort_remaining=True,
+            ignore_index=False,
             key=key,
+            include_indexer=return_indexer,
         )
+        index = Index(res, convert_to_lazy=self.is_lazy)
         if return_indexer:
-            return Index(ret[0], convert_to_lazy=self.is_lazy), ret[1]
+            # When `return_indexer` is True, `res` is a query compiler with one index column
+            # and one data column.
+            # The resultant sorted Index is the index column and the indexer is the data column.
+            # Therefore, performing Index(qc) and Series(qc).to_numpy() yields the required
+            # objects to return.
+            return index, Series(query_compiler=res).to_numpy()
         else:
-            return Index(ret, convert_to_lazy=self.is_lazy)
+            # When `return_indexer` is False, a query compiler with only one index column
+            # is returned.
+            return index
 
     @index_not_implemented()
     def append(self) -> None:
