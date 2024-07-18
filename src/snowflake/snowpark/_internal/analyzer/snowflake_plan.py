@@ -441,6 +441,32 @@ class SnowflakePlan(LogicalPlan):
                 placeholder_query=self.placeholder_query,
             )
 
+    def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
+        copied_plan = SnowflakePlan(
+            queries=copy.deepcopy(self.queries) if self.queries else [],
+            schema_query=self.schema_query,
+            post_actions=copy.deepcopy(self.post_actions)
+            if self.post_actions
+            else None,
+            expr_to_alias=copy.deepcopy(self.expr_to_alias)
+            if self.expr_to_alias
+            else None,
+            source_plan=copy.deepcopy(self.source_plan) if self.source_plan else None,
+            is_ddl_on_temp_object=self.is_ddl_on_temp_object,
+            api_calls=copy.deepcopy(self.api_calls) if self.api_calls else None,
+            df_aliased_col_name_to_real_col_name=copy.deepcopy(
+                self.df_aliased_col_name_to_real_col_name
+            )
+            if self.df_aliased_col_name_to_real_col_name
+            else None,
+            placeholder_query=self.placeholder_query,
+            # note that there is no copy of the session object, be careful when using the
+            # session object after deepcopy
+            session=self.session,
+        )
+
+        return copied_plan
+
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
