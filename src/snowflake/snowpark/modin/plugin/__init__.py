@@ -3,7 +3,6 @@
 #
 
 import sys
-import warnings
 
 from packaging import version
 
@@ -44,12 +43,6 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
         + install_msg
     )  # pragma: no cover
 
-
-warnings.warn(
-    "Snowpark pandas has been in Public Preview since 1.17.0."
-    + " See https://docs.snowflake.com/developer-guide/snowpark/python/snowpark-pandas for details.",
-    stacklevel=1,
-)
 
 # We need this import here to prevent circular dependency issues, since snowflake.snowpark.modin.pandas
 # currently imports some internal utilities from snowflake.snowpark.modin.plugin. Test cases will
