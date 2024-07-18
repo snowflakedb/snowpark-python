@@ -13,6 +13,8 @@ from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize(
     "lhs, rhs, expected",
     [
+        ([], [], True),  # empty indices
+        ([None], [None], True),  # none indices
         ([1, 2, 3], [1, 2, 3], True),
         ([1, 2, None], [1, 2, None], True),  # nulls are considered equal
         ([1, 2, 3], [1.0, 2.0, 3.0], True),  # type is ignored
