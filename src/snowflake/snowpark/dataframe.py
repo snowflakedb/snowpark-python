@@ -276,6 +276,7 @@ def _disambiguate(
             )
             for name in lhs_names
         ],
+        _suppress_ast=True,
     )
 
     rhs_remapped = rhs.select(
@@ -283,6 +284,7 @@ def _disambiguate(
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
         ],
+        _suppress_ast=True,
     )
     return lhs_remapped, rhs_remapped
 
@@ -1128,6 +1130,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
+        _suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1179,14 +1182,14 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        if _ast_stmt is None:
+        stmt = _ast_stmt
+        ast = None
+
+        if not _suppress_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self.set_ast_ref(ast.df)
             ast.variadic = is_variadic
-        else:
-            stmt = _ast_stmt
-            ast = None
 
         names = []
         table_func = None
@@ -1199,8 +1202,10 @@ class DataFrame:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                col_expr_ast = ast.cols.add() if ast else proto.Expr()
-                fill_ast_for_column(col_expr_ast, e, None)
+                col_expr_ast = None
+                if ast:
+                    col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                    fill_ast_for_column(col_expr_ast, e, None)
 
                 col = Column(e, ast=col_expr_ast)
                 names.append(col._named())
@@ -2281,8 +2286,8 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan)
-        return self._with_plan(join_plan)
+            return self._with_plan(select_plan, ast_stmt=stmt)
+        return self._with_plan(join_plan, ast_stmt=stmt)
 
     @df_api_usage
     def join(
@@ -2925,7 +2930,6 @@ class DataFrame:
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                        ast_stmt=ast_stmt,
                     ),
                     ast_stmt=ast_stmt,
                 )
@@ -2962,11 +2966,10 @@ class DataFrame:
                     from_=self._session._analyzer.create_select_snowflake_plan(
                         join_logical_plan,
                         analyzer=self._session._analyzer,
-                        ast_stmt=ast_stmt,
                     ),
                     analyzer=self._session._analyzer,
-                    ast_stmt=ast_stmt,
                 ),
+                ast_stmt=ast_stmt,
             )
         return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
 
