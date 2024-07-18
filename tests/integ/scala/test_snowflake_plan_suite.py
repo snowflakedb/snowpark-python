@@ -9,7 +9,11 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
@@ -117,6 +121,44 @@ def test_multiple_queries(session):
         assert res2 == [Row(1), Row(2), Row(3), Row(4)]
     finally:
         Utils.drop_table(session, table_name2)
+
+
+def test_execution_queries_and_queries(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b")
+    # create a df where cte optimization can be applied
+    df2 = df1.union(df1)
+    original_cte_enabled_value = session.cte_optimization_enabled
+    try:
+        # when cte is disabled, verify that the execution query got is the same as
+        # the plan queries and post actions
+        session.cte_optimization_enabled = False
+        execution_queries = df2._plan.execution_queries
+        assert execution_queries[PlanQueryType.QUERIES] == df2._plan.queries
+        assert not (execution_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH"))
+        assert (
+            execution_queries[PlanQueryType.POST_ACTIONS]
+            == df2._plan.post_actions
+            == []
+        )
+        # when cte is enabled, verify that the execution query got is different
+        # from the original plan queries
+        session.cte_optimization_enabled = True
+        execution_queries = df2._plan.execution_queries
+        assert (
+            execution_queries[PlanQueryType.QUERIES][-1].sql
+            != df2._plan.queries[-1].sql
+        )
+        assert execution_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+        assert not df2._plan.queries[-1].sql.startswith("WITH")
+        assert (
+            execution_queries[PlanQueryType.POST_ACTIONS]
+            == df2._plan.post_actions
+            == []
+        )
+
+    finally:
+        session.cte_optimization_enabled = original_cte_enabled_value
 
 
 @pytest.mark.skipif(
