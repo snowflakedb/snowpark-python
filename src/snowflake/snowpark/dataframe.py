@@ -1338,12 +1338,8 @@ class DataFrame:
 
         # AST.
         stmt = self._session._ast_batch.assign()
-        if isinstance(exprs[0], str):
-            ast = stmt.expr.sp_dataframe_drop__strings
-        else:
-            ast = stmt.expr.sp_dataframe_drop__columns
+        ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
         for c in exprs:
             ast.cols.append(c if isinstance(c, str) else c._ast)
         ast.variadic = is_variadic
@@ -1503,16 +1499,11 @@ class DataFrame:
         # Parsing args separately since the original column expr or string
         # needs to be recorded.
         _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
-        ast = (
-            stmt.expr.sp_dataframe_sort__strings
-            if isinstance(_cols[0], str)
-            else stmt.expr.sp_dataframe_sort__columns
-        )
+        ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
         for c in _cols:
             ast.cols.append(c if isinstance(c, str) else c._ast)
-        ast.variadic = is_variadic
+        ast.cols_variadic = is_variadic
 
         orders = []
         if ascending is not None:
@@ -1590,9 +1581,8 @@ class DataFrame:
         """
         # AST.
         stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_alias
+        ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
         self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
         ast.name = name
 
         if self._session._conn._suppress_not_implemented_error:
@@ -1973,7 +1963,11 @@ class DataFrame:
 
     @df_api_usage
     def limit(
-        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
+        self,
+        n: int,
+        offset: int = 0,
+        _ast_stmt: proto.Assign = None,
+        suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -1984,6 +1978,7 @@ class DataFrame:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
             _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
+            suppress_ast: Whether to suppress AST statements.
 
         Example::
 
@@ -2004,12 +1999,16 @@ class DataFrame:
             <BLANKLINE>
         """
         # AST.
-        stmt = self._session._ast_batch.assign()
-        ast = stmt.expr.sp_dataframe_limit
-        self.set_ast_ref(ast.df)
-        set_src_position(ast.src)
-        ast.n = n
-        ast.offset = offset
+        if not suppress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
+                self.set_ast_ref(ast.df)
+                ast.n = n
+                ast.offset = offset
+            else:
+                stmt = _ast_stmt
+                ast = None
 
         if self._select_statement:
             return self._with_plan(

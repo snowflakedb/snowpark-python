@@ -273,7 +273,7 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         ast_stmt: Optional[proto.Assign] = None,
-        suppress_ast: bool = False
+        suppress_ast: bool = False,
     ) -> None:
         if ast_stmt is None and session is not None and not suppress_ast:
             ast_stmt = session._ast_batch.assign()
