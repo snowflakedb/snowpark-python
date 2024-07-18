@@ -95,7 +95,11 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
@@ -216,6 +220,13 @@ class MockExecutionPlan(LogicalPlan):
     @property
     def post_actions(self):
         return []
+
+    @property
+    def execution_queries(self) -> Dict[PlanQueryType, List[Query]]:
+        return {
+            PlanQueryType.QUERIES: self.queries,
+            PlanQueryType.POST_ACTIONS: self.post_actions,
+        }
 
 
 class MockFileOperation(MockExecutionPlan):
