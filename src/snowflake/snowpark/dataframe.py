@@ -2638,9 +2638,9 @@ class DataFrame:
             if match_condition is not None:
                 build_const_from_python_val(match_condition, ast.match_condition)
             if lsuffix:
-                ast.lsuffix = lsuffix
+                ast.lsuffix.value = lsuffix
             if rsuffix:
-                ast.rsuffix = rsuffix
+                ast.rsuffix.value = rsuffix
 
             return self._join_dataframes(
                 right,
@@ -2855,9 +2855,9 @@ class DataFrame:
         self.set_ast_ref(ast.lhs)
         right.set_ast_ref(ast.rhs)
         if lsuffix:
-            ast.lsuffix = lsuffix
+            ast.lsuffix.value = lsuffix
         if rsuffix:
-            ast.rsuffix = rsuffix
+            ast.rsuffix.value = rsuffix
         return self._join_dataframes_internal(
             right,
             create_join_type("cross"),
