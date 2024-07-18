@@ -95,14 +95,18 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -216,6 +220,13 @@ class MockExecutionPlan(LogicalPlan):
     @property
     def post_actions(self):
         return []
+
+    @property
+    def execution_queries(self) -> Dict[PlanQueryType, List[Query]]:
+        return {
+            PlanQueryType.QUERIES: self.queries,
+            PlanQueryType.POST_ACTIONS: self.post_actions,
+        }
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -1088,7 +1099,7 @@ def execute_mock_plan(
             source_plan.mode,
             column_names=source_plan.column_names,
         )
-    if isinstance(source_plan, UnresolvedRelation):
+    if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
