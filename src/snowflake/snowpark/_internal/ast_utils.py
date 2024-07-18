@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrSqlExpr,
 )
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
@@ -281,6 +282,49 @@ def with_src_position(
     return expr_ast
 
 
+def _fill_ast_with_column(
+    ast: proto.Expr, value: "snowflake.snowpark.Column"
+) -> None:
+    """Copy from a Column object's AST into an AST expression.
+
+    Args:
+        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        value (snowflake.snowpark.Column): The value from which to populate the provided ast parameter.
+
+    Raises:
+        NotImplementedError: Raised if the Column object does not have an AST set.
+    """
+    if value._ast is None and FAIL_ON_MISSING_AST:
+        raise NotImplementedError(
+            f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
+        )
+    elif value._ast is not None:
+        ast.CopyFrom(value._ast)
+
+
+def _fill_ast_with_snowpark_column_or_sql_expr(
+    ast: proto.Expr, value: ColumnOrSqlExpr
+) -> None:
+    """Copy from a Column object's AST, or copy a SQL expression into an AST expression.
+
+    Args:
+        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        value (ColumnOrSqlExpr): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid SQL expression
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        _fill_ast_with_column(ast, value)
+    elif isinstance(value, str):
+        expr = with_src_position(ast.sp_column_sql_expr)
+        expr.sql = value
+    else:
+        raise TypeError(
+            f"{type(value)} is not a valid type for Column or SQL expression AST."
+        )
+
+
 def _fill_ast_with_snowpark_column_or_literal(
     ast: proto.Expr, value: ColumnOrLiteral
 ) -> None:
@@ -294,12 +338,7 @@ def _fill_ast_with_snowpark_column_or_literal(
         TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
     """
     if isinstance(value, snowflake.snowpark.Column):
-        if value._ast is None and FAIL_ON_MISSING_AST:
-            raise NotImplementedError(
-                f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
-            )
-        elif value._ast is not None:
-            ast.CopyFrom(value._ast)
+        _fill_ast_with_column(ast, value)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
         build_const_from_python_val(value, ast)
     elif isinstance(value, Expression):

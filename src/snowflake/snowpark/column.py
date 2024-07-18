@@ -64,6 +64,8 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     _fill_ast_with_snowpark_column_or_literal,
+    _fill_ast_with_snowpark_column_or_sql_expr,
+    build_const_from_python_val,
     create_ast_for_column,
     snowpark_expression_to_ast,
     with_src_position,
@@ -1092,6 +1094,10 @@ class CaseExpr(Column):
             value: A :class:`Column` expression or a literal value, which will be returned
                 if ``condition`` is true.
         """
+        case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+        _fill_ast_with_snowpark_column_or_sql_expr(case_expr.condition, condition)
+        _fill_ast_with_snowpark_column_or_literal(case_expr.value, value)
+
         return CaseExpr(
             CaseWhen(
                 [
@@ -1101,7 +1107,8 @@ class CaseExpr(Column):
                         Column._to_expr(value),
                     ),
                 ]
-            )
+            ),
+            ast=self._ast,
         )
 
     def otherwise(self, value: ColumnOrLiteral) -> "CaseExpr":
@@ -1109,7 +1116,9 @@ class CaseExpr(Column):
 
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
-        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)))
+        case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+        _fill_ast_with_snowpark_column_or_literal(case_expr.value, value)
+        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)), ast=self._ast)
 
     # This alias is to sync with snowpark scala
     else_ = otherwise

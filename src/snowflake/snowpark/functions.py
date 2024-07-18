@@ -184,6 +184,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lead,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    _fill_ast_with_snowpark_column_or_literal,
+    _fill_ast_with_snowpark_column_or_sql_expr,
     build_fn_apply,
     create_ast_for_column,
     snowpark_expression_to_ast,
@@ -6602,12 +6604,10 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
     """
 
     ast = proto.Expr()
-    build_fn_apply(
-        ast,
-        "when",
-        snowpark_expression_to_ast(condition),
-        snowpark_expression_to_ast(value),
-    )
+    expr = with_src_position(ast.sp_column_case_when)
+    case_expr = with_src_position(expr.cases.add())
+    _fill_ast_with_snowpark_column_or_sql_expr(case_expr.condition, condition)
+    _fill_ast_with_snowpark_column_or_literal(case_expr.value, value)
 
     return CaseExpr(
         CaseWhen(
