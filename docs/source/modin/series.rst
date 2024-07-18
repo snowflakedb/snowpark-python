@@ -208,6 +208,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.compare
     Series.update
 
 .. rubric:: Time Series-related
