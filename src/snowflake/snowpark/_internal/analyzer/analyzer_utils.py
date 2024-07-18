@@ -895,7 +895,9 @@ def create_file_format_statement(
     )
 
 
-def infer_schema_statement(path: str, file_format_name: str) -> str:
+def infer_schema_statement(
+    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+) -> str:
     return (
         SELECT
         + STAR
@@ -913,6 +915,11 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + SINGLE_QUOTE
         + file_format_name
         + SINGLE_QUOTE
+        + (
+            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            if options
+            else ""
+        )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
