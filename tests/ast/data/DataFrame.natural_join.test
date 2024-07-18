@@ -1,7 +1,9 @@
 ## TEST CASE
 
 df1 = session.table("test_table")
+
 df2 = session.table("test_table")
+
 df1.natural_join(df2).select('*')
 
 ## EXPECTED OUTPUT
