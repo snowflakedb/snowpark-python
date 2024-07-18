@@ -276,7 +276,6 @@ def _disambiguate(
             )
             for name in lhs_names
         ],
-        suppress_ast=True,
     )
 
     rhs_remapped = rhs.select(
@@ -284,7 +283,6 @@ def _disambiguate(
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
         ],
-        suppress_ast=True,
     )
     return lhs_remapped, rhs_remapped
 
@@ -1130,7 +1128,6 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
-        suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1182,17 +1179,13 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        if not suppress_ast:
-            if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
-                self.set_ast_ref(ast.df)
-                ast.variadic = is_variadic
-            else:
-                stmt = _ast_stmt
-                ast = None
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
         else:
-            stmt = None
+            stmt = _ast_stmt
             ast = None
 
         names = []
@@ -2614,6 +2607,7 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
+            # AST.
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_join, stmt)
             self.set_ast_ref(ast.lhs)
@@ -2650,7 +2644,6 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
-                ast_stmt=stmt,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2877,7 +2870,6 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        ast_stmt=None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2887,7 +2879,6 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
-                ast_stmt=ast_stmt,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2902,7 +2893,6 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
-                ast_stmt=ast_stmt,
             )
         else:
             lhs, rhs = _disambiguate(
@@ -2931,10 +2921,9 @@ class DataFrame:
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                        ast_stmt=ast_stmt,
                     )
                 )
-            return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
+            return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
         self,
@@ -2945,7 +2934,6 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        ast_stmt=None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -2961,10 +2949,11 @@ class DataFrame:
             join_condition_expr,
             match_condition_expr,
         )
-        if ast_stmt is None:
-            raise NotImplementedError(
-                "AST fallback for dataframe joins is not implemented yet"
-            )
+        # DO NOT MERGE
+        # if ast_stmt is None:
+        #     raise NotImplementedError(
+        #         "There's no fallback for missing AST"
+        #     )
         if self._select_statement:
             return self._with_plan(
                 self._session._analyzer.create_select_statement(
@@ -2974,9 +2963,8 @@ class DataFrame:
                     ),
                     analyzer=self._session._analyzer,
                 ),
-                ast_stmt=ast_stmt,
             )
-        return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
+        return self._with_plan(join_logical_plan)
 
     @df_api_usage
     def with_column(
