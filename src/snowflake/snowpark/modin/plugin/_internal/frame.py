@@ -620,7 +620,7 @@ class InternalFrame:
             if self.num_index_columns == 1:
                 index_col = col(self.index_column_snowflake_quoted_identifiers[0])
                 # COUNT(DISTINCT) ignores NULL values, so if there is a NULL value in the column,
-                # we include it via IFF(MAX(<col> IS NULL)), 1, 0) which will return 1 if there is
+                # we include it via IFF(MAX(<col> IS NULL), 1, 0) which will return 1 if there is
                 # at least one NULL contained within a column, and 0 if there are no NULL values.
                 rows = self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
                     (
