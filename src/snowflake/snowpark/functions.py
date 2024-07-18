@@ -184,6 +184,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lead,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    _fill_ast_with_snowpark_column_or_literal,
+    build_const_from_python_val,
     build_fn_apply,
     create_ast_for_column,
     snowpark_expression_to_ast,
@@ -6696,26 +6698,31 @@ def in_(
         cols: A list of the columns to compare for the IN operation.
         vals: A list containing the values to compare for the IN operation.
     """
-    vals = parse_positional_args_to_list(*vals)
-    columns = [_to_col_if_str(c, "in_") for c in cols]
-
     # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
     # Fix here by constructing ast based on current column expressions.
-    ast = proto.Expr()
-    for c in columns:
-        column_ast = ast.list_val.vs.add()
-        column_ast.CopyFrom(c._ast)
-    col = Column(MultipleExpression([c._expression for c in columns]), ast=ast).in_(
-        vals
-    )
+    list_arg = proto.Expr()
+    list_ast = with_src_position(list_arg.list_val)
+    for col in cols:
+        col_ast = list_ast.vs.add()
+        _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+    
+    values_args = []
+    for val in vals:
+        val_ast = proto.Expr()
+        if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+            val.set_ast_ref(val_ast)
+        else:
+            build_const_from_python_val(val, val_ast)
+        values_args.append(val_ast)
+
+    vals = parse_positional_args_to_list(*vals)
+    columns = [_to_col_if_str(c, "in_") for c in cols]
+    col = Column(MultipleExpression([c._expression for c in columns])).in_(vals)
 
     # Replace ast in col with correct one.
     ast = proto.Expr()
-    list_arg = col._ast.sp_column_in__seq.col
-    values_arg = col._ast.sp_column_in__seq.values[0]
-    build_fn_apply(ast, "in_", list_arg, values_arg)
+    build_fn_apply(ast, "in_", list_arg, *values_args)
     col._ast = ast
-
     return col
 
 

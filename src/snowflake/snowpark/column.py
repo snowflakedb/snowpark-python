@@ -64,6 +64,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     _fill_ast_with_snowpark_column_or_literal,
+    build_const_from_python_val,
     create_ast_for_column,
     snowpark_expression_to_ast,
     with_src_position,
@@ -466,7 +467,6 @@ class Column:
     def __hash__(self):
         return hash(self._expression)
 
-    # TODO: SNOW-1474906
     def in_(
         self,
         *vals: Union[
@@ -509,12 +509,6 @@ class Column:
         Args:
             vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
         """
-
-        # TODO SNOW-1515255: For in_([col("A"), "B", "A"], df) support df parameter.
-        if any(isinstance(val, snowflake.snowpark.dataframe.DataFrame) for val in vals):
-            raise NotImplementedError(
-                "SNOW-1515255: No support for dataframe paramter in in_."
-            )
 
         cols = parse_positional_args_to_list(*vals)
         cols = [_to_col_if_lit(col, "in_") for col in cols]
@@ -567,11 +561,12 @@ class Column:
         ast = proto.Expr()
         proto_ast = ast.sp_column_in__seq
         proto_ast.col.CopyFrom(self._ast)
-        values_ast = proto_ast.values.add()
-
-        for expr in value_expressions:
-            expr_ast = values_ast.list_val.vs.add()
-            expr_ast.CopyFrom(snowpark_expression_to_ast(expr))
+        for val in vals:
+            val_ast = proto_ast.values.add()
+            if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+                val.set_ast_ref(val_ast)
+            else:
+                build_const_from_python_val(val, val_ast)
 
         return Column(InExpression(self._expression, value_expressions), ast=ast)
 
