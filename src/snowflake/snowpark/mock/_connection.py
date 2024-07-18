@@ -122,7 +122,11 @@ class MockServerConnection:
                 )
 
         def write_table(
-            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
+            self,
+            name: Union[str, Iterable[str]],
+            table: TableEmulator,
+            mode: SaveMode,
+            column_names: Optional[List[str]] = None,
         ) -> Row:
             for column in table.columns:
                 if not table[column].sf_type.nullable and table[column].isnull().any():
@@ -134,21 +138,49 @@ class MockServerConnection:
             name = get_fully_qualified_name(name, current_schema, current_database)
             table = copy(table)
             if mode == SaveMode.APPEND:
-                # Fix append by index
                 if name in self.table_registry:
                     target_table = self.table_registry[name]
+                    input_schema = table.columns.to_list()
+                    existing_schema = target_table.columns.to_list()
 
-                    if len(table.columns.to_list()) != len(
-                        target_table.columns.to_list()
-                    ):
-                        raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
-                        )
+                    if not column_names:  # append with column_order being index
+                        if len(input_schema) != len(existing_schema):
+                            raise SnowparkLocalTestingException(
+                                f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                            )
+                        # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                        table.columns = range(table.shape[1])
+                        target_table.columns = range(target_table.shape[1])
+                    else:  # append with column_order being name
+                        if invalid_cols := set(input_schema) - set(existing_schema):
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id) for id in invalid_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"table contains invalid identifier '{identifiers}'"
+                            )
+                        invalid_non_nullable_cols = []
+                        for missing_col in set(existing_schema) - set(input_schema):
+                            if target_table[missing_col].sf_type.nullable:
+                                table[missing_col] = None
+                                table.sf_types[missing_col] = target_table[
+                                    missing_col
+                                ].sf_type
+                            else:
+                                invalid_non_nullable_cols.append(missing_col)
+                        if invalid_non_nullable_cols:
+                            identifiers = "', '".join(
+                                unquote_if_quoted(id)
+                                for id in invalid_non_nullable_cols
+                            )
+                            raise SnowparkLocalTestingException(
+                                f"NULL result in a non-nullable column '{identifiers}'"
+                            )
 
-                    table.columns = target_table.columns
                     self.table_registry[name] = pandas.concat(
                         [target_table, table], ignore_index=True
                     )
+                    self.table_registry[name].columns = existing_schema
                     self.table_registry[name].sf_types = target_table.sf_types
                 else:
                     self.table_registry[name] = table
@@ -572,10 +604,12 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
+                        (
+                            Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
+                            if isinstance(sf_types[i].datatype, DecimalType)
+                            and v is not None
+                            else v
+                        )
                         for i, v in enumerate(pdr)
                     ]
                 )
@@ -637,9 +671,11 @@ class MockServerConnection:
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type
-                if column_data.sf_type
-                else res.sf_types[column_name],
+                datatype=(
+                    column_data.sf_type
+                    if column_data.sf_type
+                    else res.sf_types[column_name]
+                ),
             )
             for column_name, column_data in res.items()
         ]

@@ -4051,6 +4051,66 @@ def arrays_to_object(
     return builtin("arrays_to_object")(keys_c, values_c)
 
 
+def arrays_zip(*cols: ColumnOrName) -> Column:
+    """Returns an array of structured objects, where the N-th object contains the N-th elements of the input arrays.
+
+    Args:
+        cols: The columns to zip together.
+
+    Returns:
+        A new array of structured objects.
+
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_zip(df.a, df.b).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 10     |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 20     |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": 30     |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(1, 2) as B, array_construct(1.1) as C")
+        >>> df.select(arrays_zip(df.a, df.b, df.c).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 1,     |
+        |    "$3": 1.1    |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 2,     |
+        |    "$3": null   |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": null,  |
+        |    "$3": null   |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+    """
+    cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
+    return builtin("arrays_zip")(*cols)
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
@@ -6893,15 +6953,15 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).order_by(["exchange","symbol"]).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
-        |N           |SPY       |1          |
-        |N           |AAPL      |2          |
-        |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |N           |SPY       |1          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """

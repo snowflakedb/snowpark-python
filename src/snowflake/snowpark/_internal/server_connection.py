@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
+    PlanQueryType,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -574,22 +575,22 @@ class ServerConnection:
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
         action_id = plan.session._generate_new_action_id()
-        # potentially optimize the query using CTEs
-        plan = plan.replace_repeated_subquery_with_cte()
+        plan_queries = plan.execution_queries
         result, result_meta = None, None
         try:
+            main_queries = plan_queries[PlanQueryType.QUERIES]
             placeholders = {}
             is_batch_insert = False
-            for q in plan.queries:
+            for q in main_queries:
                 if isinstance(q, BatchInsertQuery):
                     is_batch_insert = True
                     break
             # since batch insert does not support async execution (? in the query), we handle it separately here
-            if len(plan.queries) > 1 and not block and not is_batch_insert:
+            if len(main_queries) > 1 and not block and not is_batch_insert:
                 params = []
                 final_queries = []
                 last_place_holder = None
-                for q in plan.queries:
+                for q in main_queries:
                     final_queries.append(
                         q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder
@@ -602,13 +603,13 @@ class ServerConnection:
                     ";".join(final_queries),
                     to_pandas,
                     to_iter,
-                    is_ddl_on_temp_object=plan.queries[0].is_ddl_on_temp_object,
+                    is_ddl_on_temp_object=main_queries[0].is_ddl_on_temp_object,
                     block=block,
                     data_type=data_type,
                     async_job_plan=plan,
                     log_on_exception=log_on_exception,
                     case_sensitive=case_sensitive,
-                    num_statements=len(plan.queries),
+                    num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
                     **kwargs,
@@ -620,18 +621,18 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
-                for i, query in enumerate(plan.queries):
+                for i, query in enumerate(main_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
                     else:
-                        is_last = i == len(plan.queries) - 1 and not block
+                        is_last = i == len(main_queries) - 1 and not block
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(plan.queries) - 1),
+                            to_iter and (i == len(main_queries) - 1),
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
@@ -651,7 +652,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan.post_actions:
+                for action in plan_queries[PlanQueryType.POST_ACTIONS]:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
