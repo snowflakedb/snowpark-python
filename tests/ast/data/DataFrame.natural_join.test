@@ -12,4 +12,4 @@ res2 = session.table("test_table")
 
 res3 = res1.natural_join(res2, "inner")
 
-res4 = res3.select('*')
+res4 = res3.select("*")
