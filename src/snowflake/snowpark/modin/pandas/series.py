@@ -831,7 +831,6 @@ class Series(BasePandasDataset):
             pandas.Series.between, left, right, inclusive=inclusive
         )
 
-    @series_not_implemented()
     def compare(
         self,
         other: Series,
@@ -847,7 +846,9 @@ class Series(BasePandasDataset):
         if not isinstance(other, Series):
             raise TypeError(f"Cannot compare Series to {type(other)}")
         result = self.to_frame().compare(
-            other.to_frame(),
+            # TODO(https://github.com/modin-project/modin/issues/7334):
+            # upstream this fix for differently named Series.
+            other.rename(self.name).to_frame(),
             align_axis=align_axis,
             keep_shape=keep_shape,
             keep_equal=keep_equal,
@@ -856,7 +857,19 @@ class Series(BasePandasDataset):
         if align_axis == "columns" or align_axis == 1:
             # pandas.DataFrame.Compare returns a dataframe with a multidimensional index object as the
             # columns so we have to change column object back.
-            result.columns = pandas.Index(["self", "other"])
+            if len(result.columns) == 2:
+                result.columns = pandas.Index(result_names)
+            else:
+                # even if the DataFrame.compare() result has no columns, the
+                # Series.compare() result always has the `result_names` as two
+                # columns.
+                # TODO(https://github.com/modin-project/modin/issues/5697):
+                # upstream this fix to modin.
+
+                # we have compared only one column, so DataFrame.compare()
+                # should only produce 0 or 2 columns.
+                assert len(result.columns) == 0
+                result = pd.DataFrame([], columns=result_names, index=result.index)
         else:
             result = result.squeeze().rename(None)
         return result
