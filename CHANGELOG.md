@@ -1,41 +1,96 @@
 # Release History
 
-## 1.20.0 (TBD)
+## 1.21.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+- Exposed `SessionBuilder.appName` as an alias for `SessionBuilder.app_name`
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+- Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+
+#### Improvements
+- Removed the public preview warning message upon importing Snowpark pandas.
+
+
+## 1.20.0 (2024-07-17)
 
 ### Snowpark Python API Updates
 
 #### Improvements
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
-  - _execute_and_get_query_id
-- Added support for function `arrays_zip`.
-- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
-- Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
-- Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
-- Exposed `SessionBuilder.appName` as an alias for `SessionBuilder.app_name`
+  - `_execute_and_get_query_id`
+- Added support for the `arrays_zip` function.
+- Improves performance for binary column expression and `df._in` by avoiding unnecessary cast for numeric values. You can enable this optimization by setting `session.eliminate_numeric_sql_value_cast_enabled = True`.
+- Improved error message for `write_pandas` when the target table does not exist and `auto_create_table=False`.
+- Added open telemetry tracing on UDxF functions in Snowpark.
+- Added open telemetry tracing on stored procedure registration in Snowpark.
+- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that sets the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Bug Fixes
+- Fixed a bug where SQL generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
-- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - random
+- Added new parameters to `patch` function when registering a mocked function:
+  - `distinct` allows an alternate function to be specified for when a sql function should be distinct.
+  - `pass_column_index` passes a named parameter `column_index` to the mocked function that contains the pandas.Index for the input data.
+  - `pass_row_index` passes a named parameter `row_index` to the mocked function that is the 0 indexed row number the function is currently operating on.
+  - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
+  - Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
+
+
+#### Bug Fixes
+- Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExpressions.
 
 ### Snowpark pandas API Updates
 
 #### New Features
-
+- Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
+- Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
+- Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
+- Added support for `read_excel` (Uses local pandas for processing)
+- Added support for `Series.at`, `Series.iat`, `DataFrame.at`, and `DataFrame.iat`.
+- Added support for `Series.dt.isocalendar`.
+- Added support for `Series.case_when` except when condition or replacement is callable.
+- Added documentation pages for `Index` and its APIs.
+- Added support for `DataFrame.assign`.
+- Added support for `DataFrame.stack`.
+- Added support for `DataFrame.pivot` and `pd.pivot`.
+- Added support for `DataFrame.to_csv` and `Series.to_csv`.
 - Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
 - Added support for `DataFrame.corr`.
+- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
+- Added support for `DataFrameGroupBy` and `SeriesGroupBy` aggregations `first` and `last`
+- Added support for `DataFrameGroupBy.get_group`.
 - Added support for `limit` parameter when `method` parameter is used in `fillna`.
+- Added partial support for `Series.str.translate` where the values in the `table` are single-codepoint strings.
+- Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
+- Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
-### Snowpark Local Testing Updates
-
-### New Features
-
-- Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
+#### Improvements
+- Added support for `Index.copy()`
+- Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
+- Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
+- Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
 
 ## 1.19.0 (2024-06-25)
 
@@ -113,6 +168,7 @@
 - Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 - Added support for `DataFrame.to_csv` and `Series.to_csv`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 

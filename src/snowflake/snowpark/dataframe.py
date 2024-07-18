@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
@@ -4051,10 +4052,14 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan.queries],
-            "post_actions": [query.sql.strip() for query in plan.post_actions],
+            "queries": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+            ],
         }
 
     def explain(self) -> None:
@@ -4068,20 +4073,20 @@ class DataFrame:
         print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(plan.queries) == 1:
-            exec_plan = self._session._explain_query(plan.queries[0].sql)
+        if len(plan_queries) == 1:
+            exec_plan = self._session._explain_query(plan_queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{plan.queries[0].sql} can't be explained"
+                msg = f"{plan_queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 

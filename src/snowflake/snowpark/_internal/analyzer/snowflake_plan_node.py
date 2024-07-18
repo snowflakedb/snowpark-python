@@ -83,7 +83,7 @@ class Range(LeafNode):
         }
 
 
-class UnresolvedRelation(LeafNode):
+class SnowflakeTable(LeafNode):
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
