@@ -1,23 +1,38 @@
 # Release History
 
-## 1.20.0 (TBD)
+## 1.21.0 (TBD)
+
+### Snowpark Python API Updates
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added support for `DataFrame.backfill`, `DataFrame.bfill`, `Series.backfill`, and `Series.bfill`.
+- Added support for `DataFrame.compare` and `Series.compare` with default parameters.
+
+#### Improvements
+- Removed the public preview warning message upon importing Snowpark pandas.
+
+
+## 1.20.0 (2024-07-17)
 
 ### Snowpark Python API Updates
 
 #### Improvements
 
 - Added distributed tracing using open telemetry APIs for table stored procedure function in `DataFrame`:
-  - _execute_and_get_query_id
-- Added support for function `arrays_zip`.
-- Allow `df.plot()` and `series.plot()` to be called, materializing the data into the local client
-- Improves performance for binary column expression and df._in by avoiding unnecessary cast for numeric values. This optimization can be enabled through session.eliminate_numeric_sql_value_cast_enabled = True.
-- Improved error message for `write_pandas` when target table does not exists and `auto_create_table=False`.
-- Added open telemetry tracing on UDxF functions in snowpark.
-- Added open telemetry tracing on stored procedure registration in snowpark.
+  - `_execute_and_get_query_id`
+- Added support for the `arrays_zip` function.
+- Improves performance for binary column expression and `df._in` by avoiding unnecessary cast for numeric values. You can enable this optimization by setting `session.eliminate_numeric_sql_value_cast_enabled = True`.
+- Improved error message for `write_pandas` when the target table does not exist and `auto_create_table=False`.
+- Added open telemetry tracing on UDxF functions in Snowpark.
+- Added open telemetry tracing on stored procedure registration in Snowpark.
+- Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that sets the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Bug Fixes
-- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
-- Fixed a bug where sql generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
+- Fixed a bug where SQL generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark Local Testing Updates
 
@@ -65,7 +80,7 @@
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
-- Fixed a bug in `DataFrame` and `Series` with `dtype=np.uint64` resulting in precision errors
+- Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements

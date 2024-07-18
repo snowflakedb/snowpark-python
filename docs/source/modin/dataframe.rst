@@ -169,6 +169,8 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.backfill
+    DataFrame.bfill
     DataFrame.dropna
     DataFrame.ffill
     DataFrame.fillna
@@ -204,6 +206,7 @@ DataFrame
 .. autosummary::
     :toctree: pandas_api/
 
+    DataFrame.compare
     DataFrame.join
     DataFrame.merge
     DataFrame.update
