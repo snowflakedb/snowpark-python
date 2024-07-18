@@ -376,11 +376,12 @@ Methods
 | ``skew``                    | P                               |                                  | ``N`` if ``axis == 1`` or ``skipna == False``      |
 |                             |                                 |                                  | or ``numeric_only=False``                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``sort_index``              | P                               |                                  | ``N`` if given the ``key`` param,                  |
+| ``sort_index``              | P                               | ``key``                          | ``N`` if given the ``key`` param,                  |
 |                             |                                 |                                  | or MultiIndex                                      |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``sort_values``             | P                               | ``key``                          | Snowpark pandas currently uses stable sort when    |
-|                             |                                 |                                  | sorting the index values. Pandas uses quicksort.   |
+| ``sort_values``             | P                               | ``key``, ``kind`` is ignored     | The ``kind`` parameter has no effect. Snowpark     |
+|                             |                                 |                                  | pandas always uses a stable sort algorithm, while  |
+|                             |                                 |                                  | pandas by default does not.                        |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``squeeze``                 | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
