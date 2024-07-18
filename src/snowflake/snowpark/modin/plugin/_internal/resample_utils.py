@@ -756,4 +756,5 @@ def perform_asof_join_on_frame(
             left_timecol_snowflake_quoted_identifier
         ],
         data_column_pandas_index_names=referenced_frame.data_column_pandas_index_names,
+        ordering_enforced=preserving_frame.ordered_dataframe.ordering_enforced or referenced_frame.ordered_dataframe.ordering_enforced
     )

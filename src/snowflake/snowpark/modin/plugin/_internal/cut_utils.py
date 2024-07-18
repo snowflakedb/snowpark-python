@@ -301,6 +301,7 @@ def compute_bin_indices(
         + [new_data_identifier],
         ordering_columns=[OrderingColumn(value_row_position_identifier)],
         row_position_snowflake_quoted_identifier=value_row_position_identifier,
+        ordering_enforced=values_frame.ordered_dataframe.ordering_enforced,
     )
 
     new_frame = InternalFrame.create(
