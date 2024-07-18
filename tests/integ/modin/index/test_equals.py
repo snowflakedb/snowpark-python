@@ -53,3 +53,20 @@ def test_index_equals_mismatched_name():
 
     snow_result = pd.Index(data, name="X").equals(pd.Index(data, name="Y"))
     assert snow_result is True
+
+
+@sql_count_checker(query_count=0)
+def test_index_equals_other_types():
+    index = pd.Index([1, 2])
+    series = pd.Series([1, 2])
+    assert index.equals(series) is False
+
+
+@sql_count_checker(query_count=2, join_count=2)
+def test_index_lazy_with_non_lazy():
+    # Lazy index
+    index1 = pd.Index([1, 2])
+    # Non lazy index
+    index2 = pd.Index([1, 2], convert_to_lazy=False)
+    assert index1.equals(index2)
+    assert index2.equals(index1)

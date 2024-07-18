@@ -1043,7 +1043,7 @@ class Index:
         Index(['1', '2', '3'], dtype='object')
 
         >>> idx1.equals(idx2)
-        False
+        True
 
         The order is compared
 
@@ -1091,7 +1091,7 @@ class Index:
             left = Index(left._index, convert_to_lazy=True)
         if not right.is_lazy:
             right = Index(right._index, convert_to_lazy=True)
-        return self._query_compiler.index_equals(other._query_compiler)
+        return left._query_compiler.index_equals(right._query_compiler)
 
     @index_not_implemented()
     def identical(self) -> None:

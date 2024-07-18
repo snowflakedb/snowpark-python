@@ -15584,9 +15584,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             True if self index is equal to other index, False otherwise.
         """
-        if self._modin_frame.num_index_columns != other._modin_frame.num_index_columns:
-            return False
-
         # Join on row position columns to compare order of data.
         self_frame = self._modin_frame.ensure_row_position_column()
         other_frame = other._modin_frame.ensure_row_position_column()
