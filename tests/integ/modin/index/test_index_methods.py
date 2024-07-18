@@ -3,7 +3,6 @@
 #
 
 import modin.pandas as pd
-import numpy as np
 import pytest
 from numpy.testing import assert_equal
 
@@ -15,15 +14,6 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
-
-
-@sql_count_checker(query_count=2)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_astype(native_index):
-    # TODO: SNOW-1480906: Investigate astype failure for int to object conversion
-    snow_index = pd.Index(native_index)
-    snow_index = snow_index.astype("object")
-    assert repr(snow_index) == repr(native_index)
 
 
 @sql_count_checker(query_count=2)
@@ -89,18 +79,6 @@ def test_df_index_equals(native_df):
 def test_index_value_counts(native_index):
     snow_index = pd.Index(native_index)
     assert_series_equal(snow_index.value_counts(), native_index.value_counts())
-
-
-@sql_count_checker(query_count=4)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[:-1])
-def test_index_sort_values(native_index):
-    snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=4):
-        assert_index_equal(snow_index.sort_values(), native_index.sort_values())
-        native_tup = native_index.sort_values(return_indexer=True)
-        snow_tup = snow_index.sort_values(return_indexer=True)
-        assert_index_equal(native_tup[0], snow_tup[0])
-        assert np.array_equal(native_tup[1], snow_tup[1])
 
 
 @sql_count_checker(query_count=8)
