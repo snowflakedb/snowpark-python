@@ -2315,6 +2315,11 @@ class Index(metaclass=TelemetryMeta):
         """
         Return a string representation for this object.
         """
+        # Take a look at:
+        # https://github.com/pandas-dev/pandas/blob/v2.2.2/pandas/core/indexes/base.py#L1310
+        # https://github.com/pandas-dev/pandas/blob/v2.2.2/pandas/core/indexes/base.py#L1330
+        # https://github.com/pandas-dev/pandas/blob/v2.2.2/pandas/io/formats/printing.py#L287
+        # implement getitem first?
         num_elements = native_pd.get_option("display.max_seq_items") or 100
 
         # perform filter to get the first and last ten elements if the length is <= 100
