@@ -1269,7 +1269,11 @@ class DataFrame:
         return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
 
     @df_api_usage
-    def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
+    def select_expr(
+        self, 
+        *exprs: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+    ) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
         This method is equivalent to ``select(sql_expr(...))`` with :func:`select`
@@ -1294,8 +1298,30 @@ class DataFrame:
             <BLANKLINE>
 
         """
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+        if not exprs:
+            raise ValueError("The input of select_expr() cannot be empty")
+
+        # AST.
+        if _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+
+            for e in exprs:
+                if isinstance(e, str):
+                    ast.exprs.append(e)
+                else:
+                    raise TypeError(
+                        "The input of select_expr() must be a string or a list of strings"
+                    )
+        else:
+            stmt = _ast_stmt
+
         return self.select(
-            [sql_expr(expr) for expr in parse_positional_args_to_list(*exprs)]
+            [sql_expr(expr, suppress_fn_ast=True) for expr in parse_positional_args_to_list(*exprs)],
+            _ast_stmt=stmt,
         )
 
     selectExpr = select_expr
