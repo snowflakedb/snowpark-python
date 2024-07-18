@@ -180,7 +180,6 @@ class MockSelectStatement(MockSelectable):
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         analyzer: "Analyzer",
-        ast_stmt: Optional[Any] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: List[Expression] = projection or [Star([])]
