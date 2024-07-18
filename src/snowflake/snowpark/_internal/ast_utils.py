@@ -145,6 +145,8 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
             build_const_from_python_val(v, ast.tuple_val.vs.add())
 
     elif isinstance(obj, Column):
+        assert hasattr(obj, "_ast"), f"Column object {obj} has no _ast member set."
+        assert obj._ast is not None, f"Column object {obj} has _ast set to None."
         ast.CopyFrom(obj._ast)
 
     else:
