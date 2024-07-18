@@ -628,7 +628,7 @@ class InternalFrame:
                     ).as_("unique_count"),
                     count("*").as_("total_count"),
                 ).collect()
-                return len(rows) == 0 or rows[0][0] == rows[0][1]
+                return rows[0][0] == rows[0][1]
             else:
                 # Note: We can't use 'count_distinct' because it ignores null values.
                 total_rows = self.num_rows
