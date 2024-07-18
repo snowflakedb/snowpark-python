@@ -156,12 +156,12 @@ class ServerConnection:
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
-        self._max_string_size = DEFAULT_STRING_SIZE
+        self.max_string_size = DEFAULT_STRING_SIZE
         if self._conn._session_parameters:
             try:
-                self._max_string_size = int(
+                self.max_string_size = int(
                     self._conn._session_parameters.get(
-                        "VARCHAR_AND_BINARY_MAX_SIZE_IN_RESULT", self._max_string_size
+                        "VARCHAR_AND_BINARY_MAX_SIZE_IN_RESULT", self.max_string_size
                     )
                 )
             except TypeError:
@@ -243,7 +243,7 @@ class ServerConnection:
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
-            run_new_describe(self._cursor, query), self._max_string_size
+            run_new_describe(self._cursor, query), self.max_string_size
         )
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
@@ -671,9 +671,7 @@ class ServerConnection:
     ) -> Tuple[List[Row], List[Attribute]]:
         result_set, result_meta = self.get_result_set(plan, **kwargs)
         result = result_set_to_rows(result_set["data"])
-        attributes = convert_result_meta_to_attribute(
-            result_meta, self._max_string_size
-        )
+        attributes = convert_result_meta_to_attribute(result_meta, self.max_string_size)
         return result, attributes
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
@@ -715,11 +713,6 @@ class ServerConnection:
             if self._conn._session_parameters
             else default_value
         )
-
-    @property
-    def max_string_size(self) -> int:
-        """The maximum size of varchar type data for this connection."""
-        return self._max_string_size
 
 
 def _fix_pandas_df_fixed_type(
