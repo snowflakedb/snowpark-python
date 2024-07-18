@@ -693,6 +693,7 @@ def test_datediff(session):
     [
         ("year", "2023-01-01 00:00:00.000", "2024-01-01 00:00:00.000", 1),
         ("month", "2023-01-01 00:00:00.000", "2024-02-01 00:00:00.000", 13),
+        ("week", "2024-01-01 00:00:00.000", "2024-03-05 00:00:00.000", 9),
         ("day", "2024-01-01 00:00:00.000", "2024-02-05 00:00:00.000", 35),
         ("hour", "2024-01-01 00:00:00.000", "2024-01-01 6:35:00.000", 6),
         ("minute", "2024-01-01 00:00:00.000", "2024-01-01 1:12:00.000", 72),
@@ -731,7 +732,7 @@ def test_datediff_negative(session):
         df.select(datediff(7, col("b"), col("a"))).collect()
 
     with pytest.raises(SnowparkSQLException):
-        df.select(datediff("week", col("b"), col("a"))).collect()
+        df.select(datediff("epoch_second", col("b"), col("a"))).collect()
 
 
 @pytest.mark.parametrize(

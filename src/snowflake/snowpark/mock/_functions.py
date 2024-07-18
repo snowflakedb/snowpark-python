@@ -1702,7 +1702,15 @@ def mock_datediff(
 
     time_unit = unalias_datetime_part(part)
 
-    if time_unit in {"day", "hour", "minute", "second", "millisecond", "microsecond"}:
+    if time_unit in {
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "millisecond",
+        "microsecond",
+    }:
 
         def func(x, y):
             return (y - x) // datetime.timedelta(**{f"{time_unit}s": 1})
