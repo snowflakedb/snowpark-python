@@ -6,8 +6,6 @@ df2 = session.table("test_table")
 
 df3 = df1.join(df2, df1.num == df2.num).select(df1.num.alias("num1"), df2.num.alias("num2"), df2.str)
 
-df3.show()
-
 ## EXPECTED OUTPUT
 
 res1 = session.table("test_table")
