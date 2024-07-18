@@ -30,7 +30,7 @@ def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
-    deterministic_ordering:bool=True, 
+    ordering_enforced: bool = True,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
@@ -359,7 +359,10 @@ def read_snowflake(
 
     return DataFrame(
         query_compiler=FactoryDispatcher.read_snowflake(
-            name_or_query, index_col=index_col, columns=columns, deterministic_ordering=deterministic_ordering
+            name_or_query,
+            index_col=index_col,
+            columns=columns,
+            ordering_enforced=ordering_enforced,
         )
     )
 
