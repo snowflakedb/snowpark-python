@@ -872,13 +872,16 @@ def test_concat_verify_integrity_axis1_with_keys():
         (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (2, 2)])),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
 def test_concat_verify_integrity_axis0(index1, index2):
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
-    eval_snowpark_pandas_result(
-        "pd", "native_pd", _concat_operation([df1, df2], verify_integrity=True)
-    )
+    query_count, union_count = 4, 2
+    if isinstance(index1, native_pd.Index) and index1.nlevels > 1:
+        query_count, union_count = query_count + 1, union_count + 1
+    with SqlCounter(query_count=query_count, union_count=union_count):
+        df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
+        df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+        eval_snowpark_pandas_result(
+            "pd", "native_pd", _concat_operation([df1, df2], verify_integrity=True)
+        )
 
 
 @pytest.mark.parametrize(
@@ -923,21 +926,24 @@ def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
         ([1, 1], [2, 3]),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
 def test_concat_verify_integrity_axis0_negative(index1, index2):
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
-    eval_snowpark_pandas_result(
-        "pd",
-        "native_pd",
-        _concat_operation([df1, df2], verify_integrity=True),
-        expect_exception=True,
-        expect_exception_type=ValueError,
-        expect_exception_match="Indexes have overlapping values: ",
-    )
+    query_count, union_count = 4, 2
+    if isinstance(index1, native_pd.Index) and index1.nlevels > 1:
+        query_count, union_count = query_count + 1, union_count + 1
+    with SqlCounter(query_count=query_count, union_count=union_count):
+        df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
+        df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+        eval_snowpark_pandas_result(
+            "pd",
+            "native_pd",
+            _concat_operation([df1, df2], verify_integrity=True),
+            expect_exception=True,
+            expect_exception_type=ValueError,
+            expect_exception_match="Indexes have overlapping values: ",
+        )
 
 
-@sql_count_checker(query_count=3, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_large_overlap_negative():
     df = pd.DataFrame(data=list(range(100)))
     msg = "Indexes have overlapping values. Few of them are: .* Please run "

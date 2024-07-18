@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 
@@ -353,17 +354,27 @@ def test_df_index_columns_dtype(native_df):
         assert snow_df.columns.dtype == native_df.columns.dtype
 
 
-@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+UNIQUE_TEST_DATA = NATIVE_INDEX_UNIQUE_TEST_DATA + [
+    native_pd.Index([(1, 2), (1, 2)]),  # duplicates
+    native_pd.Index([(1, 2), (1, 3)]),  # no duplicates
+    native_pd.Index([(1, 3), (2, 3)]),  # no duplicates
+    native_pd.Index([(1, 3), (2, 3), (None, None)]),  # no duplicates with None
+    native_pd.Index([(1, 2), (1, 2), (None, None)]),  # duplicates with None
+    native_pd.Index([(1, 3), (None, None), (None, None)]),  # None duplicates
+]
+
+
+@pytest.mark.parametrize("index", UNIQUE_TEST_DATA)
 @pytest.mark.parametrize("is_lazy", [True, False])
 def test_is_unique(index, is_lazy):
-    with SqlCounter(query_count=1 if is_lazy else 0):
+    with SqlCounter(query_count=int(is_lazy)):
         snow_index = pd.Index(index, convert_to_lazy=is_lazy)
         assert index.is_unique == snow_index.is_unique
 
 
-@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+@pytest.mark.parametrize("index", UNIQUE_TEST_DATA)
 @pytest.mark.parametrize("is_lazy", [True, False])
 def test_has_duplicates(index, is_lazy):
-    with SqlCounter(query_count=1 if is_lazy else 0):
+    with SqlCounter(query_count=int(is_lazy)):
         snow_index = pd.Index(index, convert_to_lazy=is_lazy)
         assert index.has_duplicates == snow_index.has_duplicates
