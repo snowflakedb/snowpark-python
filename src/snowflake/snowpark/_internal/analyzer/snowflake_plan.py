@@ -89,8 +89,15 @@ from snowflake.snowpark._internal.analyzer.cte_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
+    CopyIntoTableNode,
     LogicalPlan,
     SaveMode,
+    SnowflakeCreateTable,
+)
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateDynamicTableCommand,
+    CreateViewCommand,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -289,6 +296,21 @@ class SnowflakePlan(LogicalPlan):
         # if source_plan or placeholder_query is none, it must be a leaf node,
         # no optimization is needed
         if self.source_plan is None or self.placeholder_query is None:
+            return self
+
+        # When the source plan node is an instance of nodes in pre_handled_logical_node,
+        # the cte optimization has been pre-handled during the plan build step, skip the
+        # optimization step for now.
+        # TODO: Once SNOW-1541094 is done, we will be able to unify all the optimization steps, and
+        #       there is no need for such check anymore.
+        pre_handled_logical_node = (
+            CreateDynamicTableCommand,
+            CreateViewCommand,
+            SnowflakeCreateTable,
+            CopyIntoTableNode,
+            CopyIntoLocationNode,
+        )
+        if isinstance(self.source_plan, pre_handled_logical_node):
             return self
 
         # only select statement can be converted to CTEs
@@ -741,6 +763,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
+        logical_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
 
@@ -789,7 +812,7 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                None,
+                logical_plan,
                 api_calls=child.api_calls,
                 session=self.session,
             )
@@ -803,7 +826,7 @@ class SnowflakePlanBuilder:
                         column_names=column_names,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -814,7 +837,7 @@ class SnowflakePlanBuilder:
                         full_table_name, x, [x.name for x in child.attributes], True
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return self.build(
@@ -828,7 +851,7 @@ class SnowflakePlanBuilder:
                         comment=comment,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -842,7 +865,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -856,7 +879,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
@@ -869,7 +892,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
 
     def limit(
@@ -930,7 +953,12 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str]
+        self,
+        name: str,
+        child: SnowflakePlan,
+        is_temp: bool,
+        comment: Optional[str],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -942,7 +970,7 @@ class SnowflakePlanBuilder:
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
-            None,
+            source_plan,
         )
 
     def create_or_replace_dynamic_table(
@@ -952,6 +980,7 @@ class SnowflakePlanBuilder:
         lag: str,
         comment: Optional[str],
         child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -965,7 +994,7 @@ class SnowflakePlanBuilder:
                 name, warehouse, lag, comment, x
             ),
             child,
-            None,
+            source_plan,
         )
 
     def create_temp_table(
@@ -1190,6 +1219,7 @@ class SnowflakePlanBuilder:
         file_format: str,
         table_name: Iterable[str],
         path: str,
+        source_plan: Optional[LogicalPlan],
         files: Optional[str] = None,
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
@@ -1245,12 +1275,15 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 full_table_name
             )
-        return SnowflakePlan(queries, copy_command, [], {}, None, session=self.session)
+        return SnowflakePlan(
+            queries, copy_command, [], {}, source_plan, session=self.session
+        )
 
     def copy_into_location(
         self,
         query: SnowflakePlan,
         stage_location: str,
+        source_plan: Optional[LogicalPlan],
         partition_by: Optional[str] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
@@ -1271,7 +1304,7 @@ class SnowflakePlanBuilder:
                 **copy_options,
             ),
             query,
-            None,
+            source_plan,
             query.schema_query,
         )
 
