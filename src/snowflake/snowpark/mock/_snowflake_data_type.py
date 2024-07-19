@@ -315,7 +315,12 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
 
 
 class TableEmulator(PandasDataframeType):
-    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
+    _metadata = [
+        "sf_types",
+        "sf_types_by_col_index",
+        "_null_rows_idxs_map",
+        "sorted_by",
+    ]
 
     @property
     def _constructor(self):
@@ -344,6 +349,7 @@ class TableEmulator(PandasDataframeType):
             {} if not sf_types_by_col_index else sf_types_by_col_index
         )
         self._null_rows_idxs_map = {}
+        self.sorted_by = []
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
