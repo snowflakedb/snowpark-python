@@ -262,13 +262,13 @@ def test_create_scoped_temp_table(session):
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
-        expected_sql = f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
             session._plan_builder.save_as_table(
                 [temp_table_name],
                 None,
                 SaveMode.ERROR_IF_EXISTS,
-                "temp",
+                "temporary",
                 None,
                 None,
                 df._plan,
