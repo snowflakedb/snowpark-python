@@ -77,6 +77,9 @@
 - Added support for `DataFrame.corr`.
 - Added support for `DataFrame.equals` and `Series.equals`.
 - Added support for `DataFrame.reindex` and `Series.reindex`.
+- Added support for `Index.astype`.
+- Added support for `Index.unique` and `Index.nunique`.
+- Added support for `Index.sort_values`.
 
 #### Bug Fixes
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
@@ -151,7 +154,7 @@
 - Added support for `DataFrame.stack`.
 - Added support for `DataFrame.pivot` and `pd.pivot`.
 - Added support for `DataFrame.to_csv` and `Series.to_csv`.
-- Added support for `Index.sort_values`.
+- Added support for `Index.T`.
 
 #### Bug Fixes
 
