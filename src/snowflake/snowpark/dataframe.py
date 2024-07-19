@@ -1506,19 +1506,33 @@ class DataFrame:
         ast.cols_variadic = is_variadic
 
         orders = []
+        # `ascending` is represented by Expr in the AST.
+        # Therefore, construct the required bool, int, or list and copy from that.
+        asc_expr_ast = proto.Expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
+                # Here asc_expr_ast is a list of bools and ints.
                 for asc in ascending:
-                    ast.ascending.append(asc)
+                    asc_ast = proto.Expr()
+                    if isinstance(asc, bool):
+                        asc_ast.bool_val.v = asc
+                    else:
+                        asc_ast.int64_val.v = asc
+                    asc_expr_ast.list_val.vs.append(asc_ast)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
-                ast.ascending = ascending
+                # Here asc_expr_ast is either a bool or an int.
+                if isinstance(ascending, bool):
+                    asc_expr_ast.bool_val.v = ascending
+                else:
+                    asc_expr_ast.int64_val.v = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
+            ast.ascending.CopyFrom(asc_expr_ast)
             if len(exprs) != len(orders):
                 raise ValueError(
                     "The length of col ({}) should be same with"

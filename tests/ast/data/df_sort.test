@@ -10,18 +10,22 @@ df = df.sort(col("A"), col("B"), ascending=[True, False])
 
 df = df.sort(col("A"), col("B"), ascending=[0, 1])
 
+df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
+
 df = df.sort(col("B"))
 
 ## EXPECTED OUTPUT
 
 res1 = session.table("test_table")
 
-res2 = res1.sort(col("A"), [True])
+res2 = res1.sort(col("A"), True)
 
-res3 = res2.sort(col("A"), [False])
+res3 = res2.sort(col("A"), 0)
 
 res4 = res3.sort(col("A"), col("B"), [True, False])
 
-res5 = res4.sort(col("A"), col("B"), [False, True])
+res5 = res4.sort(col("A"), col("B"), [0, 1])
 
-res6 = res5.sort(col("B"), None)
+res6 = res5.sort(col("A"), col("B"), col("C"), [0, True, 1])
+
+res7 = res6.sort(col("B"), None)
