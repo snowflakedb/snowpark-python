@@ -711,7 +711,7 @@ def execute_mock_plan(
                 )
         return res_df
     if isinstance(source_plan, MockSelectableEntity):
-        entity_name = source_plan.entity_name
+        entity_name = source_plan.entity.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
         elif entity_registry.is_existing_view(entity_name):

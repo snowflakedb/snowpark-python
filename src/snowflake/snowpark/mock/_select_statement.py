@@ -33,7 +33,11 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan, Range
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    Range,
+    SnowflakeTable,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 SET_UNION = analyzer_utils.UNION
@@ -490,7 +494,13 @@ class MockSelectableEntity(MockSelectable):
     Mainly used by session.table().
     """
 
-    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        entity: SnowflakeTable,
+        *,
+        analyzer: "Analyzer",
+        is_generated_temp_table: bool = False,
+    ) -> None:
         super().__init__(analyzer)
-        self.entity_name = entity_name
+        self.entity = entity
         self.api_calls = []
