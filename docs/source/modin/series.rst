@@ -252,6 +252,8 @@ Series
     Series.dt.hour
     Series.dt.minute
     Series.dt.second
+    Series.dt.microsecond
+    Series.dt.nanosecond
     Series.dt.dayofweek
     Series.dt.day_of_week
     Series.dt.dayofyear
