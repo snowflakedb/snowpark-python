@@ -3,9 +3,11 @@
 #
 
 import copy
+from typing import List
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
@@ -32,9 +34,9 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.functions import col, seq1, uniform
 
 pytestmark = [
-    pytest.mark.skip(
+    pytest.mark.xfail(
         "config.getoption('local_testing_mode', default=False)",
-        reason="deepcopy is required by the new compilation with optimization, which is not supported by local testing",
+        reason="deepcopy is not supported and required by local testing",
         run=False,
     )
 ]
@@ -106,6 +108,17 @@ def verify_logical_plan_node(
             verify_logical_plan_node(copied_plan_node, original_plan_node)
 
 
+def verify_snowflake_plan_attribute(
+    copied_plan_attribute: List[Attribute], original_plan_attributes: List[Attribute]
+) -> None:
+    for copied_attribute, original_attribute in zip(
+        copied_plan_attribute, original_plan_attributes
+    ):
+        assert copied_attribute.name == original_attribute.name
+        assert copied_attribute.datatype == original_attribute.datatype
+        assert copied_attribute.nullable == original_attribute.nullable
+
+
 def check_copied_plan(copied_plan: SnowflakePlan, original_plan: SnowflakePlan) -> None:
     # verify the instance type is the same
     assert type(copied_plan) == type(original_plan)
@@ -126,6 +139,8 @@ def check_copied_plan(copied_plan: SnowflakePlan, original_plan: SnowflakePlan) 
     assert copied_plan.is_ddl_on_temp_object == original_plan.is_ddl_on_temp_object
     assert copied_plan.api_calls == original_plan.api_calls
     assert copied_plan.expr_to_alias == original_plan.expr_to_alias
+    assert copied_plan.schema_query == original_plan.schema_query
+    verify_snowflake_plan_attribute(copied_plan.attributes, original_plan.attributes)
 
     # verify changes in the copied plan doesn't impact original plan
     original_sql = original_plan.queries[-1].sql
@@ -196,14 +211,9 @@ def test_table_function(session):
     check_copied_plan(df_res_copied, df_res._plan)
 
 
-"""
 @pytest.mark.parametrize(
     "mode", [SaveMode.APPEND, SaveMode.TRUNCATE, SaveMode.ERROR_IF_EXISTS]
 )
-"""
-
-
-@pytest.mark.parametrize("mode", [SaveMode.APPEND])
 def test_table_creation(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     create_table_logic_plan = SnowflakeCreateTable(
