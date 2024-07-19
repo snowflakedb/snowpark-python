@@ -6,6 +6,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Bug Fixes
+
+Fixed a bug where values were not populated into the result DataFrame during the insertion of table merge operation.
+
 ### Snowpark pandas API Updates
 
 #### New Features
