@@ -1342,7 +1342,7 @@ def execute_mock_plan(
 
                 # Calculate rows to insert
                 rows_to_insert = TableEmulator(
-                    [], columns=target.drop(ROW_ID, axis=1).columns
+                    [], columns=target.drop(ROW_ID, axis=1).columns, dtype=object
                 )
                 rows_to_insert.sf_types = target.sf_types
                 if clause.keys:
@@ -1358,7 +1358,13 @@ def execute_mock_plan(
                         new_val = calculate_expression(
                             v, unmatched_rows_in_source, analyzer, expr_to_alias
                         )
-                        rows_to_insert[column_name] = new_val
+                        # pandas could do implicit type conversion, e.g. from datetime to timestamp
+                        # reconstructing ColumnEmulator helps preserve the original date type
+                        rows_to_insert[column_name] = ColumnEmulator(
+                            new_val.values,
+                            dtype=object,
+                            sf_type=rows_to_insert[column_name].sf_type,
+                        )
 
                     # For unspecified columns, use None as default value
                     for unspecified_col in set(rows_to_insert.columns).difference(

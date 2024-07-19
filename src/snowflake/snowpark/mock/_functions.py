@@ -808,7 +808,7 @@ def _to_timestamp(
 
     def convert_timestamp(row):
         _fmt = fmt[row.name]
-        data = row[0]
+        data = row.iloc[0]
         auto_detect = _fmt is None or str(_fmt).lower() == "auto"
         default_format = "%Y-%m-%d %H:%M:%S.%f"
 
