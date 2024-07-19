@@ -91,6 +91,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
+    LeafNode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -288,12 +289,12 @@ class SnowflakePlan(LogicalPlan):
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
         # no optimization is needed
-        if self.source_plan is None or self.placeholder_query is None:
+        if self.source_plan is None or isinstance(self.source_plan, LeafNode):
             return self
 
         # only select statement can be converted to CTEs
-        if not is_sql_select_statement(self.queries[-1].sql):
-            return self
+        # if not is_sql_select_statement(self.queries[-1].sql):
+        #    return self
 
         # if there is no duplicate node, no optimization will be performed
         duplicate_plan_set = find_duplicate_subtrees(self)
@@ -741,6 +742,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
+        logical_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         full_table_name = ".".join(table_name)
 
@@ -757,7 +759,7 @@ class SnowflakePlanBuilder:
             column_definition_with_hidden_columns,
         )
 
-        child = child.replace_repeated_subquery_with_cte()
+        # child = child.replace_repeated_subquery_with_cte()
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
@@ -789,7 +791,7 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                None,
+                logical_plan,
                 api_calls=child.api_calls,
                 session=self.session,
             )
@@ -803,7 +805,7 @@ class SnowflakePlanBuilder:
                         column_names=column_names,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -814,7 +816,7 @@ class SnowflakePlanBuilder:
                         full_table_name, x, [x.name for x in child.attributes], True
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
             else:
                 return self.build(
@@ -828,7 +830,7 @@ class SnowflakePlanBuilder:
                         comment=comment,
                     ),
                     child,
-                    None,
+                    logical_plan,
                 )
         elif mode == SaveMode.OVERWRITE:
             return self.build(
@@ -842,7 +844,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
         elif mode == SaveMode.IGNORE:
             return self.build(
@@ -856,7 +858,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
             return self.build(
@@ -869,7 +871,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                None,
+                logical_plan,
             )
 
     def limit(

@@ -981,6 +981,7 @@ class Analyzer:
                 ],
                 logical_plan.comment,
                 resolved_children[logical_plan.children[0]],
+                logical_plan
             )
 
         if isinstance(logical_plan, Limit):
