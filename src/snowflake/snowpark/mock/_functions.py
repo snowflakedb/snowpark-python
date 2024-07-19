@@ -2041,3 +2041,72 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
         data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
         sf_type=ColumnType(LongType(), False),
     )
+
+
+def _rank(raw_input, dense=False):
+    method = "dense" if dense else "min"
+    return (
+        raw_input[raw_input.sorted_by].apply(tuple, 1).rank(method=method).astype(int)
+    )
+
+
+@patch("rank", pass_input_data=True, pass_row_index=True)
+def mock_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    rank = _rank(raw_input)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
+    )
+
+
+@patch("dense_rank", pass_input_data=True, pass_row_index=True)
+def mock_dense_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    rank = _rank(raw_input, True)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
+    )
+
+
+@patch("percent_rank", pass_input_data=True, pass_row_index=True)
+def mock_percent_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    length = len(raw_input) - 1
+    rank = _rank(raw_input).apply(lambda x: (x - 1.0) / length)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(DoubleType(), False)
+    )
+
+
+@patch("cume_dist", pass_input_data=True, pass_row_index=True)
+def mock_cume_dist(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    # Calculate dense rank
+    rank = _rank(raw_input, True)
+
+    # Get distribution of values
+    agged = rank.value_counts().sort_index()
+
+    # Calculate probability distribution
+    pdf = agged.apply(lambda x: x / rank.size)
+
+    # Compute cumulative probability
+    cdf = pdf.cumsum()
+
+    # Map cumulative probability back to rank
+    cume_dist = rank.map(cdf)
+
+    return ColumnEmulator(
+        cume_dist.iloc[row_index], sf_type=ColumnType(DoubleType(), False)
+    )
+
+
+@patch("ntile", pass_input_data=True, pass_row_index=True)
+def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    current_ntile = ntile.iloc[row_index]
+    if current_ntile <= 0:
+        raise SnowparkLocalTestingException("NTILE argument must be at least 1")
+
+    num_rows = raw_input.shape[0]
+    if num_rows <= current_ntile:
+        bucket = row_index + 1
+    else:
+        bucket = math.floor(row_index * current_ntile / num_rows) + 1
+
+    return ColumnEmulator([bucket], sf_type=ColumnType(LongType(), False))
