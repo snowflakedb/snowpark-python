@@ -4,6 +4,11 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+
+- Added support server side string size limitations.
+
+### Snowpark Local Testing Updates
 #### New Features
 
 - Added support for the following APIs:
@@ -13,11 +18,6 @@
     - percent_rank
     - cume_dist
     - ntile
-
-#### New Features
-
-- Added support for the following APIs:
-  - snowflake.snowpark.functions
     - datediff
 
 ### Snowpark pandas API Updates
