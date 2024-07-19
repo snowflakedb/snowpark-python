@@ -144,8 +144,8 @@ class ModinAccessorDocumenter(PropertyDocumenter):
     objtype = "modinaccessor"
     directivetype = "attribute"
 
-    # lower priority than the other custom attribute documenter (defined below)
-    priority = 0.55
+    # lower priority than the default PropertyDocumenter so it is not chosen for normal properties
+    priority = 0.6
 
     def import_object(self, raiseerror=False):
         # Set `self.object` and related fields after importing the object, since sphinx has difficulty
