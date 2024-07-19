@@ -235,17 +235,6 @@ class Selectable(LogicalPlan, ABC):
     def __hash__(self) -> int:
         return hash(self._id) if self._id else super().__hash__()
 
-    def __deepcopy__(self, memodict={}) -> "Selectable":  # noqa: B006
-        copied = Selectable(
-            # analyze contains session object, which cannot be deep copied. Be-careful when
-            # using the deep copied selectable entry.
-            analyzer=self.analyzer,
-            api_calls=deepcopy(self._api_calls),
-        )
-        _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-
-        return copied
-
     @property
     @abstractmethod
     def sql_query(self) -> str:
