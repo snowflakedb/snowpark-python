@@ -1185,6 +1185,77 @@ class DataFrame:
         Get addition of ``DataFrame`` and `other`, element-wise (binary operator `add`).
         """
 
+    def bfill():
+        """
+        Fill NA/NaN values by using the next valid observation to fill the gap.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series([1, None, None, 2])
+        >>> s.bfill()
+        0    1.0
+        1    2.0
+        2    2.0
+        3    2.0
+        dtype: float64
+        >>> s.bfill(limit=1)
+        0    1.0
+        1    NaN
+        2    2.0
+        3    2.0
+        dtype: float64
+
+        With DataFrame:
+
+        >>> df = pd.DataFrame({'A': [1, None, None, 4], 'B': [None, 5, None, 7]})
+        >>> df
+             A    B
+        0  1.0  NaN
+        1  NaN  5.0
+        2  NaN  NaN
+        3  4.0  7.0
+        >>> df.bfill()
+             A    B
+        0  1.0  5.0
+        1  4.0  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        >>> df.bfill(limit=1)
+             A    B
+        0  1.0  5.0
+        1  NaN  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        """
+
     def boxplot():
         """
         Make a box plot from ``DataFrame`` columns.
@@ -1197,7 +1268,93 @@ class DataFrame:
 
     def compare():
         """
-        Compare to another ``DataFrame`` and show the differences.
+        Compare to another DataFrame and show the differences.
+
+        Parameters
+        ----------
+        other : DataFrame
+            DataFrame to compare with.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows and columns.
+            Otherwise, only keep rows and columns with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this dataframe's values from the other's values
+            in the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            The result of the comparison.
+
+
+        See Also
+        --------
+        Series.compare : Show the differences between two Series.
+        DataFrame.equals : Test whether two DataFrames contain the same elements.
+
+        Notes
+        -----
+        Matching null values, such as None and NaN, will not appear as a
+        difference.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(
+        ...     {
+        ...         "col1": ["a", "a", "b", "b", "a"],
+        ...         "col2": [1.0, 2.0, 3.0, np.nan, 5.0],
+        ...         "col3": [1.0, 2.0, 3.0, 4.0, 5.0]
+        ...     },
+        ...     columns=["col1", "col2", "col3"],
+        ... )
+        >>> df
+          col1  col2  col3
+        0    a   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   3.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        >>> df2 = df.copy()
+        >>> df2.loc[0, 'col1'] = 'c'
+        >>> df2.loc[2, 'col3'] = 4.0
+        >>> df2
+          col1  col2  col3
+        0    c   1.0   1.0
+        1    a   2.0   2.0
+        2    b   3.0   4.0
+        3    b   NaN   4.0
+        4    a   5.0   5.0
+
+        Align the differences on columns
+
+        >>> df.compare(df2) # doctest: +NORMALIZE_WHITESPACE
+           col1       col3
+           self other self other
+        0     a     c  NaN   NaN
+        2  None  None  3.0   4.0
         """
 
     def corr():
@@ -1362,6 +1519,66 @@ class DataFrame:
     def eval():
         """
         Evaluate a string describing operations on ``DataFrame`` columns.
+        """
+
+    def ffill():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        >>> df.ffill()
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  3.0  3.0 NaN  4.0
+
+        >>> ser = pd.Series([1, np.nan, 2, 3])
+        >>> ser.ffill()
+        0    1.0
+        1    1.0
+        2    2.0
+        3    3.0
+        dtype: float64
         """
 
     def fillna():
@@ -2325,6 +2542,20 @@ class DataFrame:
     def unstack():
         """
         Pivot a level of the (necessarily hierarchical) index labels.
+        """
+
+    def pad():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        Please see examples for DataFrame.ffill() or Series.ffill().
         """
 
     def pivot():
