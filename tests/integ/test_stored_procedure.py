@@ -53,6 +53,12 @@ from snowflake.snowpark.types import (
     StructType,
     VectorType,
 )
+
+# flake8: noqa
+from tests.integ.scala.test_datatype_suite import (
+    structured_type_session,
+    structured_type_support,
+)
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
@@ -353,63 +359,62 @@ def test_call_named_stored_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-def test_stored_procedure_with_structured_returns(session, local_testing_mode):
-    if not structured_types_supported(session, local_testing_mode):
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
         pytest.skip("Structured types not enabled in this account.")
-    with structured_types_enabled_session(session) as sess:
-        expected_dtypes = [
-            ("VEC", "vector<int,5>"),
-            ("MAP", "map<string(16777216),bigint>"),
-            ("OBJ", "struct<string(16777216),double>"),
-            ("ARR", "array<double>"),
+    expected_dtypes = [
+        ("VEC", "vector<int,5>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("OBJ", "struct<string(16777216),double>"),
+        ("ARR", "array<double>"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("VEC", VectorType(int, 5), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(16777216), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("A", StringType(16777216), nullable=True),
+                        StructField("B", DoubleType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
         ]
-        expected_schema = StructType(
-            [
-                StructField("VEC", VectorType(int, 5), nullable=True),
-                StructField(
-                    "MAP",
-                    MapType(StringType(16777216), LongType(), structured=True),
-                    nullable=True,
-                ),
-                StructField(
-                    "OBJ",
-                    StructType(
-                        [
-                            StructField("A", StringType(16777216), nullable=True),
-                            StructField("B", DoubleType(), nullable=True),
-                        ],
-                        structured=True,
-                    ),
-                    nullable=True,
-                ),
-                StructField(
-                    "ARR", ArrayType(DoubleType(), structured=True), nullable=True
-                ),
-            ]
-        )
+    )
 
-        sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
 
-        def test_sproc(_session: Session) -> DataFrame:
-            return _session.sql(
-                """
-            select
-              [1,2,3,4,5] :: vector(int, 5) as vec,
-              object_construct('k1', 1) :: map(varchar, int) as map,
-              object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
-              [1.0, 3.1, 4.5] :: array(float) as arr
-             ;
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
             """
-            )
-
-        sess.sproc.register(
-            test_sproc,
-            name=sproc_name,
-            replace=True,
+        select
+          [1,2,3,4,5] :: vector(int, 5) as vec,
+          object_construct('k1', 1) :: map(varchar, int) as map,
+          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
+          [1.0, 3.1, 4.5] :: array(float) as arr
+         ;
+        """
         )
-        df = sess.call(sproc_name)
-        assert df.schema == expected_schema
-        assert df.dtypes == expected_dtypes
+
+    structured_type_session.sproc.register(
+        test_sproc,
+        name=sproc_name,
+        replace=True,
+    )
+    df = structured_type_session.call(sproc_name)
+    assert df.schema == expected_schema
+    assert df.dtypes == expected_dtypes
 
 
 @pytest.mark.parametrize("anonymous", [True, False])
