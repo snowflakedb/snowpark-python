@@ -148,9 +148,17 @@ class ModinAccessorDocumenter(PropertyDocumenter):
     priority = 0.55
 
     def import_object(self, raiseerror=False):
+        # Set `self.object` and related fields after importing the object, since sphinx has difficulty
+        # trying to import the top-level Series.str and Series.dt objects.
+        # Returns True if the object was successfully imported.
+        # See definition on parent classes:
+        # https://github.com/sphinx-doc/sphinx/blob/907d27dc6506c542c11a7dd16b560eb4be7da5fc/sphinx/ext/autodoc/__init__.py#L2714
+        # https://github.com/sphinx-doc/sphinx/blob/907d27dc6506c542c11a7dd16b560eb4be7da5fc/sphinx/ext/autodoc/__init__.py#L400
         import modin.pandas as pd
         self.module = pd
         self.parent = pd.Series
+        # objpath is an array like ["Series", "str"]
+        # object_name should be the name of the property (in this case "str")
         self.object_name = self.objpath[-1]
         self.object = getattr(pd.Series, self.object_name)
         self.isclassmethod = False
