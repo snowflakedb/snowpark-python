@@ -742,7 +742,7 @@ class SnowflakePlanBuilder:
         clustering_keys: Iterable[str],
         comment: Optional[str],
         child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
+        logical_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         is_generated: bool,  # true if the table is generated internally
     ) -> SnowflakePlan:
@@ -796,7 +796,7 @@ class SnowflakePlanBuilder:
                 create_table,
                 child.post_actions,
                 {},
-                source_plan,
+                logical_plan,
                 api_calls=child.api_calls,
                 session=self.session,
             )
@@ -810,7 +810,7 @@ class SnowflakePlanBuilder:
                         column_names=column_names,
                     ),
                     child,
-                    source_plan,
+                    logical_plan,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -821,7 +821,7 @@ class SnowflakePlanBuilder:
                         full_table_name, x, [x.name for x in child.attributes], True
                     ),
                     child,
-                    source_plan,
+                    logical_plan,
                 )
             else:
                 return self.build(
@@ -835,7 +835,7 @@ class SnowflakePlanBuilder:
                         comment=comment,
                     ),
                     child,
-                    source_plan,
+                    logical_plan,
                     is_ddl_on_temp_object=is_temp_table_type,
                 )
         elif mode == SaveMode.OVERWRITE:
@@ -850,7 +850,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                source_plan,
+                logical_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
             )
         elif mode == SaveMode.IGNORE:
@@ -865,7 +865,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                source_plan,
+                logical_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
@@ -882,7 +882,7 @@ class SnowflakePlanBuilder:
                     comment=comment,
                 ),
                 child,
-                source_plan,
+                logical_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
             )
 
