@@ -27,7 +27,10 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    SnowflakeTable,
+)
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 
@@ -93,8 +96,9 @@ def test_assign_custom_cumulative_node_complexity(
     assert nodes[2].cumulative_node_complexity == {PlanNodeCategory.OTHERS: 1}
 
 
-def test_selectable_entity_individual_node_complexity(mock_analyzer):
-    plan_node = SelectableEntity(entity_name="dummy entity", analyzer=mock_analyzer)
+def test_selectable_entity_individual_node_complexity(mock_session, mock_analyzer):
+    logical_plan = SnowflakeTable("dummy entity", session=mock_session)
+    plan_node = SelectableEntity(entity=logical_plan, analyzer=mock_analyzer)
     assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
 

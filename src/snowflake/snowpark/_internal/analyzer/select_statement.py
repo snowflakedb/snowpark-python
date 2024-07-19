@@ -59,7 +59,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    SnowflakeTable,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     UnresolvedAlias,
@@ -345,13 +348,19 @@ class SelectableEntity(Selectable):
     Mainly used by session.table().
     """
 
-    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        entity: SnowflakeTable,
+        *,
+        analyzer: "Analyzer",
+        is_generated_temp_table: bool = False,
+    ) -> None:
         super().__init__(analyzer)
-        self.entity_name = entity_name
+        self.entity = entity
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity_name}"
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def placeholder_query(self) -> Optional[str]:
@@ -359,7 +368,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
-        return self.entity_name
+        return self.entity.name
 
     @property
     def schema_query(self) -> str:
