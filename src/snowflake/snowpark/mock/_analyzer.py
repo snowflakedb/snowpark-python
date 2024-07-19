@@ -764,6 +764,7 @@ class MockAnalyzer:
             return self.plan_builder.copy_into_location(
                 query=resolved_children[logical_plan.child],
                 stage_location=logical_plan.stage_location,
+                source_plan=logical_plan,
                 partition_by=self.analyze(logical_plan.partition_by, expr_to_alias)
                 if logical_plan.partition_by
                 else None,
