@@ -180,6 +180,8 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.backfill
+    Series.bfill
     Series.dropna
     Series.ffill
     Series.fillna
@@ -206,6 +208,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.compare
     Series.update
 
 .. rubric:: Time Series-related
