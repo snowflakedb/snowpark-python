@@ -5,8 +5,10 @@
 ### Snowpark Python API Updates
 
 #### Improvements
-
 - Added support server side string size limitations.
+
+#### Bug Fixes
+- Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 
 ### Snowpark Local Testing Updates
 #### New Features
