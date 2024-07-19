@@ -301,8 +301,8 @@ class SnowflakePlan(LogicalPlan):
         # When the source plan node is an instance of nodes in pre_handled_logical_node,
         # the cte optimization has been pre-handled during the plan build step, skip the
         # optimization step for now.
-        # Once SNOW-1541094 is done, we will be able to unify all the optimization steps, and
-        # there is no need for such check anymore.
+        # TODO: Once SNOW-1541094 is done, we will be able to unify all the optimization steps, and
+        #       there is no need for such check anymore.
         pre_handled_logical_node = (
             CreateDynamicTableCommand,
             CreateViewCommand,
