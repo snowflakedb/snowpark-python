@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     result_set_to_rows,
@@ -401,7 +402,7 @@ class MockServerConnection:
                 name="source",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -410,7 +411,7 @@ class MockServerConnection:
                 name="target",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -419,7 +420,7 @@ class MockServerConnection:
                 name="source_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -428,7 +429,7 @@ class MockServerConnection:
                 name="target_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -437,7 +438,7 @@ class MockServerConnection:
                 name="source_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -446,7 +447,7 @@ class MockServerConnection:
                 name="target_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -455,7 +456,7 @@ class MockServerConnection:
                 name="status",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -464,7 +465,7 @@ class MockServerConnection:
                 name="message",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -702,6 +703,10 @@ class MockServerConnection:
             internal_feature_name="MockServerConnection.get_result_query_id",
             raise_error=NotImplementedError,
         )
+
+    @property
+    def max_string_size(self) -> int:
+        return DEFAULT_STRING_SIZE
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
