@@ -3963,3 +3963,17 @@ def test_create_empty_dataframe(session):
         ]
     )
     assert not session.create_dataframe(data=[], schema=schema).collect()
+
+
+def test_dataframe_to_local_iterator_with_to_pandas_isolation(session):
+    df = session.create_dataframe(
+        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+    )
+    my_iter = df.to_pandas_batches()
+    for pdf in my_iter:
+        # modify result_cursor and trigger _fix_pandas_df_fixed_type()
+        session.sql(
+            "select 1::NUMBER(18,0) as B, 2::NUMBER(19, 0) as b, 3::NUMBER(19, 0) as c"
+        ).collect()
+        # column name should remain unchanged
+        assert tuple(pdf.columns) == ("A1", "B1")

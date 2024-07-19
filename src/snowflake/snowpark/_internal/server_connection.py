@@ -464,7 +464,7 @@ class ServerConnection:
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if (
-            to_iter and not to_pandas
+            to_iter
         ):  # Fix for SNOW-869536, to_pandas doesn't have this issue, SnowflakeCursor.fetch_pandas_batches already handles the isolation.
             new_cursor = results_cursor.connection.cursor()
             new_cursor.execute(f"SELECT * FROM TABLE(RESULT_SCAN('{qid}'))")
