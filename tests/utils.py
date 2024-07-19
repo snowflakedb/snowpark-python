@@ -10,6 +10,7 @@ import platform
 import random
 import string
 import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -91,6 +92,12 @@ if RUNNING_ON_JENKINS:
 # Once rolled out this should be updated to include all accounts.
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
+    "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE",
+}
 
 
 def current_account(session):
@@ -107,6 +114,15 @@ def iceberg_supported(session, local_testing_mode):
     if local_testing_mode:
         return False
     return current_account(session) in ICEBERG_ENVIRONMENTS
+
+
+@contextmanager
+def structured_types_enabled_session(session):
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session set {param}=true").collect()
+    yield session
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session unset {param}").collect()
 
 
 def running_on_public_ci() -> bool:
