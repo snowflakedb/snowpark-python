@@ -91,6 +91,7 @@ from snowflake.snowpark.functions import (
     dayofyear,
     dense_rank,
     first_value,
+    floor,
     greatest,
     hour,
     iff,
@@ -10086,6 +10087,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # depend on the Snowflake session's WEEK_START parameter. Subtract
             # 1 to match pandas semantics.
             "dayofweek": (lambda column: builtin("dayofweekiso")(col(column)) - 1),
+            "microsecond": (lambda column: floor(date_part("ns", col(column)) / 1000)),
+            "nanosecond": (lambda column: date_part("ns", col(column)) % 1000),
         }
         property_function = dt_property_to_function_map.get(property_name)
         if not property_function:
