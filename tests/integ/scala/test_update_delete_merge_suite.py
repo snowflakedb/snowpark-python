@@ -4,6 +4,7 @@
 #
 
 import copy
+import datetime
 
 import pytest
 
@@ -20,13 +21,25 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkTableException
 from snowflake.snowpark.functions import (
     col,
+    current_date,
+    current_time,
+    current_timestamp,
     max as max_,
     mean,
     min as min_,
     when_matched,
     when_not_matched,
 )
-from snowflake.snowpark.types import IntegerType, StructField, StructType
+from snowflake.snowpark.types import (
+    DateType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -330,6 +343,59 @@ def test_merge_with_insert_clause_only(session):
         ],
     ) == MergeResult(1, 0, 0)
     Utils.check_answer(target, [Row(10, "old"), Row(11, "new"), Row(12, "new")])
+
+    now_datetime = datetime.datetime.now()
+    fixed_date = datetime.datetime(2024, 7, 18, 12, 12, 12)
+    target_df = session.create_dataframe(
+        [("id1", fixed_date, fixed_date.date(), fixed_date.time())],
+        schema=StructType(
+            [
+                StructField("id", StringType()),
+                StructField("col_datetime", TimestampType(TimestampTimeZone.NTZ)),
+                StructField("col_date", DateType()),
+                StructField("col_time", TimeType()),
+            ]
+        ),
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+    source_df = session.create_dataframe(
+        [
+            ("id1"),
+            ("id2"),
+            ("id3"),
+        ],
+        schema=StructType([StructField("id", StringType())]),
+    )
+    assert target.merge(
+        source_df,
+        target["id"] == source_df["id"],
+        [
+            when_not_matched().insert(
+                {
+                    "id": source_df["id"],
+                    "col_datetime": current_timestamp(),
+                    "col_date": current_date(),
+                    "col_time": current_time(),
+                }
+            )
+        ],
+    ) == MergeResult(2, 0, 0)
+    res = target.collect()
+    assert (
+        len(res) == 3
+        and res[0][0] == "id1"
+        and res[0][1] == fixed_date
+        and res[0][2] == fixed_date.date()
+        and res[0][3] == fixed_date.time()
+    )
+    assert res[1][0] == "id2" and res[2][0] == "id3"
+    assert res[1][1].date() == res[2][1].date() == now_datetime.date()
+    assert res[1][2] == res[2][2] == now_datetime.date()
+    assert (
+        res[1][3].hour == res[2][3].hour == now_datetime.time().hour
+        and res[1][3].minute == res[2][3].minute == now_datetime.time().minute
+    )
 
 
 def test_merge_with_matched_and_not_matched_clauses(session):
