@@ -530,9 +530,7 @@ class SelectSnowflakePlan(Selectable):
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         self._query_params = deepcopy(self._query_params)
-        copied._snowflake_plan = (
-            deepcopy(self._snowflake_plan) if self._snowflake_plan else None
-        )
+        copied._snowflake_plan = deepcopy(self._snowflake_plan)
         return copied
 
     @property
