@@ -264,6 +264,7 @@ def handle_order_by_clause(
     result_df: TableEmulator,
     analyzer: "MockAnalyzer",
     expr_to_alias: Optional[Dict[str, str]],
+    keep_added_columns: bool = False,
 ) -> TableEmulator:
     """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
     sort_columns_array = []
@@ -287,7 +288,11 @@ def handle_order_by_clause(
     ):
         comparator = partial(custom_comparator, ascending, null_first)
         result_df = result_df.sort_values(by=column, key=comparator)
-    result_df = result_df.drop(columns=added_columns)
+
+    result_df.sorted_by = sort_columns_array
+    if not keep_added_columns:
+        result_df = result_df.drop(columns=added_columns)
+
     return result_df
 
 
@@ -1901,16 +1906,23 @@ def calculate_expression(
 
         # Process order by clause
         if window_spec.order_spec:
-            res = handle_order_by_clause(
-                window_spec.order_spec, input_data, analyzer, expr_to_alias
+            # If the window function is a function expression then any intermediate
+            # columns that are used for ordering may be needed later and should be retained.
+            ordered = handle_order_by_clause(
+                window_spec.order_spec,
+                input_data,
+                analyzer,
+                expr_to_alias,
+                isinstance(window_function, (FunctionExpression)),
             )
         elif is_rank_related_window_function(window_function):
             raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
-            res = input_data
+            ordered = input_data
 
+        res = ordered
         res_index = res.index  # List of row indexes of the result
 
         # Process partition_by clause
@@ -1941,8 +1953,8 @@ def calculate_expression(
                 )
             else:
                 indexer = EntireWindowIndexer()
-                res = res.rolling(indexer)
-                windows = [input_data.loc[w.index] for w in res]
+                rolling = res.rolling(indexer)
+                windows = [ordered.loc[w.index] for w in rolling]
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
