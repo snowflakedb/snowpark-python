@@ -159,6 +159,12 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
     # [1] https://github.com/snowflakedb/snowpark-python/blob/7c854cb30df2383042d7899526d5237a44f9fdaf/src/snowflake/snowpark/modin/pandas/utils.py#L633
     [
         param(
+            np.argmin,
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation np.argmin with the given arguments",
+            id="numpy_aggregation_function",
+        ),
+        param(
             sensitive_function_name,
             {},
             "Snowpark pandas GroupBy.aggregate does not yet support the aggregation Callable with the given arguments",
