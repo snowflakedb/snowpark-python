@@ -6,6 +6,12 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for the following APIs:
+  - snowflake.snowpark.functions
+    - datediff
+
 ### Snowpark pandas API Updates
 
 #### New Features
