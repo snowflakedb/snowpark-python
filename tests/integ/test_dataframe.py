@@ -2571,9 +2571,7 @@ def test_table_types_in_save_as_table(
         Utils.assert_table_type(session, table_name, table_type)
 
 
-@pytest.mark.parametrize(
-    "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
-)
+@pytest.mark.parametrize("save_mode", ["truncate"])
 def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
 

@@ -271,17 +271,20 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
-        super().__init__(session, session._analyzer.resolve(SnowflakeTable(table_name)))
-        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
-        self.table_name: str = table_name  #: The table name
-
-        if self._session.sql_simplifier_enabled:
-            self._select_statement = session._analyzer.create_select_statement(
+        snowflake_table = SnowflakeTable(table_name)
+        if session.sql_simplifier_enabled:
+            plan = session._analyzer.create_select_statement(
                 from_=session._analyzer.create_selectable_entity(
                     table_name, analyzer=session._analyzer
                 ),
                 analyzer=session._analyzer,
             )
+        else:
+            plan = snowflake_table
+        super().__init__(session, plan)
+        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
+        self.table_name: str = table_name  #: The table name
+
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object

@@ -4108,7 +4108,7 @@ Query List:
             else self._plan.output
         )
 
-    @cached_property
+    @property
     def schema(self) -> StructType:
         """The definition of the columns in this DataFrame (the "relational schema" for
         the DataFrame).
