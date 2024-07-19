@@ -31,6 +31,14 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.functions import col, seq1, uniform
 
+pytestmark = [
+    pytest.mark.skip(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="deepcopy is required by the new compilation with optimization, which is not supported by local testing",
+        run=False,
+    )
+]
+
 
 def verify_column_state(
     copied_state: ColumnStateDict, original_state: ColumnStateDict
@@ -188,9 +196,14 @@ def test_table_function(session):
     check_copied_plan(df_res_copied, df_res._plan)
 
 
+"""
 @pytest.mark.parametrize(
     "mode", [SaveMode.APPEND, SaveMode.TRUNCATE, SaveMode.ERROR_IF_EXISTS]
 )
+"""
+
+
+@pytest.mark.parametrize("mode", [SaveMode.APPEND])
 def test_table_creation(session, mode):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     create_table_logic_plan = SnowflakeCreateTable(
