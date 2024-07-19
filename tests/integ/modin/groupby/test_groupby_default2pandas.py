@@ -205,7 +205,7 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
             },
             {},
             "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
-            + "{label: Callable, label: 'sum', label: 'size', label: \\[Callable, 'size'\\]}"
+            + "{label: Callable, label: 'sum', label: 'size', label: \\[np.mean, 'size'\\]}"
             + " with the given arguments",
             id="dict",
         ),

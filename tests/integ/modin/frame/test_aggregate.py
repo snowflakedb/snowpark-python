@@ -1015,7 +1015,7 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
             {"A": sensitive_function_name, "B": sum, "C": [np.mean, "size"]},
             {},
             "Snowpark pandas aggregate does not yet support the aggregation "
-            + "{label: Callable, label: 'sum', label: \\[Callable, 'size'\\]}"
+            + "{label: Callable, label: 'sum', label: \\[np\\.mean, 'size'\\]}"
             + " with the given arguments",
             id="dict",
         ),
@@ -1023,7 +1023,7 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
             None,
             {"x": ("A", np.exp), "y": pd.NamedAgg("C", sum)},
             "Snowpark pandas aggregate does not yet support the aggregation "
-            + "new_label=\\(label, Callable\\), new_label=\\(label, <built-in function sum>\\)"
+            + "new_label=\\(label, np\\.exp\\), new_label=\\(label, <built-in function sum>\\)"
             + " with the given arguments",
             id="named_agg",
         ),

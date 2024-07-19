@@ -193,7 +193,7 @@ def sensitive_function_name(col: native_pd.Series) -> int:
         param(
             {"D": sensitive_function_name, "E": sum, "F": [np.mean, "size"]},
             "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation "
-            + "{label: Callable, label: <built-in function sum>, label: \\[Callable, 'size'\\]}"
+            + "{label: Callable, label: <built-in function sum>, label: \\[np\\.mean, 'size'\\]}"
             + " with the given arguments",
             id="dict",
         ),
