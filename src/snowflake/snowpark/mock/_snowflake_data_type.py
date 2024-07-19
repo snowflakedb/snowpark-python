@@ -250,9 +250,9 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
         return t2
     if isinstance(t1, StringType):
         if isinstance(t2, StringType):
-            l1 = t1.length or StringType._MAX_LENGTH
-            l2 = t2.length or StringType._MAX_LENGTH
-            return StringType(max(l1, l2))
+            if t1.length is None or t2.length is None:
+                return StringType()
+            return StringType(max(t1.length, t2.length))
         elif isinstance(
             t2,
             (
@@ -315,7 +315,12 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
 
 
 class TableEmulator(PandasDataframeType):
-    _metadata = ["sf_types", "sf_types_by_col_index", "_null_rows_idxs_map"]
+    _metadata = [
+        "sf_types",
+        "sf_types_by_col_index",
+        "_null_rows_idxs_map",
+        "sorted_by",
+    ]
 
     @property
     def _constructor(self):
@@ -344,6 +349,7 @@ class TableEmulator(PandasDataframeType):
             {} if not sf_types_by_col_index else sf_types_by_col_index
         )
         self._null_rows_idxs_map = {}
+        self.sorted_by = []
 
     def __getitem__(self, item):
         result = super().__getitem__(item)
