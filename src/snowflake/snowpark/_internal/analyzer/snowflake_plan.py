@@ -91,7 +91,6 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
-    LeafNode,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -289,12 +288,12 @@ class SnowflakePlan(LogicalPlan):
 
         # if source_plan or placeholder_query is none, it must be a leaf node,
         # no optimization is needed
-        if self.source_plan is None or isinstance(self.source_plan, LeafNode):
+        if self.source_plan is None or self.placeholder_query is None:
             return self
 
         # only select statement can be converted to CTEs
-        # if not is_sql_select_statement(self.queries[-1].sql):
-        #    return self
+        if not is_sql_select_statement(self.queries[-1].sql):
+            return self
 
         # if there is no duplicate node, no optimization will be performed
         duplicate_plan_set = find_duplicate_subtrees(self)
@@ -932,7 +931,12 @@ class SnowflakePlanBuilder:
         )
 
     def create_or_replace_view(
-        self, name: str, child: SnowflakePlan, is_temp: bool, comment: Optional[str]
+        self,
+        name: str,
+        child: SnowflakePlan,
+        is_temp: bool,
+        comment: Optional[str],
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -944,7 +948,7 @@ class SnowflakePlanBuilder:
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
-            None,
+            source_plan,
         )
 
     def create_or_replace_dynamic_table(
@@ -954,6 +958,7 @@ class SnowflakePlanBuilder:
         lag: str,
         comment: Optional[str],
         child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -967,7 +972,7 @@ class SnowflakePlanBuilder:
                 name, warehouse, lag, comment, x
             ),
             child,
-            None,
+            source_plan,
         )
 
     def create_temp_table(
@@ -1192,6 +1197,7 @@ class SnowflakePlanBuilder:
         file_format: str,
         table_name: Iterable[str],
         path: str,
+        source_plan: Optional[LogicalPlan],
         files: Optional[str] = None,
         pattern: Optional[str] = None,
         validation_mode: Optional[str] = None,
@@ -1247,12 +1253,15 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 full_table_name
             )
-        return SnowflakePlan(queries, copy_command, [], {}, None, session=self.session)
+        return SnowflakePlan(
+            queries, copy_command, [], {}, source_plan, session=self.session
+        )
 
     def copy_into_location(
         self,
         query: SnowflakePlan,
         stage_location: str,
+        source_plan: Optional[LogicalPlan],
         partition_by: Optional[str] = None,
         file_format_name: Optional[str] = None,
         file_format_type: Optional[str] = None,
@@ -1273,7 +1282,7 @@ class SnowflakePlanBuilder:
                 **copy_options,
             ),
             query,
-            None,
+            source_plan,
             query.schema_query,
         )
 
