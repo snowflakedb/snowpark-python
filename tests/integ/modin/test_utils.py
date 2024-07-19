@@ -16,7 +16,7 @@ from snowflake.snowpark.modin.pandas.utils import (
     try_convert_index_to_native,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    create_ordered_dataframe_with_readonly_temp_table,
+    create_initial_ordered_dataframe,
 )
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
@@ -34,7 +34,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_ordered_dataframe_with_readonly_temp_table(test_table_name)
+    ) = create_initial_ordered_dataframe(test_table_name)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [

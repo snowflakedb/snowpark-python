@@ -228,6 +228,9 @@ class OrderedDataFrame:
     row_position_snowflake_quoted_identifier: Optional[str]
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
+    # enforce deterministic, pandas-like ordering
+    ordering_enforced: bool = False
+
 
     def __init__(
         self,
@@ -237,6 +240,7 @@ class OrderedDataFrame:
         ordering_columns: Optional[list[OrderingColumn]] = None,
         row_position_snowflake_quoted_identifier: Optional[str] = None,
         row_count_snowflake_quoted_identifier: Optional[str] = None,
+        ordering_enforced:bool = True,
     ) -> None:
         self._dataframe_ref = dataframe_ref
 
@@ -618,7 +622,8 @@ class OrderedDataFrame:
                 snowpark_dataframe = self._dataframe_ref.snowpark_dataframe.select(
                     *cols
                 )
-                return OrderedDataFrame(DataFrameReference(snowpark_dataframe))
+                return OrderedDataFrame(DataFrameReference(snowpark_dataframe),
+                                        ordering_enforced=self.ordering_enforced)
             elif isinstance(e, (Column, str)):
                 column_names = self._extract_quoted_identifiers_from_column_or_name(e)
                 new_projected_columns.extend(column_names)
@@ -657,6 +662,7 @@ class OrderedDataFrame:
             ordering_columns=self.ordering_columns,
             row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def dropna(
@@ -687,6 +693,7 @@ class OrderedDataFrame:
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def union_all(self, other: "OrderedDataFrame") -> "OrderedDataFrame":
@@ -713,6 +720,7 @@ class OrderedDataFrame:
         return OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def _extract_aggregation_result_column_quoted_identifiers(
@@ -769,6 +777,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ordering_columns=[OrderingColumn(identifier) for identifier in cols],
+            ordering_enforced=self.ordering_enforced,
         )
 
     def sort(
@@ -803,6 +812,7 @@ class OrderedDataFrame:
             row_position_snowflake_quoted_identifier=None,
             # No need to reset row count, since sorting should not add/drop rows.
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def pivot(
@@ -830,7 +840,8 @@ class OrderedDataFrame:
                     values=values,
                     default_on_null=default_on_null,
                 ).agg(*agg_exprs)
-            )
+            ),
+            ordering_enforced=self.ordering_enforced,
         )
 
     def unpivot(
@@ -900,6 +911,7 @@ class OrderedDataFrame:
                 snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def agg(
@@ -919,6 +931,7 @@ class OrderedDataFrame:
         return OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def _deduplicate_active_column_snowflake_quoted_identifiers(
@@ -1045,6 +1058,7 @@ class OrderedDataFrame:
             ordering_columns=new_ordering_columns,
             row_position_snowflake_quoted_identifier=new_row_position_snowflake_quoted_identifier,
             row_count_snowflake_quoted_identifier=new_row_count_snowflake_quoted_identifier,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def join(
@@ -1154,6 +1168,7 @@ class OrderedDataFrame:
                 ordering_columns=self.ordering_columns,
                 row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
                 row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+                ordering_enforced=self.ordering_enforced,
             )
 
         # reproject the snowpark dataframe with only necessary columns
@@ -1202,6 +1217,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def _has_same_base_ordered_dataframe(self, other: "OrderedDataFrame") -> bool:
@@ -1355,6 +1371,7 @@ class OrderedDataFrame:
                 ordering_columns=self.ordering_columns,
                 row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
                 row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+                ordering_enforced=self.ordering_enforced,
             )
 
         from snowflake.snowpark.modin.plugin._internal.join_utils import (
@@ -1633,6 +1650,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            ordering_enforced=self.ordering_enforced,
         )
 
     def limit(self, n: int, offset: int = 0, sort: bool = True) -> "OrderedDataFrame":
@@ -1659,6 +1677,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            ordering_enforced=self.ordering_enforced,
         )
 
     @property
@@ -1770,7 +1789,7 @@ class OrderedDataFrame:
             set correctly.
         """
         snowpark_dataframe = self._dataframe_ref.snowpark_dataframe
-        if sort:
+        if sort and self.ordering_enforced:
             snowpark_dataframe = snowpark_dataframe.sort(
                 self._ordering_snowpark_columns()
             )
@@ -1899,5 +1918,6 @@ class OrderedDataFrame:
                 ),
                 projected_column_snowflake_quoted_identifiers=self.projected_column_snowflake_quoted_identifiers,
                 ordering_columns=self.ordering_columns,
+                ordering_enforced=self.ordering_enforced,
             )
         )

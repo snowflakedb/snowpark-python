@@ -293,8 +293,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     check_valid_pandas_labels,
     count_rows,
     create_frame_with_data_columns,
+    create_initial_ordered_dataframe,
     create_ordered_dataframe_from_pandas,
-    create_ordered_dataframe_with_readonly_temp_table,
     extract_all_duplicates,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
@@ -727,6 +727,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
+        ordering_enforced: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
@@ -739,8 +740,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         (
             ordered_dataframe,
             row_position_snowflake_quoted_identifier,
-        ) = create_ordered_dataframe_with_readonly_temp_table(
-            table_name_or_query=name_or_query
+        ) = create_initial_ordered_dataframe(
+            table_name_or_query=name_or_query,
+            ordering_enforced=ordering_enforced,
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -4833,6 +4835,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             projected_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
             row_position_snowflake_quoted_identifier=query_compiler._modin_frame.row_position_snowflake_quoted_identifier,
+            ordering_enforced=ordered_frame.ordering_enforced,
         )
 
         new_col_map = {}
@@ -11760,6 +11763,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
                 projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+                ordering_enforced=self._modin_frame.ordered_dataframe.ordering_enforced,
             )
             sampled_odf = cache_result(
                 sampled_row_positions_odf.join(
@@ -15807,7 +15811,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
                         new_columns
                     )
-                )
+                ),
+                ordering_enforced=frame.ordered_dataframe.ordering_enforced,
             )
 
             new_frame = InternalFrame.create(
