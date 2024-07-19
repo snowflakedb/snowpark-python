@@ -801,9 +801,6 @@ class SnowflakePlanBuilder:
                 session=self.session,
             )
 
-        if is_generated:
-            return get_create_and_insert_plan(child, replace=False, error=True)
-
         if mode == SaveMode.APPEND:
             if self.session._table_exists(table_name):
                 return self.build(
@@ -872,6 +869,9 @@ class SnowflakePlanBuilder:
                 is_ddl_on_temp_object=is_temp_table_type,
             )
         elif mode == SaveMode.ERROR_IF_EXISTS:
+            if is_generated:
+                return get_create_and_insert_plan(child, replace=False, error=True)
+
             return self.build(
                 lambda x: create_table_as_select_statement(
                     full_table_name,

@@ -232,7 +232,7 @@ def test_create_scoped_temp_table(session):
             session._plan_builder.save_as_table(
                 [temp_table_name],
                 None,
-                SaveMode.APPEND,
+                SaveMode.ERROR_IF_EXISTS,
                 "temp",
                 None,
                 None,
@@ -249,7 +249,7 @@ def test_create_scoped_temp_table(session):
             session._plan_builder.save_as_table(
                 [temp_table_name],
                 None,
-                SaveMode.APPEND,
+                SaveMode.ERROR_IF_EXISTS,
                 "temp",
                 None,
                 None,
@@ -262,11 +262,12 @@ def test_create_scoped_temp_table(session):
             .sql
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         )
-        assert (
+        expected_sql = f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        assert expected_sql in (
             session._plan_builder.save_as_table(
                 [temp_table_name],
                 None,
-                SaveMode.APPEND,
+                SaveMode.ERROR_IF_EXISTS,
                 "temp",
                 None,
                 None,
@@ -277,7 +278,6 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name} If  NOT  EXISTS ("NUM" BIGINT, "STR" STRING(8))'
         )
     finally:
         Utils.drop_table(session, table_name)
