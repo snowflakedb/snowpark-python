@@ -89,8 +89,15 @@ from snowflake.snowpark._internal.analyzer.cte_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
+    CopyIntoTableNode,
     LogicalPlan,
     SaveMode,
+    SnowflakeCreateTable,
+)
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateDynamicTableCommand,
+    CreateViewCommand,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -289,6 +296,21 @@ class SnowflakePlan(LogicalPlan):
         # if source_plan or placeholder_query is none, it must be a leaf node,
         # no optimization is needed
         if self.source_plan is None or self.placeholder_query is None:
+            return self
+
+        # When the source plan node is an instance of nodes in pre_handled_logical_node,
+        # the cte optimization has been pre-handled during the plan build step, skip the
+        # optimization step for now.
+        # Once SNOW-1541094 is done, we will be able to unify all the optimization steps, and
+        # there is no need for such check anymore.
+        pre_handled_logical_node = (
+            CreateDynamicTableCommand,
+            CreateViewCommand,
+            SnowflakeCreateTable,
+            CopyIntoTableNode,
+            CopyIntoLocationNode,
+        )
+        if isinstance(self.source_plan, pre_handled_logical_node):
             return self
 
         # only select statement can be converted to CTEs
@@ -758,7 +780,7 @@ class SnowflakePlanBuilder:
             column_definition_with_hidden_columns,
         )
 
-        # child = child.replace_repeated_subquery_with_cte()
+        child = child.replace_repeated_subquery_with_cte()
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace=False, error=True):
             create_table = create_table_statement(
