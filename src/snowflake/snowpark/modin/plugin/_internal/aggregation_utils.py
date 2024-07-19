@@ -8,6 +8,7 @@ import functools
 from collections import defaultdict
 from collections.abc import Hashable, Iterable
 from functools import partial
+from inspect import getmembers
 from types import BuiltinFunctionType
 from typing import Any, Callable, Literal, Mapping, NamedTuple, Optional, Union
 
@@ -79,6 +80,9 @@ from snowflake.snowpark.types import (
 )
 
 AGG_NAME_COL_LABEL = "AGG_FUNC_NAME"
+_NUMPY_FUNCTION_TO_NAME = {
+    function: name for name, function in getmembers(np) if callable(function)
+}
 
 
 def array_agg_keepna(
@@ -1186,6 +1190,10 @@ def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
         return "set"
     if agg_func is str:
         return "str"
+
+    # Format numpy aggregations, e.g. np.argmin should become "np.argmin"
+    if agg_func in _NUMPY_FUNCTION_TO_NAME:
+        return f"np.{_NUMPY_FUNCTION_TO_NAME[agg_func]}"
 
     # agg_func should be callable at this point. pandas error messages at this
     # point are not consistent, so choose one style of error message.
