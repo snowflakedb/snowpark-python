@@ -1510,10 +1510,10 @@ class DataFrame:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
                 for asc in ascending:
-                    ast.ascending.list.append(True if asc else False)
+                    ast.ascending.append(asc)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
-                ast.ascending.list.append(True if ascending else False)
+                ast.ascending = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
