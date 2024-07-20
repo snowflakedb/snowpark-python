@@ -9,11 +9,12 @@ import pytest
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import call_udf, col, lit
+from snowflake.snowpark.mock._udf import MockUDFRegistration
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
 
 
-@pytest.mark.localtest
 def test_udf_cleanup_on_err(session):
     cur_dir = os.path.dirname(os.path.realpath(__file__))
     test_file = os.path.join(cur_dir, "files", "udf_file.py")
@@ -29,14 +30,13 @@ def test_udf_cleanup_on_err(session):
         immutable=True,
     )
     assert isinstance(mod5_udf.func, tuple)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(SnowparkLocalTestingException):
         df.select(mod5_udf("a"), mod5_udf("b")).collect()
     assert (
         sys_path_copy == sys.path
     )  # assert sys.path is cleaned up after UDF exits on exception
 
 
-@pytest.mark.localtest
 def test_registering_udf_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
 
@@ -57,7 +57,7 @@ def test_registering_udf_with_qualified_identifier(session):
     assert df.select(call_udf("add", col("num1"), col("num2"))).collect()[0][0] == 7
 
     session.use_database("test_identifier_database")
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(SnowparkLocalTestingException):
         assert (
             df.select(
                 call_udf(f"{custom_schema}.add", col("num1"), col("num2"))
@@ -66,7 +66,6 @@ def test_registering_udf_with_qualified_identifier(session):
         )
 
 
-@pytest.mark.localtest
 def test_registering_sproc_with_qualified_identifier(session):
     custom_schema = "test_identifier_schema"
 
@@ -85,3 +84,14 @@ def test_registering_sproc_with_qualified_identifier(session):
     session.use_database("test_identifier_database")
     with pytest.raises(SnowparkSQLException):
         assert session.call("increment_by_one", 5) == 6
+
+
+def test_get_udf_negative(session):
+    reg = MockUDFRegistration(session)
+    with pytest.raises(SnowparkLocalTestingException):
+        reg.get_udf("does_not_exist")
+
+
+def test_get_udf_imports_negative(session):
+    reg = MockUDFRegistration(session)
+    assert reg.get_udf_imports("does_not_exist") == set()

@@ -20,7 +20,7 @@ from tests.integ.modin.utils import (
     "sample, expected_query_count",
     (
         ([1.0, 2.0, np.nan], 1),
-        ([np.NaN, 2, pd.NaT, "", None, "I stay"], 1),
+        ([np.nan, 2, pd.NaT, "", None, "I stay"], 1),
     ),
 )
 def test_basic(sample, expected_query_count):

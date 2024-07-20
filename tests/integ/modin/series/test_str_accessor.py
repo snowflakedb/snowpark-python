@@ -36,6 +36,7 @@ TEST_DATA = [
     " \t\r\n\f",
     "",
     None,
+    1,
 ]
 
 
@@ -154,32 +155,176 @@ def test_str_count(pat, flags):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
-        snow_ser, native_ser, lambda ser: ser.str.count(pat, flags=flags)
+        snow_ser, native_ser, lambda ser: ser.str.count(pat=pat, flags=flags)
     )
 
 
-@pytest.mark.parametrize(
-    "to_strip", [None, np.nan, "", " ", "abcxyz", "zyxcba", "^$", "\nz"]
-)
+@pytest.mark.parametrize("i", [None, -100, -2, -1, 0, 1, 2, 100])
 @sql_count_checker(query_count=1)
-def test_str_strip(to_strip):
+def test_str_get(i):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
-        snow_ser, native_ser, lambda ser: ser.str.strip(to_strip=to_strip)
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.get(i=i),
     )
 
 
-@pytest.mark.parametrize("to_strip", [1, -2.0])
 @sql_count_checker(query_count=0)
-def test_str_strip_neg(to_strip):
+def test_str_get_neg():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas doesn't support non-str 'to_strip' argument",
+        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
     ):
-        snow_ser.str.strip(to_strip=to_strip)
+        snow_ser.str.get(i="a")
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        None,
+        [1, 2],
+        (1, 2),
+        {1: "a", 2: "b"},
+        -100,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        100,
+        slice(None, None, None),
+        slice(0, -1, 1),
+        slice(-1, 0, -1),
+        slice(0, -1, 2),
+        slice(-1, 0, -2),
+        slice(-100, 100, 2),
+        slice(100, -100, -2),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str___getitem__(key):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str[key],
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str___getitem___zero_step():
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        ValueError,
+        match="slice step cannot be zero",
+    ):
+        snow_ser.str[slice(None, None, 0)]
+
+
+@sql_count_checker(query_count=0)
+def test_str___getitem___string_key():
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas string indexing doesn't yet support non-numeric keys",
+    ):
+        snow_ser.str["a"]
+
+
+@pytest.mark.parametrize(
+    "pat",
+    [
+        "",
+        "xyz",
+        "uvw",
+        "%_.*?|&^$",
+        r"x.[za]",
+        r"(.?:abc|xyz)[^abcxyz]",
+        r"a|b|c",
+    ],
+)
+@pytest.mark.parametrize("case", [True, False])
+@pytest.mark.parametrize("flags", [0, re.IGNORECASE])
+@pytest.mark.parametrize("na", [None, np.nan, native_pd.NA, True, False])
+@sql_count_checker(query_count=1)
+def test_str_match(pat, case, flags, na):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.match(pat, case=case, flags=flags, na=na),
+    )
+
+
+@pytest.mark.parametrize("na", [1, "klm", datetime.date(2019, 12, 4), [True]])
+@sql_count_checker(query_count=0)
+def test_str_match_invlaid_na(na):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.match' does not support non-bool 'na' argument",
+    ):
+        snow_ser.str.match(pat="xyz", na=na)
+
+
+@pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("step", [None, -100, -2, -1, 1, 2, 100])
+@sql_count_checker(query_count=1)
+def test_str_slice(start, stop, step):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.slice(start=start, stop=stop, step=step),
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str_slice_neg():
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        ValueError,
+        match="slice step cannot be zero",
+    ):
+        snow_ser.str.slice(start=None, stop=None, step=0)
+
+
+@pytest.mark.parametrize("func", ["strip", "lstrip", "rstrip"])
+@pytest.mark.parametrize(
+    "to_strip", [None, np.nan, "", " ", "abcxyz", "zyxcba", "^$", "\nz"]
+)
+@sql_count_checker(query_count=1)
+def test_str_strip_variants(func, to_strip):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser, native_ser, lambda ser: getattr(ser.str, func)(to_strip=to_strip)
+    )
+
+
+@pytest.mark.parametrize("func", ["strip", "lstrip", "rstrip"])
+@pytest.mark.parametrize("to_strip", [1, -2.0])
+@sql_count_checker(query_count=0)
+def test_str_strip_variants_neg(func, to_strip):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas Series.str.{func} does not yet support non-str 'to_strip' argument",
+    ):
+        getattr(snow_ser.str, func)(to_strip=to_strip)
 
 
 @pytest.mark.parametrize("pat", ["xyz", "uv", "|", r".", r"[a-z]{3}"])
@@ -222,28 +367,16 @@ def test_str_replace_neg(pat, n, repl, error):
 
 
 @pytest.mark.parametrize("pat", [None, "a", "|", "%"])
-@pytest.mark.parametrize("n", [None, np.NaN, 3, 2, 1, 0, -1, -2])
-@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
+@sql_count_checker(query_count=1)
 def test_str_split(pat, n):
-    snow_ser = pd.Series(TEST_DATA)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
-        snow_ser.str.split(pat=pat, n=n)
-
-
-@sql_count_checker(query_count=0)
-def test_str_split_negative():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
-        eval_snowpark_pandas_result(
-            snow_ser,
-            native_ser,
-            lambda ser: ser.str.split(pat=None, n=None, expand=False, regex=None),
-        )
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.split(pat=pat, n=n, expand=False, regex=None),
+    )
 
 
 @pytest.mark.parametrize("regex", [None, True])
@@ -261,22 +394,20 @@ def test_str_split_regex(regex):
 
 
 @pytest.mark.parametrize(
-    "pat, n, expand",
+    "pat, n, expand, error",
     [
-        ("", 1, False),
-        (re.compile("a"), 1, False),
-        (-2.0, 1, False),
-        ("a", "a", False),
-        ("a", 1, True),
+        ("", 1, False, ValueError),
+        (re.compile("a"), 1, False, NotImplementedError),
+        (-2.0, 1, False, NotImplementedError),
+        ("a", "a", False, NotImplementedError),
+        ("a", 1, True, NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_split_neg(pat, n, expand):
+def test_str_split_neg(pat, n, expand, error):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    with pytest.raises(
-        NotImplementedError, match="split is not yet implemented for Series.str"
-    ):
+    with pytest.raises(error):
         snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
 
 
@@ -321,7 +452,7 @@ def test_str_len():
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["1", "*this", "%THAT", "4*FINAL test"],
     ],
@@ -338,7 +469,7 @@ def test_str_capitalize_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -359,7 +490,7 @@ def test_str_capitalize_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["FOO", "BAR", "Blah", "blurg"],
+        ["FOO", "BAR", "Blah", "blurg", 1],
         ["this TEST", "THAT", "test", "fInAl tEsT here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*this", "%THAT", "4*FINAL test"],
@@ -390,7 +521,7 @@ def test_str_title_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "foo", np.nan, "fInAl tEsT here"],
+        [np.nan, "foo", np.nan, "fInAl tEsT here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "str1", None, "STR2"],
         [None, None, None],
@@ -411,7 +542,7 @@ def test_str_title_nan_none_empty_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        ["Foo", "BAR", "Blah", "blurg"],
+        ["Foo", "BAR", "Blah", "blurg", 1],
         ["this TEST", "That", "test", "Final Test Here"],
         ["T", "Q a", "B P", "BA P", "Ba P"],
         ["1", "*This", "%THAT", "4*FINAL test"],
@@ -442,7 +573,7 @@ def test_str_istitle_valid_input(items):
 @pytest.mark.parametrize(
     "items",
     [
-        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here"],
+        [np.nan, "Foo", np.nan, "fInAl tEsT here", "Final Test Here", 1],
         [np.nan, np.nan, np.nan],
         [np.nan, "Str1", None, "STR2"],
         [None, None, None],

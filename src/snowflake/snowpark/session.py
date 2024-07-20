@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.utils import (
     get_stage_file_prefix_length,
     get_temp_type_for_object,
     get_version,
+    import_or_missing_modin_pandas,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -111,7 +112,10 @@ from snowflake.snowpark.context import (
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
-from snowflake.snowpark.exceptions import SnowparkClientException
+from snowflake.snowpark.exceptions import (
+    SnowparkClientException,
+    SnowparkSessionException,
+)
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
     array_agg,
@@ -188,6 +192,12 @@ _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
     "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
+)
+_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
+# TODO (SNOW-1482588): Add parameter for PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED
+#               at server side
+_PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
+    "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
@@ -337,17 +347,37 @@ class Session:
         def __init__(self) -> None:
             self._options = {}
             self._app_name = None
+            self._format_json = None
 
         def _remove_config(self, key: str) -> "Session.SessionBuilder":
             """Only used in test."""
             self._options.pop(key, None)
             return self
 
-        def app_name(self, app_name: str) -> "Session.SessionBuilder":
+        def app_name(
+            self, app_name: str, format_json: bool = False
+        ) -> "Session.SessionBuilder":
             """
             Adds the app name to the :class:`SessionBuilder` to set in the query_tag after session creation
+
+            Args:
+                app_name: The name of the application.
+                format_json: If set to `True`, it will add the app name to the session query tag in JSON format,
+                    otherwise, it will add it using a key=value format.
+
+            Returns:
+                A :class:`SessionBuilder` instance.
+
+            Example::
+                >>> session = Session.builder.app_name("my_app").configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                APPNAME=my_app
+                >>> session = Session.builder.app_name("my_app", format_json=True).configs(db_parameters).create() # doctest: +SKIP
+                >>> print(session.query_tag) # doctest: +SKIP
+                {"APPNAME": "my_app"}
             """
             self._app_name = app_name
+            self._format_json = format_json
             return self
 
         def config(self, key: str, value: Union[int, str]) -> "Session.SessionBuilder":
@@ -382,8 +412,12 @@ class Session:
                 session = self._create_internal(self._options.get("connection"))
 
             if self._app_name:
-                app_name_tag = f"APPNAME={self._app_name}"
-                session.append_query_tag(app_name_tag)
+                if self._format_json:
+                    app_name_tag = {"APPNAME": self._app_name}
+                    session.update_query_tag(app_name_tag)
+                else:
+                    app_name_tag = f"APPNAME={self._app_name}"
+                    session.append_query_tag(app_name_tag)
 
             return session
 
@@ -488,10 +522,19 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        self._cte_optimization_enabled: bool = False
+        self._cte_optimization_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
+            )
+        )
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
+            )
+        )
+        self._eliminate_numeric_sql_value_cast_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
         self._custom_package_usage_config: Dict = {}
@@ -561,6 +604,10 @@ class Session:
         return self._cte_optimization_enabled
 
     @property
+    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
+        return self._eliminate_numeric_sql_value_cast_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -622,6 +669,21 @@ class Session:
             )
         self._cte_optimization_enabled = value
 
+    @eliminate_numeric_sql_value_cast_enabled.setter
+    @experimental_parameter(version="1.20.0")
+    def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
+        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+
+        if value in [True, False]:
+            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                self._session_id, value
+            )
+            self._eliminate_numeric_sql_value_cast_enabled = value
+        else:
+            raise ValueError(
+                "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
+            )
+
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
@@ -634,7 +696,10 @@ class Session:
         """
         _logger.info("Canceling all running queries")
         self._last_canceled_id = self._last_action_id
-        self._conn.run_query(f"select system$cancel_all_queries({self._session_id})")
+        if not isinstance(self._conn, MockServerConnection):
+            self._conn.run_query(
+                f"select system$cancel_all_queries({self._session_id})"
+            )
 
     def get_imports(self) -> List[str]:
         """
@@ -2034,6 +2099,11 @@ class Session:
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
         if isinstance(self._conn, MockServerConnection):
+            if self._conn.is_closed():
+                raise SnowparkSessionException(
+                    "Cannot perform this operation because the session has been closed.",
+                    error_code="1404",
+                )
             self._conn.log_not_supported_error(
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,
@@ -2112,9 +2182,89 @@ class Session:
             self._stage_created = True
         return f"{STAGE_PREFIX}{stage_name}"
 
+    def _write_modin_pandas_helper(
+        self,
+        df: Union[
+            "snowflake.snowpark.modin.pandas.DataFrame",  # noqa: F821
+            "snowflake.snowpark.modin.pandas.Series",  # noqa: F821
+        ],
+        table_name: str,
+        location: str,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        quote_identifiers: bool = True,
+        auto_create_table: bool = False,
+        overwrite: bool = False,
+        index: bool = False,
+        index_label: Optional["IndexLabel"] = None,  # noqa: F821
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+    ) -> None:
+        """A helper method used by `write_pandas` to write Snowpark pandas DataFrame or Series to a table by using
+        :func:`snowflake.snowpark.modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>` or
+        :func:`snowflake.snowpark.modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>` internally
+
+        Args:
+            df: The Snowpark pandas DataFrame or Series we'd like to write back.
+            table_name: Name of the table we want to insert into.
+            location: the location of the table in string.
+            database: Database that the table is in. If not provided, the default one will be used.
+            schema: Schema that the table is in. If not provided, the default one will be used.
+            quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+                (from :attr:`DataFrame.columns`) will be quoted. `to_snowflake` always quote column names so
+                quote_identifiers = False is not supported here.
+            auto_create_table: When true, automatically creates a table to store the passed in pandas DataFrame using the
+                passed in ``database``, ``schema``, and ``table_name``. Note: there are usually multiple table configurations that
+                would allow you to upload a particular pandas DataFrame successfully. If you don't like the auto created
+                table, you can always create your own table before calling this function. For example, auto-created
+                tables will store :class:`list`, :class:`tuple` and :class:`dict` as strings in a VARCHAR column.
+            overwrite: Default value is ``False`` and the pandas DataFrame data is appended to the existing table. If set to ``True`` and if auto_create_table is also set to ``True``,
+                then it drops the table. If set to ``True`` and if auto_create_table is set to ``False``,
+                then it truncates the table. Note that in both cases (when overwrite is set to ``True``) it will replace the existing
+                contents of the table with that of the passed in pandas DataFrame.
+            index: default True
+                If true, save DataFrame index columns as table columns.
+            index_label:
+                Column label for index column(s). If None is given (default) and index is True,
+                then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+            table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+                and ``transient``. An empty string means to create a permanent table. Learn more about table types
+                `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+        """
+        if not quote_identifiers:
+            raise NotImplementedError(
+                "quote_identifiers = False is not supported by `to_snowflake`."
+            )
+
+        def quote_id(id: str) -> str:
+            return '"' + id + '"'
+
+        name = [table_name]
+        if schema:
+            name = [quote_id(schema)] + name
+        if database:
+            name = [quote_id(database)] + name
+
+        if not auto_create_table and not self._table_exists(name):
+            raise SnowparkClientException(
+                f"Cannot write Snowpark pandas DataFrame or Series to table {location} because it does not exist. Use "
+                f"auto_create_table = True to create table before writing a Snowpark pandas DataFrame or Series"
+            )
+        if_exists = "replace" if overwrite else "append"
+        df.to_snowflake(
+            name=name,
+            if_exists=if_exists,
+            index=index,
+            index_label=index_label,
+            table_type=table_type,
+        )
+
     def write_pandas(
         self,
-        df: "pandas.DataFrame",
+        df: Union[
+            "pandas.DataFrame",
+            "snowflake.snowpark.modin.pandas.DataFrame",  # noqa: F821
+            "snowflake.snowpark.modin.pandas.Series",  # noqa: F821
+        ],
         table_name: str,
         *,
         database: Optional[str] = None,
@@ -2135,7 +2285,7 @@ class Session:
         pandas DataFrame was written to.
 
         Args:
-            df: The pandas DataFrame we'd like to write back.
+            df: The pandas DataFrame or Snowpark pandas DataFrame or Series we'd like to write back.
             table_name: Name of the table we want to insert into.
             database: Database that the table is in. If not provided, the default one will be used.
             schema: Schema that the table is in. If not provided, the default one will be used.
@@ -2200,7 +2350,19 @@ class Session:
             Snowflake that the passed in pandas DataFrame can be written to. If
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
+
+            If the dataframe is Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            or :class:`~snowflake.snowpark.modin.pandas.Series`, it will call
+            :func:`modin.pandas.DataFrame.to_snowflake <snowflake.snowpark.modin.pandas.DataFrame.to_snowflake>`
+            or :func:`modin.pandas.Series.to_snowflake <snowflake.snowpark.modin.pandas.Series.to_snowflake>`
+            internally to write a Snowpark pandas DataFrame into a Snowflake table.
         """
+        if isinstance(self._conn, MockServerConnection):
+            self._conn.log_not_supported_error(
+                external_feature_name="Session.write_pandas",
+                raise_error=NotImplementedError,
+            )
+
         if create_temp_table:
             warning(
                 "write_pandas.create_temp_table",
@@ -2241,22 +2403,41 @@ class Session:
                         "snowflake-connector-python to 3.4.0 or above.",
                         stacklevel=1,
                     )
-            success, nchunks, nrows, ci_output = write_pandas(
-                self._conn._conn,
-                df,
-                table_name,
-                database=database,
-                schema=schema,
-                chunk_size=chunk_size,
-                compression=compression,
-                on_error=on_error,
-                parallel=parallel,
-                quote_identifiers=quote_identifiers,
-                auto_create_table=auto_create_table,
-                overwrite=overwrite,
-                table_type=table_type,
-                **kwargs,
-            )
+
+            modin_pandas, modin_is_imported = import_or_missing_modin_pandas()
+            if modin_is_imported and isinstance(
+                df, (modin_pandas.DataFrame, modin_pandas.Series)
+            ):
+                self._write_modin_pandas_helper(
+                    df,
+                    table_name,
+                    location,
+                    database=database,
+                    schema=schema,
+                    quote_identifiers=quote_identifiers,
+                    auto_create_table=auto_create_table,
+                    overwrite=overwrite,
+                    table_type=table_type,
+                    **kwargs,
+                )
+                success, ci_output = True, ""
+            else:
+                success, _, _, ci_output = write_pandas(
+                    self._conn._conn,
+                    df,
+                    table_name,
+                    database=database,
+                    schema=schema,
+                    chunk_size=chunk_size,
+                    compression=compression,
+                    on_error=on_error,
+                    parallel=parallel,
+                    quote_identifiers=quote_identifiers,
+                    auto_create_table=auto_create_table,
+                    overwrite=overwrite,
+                    table_type=table_type,
+                    **kwargs,
+                )
         except ProgrammingError as pe:
             if pe.msg.endswith("does not exist"):
                 raise SnowparkClientExceptionMessages.DF_PANDAS_TABLE_DOES_NOT_EXIST_EXCEPTION(

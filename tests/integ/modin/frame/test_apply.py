@@ -603,6 +603,7 @@ TRANSFORM_DATA_FUNC_MAP = [
 ]
 
 
+@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
 @sql_count_checker(query_count=0)
 def test_basic_dataframe_transform(data, apply_func):
@@ -850,7 +851,8 @@ import scipy.stats  # noqa: E402
     [
         (["scipy", "numpy"], 7),
         (["scipy>1.1", "numpy<2.0"], 7),
-        ([scipy, np], 9),
+        # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
+        # [scipy, np], 9),
     ],
 )
 def test_apply_axis1_with_3rd_party_libraries_and_decorator(

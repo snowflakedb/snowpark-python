@@ -5,11 +5,11 @@
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
-from pandas._testing import assert_index_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_index_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
 
@@ -27,6 +27,14 @@ def test_series_sample_n(n, ignore_index):
     assert_index_equal(s.index, s.index)
 
 
+@pytest.mark.parametrize("n", [None, 0, 1, 8, 10, 20])
+@sql_count_checker(query_count=5, join_count=1)
+def test_series_sample_n_replace(n, ignore_index):
+    s = pd.Series(range(100, 110)).sample(n=n, replace=True, ignore_index=ignore_index)
+    assert len(s) == (n if n is not None else 1)
+    assert_index_equal(s.index, s.index)
+
+
 @pytest.mark.parametrize("frac", [None, 0, 0.1, 0.5, 0.8, 1])
 @sql_count_checker(query_count=4)
 def test_series_sample_frac(frac, ignore_index):
@@ -35,13 +43,20 @@ def test_series_sample_frac(frac, ignore_index):
     assert_index_equal(s.index, s.index)
 
 
+@pytest.mark.parametrize("frac", [None, 0, 0.1, 0.5, 0.8, 1, 1.1, 1.5, 1.8, 2])
+@sql_count_checker(query_count=4, join_count=1)
+def test_series_sample_frac_reply(frac, ignore_index):
+    s = pd.Series(range(100, 110)).sample(
+        frac=frac, replace=True, ignore_index=ignore_index
+    )
+    assert_index_equal(s.index, s.index)
+
+
 @pytest.mark.parametrize(
     "ops",
     [
         lambda s: s.sample(weights="weights"),
-        lambda s: s.sample(replace=True),
         lambda s: s.sample(random_state=1),
-        lambda s: s.sample(frac=2),
     ],
 )
 @sql_count_checker(query_count=0)

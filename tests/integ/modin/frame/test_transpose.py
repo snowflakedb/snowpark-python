@@ -17,13 +17,13 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UNPIVOT_NULL_REPLACE_VALUE,
 )
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 transpose_and_double_transpose_parameterize = pytest.mark.parametrize(
     "transpose_operation, expected_query_count",

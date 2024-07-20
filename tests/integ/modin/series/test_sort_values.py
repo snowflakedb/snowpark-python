@@ -22,7 +22,7 @@ def snow_df():
             "a": ["abc", " ", "", "ABC", "_", "XYZ"],
             "b": ["1", "10", "xyz", "0", "2", "abc"],
         },
-        index=native_pd.Index([1, 2, 3, 4, 5, 6], name="ind"),
+        index=pd.Index([1, 2, 3, 4, 5, 6], name="ind"),
     )
 
 

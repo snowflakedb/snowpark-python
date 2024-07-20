@@ -32,7 +32,8 @@ def randomword(length):
 @freq
 @interval
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_with_varying_freq_and_interval(freq, interval, agg_func):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
@@ -45,7 +46,8 @@ def test_resample_with_varying_freq_and_interval(freq, interval, agg_func):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_date_before_snowflake_alignment_date():
     # Snowflake TIMESLICE alignment date is 1970-01-01 00:00:00
     date_data = native_pd.to_datetime(
@@ -66,7 +68,8 @@ def test_resample_date_before_snowflake_alignment_date():
 
 
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_date_wraparound_snowflake_alignment_date(interval):
     # Snowflake TIMESLICE alignment date is 1970-01-01 00:00:00
     date_data = native_pd.to_datetime(
@@ -89,7 +92,8 @@ def test_resample_date_wraparound_snowflake_alignment_date(interval):
 
 @agg_func
 @freq
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_missing_data_upsample(agg_func, freq):
     # this tests to make sure that missing resample bins will be filled in.
     date_data = native_pd.date_range("2020-01-01", periods=13, freq=f"1{freq}").delete(
@@ -103,7 +107,8 @@ def test_resample_missing_data_upsample(agg_func, freq):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_duplicated_timestamps_downsample():
     date_data = native_pd.to_datetime(
         [
@@ -122,7 +127,8 @@ def test_resample_duplicated_timestamps_downsample():
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_duplicated_timestamps():
     date_data = native_pd.to_datetime(
         [
@@ -158,10 +164,11 @@ def test_resample_series(freq, interval, agg_func):
     )
 
 
+# One extra query to convert index to native pandas for dataframe constructor
 @pytest.mark.parametrize(
     "agg_func", ["max", "min", "mean", "median", "sum", "std", "var"]
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_numeric_only(agg_func):
     eval_snowpark_pandas_result(
         *create_test_dfs(
@@ -173,8 +180,9 @@ def test_resample_numeric_only(agg_func):
     )
 
 
+# One extra query to convert index to native pandas for dataframe constructor
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_df_with_nan(agg_func):
     # resample bins of 'A' each have a NaN. 1 resample bin of 'B' is all NaN
     eval_snowpark_pandas_result(
@@ -202,7 +210,8 @@ def test_resample_ser_with_nan(agg_func):
 
 
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_single_resample_bin(agg_func):
     eval_snowpark_pandas_result(
         *create_test_dfs(
@@ -215,7 +224,8 @@ def test_resample_single_resample_bin(agg_func):
 
 
 @agg_func
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_index_with_nan(agg_func):
     datecol = native_pd.to_datetime(
         ["2020-01-01", "2020-01-03", "2020-01-05", np.nan, "2020-01-09", np.nan]
@@ -230,7 +240,8 @@ def test_resample_index_with_nan(agg_func):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_df_getitem():
     eval_snowpark_pandas_result(
         *create_test_dfs(
@@ -253,7 +264,8 @@ def test_resample_ser_getitem():
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_date_trunc_day():
     # resample bins of 'A' each have a NaN. 1 resample bin of 'B' is all NaN
     eval_snowpark_pandas_result(
@@ -266,7 +278,8 @@ def test_resample_date_trunc_day():
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_date_trunc_hour():
     # resample bins of 'A' each have a NaN. 1 resample bin of 'B' is all NaN
     eval_snowpark_pandas_result(
@@ -279,8 +292,9 @@ def test_resample_date_trunc_hour():
     )
 
 
+# One extra query to convert index to native pandas for dataframe constructor
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill(interval):
     datecol = native_pd.to_datetime(
         [
@@ -328,8 +342,9 @@ def test_resample_ffill_ser(interval):
     )
 
 
+# One extra query to convert index to native pandas for dataframe constructor
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_one_gap(interval):
     datecol = native_pd.to_datetime(
         [
@@ -371,7 +386,8 @@ def resample_ffill_ser_one_gap():
 
 
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_missing_in_middle(interval):
     datecol = native_pd.to_datetime(
         [
@@ -418,7 +434,8 @@ def test_resample_ffill_ser_missing_in_middle(interval):
 
 
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_ffilled_with_none(interval):
     datecol = native_pd.to_datetime(
         [
@@ -441,7 +458,8 @@ def test_resample_ffill_ffilled_with_none(interval):
 
 
 @interval
-@sql_count_checker(query_count=2, join_count=1)
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
 def test_resample_ffill_large_gaps(interval):
     datecol = native_pd.to_datetime(
         [

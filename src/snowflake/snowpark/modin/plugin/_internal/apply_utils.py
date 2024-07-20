@@ -325,7 +325,13 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
         dtype=object,
     )
     result_df["value"] = (
-        result_df["value"].apply(handle_missing_value_in_variant).astype(object)
+        result_df["value"]
+        .apply(
+            lambda v: handle_missing_value_in_variant(
+                convert_numpy_int_result_to_int(v)
+            )
+        )
+        .astype(object)
     )
     result_df["first_position_for_group"] = input_row_positions.iloc[0]
     return result_df
@@ -470,6 +476,7 @@ def create_udtf_for_groupby_apply(
     index_column_names: Names of the input dataframe's index
     input_data_column_types: Types of the input dataframe's data columns
     input_index_column_types: Types of the input dataframe's index columns
+    session: the current session
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
@@ -483,6 +490,9 @@ def create_udtf_for_groupby_apply(
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
+    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+
+    data_column_index = try_convert_index_to_native(data_column_index)
 
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
@@ -689,7 +699,9 @@ def create_udf_for_series_apply(
             # Calling tolist() convert np.int*, np.bool*, etc. (which is not
             # json-serializable) to python native values
             for e in x.apply(func, args=args, **kwargs).tolist():
-                result.append(handle_missing_value_in_variant(e))
+                result.append(
+                    handle_missing_value_in_variant(convert_numpy_int_result_to_int(e))
+                )
             return result
 
     else:

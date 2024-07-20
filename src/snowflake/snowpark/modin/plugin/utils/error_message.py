@@ -135,6 +135,10 @@ series_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="Series"
 )
 
+index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="Index"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )
@@ -166,6 +170,18 @@ class ErrorMessage:
         """
         message = f"{name} is not yet implemented for {class_}"
         ErrorMessage.not_implemented(message)
+
+    @staticmethod
+    def parameter_not_implemented_error(parameter_name: str, method_name: str) -> None:
+        """
+        Raises not implemented error for specified param and method.
+        Args:
+            parameter_name: Name of the parameter.
+            method_name: Name of the method.
+        """
+        ErrorMessage.not_implemented(
+            f"Snowpark pandas method {method_name} does not yet support the '{parameter_name}' parameter"
+        )
 
     # TODO SNOW-840704: using Snowpark pandas exception class for the internal error
     @classmethod

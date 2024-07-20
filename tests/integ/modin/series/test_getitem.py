@@ -9,6 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 
@@ -20,17 +21,21 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         [True] * 7,
         [False] * 7,
         np.array([True, True, False, False, False, True, True], dtype=bool),
-        pd.Index([True, True, False, False, False, True, True]),
+        native_pd.Index([True, True, False, False, False, True, True]),
         [True],
         [True, True, False, False, False, True, True, True],
-        pd.Index([], dtype=bool),
+        native_pd.Index([], dtype=bool),
         np.array([], dtype=bool),
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
 def test_series_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_series, default_index_native_series
 ):
+    if isinstance(key, native_pd.Index):
+        snow_key = pd.Index(key)
+    else:
+        snow_key = key
+
     def getitem_helper(ser):
         # Native pandas can only handle boolean list-likes objects of length = num(rows).
         if isinstance(ser, native_pd.Series):
@@ -38,14 +43,15 @@ def test_series_getitem_with_boolean_list_like(
             _ser = ser[: len(key)]
             _key = key[: len(_ser)]
         else:
-            _key, _ser = key, ser
+            _key, _ser = snow_key, ser
         return _ser[_key]
 
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_series,
-        default_index_native_series,
-        getitem_helper,
-    )
+    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_series,
+            default_index_native_series,
+            getitem_helper,
+        )
 
 
 @pytest.mark.parametrize(
@@ -130,7 +136,7 @@ def test_series_getitem_with_scalars(
     "key",
     [
         [],
-        pd.Index([]),
+        native_pd.Index([]),
         np.array([]),
     ],
 )
@@ -141,7 +147,7 @@ def test_series_getitem_with_empty_keys(
     eval_snowpark_pandas_result(
         default_index_snowpark_pandas_series,
         default_index_native_series,
-        lambda ser: ser[key],
+        lambda ser: ser[try_convert_index_to_native(key)],
     )
 
 

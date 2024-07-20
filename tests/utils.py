@@ -9,6 +9,8 @@ import os
 import platform
 import random
 import string
+import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
@@ -79,14 +81,58 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+
+RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
+TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+if RUNNING_ON_JENKINS:
+    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
+
 # SNOW-1348805: Structured types have not been rolled out to all accounts yet.
 # Once rolled out this should be updated to include all accounts.
-STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
-IS_STRUCTURED_TYPES_SUPPORTED = (
-    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
-)
-ICEBERG_ENVIRONMENTS = {"dev", "aws"}
-IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
+STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
+ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
+    "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE",
+}
+
+
+def current_account(session):
+    return session.sql("select CURRENT_ACCOUNT_NAME()").collect()[0][0].upper()
+
+
+def structured_types_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return True
+    return current_account(session) in STRUCTURED_TYPE_ENVIRONMENTS
+
+
+def iceberg_supported(session, local_testing_mode):
+    if local_testing_mode:
+        return False
+    return current_account(session) in ICEBERG_ENVIRONMENTS
+
+
+@contextmanager
+def structured_types_enabled_session(session):
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session set {param}=true").collect()
+    yield session
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session unset {param}").collect()
+
+
+def running_on_public_ci() -> bool:
+    """Whether tests are currently running on one of our public CIs."""
+    return RUNNING_ON_GH
+
+
+def running_on_jenkins() -> bool:
+    """Whether tests are currently running on a Jenkins node."""
+    return RUNNING_ON_JENKINS
 
 
 class Utils:
@@ -321,6 +367,9 @@ class Utils:
                 raise TypeError(
                     "input_data must be a DataFrame, a list of Row objects or a Row object"
                 )
+
+            # Strip column names to make errors more concise
+            rows = [Row(*list(x)) for x in rows]
             return rows
 
         actual_rows = get_rows(actual)
@@ -352,6 +401,7 @@ class Utils:
                     meta.precision,
                     meta.scale,
                     meta.internal_size,
+                    session._conn.max_string_size,
                 )
                 == field.datatype
             )
@@ -860,7 +910,7 @@ class TestData:
     @classmethod
     def time_primitives1(cls, session: "Session") -> DataFrame:
         # simple string data
-        data = [("01:02:03",), ("22:33:44",)]
+        data = [("01:02:03",), ("22:33:44",), ("22:33:44.123",), ("22:33:44.56789",)]
         schema = StructType([StructField("a", StringType())])
         return session.create_dataframe(data, schema)
 
@@ -1133,6 +1183,21 @@ class TestData:
         )
 
     @classmethod
+    def xyz2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                cls.Number2(1, 2, 1),
+                cls.Number2(1, 2, 3),
+                cls.Number2(2, 1, 10),
+                cls.Number2(2, 2, 1),
+                cls.Number2(2, 2, 3),
+                cls.Number2(2, 3, 5),
+                cls.Number2(2, 3, 8),
+                cls.Number2(2, 4, 7),
+            ]
+        )
+
+    @classmethod
     def long1(cls, session: "Session") -> DataFrame:
         data = [
             (1561479557),
@@ -1269,6 +1334,10 @@ class TestFiles:
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
 
+    @property
+    def test_file_excel(self):
+        return os.path.join(self.resources_path, "test_excel.xlsx")
+
     @functools.cached_property
     def test_file_json_special_format(self):
         return os.path.join(self.resources_path, "testJSONspecialFormat.json.gz")
@@ -1379,6 +1448,14 @@ class TestFiles:
     def test_conda_environment_file(self):
         return os.path.join(self.resources_path, "test_environment.yml")
 
+    @property
+    def test_concat_file1_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file1.csv")
+
+    @property
+    def test_concat_file2_csv(self):
+        return os.path.join(self.resources_path, "test_concat_file2.csv")
+
 
 class TypeMap(NamedTuple):
     col_name: str
@@ -1423,3 +1500,27 @@ TYPE_MAP = [
     TypeMap("geography", "geography", GeographyType()),
     TypeMap("geometry", "geometry", GeometryType()),
 ]
+
+
+def check_tracing_span_single_answer(result: dict, expected_answer: dict):
+    # this is a helper function to check one result from all results stored in exporter
+    for answer_name in expected_answer:
+        if answer_name == "status_description":
+            if expected_answer[answer_name] not in result[answer_name]:
+                return False
+            else:
+                continue
+        if expected_answer[answer_name] != result[answer_name]:
+            return False
+    return True
+
+
+def check_tracing_span_answers(results: list, expected_answer: tuple):
+    # this function meant to check if there is one match among all the results stored in exporter
+    # The answers are checked in this way because exporter is a public resource that only one exporter can
+    # exist globally, which could lead to race condition if cleaning exporter after every test
+    for result in results:
+        if expected_answer[0] == result[0]:
+            if check_tracing_span_single_answer(result[1], expected_answer[1]):
+                return True
+    return False

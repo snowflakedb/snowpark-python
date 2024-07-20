@@ -3,12 +3,17 @@
 #
 
 import math
+import os
+import shutil
+import sys
+import tempfile
 from functools import cmp_to_key, partial
-from typing import Any, Iterable, Tuple, Union
+from typing import Any, Callable, Iterable, Optional, Set, Tuple, Union
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import parse_table_name, quote_name
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -119,10 +124,19 @@ def array_custom_comparator(ascend: bool, null_first: bool, a: Any, b: Any):
     return ret if ascend else -1 * ret
 
 
-def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]:
+def convert_snowflake_datetime_format(
+    format, default_format, is_input_format=True
+) -> Tuple[str, int]:
     """
     unified processing of the time format
     converting snowflake date/time/timestamp format into python datetime format
+
+    usage notes on the returning fractional seconds:
+        fractional seconds does not come into effect when parsing input, see following sql
+            alter session set TIME_OUTPUT_FORMAT = 'HH:MI:SS.FF9';
+            select to_time('11:22:44.333333', 'HH:MI:SS.FF1');
+         it still returns '11:22:44.333333' not '11:22:44.3'
+         however fractional seconds is used in controlling the output format
     """
 
     format_to_use = format or default_format
@@ -154,7 +168,9 @@ def convert_snowflake_datetime_format(format, default_format) -> Tuple[str, int]
             # 'FF' is not in the fmt
             pass
 
-    return time_fmt, fractional_seconds
+    # in live connection, input does not appreciate fractional_seconds in the format,
+    # input always treated as nanoseconds if FF[1-9] is specified
+    return time_fmt, 9 if is_input_format else fractional_seconds
 
 
 def convert_numeric_string_value_to_float_seconds(time: str) -> float:
@@ -188,8 +204,10 @@ def process_string_time_with_fractional_seconds(time: str, fractional_seconds) -
         idx = 0
         while idx < len(seconds_part) and seconds_part[idx].isdigit():
             idx += 1
-        # truncate to precision
-        seconds_part = seconds_part[: min(idx, fractional_seconds)] + seconds_part[idx:]
+        # truncate to precision, python can only handle microsecond which is 6 digits
+        seconds_part = (
+            seconds_part[: min(idx, fractional_seconds, 6)] + seconds_part[idx:]
+        )
         ret = f"{time_parts[0]}.{seconds_part}"
     return ret
 
@@ -227,7 +245,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         BooleanType: bool,
         ByteType: numpy.int8 if not col.sf_type.nullable else "Int8",
         DateType: object,
-        DecimalType: numpy.int64 if not col.sf_type.nullable else "Int64",
+        DecimalType: numpy.float64,
         DoubleType: numpy.float64,
         FloatType: numpy.float64,
         IntegerType: numpy.int64 if not col.sf_type.nullable else "Int64",
@@ -241,7 +259,7 @@ def fix_drift_between_column_sf_type_and_dtype(col: ColumnEmulator):
         MapType: object,
     }
     fixed_type = sf_type_to_dtype.get(type(col.sf_type.datatype), object)
-    col = col.astype(fixed_type)
+    col = col.astype(fixed_type, errors="ignore")
     return col
 
 
@@ -295,7 +313,9 @@ def unalias_datetime_part(part):
     if lowered_part in DATETIME_ALIASES:
         return ALIASES_TO_DATETIME_PART[lowered_part]
     else:
-        raise ValueError(f"{part} is not a recognized date or time part.")
+        SnowparkLocalTestingException.raise_from_error(
+            ValueError(f"{part} is not a recognized date or time part.")
+        )
 
 
 def get_fully_qualified_name(
@@ -308,3 +328,60 @@ def get_fully_qualified_name(
     if len(name) == 2:
         name = [current_database] + name
     return ".".join(quote_name(n) for n in name)
+
+
+class ImportContext:
+    def __init__(self, imports: Set[str]) -> None:
+        self._imports = imports
+        self._callback: Optional[Callable] = None
+
+    def __enter__(self):
+        # Initialize import directory
+        temporary_import_path = tempfile.TemporaryDirectory()
+        last_import_directory = sys._xoptions.get("snowflake_import_directory")
+        sys._xoptions["snowflake_import_directory"] = temporary_import_path.name
+
+        # Save a copy of module cache
+        frozen_sys_module_keys = set(sys.modules.keys())
+        # Save a copy of sys path
+        frozen_sys_path = list(sys.path)
+
+        def cleanup_imports():
+            added_path = set(sys.path) - set(frozen_sys_path)
+            for module_path in self._imports:
+                if module_path in added_path:
+                    sys.path.remove(module_path)
+
+            # Clear added entries in sys.modules cache
+            added_keys = set(sys.modules.keys()) - frozen_sys_module_keys
+            for key in added_keys:
+                del sys.modules[key]
+
+            # Cleanup import directory
+            temporary_import_path.cleanup()
+
+            # Restore snowflake_import_directory
+            if last_import_directory is not None:
+                sys._xoptions["snowflake_import_directory"] = last_import_directory
+            else:
+                del sys._xoptions["snowflake_import_directory"]
+
+        self._callback = cleanup_imports
+
+        try:
+            # Process imports
+            for module_path in self._imports:
+                if module_path not in sys.path:
+                    sys.path.append(module_path)
+                if os.path.isdir(module_path):
+                    shutil.copytree(
+                        module_path, temporary_import_path.name, dirs_exist_ok=True
+                    )
+                else:
+                    shutil.copy2(module_path, temporary_import_path.name)
+        except BaseException:
+            self._callback()
+            raise
+
+    def __exit__(self, type, value, traceback):
+        self._callback()

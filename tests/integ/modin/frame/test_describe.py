@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.utils import TestFiles
 
 
 @pytest.mark.parametrize(
@@ -127,6 +128,7 @@ def test_describe_empty_cols():
         ([int, "O"], [float, "O"], ValueError, 0),
         # Like select_dtypes, a dtype in include/exclude can be a subtype of a dtype in the other
         ([int, "O"], [float, np.number, np.datetime64], None, 9),
+        ("O", None, None, 9),
     ],
 )
 def test_describe_include_exclude(
@@ -306,26 +308,13 @@ def test_describe_multiindex(index, columns, include, expected_union_count):
         )
 
 
-DUP_COL_FAIL_REASON = "SNOW-1019479: describe on frames with mixed object/number columns with the same name fails"
-
-
 @pytest.mark.parametrize(
     "include, exclude, expected_union_count",
     [
         (None, None, 7),
-        pytest.param(
-            "all",
-            None,
-            0,
-            marks=pytest.mark.xfail(strict=True, reason=DUP_COL_FAIL_REASON),
-        ),
+        ("all", None, 12),
         (np.number, None, 7),
-        pytest.param(
-            None,
-            float,
-            0,
-            marks=pytest.mark.xfail(strict=True, reason=DUP_COL_FAIL_REASON),
-        ),
+        (None, float, 10),
         (object, None, 5),
         (None, object, 7),
         (int, float, 5),
@@ -342,3 +331,30 @@ def test_describe_duplicate_columns(include, exclude, expected_union_count):
             *create_test_dfs(data, columns=columns),
             lambda df: df.describe(include=include, exclude=exclude),
         )
+
+
+def test_describe_duplicate_columns_mixed():
+    # Test that describing a frame where there are multiple columns (including ones with numeric data
+    # but `object` dtype) that share the same label is correct.
+    data = [[5, 0, 1.0], [6, 3, 4.0]]
+
+    def helper(df):
+        # Convert first column to `object` dtype
+        df = df.astype({0: object})
+        df.columns = ["a"] * 3
+        return df.describe()
+
+    with SqlCounter(query_count=1, union_count=7):
+        eval_snowpark_pandas_result(*create_test_dfs(data), lambda df: helper(df))
+
+
+@sql_count_checker(
+    query_count=3,
+    union_count=21,
+)
+# SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
+def test_describe_object_file(resources_path):
+    test_files = TestFiles(resources_path)
+    df = pd.read_csv(test_files.test_concat_file1_csv)
+    native_df = df.to_pandas()
+    eval_snowpark_pandas_result(df, native_df, lambda x: x.describe(include="O"))

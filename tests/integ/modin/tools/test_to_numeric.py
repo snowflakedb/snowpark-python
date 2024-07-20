@@ -323,7 +323,9 @@ def test_datetime_like(errors):
         (
             "bin binary",
             "values ('48454C50'),('48454C50')",
-            native_pd.Series([b"HELP", b"HELP"], index=pd.Index([0, 1]), name="BIN"),
+            native_pd.Series(
+                [b"HELP", b"HELP"], index=native_pd.Index([0, 1]), name="BIN"
+            ),
         ),
     ],
 )

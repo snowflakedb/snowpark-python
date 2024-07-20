@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -38,6 +39,7 @@ arrays_for_multiindex = [
 
 date_columns = native_pd.date_range(start="2023-01-01", periods=7, freq="D", tz="UTC")
 date_columns_no_tz = date_columns.tz_localize(None)
+series_data = np.random.randint(0, 10, size=(7))
 
 
 @pytest.fixture(scope="function")
@@ -96,6 +98,16 @@ def str_index_snowpark_pandas_series():
 
 
 @pytest.fixture(scope="function")
+def time_index_snowpark_pandas_series():
+    return pd.Series(series_data, index=date_columns_no_tz)
+
+
+@pytest.fixture(scope="function")
+def time_index_native_series():
+    return native_pd.Series(series_data, index=date_columns_no_tz)
+
+
+@pytest.fixture(scope="function")
 def mixed_type_index_native_series_mixed_type_index():
     return native_pd.Series(mixed_type_index_data, index=mixed_type_index)
 
@@ -111,10 +123,5 @@ def native_series_with_duplicate_boolean_index():
 
 
 @pytest.fixture(scope="function")
-def time_index_snowpark_pandas_series():
-    return pd.Series(list(range(7)), index=date_columns_no_tz)
-
-
-@pytest.fixture(scope="function")
-def time_index_native_series():
-    return native_pd.Series(list(range(7)), index=date_columns_no_tz)
+def time_index_series_data():
+    return list(range(7)), {"index": date_columns_no_tz}

@@ -7,7 +7,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.groupby.conftest import multiindex_data
 from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
@@ -15,6 +14,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize("grouping_columns", ["B", ["A", "B"]])

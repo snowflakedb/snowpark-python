@@ -244,7 +244,7 @@ def test_read_snowflake_query_with_index_col_and_columns_overlap(session):
     )
     pdf = df.to_pandas()
     assert pdf.index.dtype == np.int64
-    assert pdf.columns.equals(pd.Index(["col0", "index_col"]))
+    assert pdf.columns.equals(native_pd.Index(["col0", "index_col"]))
     assert pdf.index.name == "index_col"
 
 

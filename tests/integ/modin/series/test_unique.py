@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from decimal import Decimal
 from typing import Any
 
 import modin.pandas as pd
@@ -26,13 +27,20 @@ HOMOGENEOUS_INPUT_DATA_FOR_SERIES = [
     [12.0, 11.999999, 11.999999],
     ["A", "A", "C", "C", "A"],
     [None, "A", None, "B"],
+    _make_nan_interleaved_float_series(),
+    native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
     pytest.param(
-        native_pd.Series([1, 2, 2**63, 2**63], dtype=np.uint64),
+        native_pd.Series([1, 2, -(2**63) - 1, -(2**64)]),
         marks=pytest.mark.xfail(
-            reason="SNOW-1356685: Dtype with unsigned int results in precision error"
+            reason="Represent overflow using float instead of integer",
         ),
     ),
-    _make_nan_interleaved_float_series(),
+    pytest.param(
+        native_pd.Series([Decimal(1.5), Decimal(2**64 - 1)], dtype=object),
+        marks=pytest.mark.xfail(
+            reason="Represent Decimal using float instead of integer as pandas does not recognize it",
+        ),
+    ),
 ]
 
 
@@ -79,3 +87,31 @@ def test_unique_post_sort_values(input_data: list[Any]):
     eval_snowpark_pandas_result(
         snowpark_pandas_series, native_series, pipeline, comparator=assert_values_equal
     )
+
+
+@pytest.mark.xfail(
+    reason="SNOW-1524901: Wrong result when index and a data column have the same name",
+    strict=True,
+)
+@sql_count_checker(query_count=0)
+def test_index_unique_data_columns_should_not_affect_index_column():
+    # The index column and data columns in a DataFrame object can have
+    # the same column names. We need to ensure that the correct column is
+    # picked during access to df.index and df.col_name, and the results
+    # for df.col_name.unique() and df.index.unique() are different.
+    # In this test, both the index and a data column have the name "A".
+    # Check that they produce different results with unique.
+    # TODO: SNOW-1524901: snow_df.A.unique() does not produce the correct result here.
+    #  Right now an empty result is returned: []. This only occurs when the index and
+    #  a data column in a DataFrame share the same name.
+    # The expected result is [11, 22, 33, 44, 55].
+    native_df = native_pd.DataFrame(
+        {
+            "B": [10, 20, 30, 40, 50],
+            "A": [11, 22, 33, 44, 55],
+            "C": [60, 70, 80, 90, 100],
+        },
+        index=native_pd.Index([5, 4, 3, 2, 1], name="A"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.A.unique() == native_df.A.unique()
