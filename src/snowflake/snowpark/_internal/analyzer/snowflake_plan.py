@@ -768,6 +768,11 @@ class SnowflakePlanBuilder:
         use_scoped_temp_objects: bool,
         is_generated: bool,  # true if the table is generated internally
     ) -> SnowflakePlan:
+        if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
+            raise ValueError(
+                "Internally generated tables must be called with mode ERROR_IF_EXISTS"
+            )
+
         full_table_name = ".".join(table_name)
         is_temp_table_type = table_type in TEMPORARY_STRING_SET
         # here get the column definition from the child attributes. In certain cases we have

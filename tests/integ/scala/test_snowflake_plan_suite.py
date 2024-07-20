@@ -279,5 +279,21 @@ def test_create_scoped_temp_table(session):
             .queries[0]
             .sql
         )
+        with pytest.raises(
+            ValueError,
+            match="Internally generated tables must be called with mode ERROR_IF_EXISTS",
+        ):
+            session._plan_builder.save_as_table(
+                [temp_table_name],
+                None,
+                SaveMode.APPEND,
+                "temporary",
+                None,
+                None,
+                df._plan,
+                None,
+                use_scoped_temp_objects=True,
+                is_generated=True,
+            )
     finally:
         Utils.drop_table(session, table_name)
