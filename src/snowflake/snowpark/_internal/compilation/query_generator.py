@@ -22,16 +22,12 @@ class QueryGenerator(Analyzer):
     def __init__(
         self,
         session: Session,
-        # df_aliased_col_name_to_real_col_name: Dict[str, Dict[str, str]],
     ) -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
-        # re-propogate
         self.generated_alias_maps = {}
-        # subquery plans nees to be repropogated
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
-        # self.df_aliased_col_name_to_real_col_name = df_aliased_col_name_to_real_col_name
         self.table_create_child_attribute_map: Dict[str, List[Attribute]] = {}
 
     def do_resolve_with_resolved_children(
