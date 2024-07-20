@@ -217,6 +217,7 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
+        # TODO: Remove placeholder_query once
         placeholder_query: Optional[str] = None,
         *,
         session: "snowflake.snowpark.session.Session",
@@ -472,12 +473,17 @@ class SnowflakePlan(LogicalPlan):
 
 
 class SnowflakePlanBuilder:
-    def __init__(self, session: "snowflake.snowpark.session.Session", skip_schema_query: bool = False) -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        skip_schema_query: bool = False,
+    ) -> None:
         self.session = session
         # Whether skip the schema query build. If true, no the schema_query associated
         # with the resolved plan will be None.
         # This option is currently only expected to be used for the query generator applied
-        # on the optimized plan.
+        # on the optimized plan. During the final query generation, no schema query is needed,
+        # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -630,7 +636,10 @@ class SnowflakePlanBuilder:
         )
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
-        schema_query = schema_query or schema_value_statement(attributes)
+        if self._skip_schema_query is True:
+            schema_query = None
+        else:
+            schema_query = schema_query or schema_value_statement(attributes)
         queries = [
             Query(create_table_stmt, is_ddl_on_temp_object=True),
             BatchInsertQuery(insert_stmt, data),
