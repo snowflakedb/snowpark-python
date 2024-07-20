@@ -1981,7 +1981,7 @@ class DataFrame:
         n: int,
         offset: int = 0,
         _ast_stmt: proto.Assign = None,
-        suppress_ast: bool = False,
+        _suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -1992,7 +1992,7 @@ class DataFrame:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
             _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
-            suppress_ast: Whether to suppress AST statements.
+            _suppress_ast: Whether to suppress AST statements.
 
         Example::
 
@@ -2013,7 +2013,7 @@ class DataFrame:
             <BLANKLINE>
         """
         # AST.
-        if not suppress_ast:
+        if not _suppress_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
@@ -2023,6 +2023,8 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
                 ast = None
+        else:
+            stmt = None
 
         if self._select_statement:
             return self._with_plan(
@@ -3933,7 +3935,7 @@ class DataFrame:
         ast.block = block
         if n is None:
             ast.num = 1
-            df = self.limit(1)
+            df = self.limit(1, _suppress_ast=True)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -3950,7 +3952,7 @@ class DataFrame:
             )
         else:
             ast.num = n
-            df = self.limit(n)
+            df = self.limit(n, _suppress_ast=True)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
