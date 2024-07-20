@@ -9,8 +9,10 @@ from textwrap import dedent
 import pandas
 from pandas.util._decorators import doc
 
-from snowflake.snowpark.modin.pandas.shared_docs import _shared_docs
-from snowflake.snowpark.modin.pandas.utils import _doc_binary_op
+from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
+    _doc_binary_op,
+    _shared_docs,
+)
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
 _shared_doc_kwargs = {
@@ -33,7 +35,7 @@ axis : int or str, optional
 }
 
 
-class Series:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class Series:
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -682,10 +684,13 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Notes
         -----
-        1. When the type annotation of return value is provided on ``func``, the result will be cast
+        1. When ``func`` has a type annotation for its return value, the result will be cast
         to the corresponding dtype. When no type annotation is provided, data will be converted
-        to Variant type in Snowflake and leave as dtype=object. In this case, the return value must
-        be JSON-serializable.
+        to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
+        be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
+        ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
+        are not). The return type hint is used only when ``func`` is a series-to-scalar function.
+
 
         2. Under the hood, we use `Snowflake Vectorized Python UDFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch>`_.
         to implement apply() method. You can find type mappings from Snowflake SQL types to pandas
@@ -723,9 +728,146 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         Return boolean Series equivalent to left <= series <= right.
         """
 
+    def bfill():
+        """
+        Fill NA/NaN values by using the next valid observation to fill the gap.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series([1, None, None, 2])
+        >>> s.bfill()
+        0    1.0
+        1    2.0
+        2    2.0
+        3    2.0
+        dtype: float64
+        >>> s.bfill(limit=1)
+        0    1.0
+        1    NaN
+        2    2.0
+        3    2.0
+        dtype: float64
+
+        With DataFrame:
+
+        >>> df = pd.DataFrame({'A': [1, None, None, 4], 'B': [None, 5, None, 7]})
+        >>> df
+             A    B
+        0  1.0  NaN
+        1  NaN  5.0
+        2  NaN  NaN
+        3  4.0  7.0
+        >>> df.bfill()
+             A    B
+        0  1.0  5.0
+        1  4.0  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        >>> df.bfill(limit=1)
+             A    B
+        0  1.0  5.0
+        1  NaN  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        """
+
     def compare():
         """
         Compare to another Series and show the differences.
+
+        Parameters
+        ----------
+        other : Series
+            Series to compare with.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows.
+            Otherwise, only keep rows with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this series's values from the other's values in
+            the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            If axis is 0 or 'index' the result will be a Series.
+            The resulting index will be a MultiIndex with 'self' and 'other'
+            stacked alternately at the inner level.
+
+            If axis is 1 or 'columns' the result will be a DataFrame.
+            It will have two columns whose names are `result_names`.
+
+
+        See Also
+        --------
+        DataFrame.compare : Show the differences between two DataFrames.
+
+        Notes
+        -----
+        Matching null values, such as None and NaN, will not appear as a
+        difference.
+
+        Examples
+        --------
+        >>> s1 = pd.Series(["a", "b", "c", "d", "e"])
+        >>> s2 = pd.Series(["a", "a", "c", "b", "e"])
+
+        Align the differences on columns
+
+        >>> s1.compare(s2)
+          self other
+        1    b     a
+        3    d     b
+
         """
 
     def corr():
@@ -995,7 +1137,7 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         Empty strings are not considered NA values. ``None`` is considered an
         NA value.
 
-        >>> ser = pd.Series([np.NaN, 2, pd.NaT, '', None, 'I stay'])
+        >>> ser = pd.Series([np.nan, 2, pd.NaT, '', None, 'I stay'])
         >>> ser  # doctest: +NORMALIZE_WHITESPACE
         0      None
         1         2
@@ -1094,7 +1236,91 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     def equals():
         """
-        Test whether two objects contain the same elements.
+        Test whether two series contain the same elements.
+
+        This function allows two Series to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns and
+        index must be of the same dtype. Note: int variants (int8, int16 etc) are
+        considered equal dtype i.e int8 == int16. Similarly, float variants (float32,
+        float64 etc) are considered equal dtype.
+
+        Parameters
+        ----------
+        other : Series
+            The other Series to be compared with the first.
+
+        Returns
+        -------
+        bool
+            True if all elements are the same in both series, False
+            otherwise.
+
+        See Also
+        --------
+        Series.eq : Compare two Series objects of the same length
+            and return a Series where each element is True if the element
+            in each Series is equal, False otherwise.
+        DataFrame.eq : Compare two DataFrame objects of the same shape and
+            return a DataFrame where each element is True if the respective
+            element in each DataFrame is equal, False otherwise.
+        testing.assert_series_equal : Raises an AssertionError if left and
+            right are not equal. Provides an easy interface to ignore
+            inequality in dtypes, indexes and precision among others.
+        testing.assert_frame_equal : Like assert_series_equal, but targets
+            DataFrames.
+        numpy.array_equal : Return True if two arrays have the same shape
+            and elements, False otherwise.
+
+        Examples
+        --------
+        >>> series = pd.Series([1, 2, 3], name=99)
+        >>> series
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+
+        Series 'series' and 'exactly_equal' have the same types and values for
+        their elements and names, which will return True.
+
+        >>> exactly_equal = pd.Series([1, 2, 3], name=99)
+        >>> exactly_equal
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+        >>> series.equals(exactly_equal)
+        True
+
+        Series 'series' and 'different_column_type' have the same element
+        types and values, but have different types for names,
+        which will still return True.
+
+        >>> different_column_type = pd.Series([1, 2, 3], name=99.0)
+        >>> different_column_type
+        0    1
+        1    2
+        2    3
+        Name: 99.0, dtype: int64
+        >>> series.equals(different_column_type)
+        True
+
+        Series 'series' and 'different_data_type' have different types for the
+        same values for their elements, and will return False even though
+        their names are the same values and types.
+
+        >>> different_data_type = pd.Series([1.0, 2.0, 3.0], name=99)
+        >>> different_data_type
+        0    1.0
+        1    2.0
+        2    3.0
+        Name: 99, dtype: float64
+        >>> series.equals(different_data_type)
+        False
         """
 
     def explode():
@@ -1110,10 +1336,110 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
     def case_when():
         """
         Replace values where the conditions are True.
+
+        Parameters
+        ----------
+        caselist : A list of tuples of conditions and expected replacements
+            Takes the form:  ``(condition0, replacement0)``,
+            ``(condition1, replacement1)``, ... .
+            ``condition`` should be a 1-D boolean array-like object
+            or a callable. If ``condition`` is a callable,
+            it is computed on the Series
+            and should return a boolean Series or array.
+            The callable must not change the input Series
+            (though pandas doesn`t check it). ``replacement`` should be a
+            1-D array-like object, a scalar or a callable.
+            If ``replacement`` is a callable, it is computed on the Series
+            and should return a scalar or Series. The callable
+            must not change the input Series
+            (though pandas doesn`t check it).
+
+            .. versionadded:: 2.2.0
+
+        Returns
+        -------
+        Series
+
+        See Also
+        --------
+        Series.mask : Replace values where the condition is True.
+
+        Examples
+        --------
+        >>> c = pd.Series([6, 7, 8, 9], name='c')
+        >>> a = pd.Series([0, 0, 1, 2])
+        >>> b = pd.Series([0, 3, 4, 5])
+
+        >>> c.case_when(caselist=[(a.gt(0), a),  # condition, replacement
+        ...                       (b.gt(0), b)])
+        0    6
+        1    3
+        2    1
+        3    2
+        Name: c, dtype: int64
+        """
+
+    def ffill():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        >>> df.ffill()
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  3.0  3.0 NaN  4.0
+
+        >>> ser = pd.Series([1, np.nan, 2, 3])
+        >>> ser.ffill()
+        0    1.0
+        1    1.0
+        2    2.0
+        3    3.0
+        dtype: float64
         """
 
     def fillna():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Fill NA/NaN values using the specified method.
 
@@ -1204,12 +1530,12 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Only replace the first NaN element.
 
-        >>> df.fillna(value=values, limit=1)  # doctest: +SKIP
-             A    B    C    D
-        0  0.0  2.0  2.0  0.0
-        1  3.0  4.0  NaN  1.0
-        2  NaN  1.0  NaN  3.0
-        3  NaN  3.0  NaN  4.0
+        >>> df.fillna(method="ffill", limit=1)
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  NaN  3.0 NaN  4.0
 
         When filling using a DataFrame, replacement happens along
         the same column names and same indices
@@ -1223,6 +1549,10 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         3  0.0  3.0  0.0  4.0
 
         Note that column D is not affected since it is not present in df2.
+
+        Notes
+        -----
+        `limit` parameter is only supported when using `method` parameter.
         """
 
     @_create_operator_docstring(
@@ -1236,7 +1566,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         pass
 
     def groupby():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Group Series using a mapper or by a Series of columns.
 
@@ -1291,10 +1620,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Parrot     30.0
             Parrot     20.0
             Name: Max Speed, dtype: float64
-            >>> ser.groupby(["a", "b", "a", "b"]).mean()  # doctest: +SKIP
-            a    210.0
-            b    185.0
-            Name: Max Speed, dtype: float64
             >>> ser.groupby(level=0).mean()
             Falcon    370.0
             Parrot     25.0
@@ -1326,21 +1651,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Captive    210.0
             Wild       185.0
             Name: Max Speed, dtype: float64
-
-            We can also choose to include `NA` in group keys or not by defining
-            `dropna` parameter, the default setting is `True`.
-
-            >>> ser = pd.Series([1, 2, 3, 3], index=["a", 'a', 'b', np.nan])
-            >>> ser.groupby(level=0).sum()      # doctest: +SKIP
-            a    3
-            b    3
-            dtype: int64
-
-            >>> ser.groupby(level=0, dropna=False).sum()        # doctest: +SKIP
-            a    3
-            b    3
-            NaN  3
-            dtype: int64
         """
 
     @_create_operator_docstring(pandas.core.series.Series.gt, overwrite_existing=True)
@@ -1623,11 +1933,198 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
     def nlargest():
         """
         Return the largest `n` elements.
+
+        Parameters
+        ----------
+        n : int, default 5
+            Return this many descending sorted values.
+        keep : {'first', 'last', 'all'}, default 'first'
+            When there are duplicate values that cannot all fit in a
+            Series of `n` elements:
+
+            - ``first`` : return the first `n` occurrences in order
+              of appearance.
+            - ``last`` : return the last `n` occurrences in reverse
+              order of appearance.
+            - ``all`` : keep all occurrences. This can result in a Series of
+              size larger than `n`.
+
+        Returns
+        -------
+        Series
+            The `n` largest values in the Series, sorted in decreasing order.
+
+        See Also
+        --------
+        Series.nsmallest: Get the `n` smallest elements.
+        Series.sort_values: Sort Series by values.
+        Series.head: Return the first `n` rows.
+
+        Examples
+        --------
+        >>> countries_population = {"Italy": 59000000, "France": 65000000,
+        ...                         "Malta": 434000, "Maldives": 434000,
+        ...                         "Brunei": 434000, "Iceland": 337000,
+        ...                         "Nauru": 11300, "Tuvalu": 11300,
+        ...                         "Anguilla": 11300, "Montserrat": 5200}
+        >>> s = pd.Series(countries_population)
+        >>> s
+        Italy         59000000
+        France        65000000
+        Malta           434000
+        Maldives        434000
+        Brunei          434000
+        Iceland         337000
+        Nauru            11300
+        Tuvalu           11300
+        Anguilla         11300
+        Montserrat        5200
+        dtype: int64
+
+        The `n` largest elements where ``n=5`` by default.
+
+        >>> s.nlargest()
+        France      65000000
+        Italy       59000000
+        Malta         434000
+        Maldives      434000
+        Brunei        434000
+        dtype: int64
+
+        The `n` largest elements where ``n=3``. Default `keep` value is 'first'
+        so Malta will be kept.
+
+        >>> s.nlargest(3)
+        France    65000000
+        Italy     59000000
+        Malta       434000
+        dtype: int64
+
+        The `n` largest elements where ``n=3`` and keeping the last duplicates.
+        Brunei will be kept since it is the last with value 434000 based on
+        the index order.
+
+        >>> s.nlargest(3, keep='last')
+        France    65000000
+        Italy     59000000
+        Brunei      434000
+        dtype: int64
+
+        The `n` largest elements where ``n=3`` with all duplicates kept. Note
+        that the returned Series has five elements due to the three duplicates.
+
+        >>> s.nlargest(3, keep='all')  # doctest: +SKIP
+        France      65000000
+        Italy       59000000
+        Malta         434000
+        Maldives      434000
+        Brunei        434000
+        dtype: int64
         """
 
     def nsmallest():
         """
         Return the smallest `n` elements.
+
+        Parameters
+        ----------
+        n : int, default 5
+            Return this many ascending sorted values.
+        keep : {'first', 'last', 'all'}, default 'first'
+            When there are duplicate values that cannot all fit in a
+            Series of `n` elements:
+
+            - ``first`` : return the first `n` occurrences in order
+              of appearance.
+            - ``last`` : return the last `n` occurrences in reverse
+              order of appearance.
+            - ``all`` : keep all occurrences. This can result in a Series of
+              size larger than `n`.
+
+        Returns
+        -------
+        Series
+            The `n` smallest values in the Series, sorted in increasing order.
+
+        See Also
+        --------
+        Series.nlargest: Get the `n` largest elements.
+        Series.sort_values: Sort Series by values.
+        Series.head: Return the first `n` rows.
+
+        Examples
+        --------
+        >>> countries_population = {"Italy": 59000000, "France": 65000000,
+        ...                         "Brunei": 434000, "Malta": 434000,
+        ...                         "Maldives": 434000, "Iceland": 337000,
+        ...                         "Nauru": 11300, "Tuvalu": 11300,
+        ...                         "Anguilla": 11300, "Montserrat": 5200}
+        >>> s = pd.Series(countries_population)
+        >>> s
+        Italy         59000000
+        France        65000000
+        Brunei          434000
+        Malta           434000
+        Maldives        434000
+        Iceland         337000
+        Nauru            11300
+        Tuvalu           11300
+        Anguilla         11300
+        Montserrat        5200
+        dtype: int64
+
+        The `n` smallest elements where ``n=5`` by default.
+
+        >>> s.nsmallest()
+        Montserrat      5200
+        Nauru          11300
+        Tuvalu         11300
+        Anguilla       11300
+        Iceland       337000
+        dtype: int64
+
+        The `n` smallest elements where ``n=3``. Default `keep` value is
+        'first' so Nauru and Tuvalu will be kept.
+
+        >>> s.nsmallest(3)
+        Montserrat     5200
+        Nauru         11300
+        Tuvalu        11300
+        dtype: int64
+
+        The `n` smallest elements where ``n=3`` and keeping the last
+        duplicates. Anguilla and Tuvalu will be kept since they are the last
+        with value 11300 based on the index order.
+
+        >>> s.nsmallest(3, keep='last')
+        Montserrat     5200
+        Anguilla      11300
+        Tuvalu        11300
+        dtype: int64
+
+        The `n` smallest elements where ``n=3`` with all duplicates kept. Note
+        that the returned Series has four elements due to the three duplicates.
+
+        >>> s.nsmallest(3, keep='all')  # doctest: +SKIP
+        Montserrat     5200
+        Nauru         11300
+        Tuvalu        11300
+        Anguilla      11300
+        dtype: int64
+        """
+
+    def pad():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        Please see examples for DataFrame.ffill() or Series.ffill().
         """
 
     def set_axis():
@@ -1690,7 +2187,210 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def reindex():
-        pass
+        """
+        Conform Series to new index with optional filling logic.
+
+        Places NA/NaN in locations having no value in the previous index. A new object is produced
+        unless the new index is equivalent to the current one and copy=False.
+
+        Parameters
+        ----------
+        index : array-like, optional
+            New labels for the index.
+        axis : int or str, optional
+            Unused.
+        method :  {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}, default: None
+            Method to use for filling holes in reindexed DataFrame.
+
+            * None (default): don't fill gaps
+            * pad / ffill: Propagate last valid observation forward to next valid.
+            * backfill / bfill: Use next valid observation to fill gap.
+            * nearest: Use nearest valid observations to fill gap. Unsupported by Snowpark pandas.
+
+        copy : bool, default True
+            Return a new object, even if the passed indexes are the same.
+
+        level : int or name
+            Broadcast across a level, matching Index values on the passed MultiIndex level.
+
+        fill_value : scalar, default np.nan
+            Value to use for missing values. Defaults to NaN, but can be any “compatible” value.
+
+        limit : int, default None
+            Maximum number of consecutive elements to forward or backward fill.
+
+        tolerance : optional
+            Maximum distance between original and new labels for inexact matches.
+            The values of the index at the matching locations most satisfy the
+            equation abs(index[indexer] - target) <= tolerance. Unsupported by
+            Snowpark pandas.
+
+        Returns
+        -------
+        Series
+            Series with changed index.
+
+        Notes
+        -----
+        For axis 0, Snowpark pandas' behaviour diverges from vanilla pandas in order
+        to maintain Snowpark's lazy execution paradigm. The behaviour changes are as follows:
+
+            * Snowpark pandas does not error if the existing index is not monotonically increasing
+              or decreasing when `method` is specified for filling. It instead assumes that
+              the index is monotonically increasing, performs the reindex, and fills the values
+              as though the index is sorted (which involves sorting internally).
+            * Snowpark pandas does not error out if there are duplicates - they are included in the
+              output.
+            * Snowpark pandas does not error if a `limit` value is passed and the new index is not
+              monotonically increasing or decreasing - instead, it reindexes, sorts the new index,
+              fills using limit, and then reorders the data to be in the correct order (the order
+              of the target labels passed in to the method).
+
+        For axis 1, Snowpark pandas' error checking remains the same as vanilla pandas.
+
+        MultiIndex is currently unsupported.
+
+        ``method="nearest"`` is currently unsupported.
+
+        Examples
+        --------
+        Create a dataframe with some fictional data.
+
+        >>> index = ['Firefox', 'Chrome', 'Safari', 'IE10', 'Konqueror']
+        >>> df = pd.DataFrame({'http_status': [200, 200, 404, 404, 301],
+        ...             'response_time': [0.04, 0.02, 0.07, 0.08, 1.0]},
+        ...             index=index)
+        >>> df
+                   http_status  response_time
+        Firefox            200           0.04
+        Chrome             200           0.02
+        Safari             404           0.07
+        IE10               404           0.08
+        Konqueror          301           1.00
+
+        Create a new index and reindex the dataframe. By default, values in the new index
+        that do not have corresponding records in the dataframe are assigned NaN.
+
+        >>> new_index = ['Safari', 'Iceweasel', 'Comodo Dragon', 'IE10',
+        ...              'Chrome']
+        >>> df.reindex(new_index)
+                       http_status  response_time
+        Safari               404.0           0.07
+        Iceweasel              NaN            NaN
+        Comodo Dragon          NaN            NaN
+        IE10                 404.0           0.08
+        Chrome               200.0           0.02
+
+        We can fill in the missing values by passing a value to the keyword fill_value.
+
+        >>> df.reindex(new_index, fill_value=0)
+                       http_status  response_time
+        Safari                 404           0.07
+        Iceweasel                0           0.00
+        Comodo Dragon            0           0.00
+        IE10                   404           0.08
+        Chrome                 200           0.02
+
+        >>> df.reindex(new_index, fill_value=-1)  # doctest: +NORMALIZE_WHITESPACE
+                       http_status    response_time
+        Safari                 404             0.07
+        Iceweasel               -1            -1.00
+        Comodo Dragon           -1            -1.00
+        IE10                   404             0.08
+        Chrome                 200             0.02
+
+        We can also reindex the columns.
+
+        >>> df.reindex(columns=['http_status', 'user_agent']) # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        Or we can use “axis-style” keyword arguments
+
+        >>> df.reindex(['http_status', 'user_agent'], axis="columns")  # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        To further illustrate the filling functionality in reindex, we will create a dataframe
+        with a monotonically increasing index (for example, a sequence of dates).
+
+        >>> date_index = pd.date_range('1/1/2010', periods=6, freq='D')
+        >>> df2 = pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]},
+        ...                    index=date_index)
+        >>> df2
+                    prices
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+
+        Suppose we decide to expand the dataframe to cover a wider date range.
+
+        >>> date_index2 = pd.date_range('12/29/2009', periods=10, freq='D')
+        >>> df2.reindex(date_index2)
+                    prices
+        2009-12-29     NaN
+        2009-12-30     NaN
+        2009-12-31     NaN
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        The index entries that did not have a value in the original data frame (for example,
+        ``2009-12-29``) are by default filled with NaN. If desired, we can fill in the missing
+        values using one of several options.
+
+        For example, to back-propagate the last valid value to fill the NaN values, pass bfill as
+        an argument to the method keyword.
+
+        >>> df2.reindex(date_index2, method='bfill')
+                    prices
+        2009-12-29   100.0
+        2009-12-30   100.0
+        2009-12-31   100.0
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        Please note that the NaN value present in the original dataframe (at index value 2010-01-03) will
+        not be filled by any of the value propagation schemes. This is because filling while reindexing
+        does not look at dataframe values, but only compares the original and desired indexes. If you do
+        want to fill in the NaN values present in the original dataframe, use the fillna() method.
+
+        An example illustrating Snowpark pandas' behavior when dealing with non-monotonic indices.
+        >>> unordered_dataframe = pd.DataFrame([[5]*3, [8]*3, [6]*3], columns=list("ABC"), index=[5, 8, 6])
+        >>> unordered_dataframe
+           A  B  C
+        5  5  5  5
+        8  8  8  8
+        6  6  6  6
+        >>> unordered_dataframe.reindex([6, 8, 7], method="ffill")
+           A  B  C
+        6  6  6  6
+        8  8  8  8
+        7  6  6  6
+
+        In the example above, index value ``7`` is forward filled from index value ``6``, since that
+        is the previous index value when the data is sorted.
+        """
 
     def rename_axis():
         """
@@ -1722,7 +2422,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def rename():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Alter Series index labels or name.
 
@@ -1775,11 +2474,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         1    2
         2    3
         Name: my_name, dtype: int64
-        >>> s.rename(lambda x: x ** 2)  # function, changes labels  # doctest: +SKIP
-        0    1
-        1    2
-        4    3
-        dtype: int8
         >>> s.rename({1: 3, 2: 5})  # mapping, changes labels
         0    1
         3    2
@@ -2242,7 +2936,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         """
 
     def sort_values():
-        # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
         """
         Sort by the values.
 
@@ -2371,36 +3064,6 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
         2    c
         4    e
         dtype: object
-        >>> s.sort_values(key=lambda x: x.str.lower())  # doctest: +SKIP
-        0    a
-        1    B
-        2    c
-        3    D
-        4    e
-        dtype: object
-
-        NumPy ufuncs work well here. For example, we can
-        sort by the ``sin`` of the value
-
-        >>> s = pd.Series([-4, -2, 0, 2, 4])
-        >>> s.sort_values(key=np.sin)  # doctest: +SKIP
-        1   -2
-        4    4
-        2    0
-        0   -4
-        3    2
-        dtype: int8
-
-        More complicated user-defined functions can be used,
-        as long as they expect a Series and return an array-like
-
-        >>> s.sort_values(key=lambda x: (np.tan(x.cumsum())))  # doctest: +SKIP
-        0   -4
-        3    2
-        4    4
-        1   -2
-        2    0
-        dtype: int8
         """
 
     def squeeze():
@@ -2489,8 +3152,9 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
+        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index < 1, ['a']]
+        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -2747,10 +3411,15 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
             Snowpark pandas will return a Series with `decimal.Decimal` values.
         sort : bool, default True
             Sort by frequencies when True. Preserve the order of the data when False.
-            When there is a tie between counts, the order is still deterministic, but
-            may be different from the result from native pandas.
+            When there is a tie between counts, the order is still deterministic where
+            the order in the original data is preserved, but may be different from the
+            result from native pandas. Snowpark pandas will always respect the order of
+            insertion during ties. Native pandas is not deterministic when `sort=True`
+            since the original order/order of insertion is based on the Python hashmap
+            which may produce different results on different versions.
+            Refer to: https://github.com/pandas-dev/pandas/issues/15833
         ascending : bool, default False
-            Sort in ascending order.
+            Whether to sort the frequencies in ascending order or descending order.
         bins : int, optional
             Rather than count values, group them into half-open bins,
             a convenience for ``pd.cut``, only works with numeric data.
@@ -3033,7 +3702,43 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
 
     def nunique():
         """
-        Return number of unique elements in the object.
+        Return number of unique elements in the series.
+
+        Excludes NA values by default.
+        Snowpark pandas API does not distinguish between different NaN types like None,
+        pd.NA, and np.nan, and treats them as the same.
+
+        Parameters
+        ----------
+        dropna : bool, default True
+            Don't include NaN in the count.
+
+        Returns
+        -------
+        int
+
+        Examples
+        --------
+        >>> import snowflake.snowpark.modin.pandas as pd
+        >>> import numpy as np
+        >>> s = pd.Series([1, 3, 5, 7, 7])
+        >>> s
+        0    1
+        1    3
+        2    5
+        3    7
+        4    7
+        dtype: int64
+
+        >>> s.nunique()
+        4
+
+        >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
+        >>> s.nunique()
+        1
+
+        >>> s.nunique(dropna=False)
+        2
         """
 
     @property
@@ -3119,4 +3824,148 @@ class Series:  # pragma: no cover: we use this class's docstrings, but we never 
     def str():
         """
         Vectorized string functions for Series and Index.
+        """
+
+    def to_csv():
+        """
+        Write object to a comma-separated values (csv) file. This can write csv file
+        either to local filesystem or to snowflake stage. Filepath staring with `@` is
+        treated as snowflake stage location.
+
+        Note: Writing to local filesystem supports all parameters but writing to
+        snowflake stage does not support float_format, mode, encoding, quoting,
+        quotechar, lineterminator, doublequote and decimal parameters. Also when
+        writing to snowflake stage chucksize, errors and storage_options parameters
+        are ignored.
+
+        Parameters
+        ----------
+        path_or_buf : str, path object, file-like object, or None, default None
+            String, path object (implementing os.PathLike[str]), or file-like
+            object implementing a write() function. If None, the result is
+            returned as a string. If a non-binary file object is passed, it should
+            be opened with `newline=''`, disabling universal newlines. If a binary
+            file object is passed, `mode` might need to contain a `'b'`.
+        sep : str, default ','
+            String of length 1. Field delimiter for the output file.
+        na_rep : str, default ''
+            Missing data representation.
+        float_format : str, Callable, default None
+            Format string for floating point numbers. If a Callable is given, it takes
+            precedence over other numeric formatting parameters, like decimal.
+        header : bool or list of str, default True
+            Write out the column names. If a list of strings is given it is
+            assumed to be aliases for the column names.
+        index : bool, default True
+            Write row names (index).
+        index_label : str or sequence, or False, default None
+            Column label for index column(s) if desired. If None is given, and
+            `header` and `index` are True, then the index names are used. A
+            sequence should be given if the object uses MultiIndex. If
+            False do not print fields for index names. Use index_label=False
+            for easier importing in R.
+        mode : {{'w', 'x', 'a'}}, default 'w'
+            Forwarded to either `open(mode=)` or `fsspec.open(mode=)` to control
+            the file opening. Typical values include:
+
+            - 'w', truncate the file first.
+            - 'x', exclusive creation, failing if the file already exists.
+            - 'a', append to the end of file if it exists.
+        encoding : str, optional
+            A string representing the encoding to use in the output file,
+            defaults to 'utf-8'. `encoding` is not supported if `path_or_buf`
+            is a non-binary file object.
+        compression : str or dict, default 'infer'
+            For on-the-fly compression of the output data. If 'infer' and '%s' is
+            path-like, then detect compression from the following extensions: '.gz',
+            '.bz2', '.zip', '.xz', '.zst', '.tar', '.tar.gz', '.tar.xz' or '.tar.bz2'
+            (otherwise no compression).
+            Set to ``None`` for no compression.
+            Can also be a dict with key ``'method'`` set
+            to one of {``'zip'``, ``'gzip'``, ``'bz2'``, ``'zstd'``, ``'xz'``, ``'tar'``} and
+            other key-value pairs are forwarded to
+            ``zipfile.ZipFile``, ``gzip.GzipFile``,
+            ``bz2.BZ2File``, ``zstandard.ZstdCompressor``, ``lzma.LZMAFile`` or
+            ``tarfile.TarFile``, respectively.
+            As an example, the following could be passed for faster compression and to create
+            a reproducible gzip archive:
+            ``compression={'method': 'gzip', 'compresslevel': 1, 'mtime': 1}``.
+
+            Note: Supported compression algorithms are different when writing to
+            snowflake stage.
+            Please refer to https://docs.snowflake.com/en/sql-reference/sql/copy-into-table#type-csv
+            for supported compression algorithms.
+        quoting : optional constant from csv module
+            Defaults to csv.QUOTE_MINIMAL. If you have set a `float_format`
+            then floats are converted to strings and thus csv.QUOTE_NONNUMERIC
+            will treat them as non-numeric.
+        quotechar : str, default '\"'
+            String of length 1. Character used to quote fields.
+        lineterminator : str, optional
+            The newline character or character sequence to use in the output
+            file. Defaults to `os.linesep`, which depends on the OS in which
+            this method is called ('\\n' for linux, '\\r\\n' for Windows, i.e.).
+        chunksize : int or None
+            Rows to write at a time.
+        date_format : str, default None
+            Format string for datetime objects.
+        doublequote : bool, default True
+            Control quoting of `quotechar` inside a field.
+        escapechar : str, default None
+            String of length 1. Character used to escape `sep` and `quotechar`
+            when appropriate.
+        decimal : str, default '.'
+            Character recognized as decimal separator. E.g. use ',' for
+            European data.
+        errors : str, default 'strict'
+            Specifies how encoding and decoding errors are to be handled.
+            See the errors argument for :func:`open` for a full list
+            of options.
+        storage_options : dict, optional
+            Extra options that make sense for a particular storage connection, e.g.
+            host, port, username, password, etc. For HTTP(S) URLs the key-value pairs
+            are forwarded to ``urllib.request.Request`` as header options. For other
+            URLs (e.g. starting with "s3://", and "gcs://") the key-value pairs are
+            forwarded to ``fsspec.open``. Please see ``fsspec`` and ``urllib`` for more
+            details, and for more examples on storage options refer `here
+            <https://pandas.pydata.org/docs/user_guide/io.html?
+            highlight=storage_options#reading-writing-remote-files>`_.
+
+        Returns
+        -------
+        None or str
+            If path_or_buf is None, returns the resulting csv format as a
+            string. Otherwise returns None.
+
+        See Also
+        --------
+        read_csv : Load a CSV file into a DataFrame.
+        to_excel : Write DataFrame to an Excel file.
+
+        Examples
+        --------
+        Create 'out.csv' containing 'series' without indices
+
+        >>> series = pd.Series(['red', 'green', 'blue'], name='color')
+        >>> series.to_csv('out.csv', index=False)  # doctest: +SKIP
+
+        Create 'out.zip' containing 'out.csv'
+
+        >>> series.to_csv(index=False)  # doctest: +SKIP
+        >>> compression_opts = dict(method='zip',
+        ...                         archive_name='out.csv')  # doctest: +SKIP
+        >>> series.to_csv('out.zip', index=False,
+        ...           compression=compression_opts)  # doctest: +SKIP
+
+        To write a csv file to a new folder or nested folder you will first
+        need to create it using either Pathlib or os:
+
+        >>> from pathlib import Path  # doctest: +SKIP
+        >>> filepath = Path('folder/subfolder/out.csv')  # doctest: +SKIP
+        >>> filepath.parent.mkdir(parents=True, exist_ok=True)  # doctest: +SKIP
+        >>> df.to_csv(filepath)  # doctest: +SKIP
+
+        >>> import os  # doctest: +SKIP
+        >>> os.makedirs('folder/subfolder', exist_ok=True)  # doctest: +SKIP
+        >>> df.to_csv('folder/subfolder/out.csv')  # doctest: +SKIP
         """

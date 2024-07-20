@@ -94,6 +94,7 @@ if TYPE_CHECKING:
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
+    max_string_size: int,
 ) -> DataType:
     column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
     if column_type_name == "VECTOR":
@@ -134,15 +135,16 @@ def convert_metadata_to_sp_type(
                 len(metadata.fields) == 1
             ), "ArrayType columns should have one metadata field."
             return ArrayType(
-                convert_metadata_to_sp_type(metadata.fields[0]), structured=True
+                convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
+                structured=True,
             )
         elif column_type_name == "MAP":
             assert (
                 len(metadata.fields) == 2
             ), "MapType columns should have two metadata fields."
             return MapType(
-                convert_metadata_to_sp_type(metadata.fields[0]),
-                convert_metadata_to_sp_type(metadata.fields[1]),
+                convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
+                convert_metadata_to_sp_type(metadata.fields[1], max_string_size),
                 structured=True,
             )
         else:
@@ -151,7 +153,9 @@ def convert_metadata_to_sp_type(
             ), "All fields of a StructType should be named."
             return StructType(
                 [
-                    StructField(field.name, convert_metadata_to_sp_type(field))
+                    StructField(
+                        field.name, convert_metadata_to_sp_type(field, max_string_size)
+                    )
                     for field in metadata.fields
                 ],
                 structured=True,
@@ -162,11 +166,16 @@ def convert_metadata_to_sp_type(
             metadata.precision or 0,
             metadata.scale or 0,
             metadata.internal_size or 0,
+            max_string_size,
         )
 
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int, internal_size: int
+    column_type_name: str,
+    precision: int,
+    scale: int,
+    internal_size: int,
+    max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -185,7 +194,7 @@ def convert_sf_to_sp_type(
         return BinaryType()
     if column_type_name == "TEXT":
         if internal_size > 0:
-            return StringType(internal_size)
+            return StringType(internal_size, internal_size == max_string_size)
         elif internal_size == 0:
             return StringType()
         raise ValueError("Negative value is not a valid input for StringType")

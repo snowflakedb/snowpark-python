@@ -14,21 +14,21 @@ from functools import partial
 from logging import getLogger
 from typing import IO, TYPE_CHECKING, Dict, List, Tuple
 
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
     quote_name,
     unwrap_stage_location_single_quote,
 )
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._functions import mock_to_char
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import DecimalType, StringType, VariantType
 
 if TYPE_CHECKING:
@@ -58,20 +58,40 @@ GET_RESULT_KEYS = [
 ]
 
 
+# option support map
+# top level:
+#   key: file format name
+#   value: dict of supported option
+# child level:
+#   key: option name
+#   value (two categories):
+#     - tuple, enum of valid option values in the string form
+#     - None, users set the value
 SUPPORT_READ_OPTIONS = {
-    "csv": (
-        "SKIP_HEADER",
-        "SKIP_BLANK_LINES",
-        "FIELD_DELIMITER",
-        "FIELD_OPTIONALLY_ENCLOSED_BY",
-    ),
-    "json": (
-        "INFER_SCHEMA",
-        "FILE_EXTENSION",
-    ),
+    "csv": {
+        "SKIP_HEADER": None,
+        "SKIP_BLANK_LINES": None,
+        "FIELD_DELIMITER": None,
+        "FIELD_OPTIONALLY_ENCLOSED_BY": None,
+        "INFER_SCHEMA": ("FALSE",),
+        "PARSE_HEADER": ("TRUE", "FALSE"),
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
+    "json": {
+        "INFER_SCHEMA": ("TRUE", "FALSE"),
+        "FILE_EXTENSION": None,
+        "PURGE": ("TRUE", "FALSE"),
+        "COMPRESSION": ("AUTO", "NONE"),
+        "PATTERN": None,
+        "ENCODING": ("UTF8", "UTF-8"),
+    },
 }
 
-RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = False
+
+RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -109,7 +129,9 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
                 break
 
         if not stage_name_end_idx:
-            raise SnowparkSQLException(f"Invalid stage_location {stage_location}.")
+            raise SnowparkLocalTestingException(
+                f"Invalid stage_location {stage_location}."
+            )
     else:
         stage_name_end_idx = normalized.find("/")
         prefix_start_idx = stage_name_end_idx + 1
@@ -183,7 +205,9 @@ class StageEntity:
         )
 
         if not list_of_files:
-            raise SnowparkSQLException(f"File doesn't exist: {local_file_name}")
+            raise SnowparkLocalTestingException(
+                f"File doesn't exist: {local_file_name}"
+            )
 
         for local_file_name in list_of_files:
 
@@ -314,8 +338,8 @@ class StageEntity:
             os.path.exists(stage_source_dir_path)
             or os.path.exists(stage_source_dir_path)
         ):
-            raise SnowparkSQLException(
-                f"[Local Testing] the file does not exist: {stage_source_dir_path}"
+            raise SnowparkLocalTestingException(
+                f"the file does not exist: {stage_source_dir_path}"
             )
 
         if os.path.isfile(stage_source_dir_path):
@@ -372,31 +396,43 @@ class StageEntity:
                 if os.path.isfile(os.path.join(stage_source_dir_path, f))
             ]
 
-        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
-        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
-        #  take PATTERN into account, when inferring schema from multiple files
-        # pattern = options.get("PATTERN") if options else None
-        #
-        # if pattern:
-        #     local_files = [
-        #         f
-        #         for f in local_files
-        #         if re.match(pattern, f[: -len(StageEntity.FILE_SUFFIX)])
-        #     ]
-
         file_format = format.lower()
         if file_format in SUPPORT_READ_OPTIONS:
+            supported_options_for_format = SUPPORT_READ_OPTIONS[file_format]
             for option in options:
-                if option not in SUPPORT_READ_OPTIONS[file_format]:
+                if str(options[option]).upper() == "NONE":
+                    # ignore if option value is None, or string of "None"
+                    continue
+                if (option not in supported_options_for_format) or (
+                    supported_options_for_format[option]
+                    and str(options[option]).upper()
+                    not in supported_options_for_format[option]
+                ):
+                    # either the option is not supported or only partially supported
                     self._conn.log_not_supported_error(
-                        external_feature_name=f"Read option {option} for file format {file_format}",
+                        external_feature_name=f"Read option '{option}' of value '{str(options[option])}' for file format '{file_format}'",
                         internal_feature_name="StageEntity.read_file",
-                        parameters_info={"format": format, "option": option},
+                        parameters_info={
+                            "format": format,
+                            "option": option,
+                            "option_value": str(options[option]),
+                        },
                         raise_error=NotImplementedError
                         if RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS
                         else None,
                         warning_logger=_logger,
                     )
+
+        # process options
+        purge = options.get("PURGE", False)
+
+        # TODO: SNOW-1253672, there is a bug in the non-local testing code that
+        #  snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format does not
+        #  take PATTERN into account, when inferring schema from multiple files
+        pattern = options.get("PATTERN") if options else None
+
+        if pattern:
+            local_files = [f for f in local_files if re.match(pattern, f)]
 
         if file_format == "csv":
             # check SNOW-1355487 for improvements
@@ -406,8 +442,9 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
-                raise SnowparkSQLException(
+                raise SnowparkLocalTestingException(
                     f"Invalid value ['{field_optionally_enclosed_by}'] for parameter 'FIELD_OPTIONALLY_ENCLOSED_BY'"
                 )
             if (
@@ -437,7 +474,7 @@ class StageEntity:
                 )
                 if type(column_series.sf_type.datatype) not in CONVERT_MAP:
                     self._conn.log_not_supported_error(
-                        error_message="Reading snowflake data type {type(column_series.sf_type.datatype)}"
+                        error_message=f"Reading snowflake data type {type(column_series.sf_type.datatype)}"
                         " is not supported. It will be treated as a raw string in the dataframe.",
                         internal_feature_name="StageEntity.read_file",
                         parameters_info={
@@ -471,7 +508,7 @@ class StageEntity:
                 )
                 df.dtype = object
                 if len(df.columns) != len(schema):
-                    raise SnowparkSQLException(
+                    raise SnowparkLocalTestingException(
                         f"Number of columns in file ({len(df.columns)}) does not match that of"
                         f" the corresponding table ({len(schema)})."
                     )
@@ -588,6 +625,14 @@ class StageEntity:
 
             result_df.sf_types = result_df_sf_types
             return result_df
+
+        if purge and local_files:
+            for file_path in local_files:
+                try:
+                    os.remove(file_path)
+                except Exception as exc:
+                    _logger.debug(f"failed to remove file due to exception {exc}")
+
         self._conn.log_not_supported_error(
             external_feature_name=f"Read file format {format}",
             internal_feature_name="StageEntity.read_file",
@@ -652,7 +697,7 @@ class StageEntityRegistry:
         options: Dict[str, str] = None,
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
@@ -674,7 +719,7 @@ class StageEntityRegistry:
         options: Dict[str, str],
     ):
         if not stage_location.startswith("@"):
-            raise SnowparkSQLException(
+            raise SnowparkLocalTestingException(
                 f"Invalid stage {stage_location}, stage name should start with character '@'"
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)

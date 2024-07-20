@@ -9,7 +9,7 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -38,33 +38,38 @@ def tmp_table_basic(session):
         ["FOOT_SIZE", "SHOE_MODEL", "SHOE_MODEL"],
     ],
 )
-@sql_count_checker(query_count=3)
 def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) -> None:
-    snowpark_df = session.table(tmp_table_basic)
+    # One less query when we don't have a multi-index
+    with SqlCounter(
+        query_count=3 if isinstance(index_col, list) and len(index_col) > 1 else 2
+    ):
+        snowpark_df = session.table(tmp_table_basic)
 
-    snowpark_pandas_df = snowpark_df.to_snowpark_pandas(index_col, columns)
+        snowpark_pandas_df = snowpark_df.to_snowpark_pandas(index_col, columns)
 
-    # verify index columns
-    snowpandas_index = snowpark_pandas_df.index
-    if index_col:
-        expected_index = index_col if isinstance(index_col, list) else [index_col]
-        assert snowpandas_index.names == expected_index
-    else:
-        assert snowpandas_index.dtype == np.dtype("int64")
-        assert sorted(snowpandas_index.values.tolist()) == [0, 1, 2]
-
-    # verify data columns
-    if columns:
-        assert snowpark_pandas_df.columns.tolist() == columns
-    else:
-        expected_data_cols = ["ID", "FOOT_SIZE", "SHOE_MODEL"]
+        # verify index columns
+        snowpandas_index = snowpark_pandas_df.index
         if index_col:
-            # only keep the columns that is not in index_col
-            index_col_list = index_col if isinstance(index_col, list) else [index_col]
-            expected_data_cols = [
-                col for col in expected_data_cols if col not in index_col_list
-            ]
-            assert snowpark_pandas_df.columns.tolist() == expected_data_cols
+            expected_index = index_col if isinstance(index_col, list) else [index_col]
+            assert snowpandas_index.names == expected_index
+        else:
+            assert snowpandas_index.dtype == np.dtype("int64")
+            assert sorted(snowpandas_index.values.tolist()) == [0, 1, 2]
+
+        # verify data columns
+        if columns:
+            assert snowpark_pandas_df.columns.tolist() == columns
+        else:
+            expected_data_cols = ["ID", "FOOT_SIZE", "SHOE_MODEL"]
+            if index_col:
+                # only keep the columns that is not in index_col
+                index_col_list = (
+                    index_col if isinstance(index_col, list) else [index_col]
+                )
+                expected_data_cols = [
+                    col for col in expected_data_cols if col not in index_col_list
+                ]
+                assert snowpark_pandas_df.columns.tolist() == expected_data_cols
 
 
 @sql_count_checker(query_count=3)

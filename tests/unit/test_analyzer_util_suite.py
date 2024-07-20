@@ -156,16 +156,19 @@ def test_generate_scoped_temp_objects():
 def test_create_or_replace_dynamic_table_statement():
     dt_name = "my_dt"
     warehouse = "my_warehouse"
-    print(
+    comment = "my_comment"
+
+    assert (
         create_or_replace_dynamic_table_statement(
-            dt_name, warehouse, "1 minute", "select * from foo"
+            dt_name, warehouse, "1 minute", None, "select * from foo"
         )
+        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} AS  SELECT  *  FROM (select * from foo)"
     )
     assert (
         create_or_replace_dynamic_table_statement(
-            dt_name, warehouse, "1 minute", "select * from foo"
+            dt_name, warehouse, "1 minute", comment, "select * from foo"
         )
-        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} AS  SELECT  *  FROM (select * from foo)"
+        == f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse} COMMENT  = '{comment}' AS  SELECT  *  FROM (select * from foo)"
     )
 
 

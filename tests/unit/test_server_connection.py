@@ -5,6 +5,7 @@
 import io
 import logging
 from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -139,3 +140,28 @@ def test_get_result_set_exception(mock_server_connection):
     with mock.patch.object(mock_server_connection, "run_query", return_value=None):
         with pytest.raises(SnowparkSQLException, match="doesn't return a ResultSet"):
             mock_server_connection.get_result_set(fake_plan, block=False)
+
+
+def test_run_query_when_ignore_results_true(mock_server_connection):
+    mock_cursor1 = MagicMock()
+    mock_cursor1.sfqid = "ignore_results is True"
+
+    mock_server_connection.execute_and_notify_query_listener = MagicMock()
+    mock_server_connection.execute_and_notify_query_listener.return_value = mock_cursor1
+
+    mock_server_connection._to_data_or_iter = MagicMock()
+    mock_server_connection._to_data_or_iter.return_value = {
+        "sfqid": "ignore_results is False"
+    }
+
+    result = mock_server_connection.run_query(
+        "select * from fake_table", ignore_results=True
+    )
+    mock_server_connection._to_data_or_iter.assert_not_called()
+    assert "sfqid" in result and result["sfqid"] == "ignore_results is True"
+
+    result = mock_server_connection.run_query(
+        "select * from fake_table", ignore_results=False
+    )
+    mock_server_connection._to_data_or_iter.assert_called()
+    assert "sfqid" in result and result["sfqid"] == "ignore_results is False"

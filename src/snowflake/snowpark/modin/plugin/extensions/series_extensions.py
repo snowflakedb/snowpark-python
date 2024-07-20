@@ -10,15 +10,16 @@ as `Series.to_snowflake`.
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
+import pandas
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas import Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_series_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 
 
 @register_series_accessor("to_snowflake")
@@ -178,9 +179,9 @@ def to_pandas(
     *,
     statement_params: Optional[dict[str, str]] = None,
     **kwargs: Any,
-) -> Series:
+) -> pandas.Series:
     """
-    Convert Snowpark pandas Series to pandas Series
+    Convert Snowpark pandas Series to `pandas.Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_
 
     Args:
         statement_params: Dictionary of statement level parameters to be set while executing this action.
@@ -203,3 +204,17 @@ def to_pandas(
     Name: Animal, dtype: object
     """
     return self._to_pandas(statement_params=statement_params, **kwargs)
+
+
+@register_series_accessor("cache_result")
+@add_cache_result_docstring
+@snowpark_pandas_telemetry_method_decorator
+def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
+    """
+    Persists the Snowpark pandas Series to a temporary table for the duration of the session.
+    """
+    new_qc = self._query_compiler.cache_result()
+    if inplace:
+        self._update_inplace(new_qc)
+    else:
+        return pd.Series(query_compiler=new_qc)

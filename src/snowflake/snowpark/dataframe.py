@@ -55,10 +55,13 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectStatement,
     SelectTableFunction,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
     LogicalPlan,
+    SaveMode,
+    SnowflakeCreateTable,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -117,7 +120,6 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     parse_table_name,
     prepare_pivot_arguments,
-    private_preview,
     quote_name,
     random_name_for_temp_object,
     validate_object_name,
@@ -664,14 +666,15 @@ class DataFrame:
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
         """This method is only used in stored procedures."""
-        return self._session._conn.get_result_query_id(
-            self._plan,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
-        )
+        with open_telemetry_context_manager(self._execute_and_get_query_id, self):
+            return self._session._conn.get_result_query_id(
+                self._plan,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_THREE,
+                ),
+            )
 
     @overload
     def to_local_iterator(
@@ -1267,6 +1270,11 @@ class DataFrame:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name
@@ -2206,7 +2214,7 @@ class DataFrame:
             You can reference to these randomly named columns using :meth:`Column.alias` (See the first usage in Examples).
 
         See Also:
-            - Usage notes for asof join: https://docs.snowflake.com/LIMITEDACCESS/asof-join#usage-notes
+            - Usage notes for asof join: https://docs.snowflake.com/sql-reference/constructs/asof-join#usage-notes
 
         Examples::
             >>> from snowflake.snowpark.functions import col
@@ -3363,6 +3371,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -3376,6 +3385,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3390,6 +3401,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3398,13 +3410,13 @@ class DataFrame:
         )
 
     @df_collect_api_telemetry
-    @private_preview(version="1.4.0")
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
         *,
         warehouse: str,
         lag: str,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -3420,6 +3432,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             warehouse: The name of the warehouse used to refresh the dynamic table.
             lag: specifies the target data freshness
+            comment: Adds a comment for the created table. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3445,6 +3459,7 @@ class DataFrame:
             formatted_name,
             warehouse,
             lag,
+            comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
@@ -3455,6 +3470,7 @@ class DataFrame:
         self,
         name: Union[str, Iterable[str]],
         *,
+        comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
@@ -3472,6 +3488,8 @@ class DataFrame:
         Args:
             name: The name of the view to create or replace. Can be a list of strings
                 that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
         if isinstance(name, str):
@@ -3486,6 +3504,7 @@ class DataFrame:
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
+            comment=comment,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -3493,11 +3512,14 @@ class DataFrame:
             ),
         )
 
-    def _do_create_or_replace_view(self, view_name: str, view_type: ViewType, **kwargs):
+    def _do_create_or_replace_view(
+        self, view_name: str, view_type: ViewType, comment: Optional[str], **kwargs
+    ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
             view_name,
             view_type,
+            comment,
             self._plan,
         )
 
@@ -3506,13 +3528,14 @@ class DataFrame:
         )
 
     def _do_create_or_replace_dynamic_table(
-        self, name: str, warehouse: str, lag: str, **kwargs
+        self, name: str, warehouse: str, lag: str, comment: Optional[str], **kwargs
     ):
         validate_object_name(name)
         cmd = CreateDynamicTableCommand(
             name,
             warehouse,
             lag,
+            comment,
             self._plan,
         )
 
@@ -3794,14 +3817,14 @@ class DataFrame:
         rename_plan = Rename(rename_map, self._plan)
 
         if self._select_statement:
-            return self._with_plan(
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
-                        rename_plan, analyzer=self._session._analyzer
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    rename_plan, analyzer=self._session._analyzer
+                ),
+                analyzer=self._session._analyzer,
             )
+            return self._with_plan(select_plan)
+
         return self._with_plan(rename_plan)
 
     @df_api_usage
@@ -3830,6 +3853,11 @@ class DataFrame:
             old_name = quote_name(existing)
         elif isinstance(existing, Column):
             if isinstance(existing._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema
+
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
             elif (
@@ -3933,14 +3961,18 @@ class DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             self.write.save_as_table(temp_table_name, create_temp_table=True)
         else:
-            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
-                temp_table_name,
-                self._plan,
-                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                is_generated=True,
+            df = self._with_plan(
+                SnowflakeCreateTable(
+                    [temp_table_name],
+                    None,
+                    SaveMode.ERROR_IF_EXISTS,
+                    self._plan,
+                    table_type="temp",
+                    is_generated=True,
+                )
             )
             self._session._conn.execute(
-                create_temp_table,
+                df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
@@ -4026,10 +4058,14 @@ class DataFrame:
         evaluate this DataFrame with the key `queries`, and a list of post-execution
         actions (e.g., queries to clean up temporary objects) with the key `post_actions`.
         """
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries
         return {
-            "queries": [query.sql.strip() for query in plan.queries],
-            "post_actions": [query.sql.strip() for query in plan.post_actions],
+            "queries": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.QUERIES]
+            ],
+            "post_actions": [
+                query.sql.strip() for query in plan_queries[PlanQueryType.POST_ACTIONS]
+            ],
         }
 
     def explain(self) -> None:
@@ -4043,20 +4079,20 @@ class DataFrame:
         print(self._explain_string())  # noqa: T201: we need to print here.
 
     def _explain_string(self) -> str:
-        plan = self._plan.replace_repeated_subquery_with_cte()
+        plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
-            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan.queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
 {output_queries}"""
         # if query list contains more then one queries, skip execution plan
-        if len(plan.queries) == 1:
-            exec_plan = self._session._explain_query(plan.queries[0].sql)
+        if len(plan_queries) == 1:
+            exec_plan = self._session._explain_query(plan_queries[0].sql)
             if exec_plan:
                 msg = f"{msg}\nLogical Execution Plan:\n{exec_plan}"
             else:
-                msg = f"{plan.queries[0].sql} can't be explained"
+                msg = f"{plan_queries[0].sql} can't be explained"
 
         return f"{msg}\n--------------------------------------------"
 
@@ -4106,6 +4142,11 @@ Query List:
             if isinstance(c, str):
                 names.append(c)
             elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
+                if isinstance(self._session._conn, MockServerConnection):
+                    self.schema  # to execute the plan and populate expr_to_alias
+
                 names.append(
                     self._plan.expr_to_alias.get(
                         c._expression.expr_id, c._expression.name

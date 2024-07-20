@@ -24,11 +24,12 @@ def snow_series():
         ("on", "ON"),  # scalar prefix-> scalar
         ("ne", "NE"),  # scalar suffix-> scalar
         ("n", "N"),  # scalar infix-> scalar
+        ("o|t", "_"),  # scalar with '|' (meaningful for regex) -> scalar
         ("one", pd.NA),  # scalar -> NULL
         ("one", None),  # scalar -> None
         (pd.NA, "ONE"),  # NULL -> scalar
         (pd.NaT, "ONE"),  # NULL -> scalar
-        (np.NaN, "ONE"),  # NULL -> scalar
+        (np.nan, "ONE"),  # NULL -> scalar
         (["one"], ["ONE"]),  # list -> list
         ("four", "FOUR"),  # no matching value
         (["one", "two"], ["two", "one"]),  # swap values

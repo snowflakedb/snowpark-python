@@ -34,7 +34,7 @@ TEST_DATAFRAMES = [
             "a_none": [None, " ", "", "ABC", "_", "XYZ"],
             "b_none": ["1", "10", None, "0", "2", "abc"],
         },
-        index=pd.Index([1, 2, 3, 8, 9, 10], name="ind"),
+        index=native_pd.Index([1, 2, 3, 8, 9, 10], name="ind"),
     ),
 ]
 
@@ -90,3 +90,17 @@ def test_time_index_shift_negative(index, periods, freq):
         lambda df: df.shift(periods=periods, freq=freq),
         check_index_type=False,
     )
+
+
+@pytest.mark.parametrize(
+    "params, match",
+    [
+        ({"periods": [1, 2, 3]}, "periods"),  # sequence of periods is unsupported
+        ({"periods": [1], "suffix": "_suffix"}, "suffix"),  # suffix is unsupported
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_shift_unsupported_args(params, match):
+    df = pd.DataFrame(TEST_DATAFRAMES[2])
+    with pytest.raises(NotImplementedError, match=match):
+        df.shift(**params).to_pandas()

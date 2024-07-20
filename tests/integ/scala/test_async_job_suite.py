@@ -473,3 +473,12 @@ def test_async_job_to_df(session, create_async_job_from_query_id):
     new_df = async_job.to_df()
     assert "result_scan" in new_df.queries["queries"][0].lower()
     Utils.check_answer(df, new_df)
+
+
+def test_async_job_result_wait_no_result(session):
+    async_job = session.sql("select system$wait(3)").collect_nowait()
+    t0 = time()
+    result = async_job.result("no_result")
+    t1 = time()
+    assert t1 - t0 >= 3.0
+    assert result is None

@@ -131,9 +131,8 @@ def test_quantile_datetime_negative():
         snow_df.quantile(numeric_only=False)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442",
-    strict=True,
 )
 @sql_count_checker(query_count=0)
 def test_quantile_large():

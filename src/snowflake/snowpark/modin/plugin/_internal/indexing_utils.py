@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
+import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
@@ -81,6 +82,7 @@ ILOC_INT_ONLY_INDEXING_ERROR_MESSAGE = (
 "INCLUDED, END point is EXCLUDED), list-like of integers, boolean array] types."
 
 MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE = "indexer may only contain one '...' entry"
+TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE = "Too few indexers"
 TOO_MANY_INDEXERS_INDEXING_ERROR_MESSAGE = "Too many indexers"
 CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE = (
     "cannot reindex on an axis with duplicate labels"
@@ -707,7 +709,7 @@ def _extract_loc_set_col_info(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> LocSetColInfo:
@@ -749,6 +751,7 @@ def _extract_loc_set_col_info(
         elif not is_bool_indexer(columns):
             enlargement_may_happen = True
 
+    original_columns = columns
     if enlargement_may_happen:
         frame_data_columns = internal_frame.data_columns_index
         # This list contains the columns after loc set
@@ -768,11 +771,13 @@ def _extract_loc_set_col_info(
             union_data_columns
         ):
             raise ValueError(CANNOT_REINDEX_ON_DUPLICATE_ERROR_MESSAGE)
+        # split labels into existing and new
         new_column_pandas_labels = [
             label for label in columns if label not in frame_data_columns
         ]
-        before = frame_data_columns.value_counts()
-        after = union_data_columns.value_counts()
+        columns = [label for label in columns if label in frame_data_columns]
+        before = frame_data_columns.to_pandas().value_counts()
+        after = union_data_columns.to_pandas().value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
         for label in after.index:
             if label in frame_data_columns:
@@ -793,7 +798,7 @@ def _extract_loc_set_col_info(
     # When column enlargement may happen, get the list of pandas labels corresponding column key; otherwise, i.e., when
     # it is slice or boolean indexer, use the corresponding column position to get the labels
     column_pandas_labels = (
-        columns
+        original_columns
         if enlargement_may_happen
         else [
             internal_frame.data_column_pandas_labels[pos]
@@ -817,7 +822,7 @@ def get_valid_col_positions_from_col_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> list[int]:
@@ -827,6 +832,9 @@ def get_valid_col_positions_from_col_labels(
     Args:
         internal_frame: the main frame
         col_loc: the column labels in different types
+
+    Raises:
+        KeyError: when values are missing from `internal_frame` columns
 
     Returns:
         Column position list
@@ -864,7 +872,7 @@ def get_valid_col_positions_from_col_labels(
                     )
                 )
             )
-            col_loc = col_loc.index
+            col_loc = pd.Index(col_loc, convert_to_lazy=False)
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
@@ -911,26 +919,31 @@ def get_valid_col_positions_from_col_labels(
         indexer = []
         for col_loc_item in col_loc:
             # for each locator, we perform prefix matching for multiindex
-            try:
-                if is_scalar(col_loc_item):
-                    col_loc_item = (col_loc_item,)
-                item_indexer = columns.get_locs(col_loc_item)
-            except KeyError:
-                # Note Snowpark pandas will ignore out-of-bound labels
-                item_indexer = []
+            if is_scalar(col_loc_item):
+                col_loc_item = (col_loc_item,)
+            # May throw KeyError if any labels are not found in columns
+            item_indexer = columns.get_locs(col_loc_item)
             indexer.extend(item_indexer)
     else:
         if is_scalar(col_loc):
+            if col_loc not in columns:
+                raise KeyError(f"{col_loc}")
             col_loc = [col_loc]
         elif isinstance(col_loc, tuple):
             col_loc = [col_loc] if col_loc in columns else list(col_loc)
-
-        # Note Snowpark pandas will ignore out-of-bound labels
+        # Throw a KeyError in case there are any missing column labels
+        if len(col_loc) > 0 and all(label not in columns for label in col_loc):
+            raise KeyError(f"None of {native_pd.Index(col_loc)} are in the [columns]")
+        elif any(label not in columns for label in col_loc):
+            raise KeyError(f"{[k for k in col_loc if k not in columns]} not in index")
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
         col_loc = pd.Index(
-            [label for label in col_loc if label in columns], dtype=object
+            [label for label in col_loc if label in columns],
+            dtype=object,
+            # we do not convert to lazy because we are using this index as columns
+            convert_to_lazy=False,
         )
 
         # `Index._get_indexer_strict` returns position index from label index
@@ -946,7 +959,7 @@ def get_frame_by_col_label(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
 ) -> InternalFrame:
@@ -1293,7 +1306,7 @@ def _get_frame_by_row_label_slice(
       tuple with 2 items, then the left bound will be the row with first level matches with the start and the right
       bound will be the row with both first and second level match.
       For example,
-          >>> df
+          df:
                         c1	c2
           first	second
           bar	one	    0	2
@@ -1305,7 +1318,7 @@ def _get_frame_by_row_label_slice(
           qux	one	    6	2
                 two	    7	2
 
-          >>> df_mi[slice(('foo',), ('qux', 'one'))]
+          df_mi[slice(('foo',), ('qux', 'one'))]:
                         c1	c2
           first	second
           foo	one	    4	2
@@ -2153,7 +2166,7 @@ def set_frame_2d_labels(
         tuple,
         slice,
         list,
-        pd.Index,
+        "pd.Index",
         np.ndarray,
     ],
     item: Union[Scalar, AnyArrayLike, InternalFrame],

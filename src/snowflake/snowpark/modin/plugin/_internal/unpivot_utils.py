@@ -233,7 +233,7 @@ def _prepare_unpivot_internal(
     # dataframe is used to show the intermediate results of the dataframe at each step
     # using the melt operation (unpivot).
     #
-    # data = {"abc": ["A", "B", np.NaN], "123": [1, np.NaN, 3], "state": ["CA", "WA", "NY"]}
+    # data = {"abc": ["A", "B", np.nan], "123": [1, np.nan, 3], "state": ["CA", "WA", "NY"]}
     # index = npd.MultiIndex.from_tuples([("one", "there"), ("two", "be"), ("two", "dragons")],
     #                                     names=["L1", "L2"])
     # df = npd.DataFrame(data, index=index)

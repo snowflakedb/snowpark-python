@@ -113,6 +113,20 @@ def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
 
 @pytest.mark.parametrize(
     "agg_func",
+    [
+        lambda x: np.sum(x),  # callable
+        np.ptp,  # Unsupported aggregation function
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_groupby_agg_func_unsupported_named_agg(basic_snowpark_pandas_df, agg_func):
+    by = "col1"
+    with pytest.raises(NotImplementedError):
+        basic_snowpark_pandas_df.groupby(by=by).agg(new_col=("col2", agg_func))
+
+
+@pytest.mark.parametrize(
+    "agg_func",
     [lambda x: x * 2, np.sin, {"col2": "max", "col4": np.sin}],
 )
 @sql_count_checker(query_count=0)

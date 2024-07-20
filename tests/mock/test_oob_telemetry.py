@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -219,7 +220,16 @@ def test_unit_connection(caplog, local_testing_telemetry_setup):
 
 def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup):
     # clean up queue first
-    LocalTestOOBTelemetryService.get_instance().export_queue_to_string()
+    telemetry_service = LocalTestOOBTelemetryService.get_instance()
+    assert telemetry_service.enabled is True
+    telemetry_service.export_queue_to_string()
+
+    telemetry_service.disable()
+    assert not telemetry_service.enabled
+
+    telemetry_service.enable()
+    assert telemetry_service.enabled is True
+
     disabled_telemetry_conn = MockServerConnection(
         options={"disable_local_testing_telemetry": True}
     )
@@ -232,7 +242,7 @@ def test_unit_connection_disable_telemetry(caplog, local_testing_telemetry_setup
 
     # test error raised but no telemetry sent
     error_message = "Error Message"
-    with pytest.raises(TypeError, match=re.escape(error_message)):
+    with pytest.raises(SnowparkLocalTestingException, match=re.escape(error_message)):
         disabled_telemetry_conn.log_not_supported_error(
             raise_error=TypeError, error_message=error_message
         )

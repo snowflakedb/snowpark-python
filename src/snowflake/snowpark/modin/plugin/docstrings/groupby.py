@@ -66,6 +66,7 @@ func : function, str, list, or dict
 
 *args
     Positional arguments to pass to func.
+
 engine : str, default None
     * ``'cython'`` : Runs the function through C-extensions from cython.
     * ``'numba'`` : Runs the function through JIT compiled code from numba.
@@ -103,15 +104,15 @@ Examples
 2    2
 1    3
 2    4
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg('min')
 1    1
 2    2
-dtype: int8
+dtype: int64
 
 >>> s.groupby(level=0).agg(['min', 'max'])
-    min  max
+   min  max
 1    1    3
 2    2    4
 """
@@ -130,13 +131,13 @@ Examples
 ... )
 
 >>> df
-    A  B         C
+   A  B         C
 0  1  1  0.362838
 1  1  2  0.227877
 2  2  3  1.267767
 3  2  4 -0.562860
 
-The aggregation is for each column.
+Apply a single aggregation to all columns:
 
 >>> df.groupby('A').agg('min')  # doctest: +NORMALIZE_WHITESPACE
     B         C
@@ -144,7 +145,7 @@ A
 1  1  0.227877
 2  3 -0.562860
 
-Multiple aggregations
+Apply multiple aggregations to all columns:
 
 >>> df.groupby('A').agg(['min', 'max']) # doctest: +NORMALIZE_WHITESPACE
     B             C
@@ -153,7 +154,7 @@ A
 1   1   2  0.227877  0.362838
 2   3   4 -0.562860  1.267767
 
-Select a column for aggregation
+Select a single column and apply aggregations:
 
 >>> df.groupby('A').B.agg(['min', 'max'])   # doctest: +NORMALIZE_WHITESPACE
     min  max
@@ -161,7 +162,7 @@ A
 1    1    2
 2    3    4
 
-User-defined function for aggregation
+Apply different aggregations to specific columns:
 
 >>> df.groupby('A').agg({'B': ['min', 'max'], 'C': 'sum'})  # doctest: +NORMALIZE_WHITESPACE
     B             C
@@ -173,7 +174,7 @@ A
 )
 
 
-class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+class DataFrameGroupBy:
     def __getattr__():
         """
         Alter regular attribute access, looks up the name in the columns.
@@ -218,8 +219,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             * ``'numba'`` : Runs the operation through JIT compiled code from numba.
             * ``None`` : Defaults to ``'cython'`` or globally setting ``compute.use_numba``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             * For ``'cython'`` engine, there are no accepted ``engine_kwargs``
@@ -228,12 +228,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
                 ``False``. The default ``engine_kwargs`` for the ``'numba'`` engine is
                 ``{{'nopython': True, 'nogil': False, 'parallel': False}}``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake. Same as the engine parameter.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         Examples
         --------
@@ -253,14 +252,14 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Groupby two columns and return the mean of the remaining column.
 
         >>> df.groupby(['A', 'B']).mean()   # doctest: +NORMALIZE_WHITESPACE
-               C
+                 C
         A B
-        1 2.0  2.000000
-          4.0  1.000000
-        2 3.0  1.000000
-          5.0  2.000000
+        1 2.0  2.0
+          4.0  1.0
+        2 3.0  1.0
+          5.0  2.0
 
-        Groupby one column and return the mean of only particular column in
+        Groupby one column and return the mean of only one particular column in
         the group.
 
         >>> df.groupby('A')['B'].mean()
@@ -269,9 +268,6 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         2    4.0
         Name: B, dtype: float64
         """
-
-    def any():
-        pass
 
     @property
     def plot():
@@ -324,7 +320,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Notes
         -----
         Beware that the return value is a python dictionary, so evaluating this
-        property will trigger evaluation of the pandas dataframe and will
+        property will trigger eager evaluation of the pandas dataframe and will
         materialize data that could be as large as the size of the grouping
         columns plus the size of the index.
         """
@@ -347,11 +343,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).min()
         a    1
         b    3
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -364,7 +360,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").min()
+        >>> df.groupby("a").min()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  2  2
@@ -376,7 +372,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmax():
         """
-        Return index of first occurrence of maximum over requested axis.
+        Return the index of the first occurrence of maximum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -385,7 +381,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         axis : {{0 or 'index', 1 or 'columns'}}, default None
             The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
             If axis is not provided, grouper's axis is used.
-            axis=1 is not supported since it is deprecated.
+
+            Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
             .. deprecated:: 2.1.0
                 For axis=1, operate on the underlying object instead. Otherwise,
@@ -394,6 +391,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
             will be NA.
+
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data.
 
@@ -467,7 +465,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def idxmin():
         """
-        Return index of first occurrence of minimum over requested axis.
+        Return the index of the first occurrence of minimum over requested axis.
 
         NA/null values are excluded based on `skipna`.
 
@@ -476,7 +474,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         axis : {{0 or 'index', 1 or 'columns'}}, default None
             The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
             If axis is not provided, grouper's axis is used.
-            axis=1 is not supported since it is deprecated.
+
+            Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
             .. deprecated:: 2.1.0
                 For axis=1, operate on the underlying object instead. Otherwise,
@@ -485,6 +484,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
             will be NA.
+
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data.
 
@@ -573,27 +573,43 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
     def shift():
         """
-        Shift each group by periods observations.
+        Shift each group by `periods` observations.
 
         If freq is passed, the index will be increased using the periods and the freq.
 
         Parameters
         ----------
-        periods : int, default 1
-            Number of periods to shift.
-        freq : str, optional
-            Frequency string.
-        axis : axis to shift, default 0, axis =1 currently not supported
-            Shift direction.
+        periods : int | Sequence[int], default 1
+            Number of periods to shift. Can be positive or negative. If an iterable of ints,
+            the data will be shifted once by each int. This is equivalent to shifting by one
+            value at a time and concatenating all resulting frames. The resulting columns
+            will have the shift suffixed to their column names. For multiple periods, axis must not be 1.
+
+            Snowpark pandas does not currently support sequences of int for `periods`.
+
+        freq : DateOffset, tseries.offsets, timedelta, or str, optional
+            Offset to use from the tseries module or time rule (e.g. ‘EOM’).
+
+            Snowpark pandas does not yet support this parameter.
+
+        axis : axis to shift, default 0
+            Shift direction. Snowpark pandas does not yet support axis=1.
+
         fill_value : optional
             The scalar value to use for newly introduced missing values.
 
+        suffix : str, optional
+            If str is specified and periods is an iterable, this is added after the column name
+            and before the shift value for each shifted column name.
+
+            Snowpark pandas does not yet support this parameter.
+
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Object shifted within each group.
 
-        Examples:
+        Examples
         --------
         For SeriesGroupBy:
 
@@ -622,18 +638,18 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ...                   index=["tuna", "salmon", "catfish", "goldfish"])
 
         >>> df
-                   a  b  c
-            tuna   1  2  3
-          salmon   1  5  6
-         catfish   2  5  8
-        goldfish   2  6  9
+                  a  b  c
+        tuna      1  2  3
+        salmon    1  5  6
+        catfish   2  5  8
+        goldfish  2  6  9
 
         >>> df.groupby("a").shift(1)
-                      b    c
-            tuna    NaN  NaN
-          salmon    2.0  3.0
-         catfish    NaN  NaN
-        goldfish    5.0  8.0
+                    b    c
+        tuna      NaN  NaN
+        salmon    2.0  3.0
+        catfish   NaN  NaN
+        goldfish  5.0  8.0
         """
 
     def nth():
@@ -645,7 +661,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-            Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -678,21 +694,22 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["fox", "gorilla", "lion"])
         >>> df
-                  a   b   c
-        fox       1   8   2
-        gorilla   1   2   5
-        lion      2   6   9
+                 a  b  c
+        fox      1  8  2
+        gorilla  1  2  5
+        lion     2  6  9
 
         >>> df.groupby("a").groups
         {1: ['fox', 'gorilla'], 2: ['lion']}
 
         >>> df.groupby("a").cumsum()
-                  b   c
-        fox       8   2
-        gorilla  10   7
-        lion      6   9
+                  b  c
+        fox       8  2
+        gorilla  10  7
+        lion      6  9
         """
 
+    @property
     def indices():
         """
         Get a dictionary mapping group key to row positions.
@@ -706,7 +723,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame({'A': [1, 1, 2, 1, 2],
         ...                    'B': [np.nan, 2, 3, 4, 5],
-        ...                    'C': [1, 2, 1, 1, 2]}, columns=['A', 'B', 'C'])
+        ...                    'C': [1, 2, 1, 1, 2]})
 
         Groupby one column and get the positions of each member of each group.
 
@@ -739,7 +756,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -777,17 +794,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["cow", "horse", "bull"])
         >>> df
-                a   b   c
-        cow     1   8   2
-        horse   1   1   0
-        bull    2   6   9
+               a  b  c
+        cow    1  8  2
+        horse  1  1  0
+        bull   2  6  9
         >>> df.groupby("a").groups
         {1: ['cow', 'horse'], 2: ['bull']}
         >>> df.groupby("a").cummax()
-                b   c
-        cow     8   2
-        horse   8   2
-        bull    6   9
+               b  c
+        cow    8  2
+        horse  8  2
+        bull   6  9
         """
 
     def apply():
@@ -802,7 +819,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         While ``apply`` is a very flexible method, its downside is that
         using it can be quite a bit slower than using more specific methods
-        like ``agg`` or ``transform``. Pandas offers a wide range of methods that will
+        like ``agg`` or ``transform``. pandas offers a wide range of methods that will
         be much faster than using ``apply`` for their specific purposes, so try to
         use them before reaching for ``apply``.
 
@@ -817,7 +834,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        applied : Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See Also
         --------
@@ -830,12 +847,10 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Notes
         -----
-
         Functions that mutate the passed object can produce unexpected
         behavior or errors and are not supported.
 
-
-        Returning a series or scalar in ``func`` is not supported yet.
+        Returning a Series or scalar in ``func`` is not yet supported in Snowpark pandas.
 
         Examples
         --------
@@ -855,10 +870,10 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         each group together into a new DataFrame:
 
         >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
-                  B    C
-        0  0.333333  0.4
-        1  0.666667  0.6
-        2  1.000000  1.0
+                    B    C
+        0.0  0.333333  0.4
+        1.0  0.666667  0.6
+        2.0  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
@@ -866,9 +881,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
                     B    C
         A
-        a 0  0.333333  0.4
-          1  0.666667  0.6
-        b 2  1.000000  1.0
+        a 0.0  0.333333  0.4
+          1.0  0.666667  0.6
+        b 2.0  1.000000  1.0
         """
 
     @property
@@ -918,7 +933,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
 
         See also
         --------
@@ -956,17 +971,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
         ...                   index=["snake", "rabbit", "turtle"])
         >>> df
-                a   b   c
-        snake   1   0   2
-        rabbit  1   1   5
-        turtle  6   6   9
+                a  b  c
+        snake   1  0  2
+        rabbit  1  1  5
+        turtle  6  6  9
         >>> df.groupby("a").groups
         {1: ['snake', 'rabbit'], 6: ['turtle']}
         >>> df.groupby("a").cummin()
-                b   c
-        snake   0   2
-        rabbit  0   2
-        turtle  6   9
+                b  c
+        snake   0  2
+        rabbit  0  2
+        turtle  6  9
         """
 
     def bfill():
@@ -985,29 +1000,32 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         ----------
         ddof : int, default 1.
             Degrees of freedom.
-            When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
+
+            Snowpark pandas currently only supports ddof=0 and ddof=1.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
-            This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
-            var)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             Configuration keywords for the configured execution egine.
-            Same as engine parameter, this parameter is ignored in Snowpark pandas API. (Same as var)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data columns.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
-        Standard deviation of values within each group.
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            Standard deviation of values within each group.
 
         Examples
         --------
         For SeriesGroupBy:
+
         >>> lst = ['a', 'a', 'a', 'b', 'b', 'b', 'c']
         >>> ser = pd.Series([7, 2, 8, 4, 3, 3, 1], index=lst)
         >>> ser
@@ -1018,7 +1036,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).std()
         a    3.21455
         b    0.57735
@@ -1105,40 +1123,49 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         na_option: {"keep", "top", "bottom"}
             How to rank NaN values:
             - keep: assign NaN rank to NaN values
-            - top: assign lowest rank to NaN values
-            - bottom: assign highest rank to NaN values
+            - top: assign the lowest rank to NaN values
+            - bottom: assign the highest rank to NaN values
         pct: bool
             Whether to display the returned rankings in percentile form.
+        axis : {{0 or 'index', 1 or 'columns'}}, default None
+            The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for column-wise.
+            If axis is not provided, grouper's axis is used.
+
+            Snowpark pandas does not currently support axis=1, since it is deprecated in pandas.
+
+            .. deprecated:: 2.1.0
+                For axis=1, operate on the underlying object instead. Otherwise,
+                the axis keyword is not necessary.
+
 
         Returns
         -------
-            Snowpark pandas Series or Snowpark pandas DataFrame with ranking of values within each group
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame` with ranking of values within each group
 
         Examples
         --------
         >>> df = pd.DataFrame({"group": ["a", "a", "a", "b", "b", "b", "b"], "value": [2, 4, 2, 3, 5, 1, 2]})
         >>> df
-            group   value
-        0	    a	    2
-        1	    a	    4
-        2	    a	    2
-        3       b       3
-        4       b       5
-        5       b       1
-        6       b       2
+          group  value
+        0     a      2
+        1     a      4
+        2     a      2
+        3     b      3
+        4     b      5
+        5     b      1
+        6     b      2
         >>> df = df.groupby("group").rank(method='min')
         >>> df
-            value
-        0   1.0
-        1	3.0
-        2	1.0
-        3   3.0
-        4   4.0
-        5   1.0
-        6   2.0
+           value
+        0      1
+        1      3
+        2      1
+        3      3
+        4      4
+        5      1
+        6      2
         """
 
-    @property
     def corrwith():
         pass
 
@@ -1160,11 +1187,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).max()
         a    2
         b    4
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1177,7 +1204,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").max()
+        >>> df.groupby("a").max()  # doctest: +NORMALIZE_WHITESPACE
            b  c
         a
         1  8  5
@@ -1200,26 +1227,28 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             When ddof is 0/1, the operation is executed with Snowflake. Otherwise, it is not yet supported.
 
         engine : str, default None
-            In pandas engine can be configured as ``'cython'`` or ``'numba'`` , and ``None`` defaults to
+            In pandas, engine can be configured as ``'cython'`` or ``'numba'``, and ``None`` defaults to
             ``'cython'`` or globally setting ``compute.use_numba``.
-            This parameter is ignored in Snowpark pandas API. The execution engine will always be snowflake. (Same as
-            std)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             Configuration keywords for the configured execution egine.
-            Same as engine parameter, this parameter is ignored in Snowpark pandas API.  (Same as std)
+
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         numeric_only : bool, default False
             Include only `float`, `int` or `boolean` data columns.
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Variance of values within each group.
 
         Examples
         --------
         For SeriesGroupBy:
+
         >>> lst = ['a', 'a', 'a', 'b', 'b', 'b', 'c']
         >>> ser = pd.Series([7, 2, 8, 4, 3, 3, 1], index=lst)
         >>> ser
@@ -1230,17 +1259,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    3
         b    3
         c    1
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).var()
         a    10.333333
         b     0.333333
-        c         None
-        dtype: object
+        c          NaN
+        dtype: float64
         >>> ser.groupby(level=0).var(ddof=0)
         a    6.888889
         b    0.222222
         c    0.000000
-        dtype: object
+        dtype: float64
 
         Note that if the number of elements in a group is less or equal to the ddof, the result for the
         group will be NaN/None. For example, the value for group c is NaN when we call ser.groupby(level=0).var(),
@@ -1293,9 +1322,145 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         pass
 
     def all():
-        pass
+        """
+        Return True if all values in the group are truthful, else False.
+
+        Parameters
+        ----------
+        skipna : bool, default True
+            Flag to ignore nan values during truth testing.
+
+        Returns
+        -------
+        Series or DataFrame
+            DataFrame or Series of boolean values, where a value is True if all elements
+            are True within its respective group, False otherwise.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 0], index=lst)
+        >>> ser  # doctest: +NORMALIZE_WHITESPACE
+        a    1
+        a    2
+        b    0
+        dtype: int64
+        >>> ser.groupby(level=0).all()  # doctest: +NORMALIZE_WHITESPACE
+        a     True
+        b    False
+        dtype: bool
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 0, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["ostrich", "penguin", "parrot"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                 a  b  c
+        ostrich  1  0  3
+        penguin  1  5  6
+        parrot   7  8  9
+        >>> df.groupby(by=["a"]).all()  # doctest: +NORMALIZE_WHITESPACE
+               b      c
+        a
+        1  False   True
+        7   True   True
+        """
+
+    def any():
+        """
+        Return True if any value in the group is truthful, else False.
+
+        Parameters
+        ----------
+        skipna : bool, default True
+            Flag to ignore nan values during truth testing.
+
+        Returns
+        -------
+        Series or DataFrame
+            DataFrame or Series of boolean values, where a value is True if any element
+            is True within its respective group, False otherwise.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 0], index=lst)
+        >>> ser  # doctest: +NORMALIZE_WHITESPACE
+        a    1
+        a    2
+        b    0
+        dtype: int64
+        >>> ser.groupby(level=0).any()  # doctest: +NORMALIZE_WHITESPACE
+        a     True
+        b    False
+        dtype: bool
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 0, 3], [1, 0, 6], [7, 1, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["ostrich", "penguin", "parrot"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                 a  b  c
+        ostrich  1  0  3
+        penguin  1  0  6
+        parrot   7  1  9
+        >>> df.groupby(by=["a"]).any()  # doctest: +NORMALIZE_WHITESPACE
+               b      c
+        a
+        1  False   True
+        7   True   True
+        """
 
     def size():
+        """
+        Compute group sizes.
+
+        Returns
+        -------
+        DataFrame or Series
+            Number of rows in each group as a Series if as_index is True
+            or a DataFrame if as_index is False.
+
+        Examples
+        --------
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a").size()
+        a
+        1    2
+        7    1
+        dtype: int64
+
+        For SeriesGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a")["b"].size()
+        a
+        1    2
+        7    1
+        Name: b, dtype: int64
+        """
         pass
 
     @doc(
@@ -1316,11 +1481,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         a    2
         b    3
         b    4
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).sum()
         a    3
         b    7
-        dtype: int8
+        dtype: int64
 
         For DataFrameGroupBy:
 
@@ -1333,7 +1498,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         leopard  1  2  5
         cheetah  2  5  8
         lion     2  6  9
-        >>> df.groupby("a").sum()
+        >>> df.groupby("a").sum()  # doctest: +NORMALIZE_WHITESPACE
             b   c
         a
         1  10   7
@@ -1385,7 +1550,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Snowpark pandas Series or Snowpark pandas DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Median of values within each group.
 
         Examples
@@ -1401,11 +1566,11 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         b    4
         b    3
         b    3
-        dtype: int8
+        dtype: int64
         >>> ser.groupby(level=0).median()
-        a    7.000
-        b    3.000
-        dtype: object
+        a    7.0
+        b    3.0
+        dtype: float64
 
         For DataFrameGroupBy:
 
@@ -1422,9 +1587,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         mouse  8  2
         mouse  3  1
         >>> df.groupby(level=0).median()
-                   a      b
-        dog    3.000  4.000
-        mouse  7.000  3.000
+                 a    b
+        dog    3.0  4.0
+        mouse  7.0  3.0
         """
 
     def head():
@@ -1438,13 +1603,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from start of each group.
-            If negative: number of entries to exclude from end of each group.
+            If positive: number of entries to include from the start of each group.
+            If negative: number of entries to exclude from the end of each group.
 
         Returns
         -------
-        Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
@@ -1497,11 +1662,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         h  None     8    80    -8
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).head(-2)
-           col1  col2  col3  col4
-        a     Z     1    40    -1
-        b  None     2    50    -2
-        c     X     3    60    -3
-        e     Y     5    20    -5
+          col1  col2  col3  col4
+        c    X     3    60    -3
+        f    X     6    30    -6
         """
 
     def cumprod():
@@ -1544,8 +1707,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
             * ``'numba'`` : Runs the function through JIT compiled code from numba.
             * ``None`` : Defaults to ``'cython'`` or the global setting ``compute.use_numba``
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         engine_kwargs : dict, default None
             * For ``'cython'`` engine, there are no accepted ``engine_kwargs``
@@ -1555,11 +1717,17 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
               ``{'nopython': True, 'nogil': False, 'parallel': False}`` and will be
               applied to the function
 
-            Note that this parameter is ignored in Snowpark pandas, and the execution engine will always
-            be Snowflake.
+            This parameter is ignored in Snowpark pandas, as the execution is always performed in Snowflake.
 
         **kwargs : Any
             Keyword arguments to be passed into func.
+
+        Notes
+        -----
+        Functions that mutate the passed object can produce unexpected
+        behavior or errors and are not supported.
+
+        Returning a Series or scalar in ``func`` is not yet supported in Snowpark pandas.
 
         Examples
         --------
@@ -1624,7 +1792,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        A :class:`Series` or :class:`DataFrame`
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Count of values within each group.
 
         Examples
@@ -1666,7 +1834,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Essentially this is equivalent to
 
-        >>> self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
+        .. code-block:: python
+
+            self.apply(lambda x: pd.Series(np.arange(len(x)), x.index))
 
         Parameters
         ----------
@@ -1687,8 +1857,8 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         --------
         >>> df = pd.DataFrame([['a'], ['a'], ['a'], ['b'], ['b'], ['a']],
         ...                   columns=['A'])
-        df
-        A
+        >>> df
+           A
         0  a
         1  a
         2  a
@@ -1726,13 +1896,13 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         Parameters
         ----------
         n : int
-            If positive: number of entries to include from end of each group.
-            If negative: number of entries to exclude from start of each group.
+            If positive: number of entries to include from the end of each group.
+            If negative: number of entries to exclude from the start of each group.
 
         Returns
         -------
-        Series or DataFrame
-            Subset of original Series or DataFrame as determined by n.
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+            Subset of the original Series or DataFrame as determined by n.
 
         See also
         --------
@@ -1788,9 +1958,9 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
         i     X     9    90    -9
         j     Y    10    10   -10
         >>> df.groupby("col1", dropna=False).tail(-2)
-           col1  col2  col3  col4
-        g     X     7    40    -7
-        i     X     9    90    -9
+          col1  col2  col3  col4
+        g    X     7    40    -7
+        i    X     9    90    -9
         """
 
     def expanding():
@@ -1821,7 +1991,7 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
             Return type determined by caller of GroupBy object.
         """
 
@@ -1831,8 +2001,14 @@ class DataFrameGroupBy:  # pragma: no cover: we use this class's docstrings, but
     def take():
         pass
 
+    def pipe():
+        pass
 
-class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we never execute its methods.
+
+class SeriesGroupBy:
+    def get_group(self):
+        pass
+
     @property
     def ndim(self):
         """
@@ -1881,6 +2057,54 @@ class SeriesGroupBy:  # pragma: no cover: we use this class's docstrings, but we
         -------
         Series
         """
+
+    def size():
+        """
+        Compute group sizes.
+
+        Returns
+        -------
+        DataFrame or Series
+            Number of rows in each group as a Series if as_index is True
+            or a DataFrame if as_index is False.
+
+        Examples
+        --------
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a").size()
+        a
+        1    2
+        7    1
+        dtype: int64
+
+        For SeriesGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"],
+        ...                   index=["owl", "toucan", "eagle"])
+        >>> df
+                a  b  c
+        owl     1  2  3
+        toucan  1  5  6
+        eagle   7  8  9
+        >>> df.groupby("a")["b"].size()
+        a
+        1    2
+        7    1
+        Name: b, dtype: int64
+        """
+        pass
+
+    def unique(self):
+        pass
 
     def apply():
         pass

@@ -12,17 +12,11 @@ from typing import Any
 import pandas as native_pd
 
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
-from snowflake.snowpark.modin.pandas import DataFrame, Series
 from snowflake.snowpark.modin.pandas.api.extensions import register_dataframe_accessor
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     snowpark_pandas_telemetry_method_decorator,
 )
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
-from snowflake.snowpark.modin.plugin.utils.error_message import (
-    dataframe_not_implemented,
-)
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings
 
 
@@ -66,67 +60,48 @@ def memory_usage(self, index: bool = True, deep: bool = False) -> Any:
     return native_pd.Series([0] * len(columns), index=columns)
 
 
-@_inherit_docstrings(native_pd.DataFrame.infer_objects, apilink="pandas.DataFrame")
-@register_dataframe_accessor("infer_objects")
+@register_dataframe_accessor("plot")
+@property
 @snowpark_pandas_telemetry_method_decorator
-@dataframe_not_implemented()
-def infer_objects(
+def plot(
     self,
-) -> SnowflakeQueryCompiler:  # pragma: no cover # noqa: RT01, D200
+    x=None,
+    y=None,
+    kind="line",
+    ax=None,
+    subplots=False,
+    sharex=None,
+    sharey=False,
+    layout=None,
+    figsize=None,
+    use_index=True,
+    title=None,
+    grid=None,
+    legend=True,
+    style=None,
+    logx=False,
+    logy=False,
+    loglog=False,
+    xticks=None,
+    yticks=None,
+    xlim=None,
+    ylim=None,
+    rot=None,
+    fontsize=None,
+    colormap=None,
+    table=False,
+    yerr=None,
+    xerr=None,
+    secondary_y=False,
+    sort_columns=False,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
     """
-    Attempt to infer better dtypes for object columns.
+    Make plots of ``DataFrame``. Materializes data into memory and uses the
+    existing pandas PlotAccessor
     """
-    return self.__constructor__(query_compiler=self._query_compiler.infer_objects())
-
-
-@_inherit_docstrings(native_pd.DataFrame.nunique, apilink="pandas.DataFrame")
-@register_dataframe_accessor("nunique")
-@snowpark_pandas_telemetry_method_decorator
-def nunique(self, axis: int = 0, dropna: bool = True) -> Series:
-    """
-    Count number of distinct elements in specified axis.
-
-    Return Series with number of distinct elements. Can ignore NaN
-    values. Snowpark pandas API does not distinguish between NaN values and treats them all as the same.
-
-    Parameters
-    ----------
-    axis : {0 or 'index', 1 or 'columns'}, default 0
-        The axis to use. 0 or 'index' for row-wise, 1 or 'columns' for
-        column-wise.
-    dropna : bool, default True
-        Don't include NaN in the counts.
-
-    Returns
-    -------
-    Series
-
-    Examples
-    --------
-    >>> import snowflake.snowpark.modin.pandas as pd
-    >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
-    >>> df.nunique()
-    A    3
-    B    2
-    dtype: int8
-
-    >>> df.nunique(axis=1)
-    0    1
-    1    2
-    2    2
-    dtype: int8
-
-    >>> df = pd.DataFrame({'A': [None, pd.NA, None], 'B': [1, 2, 1]})
-    >>> df.nunique()
-    A    0
-    B    2
-    dtype: int8
-
-    >>> df.nunique(dropna=False)
-    A    1
-    B    2
-    dtype: int8
-
-    """
-    # TODO: SNOW-1264688: remove this override
-    return super(DataFrame, self).nunique(axis=axis, dropna=dropna)
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    WarningMessage.single_warning(
+        "DataFrame.plot materializes data to the local machine for plotting."
+    )
+    return self._to_pandas().plot

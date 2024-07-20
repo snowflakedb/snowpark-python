@@ -5,7 +5,6 @@
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
-from pandas._libs.lib import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
@@ -23,14 +22,28 @@ def test_duplicated_with_misspelled_column_name_or_empty_subset(subset):
     with pytest.raises((KeyError, ValueError)):
         df.duplicated(subset)
     expected_res = df.duplicated(["B"]) if "B" in subset else native_pd.Series([])
-    query_count = 1
-    if is_scalar(subset):
+    query_count = 0
+    if subset == []:
         query_count += 1
     with SqlCounter(query_count=query_count):
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            pd.DataFrame(df).duplicated(subset),
-            expected_res,
-        )
+        if subset == []:
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                pd.DataFrame(df).duplicated(subset),
+                expected_res,
+            )
+        else:
+            if isinstance(subset, list):
+                if all(label not in df.columns for label in subset):
+                    match_str = r"None of .* are in the \[columns\]"
+                else:
+                    match_str = r".* not in index"
+            else:
+                match_str = f"\\'{subset}\\'"
+            with pytest.raises(KeyError, match=match_str):
+                assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                    pd.DataFrame(df).duplicated(subset),
+                    expected_res,
+                )
 
 
 @pytest.mark.parametrize(
