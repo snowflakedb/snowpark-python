@@ -17,11 +17,11 @@ class PlanCompiler:
     """
 
     def __init__(self, plan: SnowflakePlan) -> None:
-        self.plan = plan
+        self._plan = plan
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
         # apply optimizations
-        final_plan = self.plan.replace_repeated_subquery_with_cte()
+        final_plan = self._plan.replace_repeated_subquery_with_cte()
         return {
             PlanQueryType.QUERIES: final_plan.queries,
             PlanQueryType.POST_ACTIONS: final_plan.post_actions,
