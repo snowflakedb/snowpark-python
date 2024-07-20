@@ -982,6 +982,8 @@ class Analyzer:
                 logical_plan.comment,
                 resolved_children[logical_plan.children[0]],
                 logical_plan,
+                self.session._use_scoped_temp_objects,
+                logical_plan.is_generated,
             )
 
         if isinstance(logical_plan, Limit):

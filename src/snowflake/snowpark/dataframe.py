@@ -60,6 +60,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoTableNode,
     Limit,
     LogicalPlan,
+    SaveMode,
+    SnowflakeCreateTable,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -3959,14 +3961,18 @@ class DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             self.write.save_as_table(temp_table_name, create_temp_table=True)
         else:
-            create_temp_table = self._session._analyzer.plan_builder.create_temp_table(
-                temp_table_name,
-                self._plan,
-                use_scoped_temp_objects=self._session._use_scoped_temp_objects,
-                is_generated=True,
+            df = self._with_plan(
+                SnowflakeCreateTable(
+                    [temp_table_name],
+                    None,
+                    SaveMode.ERROR_IF_EXISTS,
+                    self._plan,
+                    table_type="temp",
+                    is_generated=True,
+                )
             )
             self._session._conn.execute(
-                create_temp_table,
+                df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
