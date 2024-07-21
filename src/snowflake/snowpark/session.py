@@ -51,7 +51,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
 from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.ast_utils import (
-    build_const_from_python_val,
+    build_expr_from_python_val,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -1944,11 +1944,11 @@ class Session:
             expr.fn.udtf.name = ".".join(func_name)
 
         for arg in func_arguments:
-            build_const_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(arg, expr.pos_args.add())
         for k in func_named_arguments:
             entry = expr.named_args.add()
             entry._1 = k
-            build_const_from_python_val(func_named_arguments[k], entry._2)
+            build_expr_from_python_val(func_named_arguments[k], entry._2)
 
         if isinstance(self._conn, MockServerConnection):
             if not self._conn._suppress_not_implemented_error:
@@ -2103,7 +2103,7 @@ class Session:
             expr.query = query
             if params is not None:
                 for p in params:
-                    build_const_from_python_val(p, expr.params.add())
+                    build_expr_from_python_val(p, expr.params.add())
         else:
             stmt = _ast_stmt
 
@@ -3172,12 +3172,12 @@ class Session:
         expr = with_src_position(stmt.expr.apply_expr)
         expr.fn.stored_procedure.name = sproc_name
         for arg in args:
-            build_const_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(arg, expr.pos_args.add())
         if statement_params is not None:
             for k in statement_params:
                 entry = expr.named_args.list.add()
                 entry._1 = k
-                build_const_from_python_val(statement_params[k], entry._2)
+                build_expr_from_python_val(statement_params[k], entry._2)
         expr.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
@@ -3275,7 +3275,7 @@ class Session:
         # AST.
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_flatten, stmt)
-        build_const_from_python_val(input, expr.input)
+        build_expr_from_python_val(input, expr.input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer

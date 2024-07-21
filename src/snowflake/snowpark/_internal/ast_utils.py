@@ -33,7 +33,7 @@ from snowflake.snowpark._internal.type_utils import (
 FAIL_ON_MISSING_AST = True
 
 
-def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
+def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
     Args:
@@ -46,107 +46,107 @@ def build_const_from_python_val(obj: Any, ast: proto.Expr) -> None:
     from snowflake.snowpark.column import Column
 
     if obj is None:
-        set_src_position(ast.null_val.src)
+        set_src_position(expr_builder.null_val.src)
 
     elif isinstance(obj, bool):
-        set_src_position(ast.bool_val.src)
-        ast.bool_val.v = obj
+        set_src_position(expr_builder.bool_val.src)
+        expr_builder.bool_val.v = obj
 
     elif isinstance(obj, int):
-        set_src_position(ast.int64_val.src)
-        ast.int64_val.v = obj
+        set_src_position(expr_builder.int64_val.src)
+        expr_builder.int64_val.v = obj
 
     elif isinstance(obj, float):
-        set_src_position(ast.float64_val.src)
-        ast.float64_val.v = obj
+        set_src_position(expr_builder.float64_val.src)
+        expr_builder.float64_val.v = obj
 
     elif isinstance(obj, str):
-        set_src_position(ast.string_val.src)
-        ast.string_val.v = obj
+        set_src_position(expr_builder.string_val.src)
+        expr_builder.string_val.v = obj
 
     elif isinstance(obj, bytes):
-        set_src_position(ast.binary_val.src)
-        ast.binary_val.v = obj
+        set_src_position(expr_builder.binary_val.src)
+        expr_builder.binary_val.v = obj
 
     elif isinstance(obj, bytearray):
-        set_src_position(ast.binary_val.src)
-        ast.binary_val.v = bytes(obj)
+        set_src_position(expr_builder.binary_val.src)
+        expr_builder.binary_val.v = bytes(obj)
 
     elif isinstance(obj, decimal.Decimal):
-        set_src_position(ast.big_decimal_val.src)
+        set_src_position(expr_builder.big_decimal_val.src)
         dec_tuple = obj.as_tuple()
         unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
         if dec_tuple.sign != 0:
             unscaled_val *= -1
         req_bytes = (unscaled_val.bit_length() + 7) // 8
-        ast.big_decimal_val.unscaled_value = unscaled_val.to_bytes(
+        expr_builder.big_decimal_val.unscaled_value = unscaled_val.to_bytes(
             req_bytes, "big", signed=True
         )
-        ast.big_decimal_val.scale = dec_tuple.exponent
+        expr_builder.big_decimal_val.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
-        set_src_position(ast.python_timestamp_val.src)
+        set_src_position(expr_builder.python_timestamp_val.src)
         if obj.tzinfo is not None:
-            ast.python_timestamp_val.tz.offset_seconds = int(
+            expr_builder.python_timestamp_val.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(obj).total_seconds()
             )
             tz = obj.tzinfo.tzname(obj)
             if tz is not None:
-                ast.python_timestamp_val.tz.name.value = tz
+                expr_builder.python_timestamp_val.tz.name.value = tz
         else:
             obj = obj.astimezone(datetime.timezone.utc)
 
-        ast.python_timestamp_val.year = obj.year
-        ast.python_timestamp_val.month = obj.month
-        ast.python_timestamp_val.day = obj.day
-        ast.python_timestamp_val.hour = obj.hour
-        ast.python_timestamp_val.minute = obj.minute
-        ast.python_timestamp_val.second = obj.second
-        ast.python_timestamp_val.microsecond = obj.microsecond
+        expr_builder.python_timestamp_val.year = obj.year
+        expr_builder.python_timestamp_val.month = obj.month
+        expr_builder.python_timestamp_val.day = obj.day
+        expr_builder.python_timestamp_val.hour = obj.hour
+        expr_builder.python_timestamp_val.minute = obj.minute
+        expr_builder.python_timestamp_val.second = obj.second
+        expr_builder.python_timestamp_val.microsecond = obj.microsecond
 
     elif isinstance(obj, datetime.date):
-        set_src_position(ast.python_date_val.src)
-        ast.python_date_val.year = obj.year
-        ast.python_date_val.month = obj.month
-        ast.python_date_val.day = obj.day
+        set_src_position(expr_builder.python_date_val.src)
+        expr_builder.python_date_val.year = obj.year
+        expr_builder.python_date_val.month = obj.month
+        expr_builder.python_date_val.day = obj.day
 
     elif isinstance(obj, datetime.time):
-        set_src_position(ast.python_time_val.src)
+        set_src_position(expr_builder.python_time_val.src)
         datetime_val = datetime.datetime.combine(datetime.date.today(), obj)
         if obj.tzinfo is not None:
-            ast.python_time_val.tz.offset_seconds = int(
+            expr_builder.python_time_val.tz.offset_seconds = int(
                 obj.tzinfo.utcoffset(datetime_val).total_seconds()
             )
             tz = obj.tzinfo.tzname(datetime_val)
             if tz is not None:
-                ast.python_time_val.tz.name.value = tz
+                expr_builder.python_time_val.tz.name.value = tz
         else:
             obj = datetime_val.astimezone(datetime.timezone.utc)
 
-        ast.python_time_val.hour = obj.hour
-        ast.python_time_val.minute = obj.minute
-        ast.python_time_val.second = obj.second
-        ast.python_time_val.microsecond = obj.microsecond
+        expr_builder.python_time_val.hour = obj.hour
+        expr_builder.python_time_val.minute = obj.minute
+        expr_builder.python_time_val.second = obj.second
+        expr_builder.python_time_val.microsecond = obj.microsecond
 
     elif isinstance(obj, dict):
-        set_src_position(ast.seq_map_val.src)
+        set_src_position(expr_builder.seq_map_val.src)
         for key, value in obj.items():
-            kv_tuple_ast = ast.seq_map_val.kvs.add()
-            build_const_from_python_val(key, kv_tuple_ast.vs.add())
-            build_const_from_python_val(value, kv_tuple_ast.vs.add())
+            kv_tuple_ast = expr_builder.seq_map_val.kvs.add()
+            build_expr_from_python_val(key, kv_tuple_ast.vs.add())
+            build_expr_from_python_val(value, kv_tuple_ast.vs.add())
 
     elif isinstance(obj, list):
-        set_src_position(ast.list_val.src)
+        set_src_position(expr_builder.list_val.src)
         for v in obj:
-            build_const_from_python_val(v, ast.list_val.vs.add())
+            build_expr_from_python_val(v, expr_builder.list_val.vs.add())
 
     elif isinstance(obj, tuple):
-        set_src_position(ast.tuple_val.src)
+        set_src_position(expr_builder.tuple_val.src)
         for v in obj:
-            build_const_from_python_val(v, ast.tuple_val.vs.add())
+            build_expr_from_python_val(v, expr_builder.tuple_val.vs.add())
 
     elif isinstance(obj, Column):
-        ast.CopyFrom(obj._ast)
+        expr_builder.CopyFrom(obj._ast)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
@@ -184,7 +184,7 @@ def build_fn_apply(
             expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
-            build_const_from_python_val(arg, pos_arg)
+            build_expr_from_python_val(arg, pos_arg)
             expr.pos_args.append(pos_arg)
 
     for name, arg in kwargs.items():
@@ -196,7 +196,7 @@ def build_fn_apply(
             assert arg._ast, f"Column object {name}={arg} has no _ast member set."
             kwarg._2.CopyFrom(arg._ast)
         else:
-            build_const_from_python_val(arg, kwarg._2)
+            build_expr_from_python_val(arg, kwarg._2)
         expr.named_args.append(kwarg)
 
 
@@ -282,8 +282,8 @@ def with_src_position(
     return expr_ast
 
 
-def _fill_ast_with_column(
-    ast: proto.Expr, value: "snowflake.snowpark.Column"
+def build_expr_from_snowpark_column(
+    expr_builder: proto.Expr, value: "snowflake.snowpark.Column"
 ) -> None:
     """Copy from a Column object's AST into an AST expression.
 
@@ -299,11 +299,11 @@ def _fill_ast_with_column(
             f"Column({value._expression})._ast is None due to the use of a Snowpark API which does not support AST logging yet."
         )
     elif value._ast is not None:
-        ast.CopyFrom(value._ast)
+        expr_builder.CopyFrom(value._ast)
 
 
-def _fill_ast_with_snowpark_column_or_sql_expr(
-    ast: proto.Expr, value: ColumnOrSqlExpr
+def build_expr_from_snowpark_column_or_sql_str(
+    expr_builder: proto.Expr, value: ColumnOrSqlExpr
 ) -> None:
     """Copy from a Column object's AST, or copy a SQL expression into an AST expression.
 
@@ -315,9 +315,9 @@ def _fill_ast_with_snowpark_column_or_sql_expr(
         TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid SQL expression
     """
     if isinstance(value, snowflake.snowpark.Column):
-        _fill_ast_with_column(ast, value)
+        build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, str):
-        expr = with_src_position(ast.sp_column_sql_expr)
+        expr = with_src_position(expr_builder.sp_column_sql_expr)
         expr.sql = value
     else:
         raise TypeError(
@@ -325,8 +325,8 @@ def _fill_ast_with_snowpark_column_or_sql_expr(
         )
 
 
-def _fill_ast_with_snowpark_column_or_literal(
-    ast: proto.Expr, value: ColumnOrLiteral
+def build_expr_from_snowpark_column_or_python_val(
+    expr_builder: proto.Expr, value: ColumnOrLiteral
 ) -> None:
     """Copy from a Column object's AST, or copy a literal value into an AST expression.
 
@@ -338,9 +338,9 @@ def _fill_ast_with_snowpark_column_or_literal(
         TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
     """
     if isinstance(value, snowflake.snowpark.Column):
-        _fill_ast_with_column(ast, value)
+        build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-        build_const_from_python_val(value, ast)
+        build_expr_from_python_val(value, expr_builder)
     elif isinstance(value, Expression):
         # Expressions must be handled by caller.
         pass
@@ -420,7 +420,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         return create_ast_for_column(expr.name, None)
     elif isinstance(expr, Literal):
         ast = proto.Expr()
-        build_const_from_python_val(expr.value, ast)
+        build_expr_from_python_val(expr.value, ast)
         return ast
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
