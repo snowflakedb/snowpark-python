@@ -266,12 +266,10 @@ class SnowflakePlan(LogicalPlan):
         -------
         A mapping between the PlanQueryType and the list of Queries corresponds to the type.
         """
-        # apply optimizations
-        final_plan = self.replace_repeated_subquery_with_cte()
-        return {
-            PlanQueryType.QUERIES: final_plan.queries,
-            PlanQueryType.POST_ACTIONS: final_plan.post_actions,
-        }
+        from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
+
+        compiler = PlanCompiler(self)
+        return compiler.compile()
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
