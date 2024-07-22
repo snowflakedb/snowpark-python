@@ -706,6 +706,8 @@ def process_registration_inputs(
         func, return_type, input_types or [], object_type, output_schema
     )
     if is_pandas_udf or is_dataframe_input:
+        # vectorized UDF/UDTF does not support default values single only
+        # takes a single input which is a DataFrame
         opt_arg_defaults = [None] * len(input_types)
     else:
         opt_arg_defaults = get_opt_arg_defaults(func, object_type, input_types)
