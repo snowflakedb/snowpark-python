@@ -6704,7 +6704,7 @@ def in_(
     for col in cols:
         col_ast = list_ast.vs.add()
         build_expr_from_snowpark_column_or_python_val(col_ast, col)
-    
+
     values_args = []
     for val in vals:
         val_ast = proto.Expr()
