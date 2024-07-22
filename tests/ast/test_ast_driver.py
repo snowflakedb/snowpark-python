@@ -111,7 +111,7 @@ mock = session.create_dataframe(
 )
 mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
 
-# Set up data used for union, intersection, and except tests.
+# Set up data used set operation tests.
 mock = session.create_dataframe(
     [
         [1, 2],
