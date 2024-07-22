@@ -11,7 +11,7 @@ from typing import Dict, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.ast_utils import (
-    build_const_from_python_val,
+    build_expr_from_python_val,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -344,9 +344,9 @@ class DataFrameNaFunctions:
                 if isinstance(k, str):
                     entry = ast.value_map.list.add()
                     entry._1 = k
-                    build_const_from_python_val(v, entry._2)
+                    build_expr_from_python_val(v, entry._2)
         else:
-            build_const_from_python_val(value, ast.value)
+            build_expr_from_python_val(value, ast.value)
         if isinstance(subset, str):
             ast.subset.list.append(subset)
         elif isinstance(subset, Iterable):
@@ -531,21 +531,21 @@ class DataFrameNaFunctions:
         if isinstance(to_replace, dict):
             for k, v in to_replace.items():
                 entry = ast.replacement_map.list.add()
-                build_const_from_python_val(k, entry._1)
-                build_const_from_python_val(v, entry._2)
+                build_expr_from_python_val(k, entry._1)
+                build_expr_from_python_val(v, entry._2)
         elif isinstance(to_replace, Iterable):
             for v in to_replace:
                 entry = ast.to_replace_list.list.add()
-                build_const_from_python_val(v, entry)
+                build_expr_from_python_val(v, entry)
         else:
-            build_const_from_python_val(to_replace, ast.to_replace_value)
+            build_expr_from_python_val(to_replace, ast.to_replace_value)
 
         if isinstance(value, Iterable):
             for v in value:
                 entry = ast.values.list.add()
-                build_const_from_python_val(v, entry)
+                build_expr_from_python_val(v, entry)
         else:
-            build_const_from_python_val(value, ast.value)
+            build_expr_from_python_val(value, ast.value)
 
         if subset is not None:
             ast.subset.list.extend(subset)
