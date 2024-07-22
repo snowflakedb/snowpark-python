@@ -120,13 +120,16 @@ def test_async_to_pandas_common(session):
 def test_async_to_pandas_batches(session):
     df = session.range(100000).cache_result()
     async_job = df.to_pandas_batches(block=False)
+
     res = list(async_job.result())
     expected_res = list(df.to_pandas_batches())
     assert len(res) > 0
     assert len(expected_res) > 0
-    for r, er in zip(res, expected_res):
-        assert_frame_equal(r, er)
-        break
+    res = pd.concat(res, axis=0).reset_index(level=0, drop=True).astype("Int64")
+    expected_res = (
+        pd.concat(expected_res, axis=0).reset_index(level=0, drop=True).astype("Int64")
+    )
+    assert_frame_equal(res, expected_res)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
