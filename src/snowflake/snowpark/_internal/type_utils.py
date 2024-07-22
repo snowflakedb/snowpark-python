@@ -66,6 +66,8 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    _FractionalType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -526,8 +528,11 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
 
 
 def python_value_str_to_object(value, tp: DataType) -> Any:
-    if isinstance(tp, StringType):
+    if isinstance(tp, (StringType, GeometryType, GeographyType, VariantType)):
         return value
+
+    if isinstance(tp, (_IntegralType, _FractionalType, BooleanType, BinaryType)):
+        return eval(value)
 
     if isinstance(tp, ArrayType):
         curr_list = eval(value)
@@ -546,7 +551,25 @@ def python_value_str_to_object(value, tp: DataType) -> Any:
             python_value_str_to_object(k, key_tp): python_value_str_to_object(v, val_tp)
             for k, v in curr_dict.items()
         }
-    return eval(value)
+
+    if isinstance(tp, TimestampType):
+        if value.strip().startswith("datetime("):
+            return datetime.datetime(*eval(value[8:]))
+        return eval(value)
+
+    if isinstance(tp, TimeType):
+        if value.strip().startswith("time("):
+            return datetime.time(*eval(value[4:]))
+        return eval(value)
+
+    if isinstance(tp, DateType):
+        if value.strip().startswith("date("):
+            return datetime.date(*eval(value[4:]))
+        return eval(value)
+
+    raise TypeError(
+        f"Unsupported data type: {tp}, value {value} by python_value_str_to_object()"
+    )
 
 
 def python_type_str_to_object(
@@ -748,26 +771,33 @@ def retrieve_func_defaults_from_source(
     def parse_default_value(
         value: ast.expr, enquote_string: bool = False
     ) -> Optional[str]:
+        # recursively parse the default value if it is tuple or list
         if isinstance(value, (ast.Tuple, ast.List)):
             return f"{[parse_default_value(e) for e in value.elts]}"
+        # recursively parse the default keys and values if it is dict
         if isinstance(value, ast.Dict):
             key_val_tuples = [
                 (parse_default_value(k), parse_default_value(v))
                 for k, v in zip(value.keys, value.values)
             ]
             return f"{dict(key_val_tuples)}"
+        # recursively parse the default value.value and extract value.attr
         if isinstance(value, ast.Attribute):
             return f"{parse_default_value(value.value)}.{value.attr}"
+        # recursively parse value.value and extract value.arg
         if isinstance(value, ast.keyword):
             return f"{value.arg}={parse_default_value(value.value)}"
+        # extract constant value
         if isinstance(value, ast.Constant):
             if isinstance(value.value, str) and enquote_string:
                 return f"'{value.value}'"
             if value.value is None:
                 return None
             return f"{value.value}"
+        # extract value.id from Name
         if isinstance(value, ast.Name):
             return value.id
+        # recursively parse value.func and extract value.args and value.keywords
         if isinstance(value, ast.Call):
             parsed_args = ", ".join(
                 parse_default_value(arg, True) for arg in value.args

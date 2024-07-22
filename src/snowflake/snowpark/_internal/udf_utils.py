@@ -393,13 +393,22 @@ def get_opt_arg_defaults(
     EMPTY_DEFAULT_VALUES = [None] * len(input_types)
 
     def build_default_values_result(
-        default_values: Any, input_types: List[DataType]
+        default_values: Any,
+        input_types: List[DataType],
+        convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
         num_optional_args = len(default_values)
         num_positional_args = len(input_types) - num_optional_args
+        input_types_for_default_args = input_types[-num_optional_args:]
+        if convert_python_str_to_object:
+            default_values = [
+                python_value_str_to_object(value, tp)
+                for value, tp in zip(default_values, input_types_for_default_args)
+            ]
+
         default_values_to_sql_str = [
             to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types[-num_optional_args:])
+            for value, datatype in zip(default_values, input_types_for_default_args)
         ]
         return [None] * num_positional_args + default_values_to_sql_str
 
@@ -417,7 +426,7 @@ def get_opt_arg_defaults(
             return EMPTY_DEFAULT_VALUES
 
         arg_spec = inspect.getfullargspec(target_func)
-        return build_default_values_result(arg_spec.defaults, input_types)
+        return build_default_values_result(arg_spec.defaults, input_types, False)
 
     def get_opt_arg_defaults_from_file():
         filename, func_name = func[0], func[1]
@@ -434,13 +443,7 @@ def get_opt_arg_defaults(
 
         if default_values_str is None:
             return EMPTY_DEFAULT_VALUES
-        default_values = [
-            python_value_str_to_object(value, tp)
-            for value, tp in zip(
-                default_values_str, input_types[-len(default_values_str) :]
-            )
-        ]
-        return build_default_values_result(default_values, input_types)
+        return build_default_values_result(default_values_str, input_types, True)
 
     try:
         if isinstance(func, Callable):
