@@ -196,8 +196,6 @@ def test_setstatement_deepcopy(session, action):
 def test_selectsql(session):
     query = "show tables in schema limit 10"
     df = session.sql(query).filter(lit(True))
-    assert len(df._plan.children_plan_nodes) == 1
-    assert isinstance(df._plan.children_plan_nodes[0], SelectSQL)
 
     def verify_selectsql(copied_node: SelectSQL, original_node: SelectSQL) -> None:
         assert copied_node.original_sql == original_node.original_sql
@@ -208,10 +206,16 @@ def test_selectsql(session):
         assert copied_node._query_param == original_node._query_param
         assert copied_node.pre_actions == original_node.pre_actions
 
-    select_plan = df._plan.children_plan_nodes[0]
-    copied_select = copy.deepcopy(select_plan)
-    verify_logical_plan_node(copied_select, select_plan)
-    verify_selectsql(copied_select, select_plan)
+    if session.sql_simplifier_enabled:
+        assert len(df._plan.children_plan_nodes) == 1
+        assert isinstance(df._plan.children_plan_nodes[0], SelectSQL)
+        select_plan = df._plan.children_plan_nodes[0]
+        copied_select = copy.deepcopy(select_plan)
+        verify_logical_plan_node(copied_select, select_plan)
+        verify_selectsql(copied_select, select_plan)
+    else:
+        copied_plan = copy.deepcopy(df._plan)
+        check_copied_plan(copied_plan, df._plan)
 
 
 def test_selectentity(session):
@@ -220,13 +224,17 @@ def test_selectentity(session):
         temp_table_name, table_type="temp"
     )
     df = session.table(temp_table_name).filter(col("a") == 1)
-    assert len(df._plan.children_plan_nodes) == 1
-    assert isinstance(df._plan.children_plan_nodes[0], SelectableEntity)
+    if session.sql_simplifier_enabled:
+        assert len(df._plan.children_plan_nodes) == 1
+        assert isinstance(df._plan.children_plan_nodes[0], SelectableEntity)
 
-    select_plan = df._plan.children_plan_nodes[0]
-    copied_select = copy.deepcopy(select_plan)
-    verify_logical_plan_node(copied_select, select_plan)
-    assert copied_select.entity_name == select_plan.entity_name
+        select_plan = df._plan.children_plan_nodes[0]
+        copied_select = copy.deepcopy(select_plan)
+        verify_logical_plan_node(copied_select, select_plan)
+        assert copied_select.entity_name == select_plan.entity_name
+    else:
+        copied_plan = copy.deepcopy(df._plan)
+        check_copied_plan(copied_plan, df._plan)
 
 
 def test_df_alias_deepcopy(session):
