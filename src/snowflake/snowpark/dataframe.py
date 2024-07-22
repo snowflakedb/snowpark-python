@@ -4409,8 +4409,8 @@ class DataFrame:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+            if self._session._conn._suppress_not_implemented_error:
+                return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
