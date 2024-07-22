@@ -31,7 +31,7 @@ from snowflake.snowpark.functions import avg, col
 pytestmark = [
     pytest.mark.xfail(
         "config.getoption('local_testing_mode', default=False)",
-        reason="deepcopy is not supported and required by local testing",
+        reason="the new compilation step is not supported and required by local testing",
         run=False,
     )
 ]
