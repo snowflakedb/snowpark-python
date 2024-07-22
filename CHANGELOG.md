@@ -31,6 +31,9 @@
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
 
+#### Bug Fixes
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
+
 
 ## 1.20.0 (2024-07-17)
 
