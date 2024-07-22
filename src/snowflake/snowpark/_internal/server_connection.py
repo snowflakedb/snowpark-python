@@ -8,6 +8,7 @@ import importlib
 import inspect
 import os
 import sys
+import threading
 import time
 from logging import getLogger
 from typing import (
@@ -170,9 +171,8 @@ class ServerConnection:
 
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor = self._conn.cursor()
+        self._thread_store = threading.local()
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -182,6 +182,18 @@ class ServerConnection:
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
+
+    @property
+    def _cursor(self) -> SnowflakeCursor:
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+        return self._thread_store.cursor
+
+    @property
+    def _query_listener(self) -> Set[QueryHistory]:
+        if not hasattr(self._thread_store, "query_listener"):
+            self._thread_store.query_listener = set()
+        return self._thread_store.query_listener
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:

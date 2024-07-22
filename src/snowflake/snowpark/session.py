@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import warnings
 from array import array
 from functools import reduce
@@ -311,33 +312,38 @@ class Session:
                     self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
-            if hasattr(Session, key):
-                return getattr(self._session, key)
-            if hasattr(self._session._conn._conn, key):
-                return getattr(self._session._conn._conn, key)
-            return self._conf.get(key, default)
+            with self._session._lock:
+                if hasattr(Session, key):
+                    return getattr(self._session, key)
+                if hasattr(self._session._conn._conn, key):
+                    return getattr(self._session._conn._conn, key)
+                return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
-            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
-                return getattr(Session, key).fset is not None
-            if hasattr(SnowflakeConnection, key) and isinstance(
-                getattr(SnowflakeConnection, key), property
-            ):
-                return getattr(SnowflakeConnection, key).fset is not None
-            return key in self._conf
+            with self._session._lock:
+                if hasattr(Session, key) and isinstance(
+                    getattr(Session, key), property
+                ):
+                    return getattr(Session, key).fset is not None
+                if hasattr(SnowflakeConnection, key) and isinstance(
+                    getattr(SnowflakeConnection, key), property
+                ):
+                    return getattr(SnowflakeConnection, key).fset is not None
+                return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
-            if self.is_mutable(key):
-                if hasattr(Session, key):
-                    setattr(self._session, key, value)
-                if hasattr(SnowflakeConnection, key):
-                    setattr(self._session._conn._conn, key, value)
-                if key in self._conf:
-                    self._conf[key] = value
-            else:
-                raise AttributeError(
-                    f'Configuration "{key}" does not exist or is not mutable in runtime'
-                )
+            with self._session._lock:
+                if self.is_mutable(key):
+                    if hasattr(Session, key):
+                        setattr(self._session, key, value)
+                    if hasattr(SnowflakeConnection, key):
+                        setattr(self._session._conn._conn, key, value)
+                    if key in self._conf:
+                        self._conf[key] = value
+                else:
+                    raise AttributeError(
+                        f'Configuration "{key}" does not exist or is not mutable in runtime'
+                    )
 
     class SessionBuilder:
         """
@@ -486,6 +492,8 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
+        self._lock = RLock()
+        self._thread_store = threading.local()
         self._session_stage = random_name_for_temp_object(TempObjectType.STAGE)
         self._stage_created = False
 
@@ -514,9 +522,6 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._analyzer = (
-            Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
-        )
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -559,8 +564,9 @@ class Session:
         )
 
     def _generate_new_action_id(self) -> int:
-        self._last_action_id += 1
-        return self._last_action_id
+        with self._lock:
+            self._last_action_id += 1
+            return self._last_action_id
 
     def close(self) -> None:
         """Close this session."""
@@ -584,6 +590,16 @@ class Session:
                 _logger.info("Closed session: %s", self._session_id)
             finally:
                 _remove_session(self)
+
+    @property
+    def _analyzer(self) -> Union[Analyzer, MockAnalyzer]:
+        if not hasattr(self._thread_store, "analyzer"):
+            self._thread_store.analyzer = (
+                Analyzer(self)
+                if isinstance(self._conn, ServerConnection)
+                else MockAnalyzer(self)
+            )
+        return self._thread_store.analyzer
 
     @property
     def conf(self) -> RuntimeConfig:
@@ -649,25 +665,27 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
-        )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+        with self._lock:
+            self._conn._telemetry_client.send_sql_simplifier_telemetry(
+                self._session_id, value
             )
-        except Exception:
-            pass
-        self._sql_simplifier_enabled = value
+            try:
+                self._conn._cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
+            except Exception:
+                pass
+            self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        if value:
-            self._conn._telemetry_client.send_cte_optimization_telemetry(
-                self._session_id
-            )
-        self._cte_optimization_enabled = value
+        with self._lock:
+            if value:
+                self._conn._telemetry_client.send_cte_optimization_telemetry(
+                    self._session_id
+                )
+            self._cte_optimization_enabled = value
 
     @eliminate_numeric_sql_value_cast_enabled.setter
     @experimental_parameter(version="1.20.0")
@@ -687,7 +705,10 @@ class Session:
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
+        with self._lock:
+            self._custom_package_usage_config = {
+                k.lower(): v for k, v in config.items()
+            }
 
     def cancel_all(self) -> None:
         """
@@ -695,7 +716,8 @@ class Session:
         This does not affect any action methods called in the future.
         """
         _logger.info("Canceling all running queries")
-        self._last_canceled_id = self._last_action_id
+        with self._lock:
+            self._last_canceled_id = self._last_action_id
         if not isinstance(self._conn, MockServerConnection):
             self._conn.run_query(
                 f"select system$cancel_all_queries({self._session_id})"
@@ -999,7 +1021,8 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        return self._packages.copy()
+        with self._lock:
+            return self._packages.copy()
 
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
@@ -1090,16 +1113,18 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        if package_name in self._packages:
-            self._packages.pop(package_name)
-        else:
-            raise ValueError(f"{package_name} is not in the package list")
+        with self._lock:
+            if package_name in self._packages:
+                self._packages.pop(package_name)
+            else:
+                raise ValueError(f"{package_name} is not in the package list")
 
     def clear_packages(self) -> None:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        self._packages.clear()
+        with self._lock:
+            self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
         """
@@ -1277,6 +1302,9 @@ class Session:
             statement_params=statement_params,
         )
 
+        with self._lock:
+            custom_package_usage_config = self.custom_package_usage_config.copy()
+
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
@@ -1315,7 +1343,7 @@ class Session:
                             )
                         )
                         continue
-                    if not self._custom_package_usage_config.get("enabled", False):
+                    if not custom_package_usage_config.get("enabled", False):
                         errors.append(
                             RuntimeError(
                                 f"Cannot add package {package_req} because it is not available in Snowflake "
@@ -1374,14 +1402,14 @@ class Session:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
             )
-            if self._custom_package_usage_config.get(
+            if custom_package_usage_config.get(
                 "cache_path", False
-            ) and not self._custom_package_usage_config.get("force_cache", False):
-                cache_path = self._custom_package_usage_config["cache_path"]
+            ) and not custom_package_usage_config.get("force_cache", False):
+                cache_path = custom_package_usage_config["cache_path"]
                 try:
                     environment_signature = get_signature(unsupported_packages)
                     dependency_packages = self._load_unsupported_packages_from_stage(
-                        environment_signature
+                        environment_signature, custom_package_usage_config["cache_path"]
                     )
                     if dependency_packages is None:
                         _logger.warning(
@@ -1399,6 +1427,7 @@ class Session:
                     unsupported_packages,
                     package_table,
                     current_packages,
+                    custom_package_usage_config,
                 )
 
         return dependency_packages
@@ -1503,6 +1532,7 @@ class Session:
         packages: List[str],
         package_table: str,
         package_dict: Dict[str, str],
+        custom_package_usage_config: Dict[str, Any],
     ) -> List[pkg_resources.Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
@@ -1521,7 +1551,7 @@ class Session:
             RuntimeError: If any failure occurs in the workflow.
 
         """
-        if not self._custom_package_usage_config.get("cache_path", False):
+        if not custom_package_usage_config.get("cache_path", False):
             _logger.warning(
                 "If you are adding package(s) unavailable in Snowflake, it is highly recommended that you "
                 "include the 'cache_path' configuration parameter in order to reduce latency."
@@ -1565,7 +1595,7 @@ class Session:
                 package_dict,
             )
 
-            if len(native_packages) > 0 and not self._custom_package_usage_config.get(
+            if len(native_packages) > 0 and not custom_package_usage_config.get(
                 "force_push", False
             ):
                 raise ValueError(
@@ -1589,9 +1619,9 @@ class Session:
             # Add packages to stage
             stage_name = self.get_session_stage()
 
-            if self._custom_package_usage_config.get("cache_path", False):
+            if custom_package_usage_config.get("cache_path", False):
                 # Switch the stage used for storing zip file.
-                stage_name = self._custom_package_usage_config["cache_path"]
+                stage_name = custom_package_usage_config["cache_path"]
 
                 # Download metadata dictionary using the technique mentioned here: https://docs.snowflake.com/en/user-guide/querying-stage
                 metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
@@ -1663,7 +1693,7 @@ class Session:
         return self._run_query("select system$are_anaconda_terms_acknowledged()")[0][0]
 
     def _load_unsupported_packages_from_stage(
-        self, environment_signature: str
+        self, environment_signature: str, cache_path: str
     ) -> List[pkg_resources.Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
@@ -1684,10 +1714,10 @@ class Session:
         Args:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
+            cache_path (str): Path to the stage where the cached environment is stored.
         Returns:
             Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
-        cache_path = self._custom_package_usage_config["cache_path"]
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
         files: Set[str] = self._list_files_in_stage(cache_path)
@@ -1779,11 +1809,12 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        if tag:
-            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
-        else:
-            self._conn.run_query("alter session unset query_tag")
-        self._query_tag = tag
+        with self._lock:
+            if tag:
+                self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
+            else:
+                self._conn.run_query("alter session unset query_tag")
+            self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:
         """
@@ -2172,14 +2203,15 @@ class Session:
         in this session via :func:`add_import`.
         """
         stage_name = self.get_fully_qualified_name_if_possible(self._session_stage)
-        if not self._stage_created:
-            self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {stage_name}",
-                is_ddl_on_temp_object=True,
-                statement_params=statement_params,
-            )
-            self._stage_created = True
+        with self._lock:
+            if not self._stage_created:
+                self._run_query(
+                    f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                    stage if not exists {stage_name}",
+                    is_ddl_on_temp_object=True,
+                    statement_params=statement_params,
+                )
+                self._stage_created = True
         return f"{STAGE_PREFIX}{stage_name}"
 
     def _write_modin_pandas_helper(
