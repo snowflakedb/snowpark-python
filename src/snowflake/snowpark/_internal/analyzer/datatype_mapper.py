@@ -165,6 +165,12 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
 
+    if isinstance(datatype, GeographyType):
+        return f"TO_GEOGRAPHY({str_to_sql(value)})"
+
+    if isinstance(datatype, GeometryType):
+        return f"TO_GEOMETRY({str_to_sql(value)})"
+
     if isinstance(datatype, VectorType):
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
