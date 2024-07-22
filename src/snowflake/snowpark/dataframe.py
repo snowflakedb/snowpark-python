@@ -91,7 +91,7 @@ from snowflake.snowpark._internal.ast import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
-    build_const_from_python_val,
+    build_expr_from_python_val,
     fill_ast_for_column,
     set_src_position,
     with_src_position,
@@ -3299,12 +3299,12 @@ class DataFrame:
             expr.target_columns.extend(target_columns)
         if transformations is not None:
             for t in transformations:
-                build_const_from_python_val(t, expr.transformations.add())
+                build_expr_from_python_val(t, expr.transformations.add())
         if format_type_options is not None:
             for k in format_type_options:
                 entry = expr.format_type_options.add()
                 entry._1 = k
-                build_const_from_python_val(format_type_options[k], entry._2)
+                build_expr_from_python_val(format_type_options[k], entry._2)
         if statement_params is not None:
             for k in statement_params:
                 entry = expr.statement_params.add()
@@ -3314,7 +3314,7 @@ class DataFrame:
             for k in copy_options:
                 entry = expr.copy_options.add()
                 entry._1 = k
-                build_const_from_python_val(copy_options[k], entry._2)
+                build_expr_from_python_val(copy_options[k], entry._2)
 
         if self._session._conn._suppress_not_implemented_error:
             return None
@@ -3505,7 +3505,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
-        build_const_from_python_val(input, expr.input)
+        build_expr_from_python_val(input, expr.input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
@@ -4445,8 +4445,8 @@ class DataFrame:
             for w in weights:
                 if w <= 0:
                     raise ValueError("weights must be positive numbers")
-        if self._session._conn._suppress_not_implemented_error:
-            return None
+            if self._session._conn._suppress_not_implemented_error:
+                return None
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
