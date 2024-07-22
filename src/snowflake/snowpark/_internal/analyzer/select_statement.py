@@ -439,11 +439,20 @@ class SelectSQL(Selectable):
     def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
         copied = SelectSQL(
             sql=self.original_sql,
-            convert_to_select=self.convert_to_select,
+            # when convert_to_select is True, a describe call might be triggered
+            # to construct the schema query. Since this is a pure copy method, and all
+            # fields can be done with a pure copy, we set this parameter to False on
+            # object construct, and correct the fields after.
+            convert_to_select=False,
             analyzer=self.analyzer,
             params=deepcopy(self.query_params),
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        # copy over the other fields
+        copied.convert_to_select = self.convert_to_select
+        copied._sql_query = self._sql_query
+        copied._schema_query = self._schema_query
+        copied._query_param = deepcopy(self._query_param)
 
         return copied
 

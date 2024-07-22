@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnStateDict,
     Selectable,
+    SelectSQL,
     SelectTableFunction,
     SetStatement,
 )
@@ -31,7 +32,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import col, seq1, uniform
+from snowflake.snowpark.functions import col, lit, seq1, uniform
 
 pytestmark = [
     pytest.mark.xfail(
@@ -189,6 +190,27 @@ def test_setstatement_deepcopy(session, action):
     df_res = action(df1, df2)
     copied_plan = copy.deepcopy(df_res._plan)
     check_copied_plan(copied_plan, df_res._plan)
+
+
+def test_selectsql(session):
+    query = "show tables in schema limit 10"
+    df = session.sql(query).filter(lit(True))
+    assert len(df._plan.children_plan_nodes) == 1
+    assert isinstance(df._plan.children_plan_nodes[0], SelectSQL)
+
+    def verify_selectsql(copied_node: SelectSQL, original_node: SelectSQL) -> None:
+        assert copied_node.original_sql == original_node.original_sql
+        assert copied_node.convert_to_select == original_node.convert_to_select
+        assert copied_node.convert_to_select is True
+        assert copied_node._sql_query == original_node._sql_query
+        assert copied_node._schema_query == original_node._schema_query
+        assert copied_node._query_param == original_node._query_param
+        assert copied_node.pre_actions == original_node.pre_actions
+
+    select_plan = df._plan.children_plan_nodes[0]
+    copied_select = copy.deepcopy(select_plan)
+    verify_logical_plan_node(copied_select, select_plan)
+    verify_selectsql(copied_select, select_plan)
 
 
 def test_df_alias_deepcopy(session):
