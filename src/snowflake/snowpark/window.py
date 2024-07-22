@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowSpecDefinition,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    _fill_ast_with_snowpark_column_or_literal,
+    build_expr_from_snowpark_column_or_python_val,
     with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -265,7 +265,7 @@ class WindowSpec:
                 if isinstance(e, snowflake.snowpark.column.Column)
                 else snowflake.snowpark.column.Column(e)
             )
-            _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+            build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
         return WindowSpec(partition_spec, self.order_spec, self.frame, ast=ast)
 
@@ -307,7 +307,7 @@ class WindowSpec:
                 if isinstance(e, snowflake.snowpark.column.Column)
                 else snowflake.snowpark.column.Column(e)
             )
-            _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+            build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
         return WindowSpec(self.partition_spec, order_spec, self.frame, ast=ast)
 
