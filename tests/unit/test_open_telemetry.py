@@ -90,11 +90,30 @@ def test_disable_open_telemetry(monkeypatch, dict_exporter):
     from snowflake.snowpark._internal import open_telemetry
 
     monkeypatch.setattr(open_telemetry, "open_telemetry_enabled", True)
-    assert open_telemetry.open_telemetry_enabled is True
     open_telemetry.disable_open_telemetry()
-    assert open_telemetry.open_telemetry_enabled is False
-    open_telemetry.enable_open_telemetry()
-    assert open_telemetry.open_telemetry_enabled is True
+    mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._conn = mock.MagicMock()
+    session = snowflake.snowpark.session.Session(mock_connection)
+    session._conn._telemetry_client = mock.MagicMock()
+    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "collect",
+        {"code.lineno": lineno, "code.filepath": "test_open_telemetry.py"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
+
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    session.udf.register(minus_udf, name="test_minus_unit_disable_telemetry")
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "register",
+        {"code.lineno": lineno, "snow.executable.name": "test_minus_unit_no_telemetry"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
 
 
 def test_without_open_telemetry(monkeypatch, dict_exporter):
