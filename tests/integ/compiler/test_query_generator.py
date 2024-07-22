@@ -28,6 +28,14 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.functions import avg, col
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="deepcopy is not supported and required by local testing",
+        run=False,
+    )
+]
+
 
 def reset_node(node: LogicalPlan) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
