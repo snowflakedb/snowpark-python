@@ -86,6 +86,17 @@ api_calls = [
 ]
 
 
+def test_disable_open_telemetry(monkeypatch, dict_exporter):
+    from snowflake.snowpark._internal import open_telemetry
+
+    monkeypatch.setattr(open_telemetry, "open_telemetry_enabled", True)
+    assert open_telemetry.open_telemetry_enabled is True
+    open_telemetry.disable_open_telemetry()
+    assert open_telemetry.open_telemetry_enabled is False
+    open_telemetry.enable_open_telemetry()
+    assert open_telemetry.open_telemetry_enabled is True
+
+
 def test_without_open_telemetry(monkeypatch, dict_exporter):
     from snowflake.snowpark._internal import open_telemetry
 
