@@ -528,7 +528,7 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
 
 
 def python_value_str_to_object(value, tp: DataType) -> Any:
-    if isinstance(tp, (StringType, GeometryType, GeographyType, VariantType)):
+    if isinstance(tp, StringType):
         return value
 
     if isinstance(
@@ -562,6 +562,11 @@ def python_value_str_to_object(value, tp: DataType) -> Any:
             python_value_str_to_object(k, key_tp): python_value_str_to_object(v, val_tp)
             for k, v in curr_dict.items()
         }
+
+    if isinstance(tp, (GeometryType, GeographyType, VariantType)):
+        if value.strip() == "None":
+            return None
+        return value
 
     raise TypeError(
         f"Unsupported data type: {tp}, value {value} by python_value_str_to_object()"

@@ -647,11 +647,22 @@ def test_python_value_str_to_object(value_str, datatype, expected_value):
         TimestampType(),
         ArrayType(),
         MapType(),
+        VariantType(),
+        GeographyType(),
+        GeometryType(),
     ],
 )
 def test_python_value_str_to_object_for_none(datatype):
     "StringType() is excluded here and tested in test_python_value_str_to_object"
     assert python_value_str_to_object("None", datatype) is None
+
+
+def test_python_value_str_to_object_negative():
+    with pytest.raises(
+        TypeError,
+        match="Unsupported data type: invalid type, value thanksgiving by python_value_str_to_object()",
+    ):
+        python_value_str_to_object("thanksgiving", "invalid type")
 
 
 def test_retrieve_func_type_hints_from_source():
