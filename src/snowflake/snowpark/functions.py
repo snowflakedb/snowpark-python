@@ -184,8 +184,9 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lead,
 )
 from snowflake.snowpark._internal.ast_utils import (
-    _fill_ast_with_snowpark_column_or_literal,
-    build_const_from_python_val,
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_python_val,
+    build_expr_from_snowpark_column_or_sql_str,
     build_fn_apply,
     create_ast_for_column,
     snowpark_expression_to_ast,
@@ -6604,12 +6605,10 @@ def when(condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> CaseExpr:
     """
 
     ast = proto.Expr()
-    build_fn_apply(
-        ast,
-        "when",
-        snowpark_expression_to_ast(condition),
-        snowpark_expression_to_ast(value),
-    )
+    expr = with_src_position(ast.sp_column_case_when)
+    case_expr = with_src_position(expr.cases.add())
+    build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
+    build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
 
     return CaseExpr(
         CaseWhen(
@@ -6704,7 +6703,7 @@ def in_(
     list_ast = with_src_position(list_arg.list_val)
     for col in cols:
         col_ast = list_ast.vs.add()
-        _fill_ast_with_snowpark_column_or_literal(col_ast, col)
+        build_expr_from_snowpark_column_or_python_val(col_ast, col)
     
     values_args = []
     for val in vals:
@@ -6712,7 +6711,7 @@ def in_(
         if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
             val.set_ast_ref(val_ast)
         else:
-            build_const_from_python_val(val, val_ast)
+            build_expr_from_python_val(val, val_ast)
         values_args.append(val_ast)
 
     vals = parse_positional_args_to_list(*vals)
