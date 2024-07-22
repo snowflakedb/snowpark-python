@@ -35,3 +35,8 @@ REMOTE_HOME=$(ssh $HOST "bash -c 'echo \$HOME'")
 
 # Step 3: Copy file from devvm to local machine
 scp $HOST:$REMOTE_HOME/Snowflake/trunk/Snowpark/python/src/snowflake/snowpark/_internal/tcm/proto/ast_pb2.py $SCRIPT_DIR/
+scp $HOST:$REMOTE_HOME/Snowflake/trunk/Snowpark/python/src/snowflake/snowpark/_internal/tcm/proto/scalapb_pb2.py $SCRIPT_DIR/
+
+# Step 4: Fix up scalapb file import in ast_pb2.py
+awk '{gsub("from scalapb import scalapb_pb2 as scalapb_dot_scalapb__pb2","import snowflake.snowpark._internal.proto.scalapb_pb2 as scalapb_dot_scalapb__pb2")}1' $SCRIPT_DIR/ast_pb2.py > $SCRIPT_DIR/ast_pb2.patched.py \
+&& mv $SCRIPT_DIR/ast_pb2.patched.py $SCRIPT_DIR/ast_pb2.py
