@@ -1834,7 +1834,9 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(self, name: Union[str, Iterable[str]], suppress_ast: bool = False) -> Table:
+    def table(
+        self, name: Union[str, Iterable[str]], suppress_ast: bool = False
+    ) -> Table:
         """
         Returns a Table that points the specified table.
 

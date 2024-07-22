@@ -1334,7 +1334,15 @@ class DataFrame:
         # An empty list of columns should be accepted as dropping nothing
         if not cols:
             raise ValueError("The input of drop() cannot be empty")
-        exprs = parse_positional_args_to_list(*cols)
+        exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
+        self.set_ast_ref(ast.df)
+        for c in exprs:
+            ast.cols.append(c if isinstance(c, str) else c._ast)
+        ast.variadic = is_variadic
 
         names = []
         for c in exprs:
@@ -1372,7 +1380,7 @@ class DataFrame:
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
         else:
-            return self.select(list(keep_col_names))
+            return self.select(list(keep_col_names), _ast_stmt=stmt)
 
     @df_api_usage
     def filter(
@@ -1485,17 +1493,46 @@ class DataFrame:
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
+
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        # Parsing args separately since the original column expr or string
+        # needs to be recorded.
+        _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
+        ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
+        self.set_ast_ref(ast.df)
+        for c in _cols:
+            ast.cols.append(c if isinstance(c, str) else c._ast)
+        ast.cols_variadic = is_variadic
+
         orders = []
+        # `ascending` is represented by Expr in the AST.
+        # Therefore, construct the required bool, int, or list and copy from that.
+        asc_expr_ast = proto.Expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
+                # Here asc_expr_ast is a list of bools and ints.
+                for asc in ascending:
+                    asc_ast = proto.Expr()
+                    if isinstance(asc, bool):
+                        asc_ast.bool_val.v = asc
+                    else:
+                        asc_ast.int64_val.v = asc
+                    asc_expr_ast.list_val.vs.append(asc_ast)
             elif isinstance(ascending, (bool, int)):
                 orders = [Ascending() if ascending else Descending()]
+                # Here asc_expr_ast is either a bool or an int.
+                if isinstance(ascending, bool):
+                    asc_expr_ast.bool_val.v = ascending
+                else:
+                    asc_expr_ast.int64_val.v = ascending
             else:
                 raise TypeError(
                     "ascending can only be boolean or list,"
                     " but got {}".format(str(type(ascending)))
                 )
+            ast.ascending.CopyFrom(asc_expr_ast)
             if len(exprs) != len(orders):
                 raise ValueError(
                     "The length of col ({}) should be same with"
@@ -1518,8 +1555,10 @@ class DataFrame:
                 )
 
         if self._select_statement:
-            return self._with_plan(self._select_statement.sort(sort_exprs))
-        return self._with_plan(Sort(sort_exprs, self._plan))
+            return self._with_plan(
+                self._select_statement.sort(sort_exprs), ast_stmt=stmt
+            )
+        return self._with_plan(Sort(sort_exprs, self._plan), ast_stmt=stmt)
 
     @experimental(version="1.5.0")
     def alias(self, name: str):
@@ -1554,6 +1593,15 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
+        self.set_ast_ref(ast.df)
+        ast.name = name
+
+        if self._session._conn._suppress_not_implemented_error:
+            return None
+
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
@@ -1929,7 +1977,11 @@ class DataFrame:
 
     @df_api_usage
     def limit(
-        self, n: int, offset: int = 0, _ast_stmt: proto.Assign = None
+        self,
+        n: int,
+        offset: int = 0,
+        _ast_stmt: proto.Assign = None,
+        _suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -1940,6 +1992,7 @@ class DataFrame:
             n: Number of rows to return.
             offset: Number of rows to skip before the start of the result set. The default value is 0.
             _ast_stmt: Overridding AST statement. Used in cases where this function is invoked internally.
+            _suppress_ast: Whether to suppress AST statements.
 
         Example::
 
@@ -1959,10 +2012,27 @@ class DataFrame:
             -------------
             <BLANKLINE>
         """
-        # TODO: AST
+        # AST.
+        if not _suppress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
+                self.set_ast_ref(ast.df)
+                ast.n = n
+                ast.offset = offset
+            else:
+                stmt = _ast_stmt
+                ast = None
+        else:
+            stmt = None
+
         if self._select_statement:
-            return self._with_plan(self._select_statement.limit(n, offset=offset))
-        return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
+            return self._with_plan(
+                self._select_statement.limit(n, offset=offset), ast_stmt=stmt
+            )
+        return self._with_plan(
+            Limit(Literal(n), Literal(offset), self._plan), ast_stmt=stmt
+        )
 
     @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
@@ -3779,10 +3849,10 @@ class DataFrame:
     def _do_create_or_replace_view(
         self,
         view_name: str,
-        view_type: ViewType, 
+        view_type: ViewType,
         comment: Optional[str],
-        _ast_stmt: Optional[proto.Assign]=None,
-        **kwargs
+        _ast_stmt: Optional[proto.Assign] = None,
+        **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
@@ -3865,7 +3935,7 @@ class DataFrame:
         ast.block = block
         if n is None:
             ast.num = 1
-            df = self.limit(1)
+            df = self.limit(1, _suppress_ast=True)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
@@ -3882,7 +3952,7 @@ class DataFrame:
             )
         else:
             ast.num = n
-            df = self.limit(n)
+            df = self.limit(n, _suppress_ast=True)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block
