@@ -92,6 +92,7 @@ from snowflake.snowpark._internal.ast import (
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_sql_str,
     fill_ast_for_column,
     set_src_position,
     with_src_position,
@@ -1419,15 +1420,9 @@ class DataFrame:
         if not _supress_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = stmt.expr.sp_dataframe_filter
+                ast = with_src_position(stmt.expr.sp_dataframe_filter)
                 self.set_ast_ref(ast.df)
-                set_src_position(ast.src)
-                if isinstance(expr, Column):
-                    pass  # TODO
-                elif isinstance(expr, str):
-                    ast.condition.sp_column_sql_expr.sql = expr
-                else:
-                    raise AssertionError(f"Unexpected type of {expr}: {type(expr)}")
+                build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
             else:
                 stmt = _ast_stmt
 
