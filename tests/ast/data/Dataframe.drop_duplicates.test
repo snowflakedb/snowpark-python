@@ -16,12 +16,12 @@ df5 = df.drop_duplicates([])
 
 res1 = session.table("test_table")
 
-res2 = res1.drop_duplicates()
+res2 = res1.drop_duplicates([])
 
 res3 = res1.drop_duplicates("NUM")
 
 res4 = res1.drop_duplicates("NUM", "STR")
 
-res5 = res1.drop_duplicates("NUM", "STR")
+res5 = res1.drop_duplicates(["NUM", "STR"])
 
-res6 = res1.drop_duplicates()
+res6 = res1.drop_duplicates([])
