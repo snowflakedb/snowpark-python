@@ -8,9 +8,9 @@ df2 = df.drop_duplicates("NUM")
 
 df3 = df.drop_duplicates("NUM", "STR")
 
-df4 = df.drop_duplicates(subset=["NUM", "STR"])
+df4 = df.drop_duplicates(["NUM", "STR"])
 
-df5 = df.drop_duplicates(subset=[])
+df5 = df.drop_duplicates([])
 
 ## EXPECTED OUTPUT
 
