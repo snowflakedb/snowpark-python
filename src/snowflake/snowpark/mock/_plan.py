@@ -2097,6 +2097,12 @@ def calculate_expression(
                     delta = 1 if offset > 0 else -1
                     cur_idx = row_idx + delta
                     cur_count = 0
+                    # default calc_expr is None for the case of cur_idx < 0 or cur_idx >= len(w)
+                    # if cur_idx is within the value, it will be overwritten by the following valid value
+                    calc_expr = ColumnEmulator(
+                        [None], sf_type=ColumnType(NullType(), True), dtype=object
+                    )
+                    target_value = calc_expr.iloc[0]
                     while 0 <= cur_idx < len(w):
                         calc_expr = calculate_expression(
                             window_function.expr,
@@ -2104,24 +2110,37 @@ def calculate_expression(
                             analyzer,
                             expr_to_alias,
                         )
-                        target_expr = calc_expr.iloc[0]
-                        if target_expr is not None:
+                        target_value = calc_expr.iloc[0]
+                        if target_value is not None:
                             cur_count += 1
                             if cur_count == abs(offset):
                                 break
                         cur_idx += delta
-                    if cur_idx < 0 or cur_idx >= len(w):
-                        calc_expr = calculate_expression(
-                            window_function.expr,
-                            w.iloc[[cur_idx]],
-                            analyzer,
-                            expr_to_alias,
-                        )
-                        res_cols.append(calc_expr.iloc[0])
-                    else:
-                        res_cols.append(target_expr)
                     if not calculated_sf_type:
                         calculated_sf_type = calc_expr.sf_type
+                    elif calculated_sf_type.datatype != calc_expr.sf_type.datatype:
+                        if isinstance(calculated_sf_type.datatype, NullType):
+                            calculated_sf_type = calc_expr.sf_type
+                        # the result calculated upon a windows can be None, this is still valid and we can keep
+                        # the calculation
+                        elif not isinstance(calc_expr.sf_type.datatype, NullType):
+                            analyzer.session._conn.log_not_supported_error(
+                                external_feature_name=f"Coercion of detected type"
+                                f" {type(calculated_sf_type.datatype).__name__}"
+                                f" and type {type(calc_expr.sf_type.datatype).__name__}",
+                                internal_feature_name=type(exp).__name__,
+                                parameters_info={
+                                    "window_function": type(window_function).__name__,
+                                    "calc_expr.sf_type.datatype": str(
+                                        type(calc_expr.sf_type.datatype).__name__
+                                    ),
+                                    "calculated_sf_type.datatype": str(
+                                        type(calculated_sf_type.datatype).__name__
+                                    ),
+                                },
+                                raise_error=SnowparkLocalTestingException,
+                            )
+                    res_cols.append(target_value)
             res_col = ColumnEmulator(
                 data=res_cols, dtype=object
             )  # dtype=object prevents implicit converting None to Nan
