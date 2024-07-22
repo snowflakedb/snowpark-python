@@ -1124,6 +1124,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
+        emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1175,7 +1176,7 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        if _ast_stmt is None:
+        if _ast_stmt is None and emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self.set_ast_ref(ast.df)
@@ -1376,7 +1377,7 @@ class DataFrame:
 
     @df_api_usage
     def filter(
-        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
+        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None, emit_ast: bool = True
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1399,7 +1400,7 @@ class DataFrame:
         :meth:`where` is an alias of :meth:`filter`.
         """
         # AST.
-        if _ast_stmt is None:
+        if _ast_stmt is None and emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = stmt.expr.sp_dataframe_filter
             self.set_ast_ref(ast.df)
@@ -1758,15 +1759,21 @@ class DataFrame:
         )
 
     @df_api_usage
-    def distinct(self) -> "DataFrame":
+    def distinct(self, emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
+        result = self.group_by(
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
+        if emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
+            self.set_ast_ref(expr.df)
+            result._ast_id = stmt.var_id.bitfield1
+        return result
 
     def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -1785,11 +1792,20 @@ class DataFrame:
 
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
+        subset, variadic = parse_positional_args_to_list_variadic(*subset)
+
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+        self.set_ast_ref(expr.df)
+        expr.variadic = variadic
+        for col_name in subset:
+            expr.cols.append(col_name)
+
         if not subset:
-            df = self.distinct()
+            df = self.distinct(emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
+            df._ast_id = stmt.var_id.bitfield1
             return df
-        subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
@@ -1798,12 +1814,13 @@ class DataFrame:
         )
         rownum_name = generate_random_alphanumeric()
         df = (
-            self.select(*output_cols, rownum.as_(rownum_name))
-            .where(col(rownum_name) == 1)
-            .select(output_cols)
+            self.select(*output_cols, rownum.as_(rownum_name), emit_ast=False)
+            .where(col(rownum_name) == 1, emit_ast=False)
+            .select(output_cols, emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+        df._ast_id = stmt.var_id.bitfield1
         return df
 
     @df_to_relational_group_df_api_usage
