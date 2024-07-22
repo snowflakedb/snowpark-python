@@ -42,6 +42,7 @@ pytestmark = [
     )
 ]
 
+
 def verify_column_state(
     copied_state: ColumnStateDict, original_state: ColumnStateDict
 ) -> None:
