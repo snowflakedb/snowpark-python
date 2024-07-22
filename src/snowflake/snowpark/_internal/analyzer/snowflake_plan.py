@@ -1415,7 +1415,6 @@ class SnowflakePlanBuilder:
                 plan.source_plan,
                 api_calls=plan.api_calls,
                 session=self.session,
-                table_create_child_attribute_map=plan.table_create_child_attribute_map,
             )
 
 
