@@ -6,6 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support that user can decide whether record open telemetry span.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
