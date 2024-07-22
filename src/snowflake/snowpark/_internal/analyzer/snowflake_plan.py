@@ -208,7 +208,9 @@ class SnowflakePlan(LogicalPlan):
     def __init__(
         self,
         queries: List["Query"],
-        schema_query: str,
+        # schema query is allowed to be optional during the final
+        # compilation stage
+        schema_query: Optional[str],
         post_actions: Optional[List["Query"]] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
         source_plan: Optional[LogicalPlan] = None,
