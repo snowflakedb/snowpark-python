@@ -11,8 +11,8 @@
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
 
 ### Snowpark Local Testing Updates
-#### New Features
 
+#### New Features
 - Added support for the following APIs:
   - snowflake.snowpark.functions
     - rank
@@ -21,6 +21,9 @@
     - cume_dist
     - ntile
     - datediff
+
+#### Bug Fixes
+- Fixed a bug that Window Functions LEAD and LAG do not handle option `ignore_nulls` properly.
 
 ### Snowpark pandas API Updates
 
