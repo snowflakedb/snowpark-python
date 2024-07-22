@@ -587,7 +587,7 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
 
 
-@pytest.mark.parametrize("add_datatype", [True, False])
+@pytest.mark.parametrize("add_type_hint", [True, False])
 @pytest.mark.parametrize(
     "datatype,annotated_value,extracted_value",
     [
@@ -598,6 +598,7 @@ def test_decimal_regular_expression(decimal_word):
         ("decimal.Decimal", "decimal.Decimal('3.14')", "decimal.Decimal('3.14')"),
         ("decimal.Decimal", "decimal.Decimal(1.0)", "decimal.Decimal(1.0)"),
         ("str", "one", "one"),
+        ("str", "None", None),
         ("bytes", "b'one'", "b'one'"),
         ("bytearray", "bytearray('one', 'utf-8')", "bytearray('one', 'utf-8')"),
         ("datetime.date", "datetime.date(2024, 4, 1)", "datetime.date(2024, 4, 1)"),
@@ -620,10 +621,13 @@ def test_decimal_regular_expression(decimal_word):
         ),
         ("Map[int, str]", "{1: 'a'}", "{'1': 'a'}"),
         ("Map[int, List[str]]", "{1: ['a', 'b']}", "{'1': \"['a', 'b']\"}"),
+        ("Variant", "{'key': 'val'}", "{'key': 'val'}"),
+        ("Geography", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
+        ("Geometry", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
     ],
 )
 def test_retrieve_func_defaults_from_source(
-    datatype, annotated_value, extracted_value, add_datatype
+    datatype, annotated_value, extracted_value, add_type_hint
 ):
     func_name = "foo"
 
@@ -633,7 +637,7 @@ def {func_name}() -> None:
 """
     assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
 
-    datatype_str = f": {datatype}" if add_datatype else ""
+    datatype_str = f": {datatype}" if add_type_hint else ""
     source = f"""
 def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
     return None
@@ -654,6 +658,9 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
         ("one", StringType(), "one"),
         (None, StringType(), None),
         ("None", StringType(), "None"),
+        ("POINT(-122.35 37.55)", GeographyType(), "POINT(-122.35 37.55)"),
+        ("POINT(-122.35 37.55)", GeometryType(), "POINT(-122.35 37.55)"),
+        ('{"key": "val"}', VariantType(), '{"key": "val"}'),
         ("b'one'", BinaryType(), b"one"),
         ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
         ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
@@ -701,11 +708,22 @@ def test_python_value_str_to_object(value_str, datatype, expected_value):
         TimestampType(),
         ArrayType(),
         MapType(),
+        VariantType(),
+        GeographyType(),
+        GeometryType(),
     ],
 )
 def test_python_value_str_to_object_for_none(datatype):
     "StringType() is excluded here and tested in test_python_value_str_to_object"
     assert python_value_str_to_object("None", datatype) is None
+
+
+def test_python_value_str_to_object_negative():
+    with pytest.raises(
+        TypeError,
+        match="Unsupported data type: invalid type, value thanksgiving by python_value_str_to_object()",
+    ):
+        python_value_str_to_object("thanksgiving", "invalid type")
 
 
 def test_retrieve_func_type_hints_from_source():

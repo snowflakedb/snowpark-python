@@ -528,10 +528,21 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
 
 
 def python_value_str_to_object(value, tp: DataType) -> Any:
-    if isinstance(tp, (StringType, GeometryType, GeographyType, VariantType)):
+    if isinstance(tp, StringType):
         return value
 
-    if isinstance(tp, (_IntegralType, _FractionalType, BooleanType, BinaryType)):
+    if isinstance(
+        tp,
+        (
+            _IntegralType,
+            _FractionalType,
+            BooleanType,
+            BinaryType,
+            TimeType,
+            DateType,
+            TimestampType,
+        ),
+    ):
         return eval(value)
 
     if isinstance(tp, ArrayType):
@@ -552,20 +563,10 @@ def python_value_str_to_object(value, tp: DataType) -> Any:
             for k, v in curr_dict.items()
         }
 
-    if isinstance(tp, TimestampType):
-        if value.strip().startswith("datetime("):
-            return datetime.datetime(*eval(value[8:]))
-        return eval(value)
-
-    if isinstance(tp, TimeType):
-        if value.strip().startswith("time("):
-            return datetime.time(*eval(value[4:]))
-        return eval(value)
-
-    if isinstance(tp, DateType):
-        if value.strip().startswith("date("):
-            return datetime.date(*eval(value[4:]))
-        return eval(value)
+    if isinstance(tp, (GeometryType, GeographyType, VariantType)):
+        if value.strip() == "None":
+            return None
+        return value
 
     raise TypeError(
         f"Unsupported data type: {tp}, value {value} by python_value_str_to_object()"
