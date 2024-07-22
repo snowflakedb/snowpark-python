@@ -1986,6 +1986,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_union
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2022,6 +2029,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_union_all
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2058,6 +2072,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_union_by_name
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        other.set_ast_ref(ast.other)
+
         return self._union_by_name_internal(other, is_all=False)
 
     @df_api_usage
@@ -2085,6 +2106,13 @@ class DataFrame:
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_union_all_by_name
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        other.set_ast_ref(ast.other)
+
         return self._union_by_name_internal(other, is_all=True)
 
     def _union_by_name_internal(
@@ -2155,6 +2183,14 @@ class DataFrame:
             other: the other :class:`DataFrame` that contains the rows to use for the
                 intersection.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_intersect
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        assert other._ast_id is not None
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -2189,6 +2225,13 @@ class DataFrame:
         Args:
             other: The :class:`DataFrame` that contains the rows to exclude.
         """
+        # AST.
+        stmt = self._session._ast_batch.assign()
+        ast = stmt.expr.sp_dataframe_except
+        self.set_ast_ref(ast.df)
+        set_src_position(ast.src)
+        other.set_ast_ref(ast.other)
+
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.set_operator(
@@ -3779,10 +3822,10 @@ class DataFrame:
     def _do_create_or_replace_view(
         self,
         view_name: str,
-        view_type: ViewType, 
+        view_type: ViewType,
         comment: Optional[str],
-        _ast_stmt: Optional[proto.Assign]=None,
-        **kwargs
+        _ast_stmt: Optional[proto.Assign] = None,
+        **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
