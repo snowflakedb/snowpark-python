@@ -353,7 +353,6 @@ class SelectableEntity(Selectable):
         entity: SnowflakeTable,
         *,
         analyzer: "Analyzer",
-        is_generated_temp_table: bool = False,
     ) -> None:
         super().__init__(analyzer)
         self.entity = entity

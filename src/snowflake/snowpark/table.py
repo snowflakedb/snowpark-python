@@ -290,7 +290,6 @@ class Table(DataFrame):
                 from_=session._analyzer.create_selectable_entity(
                     snowflake_table_plan,
                     analyzer=session._analyzer,
-                    is_generated_temp_table=enable_auto_garbage_collection,
                 ),
                 analyzer=session._analyzer,
             )
