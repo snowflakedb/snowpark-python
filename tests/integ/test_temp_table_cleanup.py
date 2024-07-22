@@ -7,6 +7,7 @@ import gc
 
 import pytest
 
+from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 
 pytestmark = [
@@ -39,6 +40,20 @@ def test_reference_count_map_basic(session):
     assert table_name not in session._temp_table_ref_count_map
 
 
+def test_reference_count_map_in_function(session):
+    table_name = None
+
+    def f(session: Session) -> None:
+        df = session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).cache_result()
+        table_name = df.table_name
+        assert session._temp_table_ref_count_map[table_name] == 1
+
+    f(session)
+    assert session._temp_table_ref_count_map[table_name] == 0
+
+
 @pytest.mark.parametrize(
     "copy_function",
     [
@@ -61,3 +76,30 @@ def test_reference_count_map_copy(session, copy_function):
     del df2
     gc.collect()
     assert table_name not in session._temp_table_ref_count_map
+
+
+def test_reference_count_map_multiple_sessions(db_parameters, session):
+    new_session = Session.builder.configs(db_parameters).create()
+    try:
+        df1 = session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).cache_result()
+        table_name1 = df1.table_name
+        assert session._temp_table_ref_count_map[table_name1] == 1
+        assert new_session._temp_table_ref_count_map[table_name1] == 0
+        df2 = new_session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).cache_result()
+        table_name2 = df2.table_name
+        assert session._temp_table_ref_count_map[table_name2] == 0
+        assert new_session._temp_table_ref_count_map[table_name2] == 1
+        del df1
+        gc.collect()
+        assert session._temp_table_ref_count_map[table_name1] == 0
+        assert new_session._temp_table_ref_count_map[table_name1] == 0
+        del df2
+        gc.collect()
+        assert session._temp_table_ref_count_map[table_name2] == 0
+        assert new_session._temp_table_ref_count_map[table_name2] == 0
+    finally:
+        new_session.close()

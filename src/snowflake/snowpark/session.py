@@ -562,10 +562,6 @@ class Session:
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
 
-    def _inc_temp_table_ref_count(self, name: str) -> None:
-        """Increments the reference count."""
-        self._temp_table_ref_count_map[name] += 1
-
     def _dec_temp_table_ref_count(self, name: str) -> None:
         """Decrements the reference count."""
         self._temp_table_ref_count_map[name] -= 1

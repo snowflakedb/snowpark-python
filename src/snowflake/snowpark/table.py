@@ -275,7 +275,7 @@ class Table(DataFrame):
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
-            enable_auto_garbage_collection=enable_auto_garbage_collection,
+            is_temp_table_for_cleanup=enable_auto_garbage_collection,
         )
         super().__init__(
             session,

@@ -354,6 +354,8 @@ class SelectableEntity(Selectable):
         *,
         analyzer: "Analyzer",
     ) -> None:
+        # currently only selecting from a table is supported for this class
+        assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
 
