@@ -1125,6 +1125,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: proto.Assign = None,
+        _suppress_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1176,14 +1177,16 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        if _ast_stmt is None:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
-            self.set_ast_ref(ast.df)
-            ast.variadic = is_variadic
-        else:
-            stmt = _ast_stmt
-            ast = None
+        stmt = None
+        if not _suppress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+                self.set_ast_ref(ast.df)
+                ast.variadic = is_variadic
+            else:
+                stmt = _ast_stmt
+                ast = None
 
         names = []
         table_func = None
@@ -1192,12 +1195,14 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                if ast:
+                if not _suppress_ast and ast:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):
-                col_expr_ast = ast.cols.add() if ast else proto.Expr()
-                fill_ast_for_column(col_expr_ast, e, None)
+                col_expr_ast = None
+                if not _suppress_ast:
+                    col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                    fill_ast_for_column(col_expr_ast, e, None)
 
                 col = Column(e, ast=col_expr_ast)
                 names.append(col._named())
@@ -1385,7 +1390,10 @@ class DataFrame:
 
     @df_api_usage
     def filter(
-        self, expr: ColumnOrSqlExpr, _ast_stmt: proto.Assign = None
+        self,
+        expr: ColumnOrSqlExpr,
+        _ast_stmt: proto.Assign = None,
+        _supress_ast: bool = False,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1408,13 +1416,15 @@ class DataFrame:
         :meth:`where` is an alias of :meth:`filter`.
         """
         # AST.
-        if _ast_stmt is None:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_filter)
-            self.set_ast_ref(ast.df)
-            build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
-        else:
-            stmt = _ast_stmt
+        stmt = None
+        if not _supress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_filter)
+                self.set_ast_ref(ast.df)
+                build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
+            else:
+                stmt = _ast_stmt
 
         if self._select_statement:
             return self._with_plan(
@@ -1801,17 +1811,40 @@ class DataFrame:
         )
 
     @df_api_usage
-    def distinct(self) -> "DataFrame":
+    def distinct(
+        self, _ast_stmt: proto.Assign = None, _supress_ast: bool = False
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
 
         This is equivalent to performing a SELECT DISTINCT in SQL.
         """
-        return self.group_by(
+
+        # AST.
+        if not _supress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
+                self.set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+                ast = None
+
+        df = self.group_by(
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
 
-    def drop_duplicates(self, *subset: Union[str, Iterable[str]]) -> "DataFrame":
+        if not _supress_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
+        return df
+
+    def drop_duplicates(
+        self,
+        *subset: Union[str, Iterable[str]],
+        _ast_stmt: proto.Assign = None,
+        _supress_ast: bool = False,
+    ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
         If no subset of columns is specified, this function is the same as the :meth:`distinct` function.
@@ -1828,8 +1861,28 @@ class DataFrame:
 
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
+
+        # AST.
+        if not _supress_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+            else:
+                stmt = _ast_stmt
+
+            ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+            for arg in subset:
+                if isinstance(arg, str):
+                    ast.cols.append(arg)
+                    ast.variadic = True
+                else:
+                    for sub_arg in arg:
+                        ast.cols.append(sub_arg)
+                        ast.variadic = False
+
+            self.set_ast_ref(ast.df)
+
         if not subset:
-            df = self.distinct()
+            df = self.distinct(_supress_ast=True)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
@@ -1841,12 +1894,16 @@ class DataFrame:
         )
         rownum_name = generate_random_alphanumeric()
         df = (
-            self.select(*output_cols, rownum.as_(rownum_name))
-            .where(col(rownum_name) == 1)
-            .select(output_cols)
+            self.select(*output_cols, rownum.as_(rownum_name), _suppress_ast=True)
+            .where(col(rownum_name) == 1, _supress_ast=True)
+            .select(output_cols, _suppress_ast=True)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+
+        if not _supress_ast:
+            df._ast_id = stmt.var_id.bitfield1
+
         return df
 
     @df_to_relational_group_df_api_usage
