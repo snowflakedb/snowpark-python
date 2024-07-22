@@ -1875,14 +1875,14 @@ class DataFrame:
                 stmt = _ast_stmt
 
             ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
-            # Note: Does not distinguish between drop_duplicates(["A", "B"]) and drop_duplicates("A", "B"), both of
-            #       these invocations will produce drop_duplicates("A", "B") in the unparser.
             for arg in subset:
                 if isinstance(arg, str):
                     ast.cols.append(arg)
+                    ast.variadic = True
                 else:
                     for sub_arg in arg:
                         ast.cols.append(sub_arg)
+                        ast.variadic = False
 
             self.set_ast_ref(ast.df)
 
