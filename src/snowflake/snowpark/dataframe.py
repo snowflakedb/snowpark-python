@@ -1852,8 +1852,6 @@ class DataFrame:
             return df
         subset = parse_positional_args_to_list(*subset)
 
-        # TODO: AST, requires window expression support.
-
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
         rownum = row_number().over(
