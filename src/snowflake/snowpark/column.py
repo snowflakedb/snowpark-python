@@ -63,9 +63,9 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.ast_utils import (
+    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
-    build_expr_from_python_val,
     create_ast_for_column,
     snowpark_expression_to_ast,
     with_src_position,
@@ -873,7 +873,9 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_string_collate)
         ast.col.CopyFrom(self._ast)
-        build_expr_from_snowpark_column_or_python_val(ast.collation_spec, collation_spec)
+        build_expr_from_snowpark_column_or_python_val(
+            ast.collation_spec, collation_spec
+        )
         return Column(Collate(self._expression, collation_spec), ast=expr)
 
     def contains(self, string: ColumnOrName) -> "Column":
