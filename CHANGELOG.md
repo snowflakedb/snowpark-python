@@ -34,6 +34,8 @@
 #### Bug Fixes
 - Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
 - Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
+- Fixed AssertionError in `Series.drop_duplicates` and `DataFrame.drop_duplicates` when called after `sort_values`.
+
 
 ## 1.20.0 (2024-07-17)
 
