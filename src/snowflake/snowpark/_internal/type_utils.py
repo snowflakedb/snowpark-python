@@ -66,6 +66,8 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    _FractionalType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -523,6 +525,47 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         )
     else:
         return a
+
+
+def python_value_str_to_object(value, tp: DataType) -> Any:
+    if isinstance(tp, (StringType, GeometryType, GeographyType, VariantType)):
+        return value
+
+    if isinstance(
+        tp,
+        (
+            _IntegralType,
+            _FractionalType,
+            BooleanType,
+            BinaryType,
+            TimeType,
+            DateType,
+            TimestampType,
+        ),
+    ):
+        return eval(value)
+
+    if isinstance(tp, ArrayType):
+        curr_list = eval(value)
+        if curr_list is None:
+            return None
+        element_tp = tp.element_type or StringType()
+        return [python_value_str_to_object(val, element_tp) for val in curr_list]
+
+    if isinstance(tp, MapType):
+        curr_dict: dict = eval(value)
+        if curr_dict is None:
+            return None
+        key_tp = tp.key_type or StringType()
+        val_tp = tp.value_type or StringType()
+        return {
+            python_value_str_to_object(k, key_tp): python_value_str_to_object(v, val_tp)
+            for k, v in curr_dict.items()
+        }
+
+    raise TypeError(
+        f"Unsupported data type: {tp}, value {value} by python_value_str_to_object()"
+    )
 
 
 def python_type_str_to_object(

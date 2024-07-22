@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import decimal
 import os
 import sys
 import typing
@@ -38,6 +39,7 @@ from snowflake.snowpark._internal.type_utils import (
     infer_type,
     merge_type,
     python_type_to_snow_type,
+    python_value_str_to_object,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
 )
@@ -582,6 +584,74 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f" {decimal_word}(2,1)") == (2, 1)
     assert get_number_precision_scale(f"{decimal_word}(2,1) ") == (2, 1)
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
+
+
+@pytest.mark.parametrize(
+    "value_str,datatype,expected_value",
+    [
+        ("1", IntegerType(), 1),
+        ("True", BooleanType(), True),
+        ("1.0", FloatType(), 1.0),
+        ("decimal.Decimal('3.14')", DecimalType(), decimal.Decimal("3.14")),
+        ("decimal.Decimal(1.0)", DecimalType(), decimal.Decimal(1.0)),
+        ("one", StringType(), "one"),
+        (None, StringType(), None),
+        ("None", StringType(), "None"),
+        ("POINT(-122.35 37.55)", GeographyType(), "POINT(-122.35 37.55)"),
+        ("POINT(-122.35 37.55)", GeometryType(), "POINT(-122.35 37.55)"),
+        ('{"key": "val"}', VariantType(), '{"key": "val"}'),
+        ("b'one'", BinaryType(), b"one"),
+        ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
+        ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
+        (
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            TimeType(),
+            time(12, 0, second=20, tzinfo=timezone.utc),
+        ),
+        (
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            TimestampType(),
+            datetime(2024, 4, 1, 12, 0, 20),
+        ),
+        ("['1', '2', '3']", ArrayType(IntegerType()), [1, 2, 3]),
+        ("['a', 'b', 'c']", ArrayType(StringType()), ["a", "b", "c"]),
+        ("['a', 'b', 'c']", ArrayType(), ["a", "b", "c"]),
+        (
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+            ArrayType(ArrayType(IntegerType())),
+            [[1, 2, 3], [4, 5, 6]],
+        ),
+        ("{'1': 'a'}", MapType(), {"1": "a"}),
+        ("{'1': 'a'}", MapType(IntegerType(), StringType()), {1: "a"}),
+        (
+            "{'1': \"['a', 'b']\"}",
+            MapType(IntegerType(), ArrayType(StringType())),
+            {1: ["a", "b"]},
+        ),
+    ],
+)
+def test_python_value_str_to_object(value_str, datatype, expected_value):
+    assert python_value_str_to_object(value_str, datatype) == expected_value
+
+
+@pytest.mark.parametrize(
+    "datatype",
+    [
+        IntegerType(),
+        BooleanType(),
+        FloatType(),
+        DecimalType(),
+        BinaryType(),
+        DateType(),
+        TimeType(),
+        TimestampType(),
+        ArrayType(),
+        MapType(),
+    ],
+)
+def test_python_value_str_to_object_for_none(datatype):
+    "StringType() is excluded here and tested in test_python_value_str_to_object"
+    assert python_value_str_to_object("None", datatype) is None
 
 
 def test_retrieve_func_type_hints_from_source():
