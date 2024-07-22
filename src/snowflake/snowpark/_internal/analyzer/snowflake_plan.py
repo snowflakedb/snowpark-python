@@ -652,7 +652,6 @@ class SnowflakePlanBuilder:
             post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
             session=self.session,
             source_plan=source_plan,
-
         )
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:

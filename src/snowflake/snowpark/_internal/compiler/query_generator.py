@@ -6,11 +6,12 @@ from typing import DefaultDict, Dict, List
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
     SnowflakePlan,
     SnowflakePlanBuilder,
-    PlanQueryType,
-    Query
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -26,17 +27,22 @@ class QueryGenerator(Analyzer):
 
     Note that this query generator only rebuild the sql query, and do not rebuild the
     """
+
     def __init__(
         self,
         session: Session,
-        table_create_child_attribute_map: Dict[str, List[Attribute]]
+        table_create_child_attribute_map: Dict[str, List[Attribute]],
     ) -> None:
         super().__init__(session)
         # overwrite the plan_builder initiated in the super to skip the building of schema query
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
-        self.table_create_child_attribute_map: Dict[str, List[Attribute]] = table_create_child_attribute_map
+        self.table_create_child_attribute_map: Dict[
+            str, List[Attribute]
+        ] = table_create_child_attribute_map
 
-    def generate_queries(self, logical_plans: List[LogicalPlan]) -> Dict[PlanQueryType, List[Query]]:
+    def generate_queries(
+        self, logical_plans: List[LogicalPlan]
+    ) -> Dict[PlanQueryType, List[Query]]:
         """
         Parameters
         ----------
@@ -56,7 +62,7 @@ class QueryGenerator(Analyzer):
 
         return {
             PlanQueryType.QUERIES: queries,
-            PlanQueryType.POST_ACTIONS: post_actions
+            PlanQueryType.POST_ACTIONS: post_actions,
         }
 
     def do_resolve_with_resolved_children(
@@ -75,7 +81,7 @@ class QueryGenerator(Analyzer):
             return res
 
         if isinstance(logical_plan, SnowflakeCreateTable):
-            child_plan = resolved_children[logical_plan.children[0]]
+            resolved_child = resolved_children[logical_plan.children[0]]
             full_table_name = ".".join(logical_plan.table_name)
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
@@ -87,10 +93,15 @@ class QueryGenerator(Analyzer):
                     for x in logical_plan.clustering_exprs
                 ],
                 logical_plan.comment,
-                child_plan,
+                resolved_child,
                 logical_plan,
+                self.session._use_scoped_temp_objects,
+                logical_plan.is_generated,
                 self.table_create_child_attribute_map[full_table_name],
             )
+
+        if isinstance(logical_plan, Selectable):
+            return logical_plan.get_snowflake_plan(skip_schema_query=True)
 
         return super().do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
