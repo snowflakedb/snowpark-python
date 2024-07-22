@@ -92,7 +92,9 @@ from snowflake.snowpark._internal.ast import (
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_table_fn,
     fill_ast_for_column,
     set_src_position,
     with_src_position,
@@ -1347,7 +1349,7 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
         for c in exprs:
-            ast.cols.append(c if isinstance(c, str) else c._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.cols.add(), c)
         ast.variadic = is_variadic
 
         names = []
@@ -1420,7 +1422,7 @@ class DataFrame:
         if not _supress_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_filter)
+                ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
                 self.set_ast_ref(ast.df)
                 build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
             else:
@@ -1507,7 +1509,7 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
         self.set_ast_ref(ast.df)
         for c in _cols:
-            ast.cols.append(c if isinstance(c, str) else c._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.cols.add(), c)
         ast.cols_variadic = is_variadic
 
         orders = []
@@ -3107,6 +3109,13 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
+        if ast_stmt is None:
+            ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
+            self.set_ast_ref(expr.df)
+            expr.col_name = col_name
+            build_expr_from_snowpark_column_or_table_fn(expr.col, col)
+
         return self.with_columns([col_name], [col], ast_stmt=ast_stmt)
 
     @df_api_usage
@@ -3206,8 +3215,18 @@ class DataFrame:
             if field.name not in new_column_names
         ]
 
+        # AST
+        if ast_stmt is None:
+            ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_columns, ast_stmt)
+            self.set_ast_ref(expr.df)
+            for col_name in col_names:
+                expr.col_names.append(col_name)
+            for value in values:
+                build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
+
         # Put it all together
-        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt)
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _suppress_ast=True)
 
     @overload
     def count(
@@ -3351,7 +3370,7 @@ class DataFrame:
             expr.target_columns.extend(target_columns)
         if transformations is not None:
             for t in transformations:
-                build_expr_from_python_val(t, expr.transformations.add())
+                build_expr_from_snowpark_column_or_python_val(expr.transformations.add(), t)
         if format_type_options is not None:
             for k in format_type_options:
                 entry = expr.format_type_options.add()
@@ -3557,7 +3576,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
-        build_expr_from_python_val(input, expr.input)
+        build_expr_from_snowpark_column_or_python_val(expr.input, input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
@@ -4241,8 +4260,16 @@ class DataFrame:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
         """
+        # AST
+        _ast_stmt = self._session._ast_batch.assign()
+        expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
+        self.set_ast_ref(expr.df)
+
         if new_column is not None:
-            return self.with_column_renamed(col_or_mapper, new_column)
+            expr.mapper = False
+            build_expr_from_snowpark_column_or_python_val(expr.cols.add(), col_or_mapper)
+            expr.new_names.append(new_column)
+            return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _suppress_ast=True)
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
@@ -4266,6 +4293,12 @@ class DataFrame:
         rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
 
+        # AST
+        expr.mapper = True
+        for col, new_name in col_or_mapper.items():
+            build_expr_from_snowpark_column_or_python_val(expr.cols.add(), col)
+            expr.new_names.append(new_name)
+
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
                 from_=self._session._analyzer.create_select_snowflake_plan(
@@ -4273,12 +4306,18 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan)
+            return self._with_plan(select_plan, ast_stmt=_ast_stmt)
 
-        return self._with_plan(rename_plan)
+        return self._with_plan(rename_plan, ast_stmt=_ast_stmt)
 
     @df_api_usage
-    def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
+    def with_column_renamed(
+        self, 
+        existing: ColumnOrName, 
+        new: str,
+        _ast_stmt: Optional[proto.Assign] = None,
+        _suppress_ast: bool = False,
+    ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
         Example::
@@ -4339,7 +4378,15 @@ class DataFrame:
             Column(att).as_(new_quoted_name) if old_name == att.name else Column(att)
             for att in self._output
         ]
-        return self.select(new_columns)
+
+        # AST
+        if _ast_stmt is None and not _suppress_ast:
+            _ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
+            self.set_ast_ref(expr.df)
+            expr.new_name = new
+            build_expr_from_snowpark_column_or_python_val(expr.col, existing)
+        return self.select(new_columns, _ast_stmt=_ast_stmt, _suppress_ast=True)
 
     @df_collect_api_telemetry
     def cache_result(

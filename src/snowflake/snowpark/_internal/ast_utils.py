@@ -346,6 +346,28 @@ def build_expr_from_snowpark_column_or_python_val(
         pass
     else:
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
+    
+
+def build_expr_from_snowpark_column_or_table_fn(
+    expr_builder: proto.Expr, value: Union["snowflake.snowpark.Column", "snowflake.snowpark.table_function.TableFunctionCall"]
+) -> None:
+    """Copy from a Column object's AST, or TableFunctionCall object's AST, into an AST expression.
+
+    Args:
+        expr_builder (proto.Expr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        value (Union[ColumnOrName, TableFunctionCall]): The value from which to populate the provided ast parameter.
+    
+    Raises:
+        TypeError: An Expr here can only be populated from another Expr or a TableFunctionCall object.
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        build_expr_from_snowpark_column(expr_builder, value)
+    elif isinstance(value, snowflake.snowpark.table_function.TableFunctionCall):
+        raise NotImplementedError("SNOW-1509198: No support for TableFunctionCall AST generation")
+    else:
+        raise TypeError(
+            f"{type(value)} is not a valid type for Column or TableFunctionCall AST generation."
+        )
 
 
 def fill_ast_for_column(
