@@ -25,7 +25,7 @@ class QueryGenerator(Analyzer):
     Query Generation class that is used re-build the sql query for given logical plans
     during the compilation stage.
 
-    Note that this query generator only rebuild the sql query, and do not rebuild the
+    Note that this query generator only rebuild the sql query, not the schema queries.
     """
 
     def __init__(
@@ -36,6 +36,7 @@ class QueryGenerator(Analyzer):
         super().__init__(session)
         # overwrite the plan_builder initiated in the super to skip the building of schema query
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
+        # map between the Snowflake tabel created and its child attributes
         self.table_create_child_attribute_map: Dict[
             str, List[Attribute]
         ] = table_create_child_attribute_map
@@ -44,16 +45,15 @@ class QueryGenerator(Analyzer):
         self, logical_plans: List[LogicalPlan]
     ) -> Dict[PlanQueryType, List[Query]]:
         """
-        Parameters
-        ----------
-        logical_plans
+        Generate final queries for the given set of logical plans.
 
         Returns
         -------
 
         """
+        # generate queries for each logical plan
         snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
-        # merge all results
+        # merge all results into final set of queries
         queries = []
         post_actions = []
         for snowflake_plan in snowflake_plans:
@@ -72,6 +72,8 @@ class QueryGenerator(Analyzer):
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
+            # when encounter a SnowflakePlan, try to re-resolve the source plan
+            # to get the correct result
             res = self.do_resolve_with_resolved_children(
                 logical_plan.source_plan,
                 resolved_children,
@@ -81,6 +83,8 @@ class QueryGenerator(Analyzer):
             return res
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            # overwrite the SnowflakeCreateTable resolving, because the child
+            # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
             full_table_name = ".".join(logical_plan.table_name)
             return self.plan_builder.save_as_table(
@@ -101,6 +105,8 @@ class QueryGenerator(Analyzer):
             )
 
         if isinstance(logical_plan, Selectable):
+            # overwrite the Selectable resolving to make sure we are triggering
+            # any schema query build
             return logical_plan.get_snowflake_plan(skip_schema_query=True)
 
         return super().do_resolve_with_resolved_children(
