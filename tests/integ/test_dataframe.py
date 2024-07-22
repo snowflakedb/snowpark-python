@@ -3973,8 +3973,11 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(session):
         [[1.0]], schema=StructType([StructField("A", DecimalType())])
     )
     my_iter = df.to_pandas_batches()
+    batch_count = 0
     for pdf in my_iter:
         # modify result_cursor and trigger _fix_pandas_df_fixed_type()
         trigger_df.select(col("A")).collect()
         # column name should remain unchanged
         assert tuple(pdf.columns) == ("A1", "B1")
+        batch_count += 1
+    assert batch_count > 1
