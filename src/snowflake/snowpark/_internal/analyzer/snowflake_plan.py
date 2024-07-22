@@ -343,9 +343,12 @@ class SnowflakePlan(LogicalPlan):
             for query in plan.queries[:-1]:
                 if query not in pre_queries:
                     pre_queries.append(query)
-            new_schema_query = new_schema_query.replace(
-                plan.queries[-1].sql, plan.schema_query
-            )
+            # if schema_query of the SnowflakePlan is not None update the schema query
+            # to be the correct one.
+            if new_schema_query is not None:
+                new_schema_query = new_schema_query.replace(
+                    plan.queries[-1].sql, plan.schema_query
+                )
             for action in plan.post_actions:
                 if action not in new_post_actions:
                     new_post_actions.append(action)
@@ -364,6 +367,9 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def attributes(self) -> List[Attribute]:
+        assert (
+            self.schema_query is not None
+        ), "No schema_query attached during analysis for SnowflakePlan"
         output = analyze_attributes(self.schema_query, self.session)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:

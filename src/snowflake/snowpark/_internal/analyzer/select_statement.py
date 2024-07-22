@@ -566,6 +566,10 @@ class SelectSnowflakePlan(Selectable):
 
     @property
     def schema_query(self) -> str:
+        assert (
+            self.snowflake_plan.schema_query is not None
+        ), "No schema query found for the SelectSnowflakePlan"
+
         return self.snowflake_plan.schema_query
 
     @property
