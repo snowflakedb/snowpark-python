@@ -217,7 +217,8 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
-        # TODO: Remove placeholder_query once
+        # TODO (SNOW-1541096): Remove placeholder_query once CTE is supported with the
+        #               new compilation step.
         placeholder_query: Optional[str] = None,
         *,
         session: "snowflake.snowpark.session.Session",
@@ -651,6 +652,7 @@ class SnowflakePlanBuilder:
             post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
             session=self.session,
             source_plan=source_plan,
+
         )
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
@@ -772,6 +774,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         is_generated: bool,  # true if the table is generated internally
+        child_attribute: List[Attribute],
     ) -> SnowflakePlan:
         if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
             raise ValueError(
@@ -785,7 +788,7 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
-            child.attributes
+            child_attribute
         )
         column_definition = re.sub(
             hidden_column_pattern,
@@ -1413,6 +1416,7 @@ class SnowflakePlanBuilder:
                 plan.source_plan,
                 api_calls=plan.api_calls,
                 session=self.session,
+                table_create_child_attribute_map=plan.table_create_child_attribute_map,
             )
 
 
