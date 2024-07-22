@@ -305,7 +305,7 @@ def test_merge_with_delete_clause_only(session):
     Utils.check_answer(target, [Row(10, "too_old"), Row(11, "old")])
 
 
-def test_merge_with_insert_clause_only(session):
+def test_merge_with_insert_clause_only(session, local_testing_mode):
     target_df = session.createDataFrame(
         [(10, "old"), (11, "new")], schema=["id", "desc"]
     )
@@ -392,9 +392,16 @@ def test_merge_with_insert_clause_only(session):
     assert res[1][0] == "id2" and res[2][0] == "id3"
     assert res[1][1].date() == res[2][1].date() == now_datetime.date()
     assert res[1][2] == res[2][2] == now_datetime.date()
+    assert res[1][3].minute == res[2][3].minute == now_datetime.time().minute
+    # hours can differ in live session because server has different timezone than the test machine
     assert (
         res[1][3].hour == res[2][3].hour == now_datetime.time().hour
-        and res[1][3].minute == res[2][3].minute == now_datetime.time().minute
+        and local_testing_mode
+    ) or (
+        not local_testing_mode
+        and res[1][3].hour
+        and res[2][3].hour
+        and now_datetime.time().hour
     )
 
 
