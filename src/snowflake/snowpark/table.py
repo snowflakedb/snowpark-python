@@ -270,12 +270,12 @@ class Table(DataFrame):
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
-        enable_auto_garbage_collection: bool = False,
+        is_temp_table_for_cleanup: bool = False,
     ) -> None:
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
-            is_temp_table_for_cleanup=enable_auto_garbage_collection,
+            is_temp_table_for_cleanup=is_temp_table_for_cleanup,
         )
         super().__init__(
             session,
@@ -283,7 +283,7 @@ class Table(DataFrame):
         )
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
-        self._enable_auto_garbage_collection = enable_auto_garbage_collection
+        self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
 
         if session.sql_simplifier_enabled:
             self._select_statement = session._analyzer.create_select_statement(
@@ -299,9 +299,7 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
-        return Table(
-            self.table_name, self._session, self._enable_auto_garbage_collection
-        )
+        return Table(self.table_name, self._session, self._is_temp_table_for_cleanup)
 
     def __enter__(self):
         return self

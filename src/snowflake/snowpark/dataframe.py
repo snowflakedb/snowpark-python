@@ -3980,7 +3980,7 @@ class DataFrame:
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(
-            temp_table_name, self._session, enable_auto_garbage_collection=True
+            temp_table_name, self._session, is_temp_table_for_cleanup=True
         )
         cached_df.is_cached = True
         return cached_df
