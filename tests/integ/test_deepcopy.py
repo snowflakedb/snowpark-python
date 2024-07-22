@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnStateDict,
     Selectable,
+    SelectableEntity,
     SelectSQL,
     SelectTableFunction,
     SetStatement,
@@ -211,6 +212,21 @@ def test_selectsql(session):
     copied_select = copy.deepcopy(select_plan)
     verify_logical_plan_node(copied_select, select_plan)
     verify_selectsql(copied_select, select_plan)
+
+
+def test_selectentity(session):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp"
+    )
+    df = session.table(temp_table_name).filter(col("a") == 1)
+    assert len(df._plan.children_plan_nodes) == 1
+    assert isinstance(df._plan.children_plan_nodes[0], SelectableEntity)
+
+    select_plan = df._plan.children_plan_nodes[0]
+    copied_select = copy.deepcopy(select_plan)
+    verify_logical_plan_node(copied_select, select_plan)
+    assert copied_select.entity_name == select_plan.entity_name
 
 
 def test_df_alias_deepcopy(session):
