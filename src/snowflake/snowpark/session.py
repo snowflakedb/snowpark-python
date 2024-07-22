@@ -564,6 +564,8 @@ class Session:
 
     def _dec_temp_table_ref_count(self, name: str) -> None:
         """Decrements the reference count."""
+        # TODO: SNOW-1531493 Remove this function once we can hook
+        # the cleanup function with SnowflakeTable._finalizer
         self._temp_table_ref_count_map[name] -= 1
         if self._temp_table_ref_count_map[name] == 0:
             self._temp_table_ref_count_map.pop(name)
