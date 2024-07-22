@@ -110,6 +110,39 @@ mock = session.create_dataframe(
     schema=['num', 'Owner\\'s""opinion.s']
 )
 mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"")
+
+# Set up data used for union, intersection, and except tests.
+mock = session.create_dataframe(
+    [
+        [1, 2],
+        [3, 4],
+    ],
+    schema=["a", "b"]
+)
+mock.write.save_as_table("test_df1")
+mock = session.create_dataframe(
+    [
+        [0, 1],
+        [3, 4],
+    ],
+    schema=["c", "d"]
+)
+mock.write.save_as_table("test_df2")
+mock = session.create_dataframe(
+    [
+        [1, 2],
+    ],
+    schema=["a", "b"]
+)
+mock.write.save_as_table("test_df3")
+mock = session.create_dataframe(
+    [
+        [2, 1],
+    ],
+    schema=["b", "a"]
+)
+mock.write.save_as_table("test_df4")
+
 session._ast_batch.flush()  # Clear the AST.
 
 # Run the test.

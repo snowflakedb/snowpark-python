@@ -1,16 +1,16 @@
 ## TEST CASE
 
-df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df1 = session.table("test_df1")
 
-df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
+df2 = session.table("test_df2")
 
 df3 = df1.except_(df2)
 
 
 ## EXPECTED OUTPUT
 
-res1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+res1 = session.table("test_df1")
 
-res2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
+res2 = session.table("test_df2")
 
 res3 = res1.except_(res2)
