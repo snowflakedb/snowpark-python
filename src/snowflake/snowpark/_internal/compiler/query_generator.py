@@ -2,14 +2,15 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import uuid
-from typing import DefaultDict, Dict, List, Optional
+from typing import DefaultDict, Dict, List
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
     SnowflakePlanBuilder,
+    PlanQueryType,
+    Query
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -19,16 +20,44 @@ from snowflake.snowpark.session import Session
 
 
 class QueryGenerator(Analyzer):
+    """
+    Query Generation class that is used re-build the sql query for given logical plans
+    during the compilation stage.
+
+    Note that this query generator only rebuild the sql query, and do not rebuild the
+    """
     def __init__(
         self,
         session: Session,
+        table_create_child_attribute_map: Dict[str, List[Attribute]]
     ) -> None:
-        self.session = session
+        super().__init__(session)
+        # overwrite the plan_builder initiated in the super to skip the building of schema query
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
-        self.generated_alias_maps = {}
-        self.subquery_plans = []
-        self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
-        self.table_create_child_attribute_map: Dict[str, List[Attribute]] = {}
+        self.table_create_child_attribute_map: Dict[str, List[Attribute]] = table_create_child_attribute_map
+
+    def generate_queries(self, logical_plans: List[LogicalPlan]) -> Dict[PlanQueryType, List[Query]]:
+        """
+        Parameters
+        ----------
+        logical_plans
+
+        Returns
+        -------
+
+        """
+        snowflake_plans = [self.resolve(logical_plan) for logical_plan in logical_plans]
+        # merge all results
+        queries = []
+        post_actions = []
+        for snowflake_plan in snowflake_plans:
+            queries.extend(snowflake_plan.queries)
+            post_actions.extend(snowflake_plan.post_actions)
+
+        return {
+            PlanQueryType.QUERIES: queries,
+            PlanQueryType.POST_ACTIONS: post_actions
+        }
 
     def do_resolve_with_resolved_children(
         self,
@@ -59,8 +88,8 @@ class QueryGenerator(Analyzer):
                 ],
                 logical_plan.comment,
                 child_plan,
-                self.table_create_child_attribute_map[full_table_name],
                 logical_plan,
+                self.table_create_child_attribute_map[full_table_name],
             )
 
         return super().do_resolve_with_resolved_children(

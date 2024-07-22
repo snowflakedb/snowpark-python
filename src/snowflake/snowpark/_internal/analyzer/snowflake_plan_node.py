@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -150,13 +151,18 @@ class SnowflakeCreateTable(LogicalPlan):
         table_name: Iterable[str],
         column_names: Optional[List[str]],
         mode: SaveMode,
-        query: Optional[LogicalPlan],
+        # plan associated with the SnowflakeCreateTable is always a SnowflakePlan
+        query: Optional[SnowflakePlan],
         table_type: str = "",
         clustering_exprs: Optional[Iterable[Expression]] = None,
         comment: Optional[str] = None,
         is_generated: bool = False,
     ) -> None:
         super().__init__()
+
+        if query is not None:
+            assert isinstance(query, SnowflakePlan), "query associated with SnowflakeCreateTable should be a SnowflakePlan"
+
         self.table_name = table_name
         self.column_names = column_names
         self.mode = mode
