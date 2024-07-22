@@ -274,7 +274,7 @@ class Table(DataFrame):
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
         ast_stmt: Optional[proto.Assign] = None,
-        suppress_ast: bool = False
+        suppress_ast: bool = False,
     ) -> None:
         if ast_stmt is None and session is not None and not suppress_ast:
             ast_stmt = session._ast_batch.assign()
