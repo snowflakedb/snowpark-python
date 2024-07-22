@@ -31,6 +31,9 @@
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
 
+#### Bug Fixes
+- Made passing an unsupported aggregation function to `pivot_table` raise `NotImplementedError` instead of `KeyError`.
+- Removed axis labels and callable names from error messages and telemetry about unsupported aggregations.
 
 ## 1.20.0 (2024-07-17)
 
