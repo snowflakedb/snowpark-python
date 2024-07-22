@@ -3965,6 +3965,10 @@ def test_create_empty_dataframe(session):
     assert not session.create_dataframe(data=[], schema=schema).collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(session):
     df = session.create_dataframe(
         [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
