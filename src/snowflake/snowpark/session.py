@@ -22,6 +22,7 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
+import pandas as pd
 import pkg_resources
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -1835,7 +1836,7 @@ class Session:
                 )
 
     def table(
-        self, name: Union[str, Iterable[str]], suppress_ast: bool = False
+        self, name: Union[str, Iterable[str]], _suppress_ast: bool = False
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -1844,7 +1845,7 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-            suppress_ast: Skips AST generation if True.
+            _suppress_ast: Skips AST generation if True.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -1862,7 +1863,7 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        if not suppress_ast:
+        if not _suppress_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table)
             if isinstance(name, str):
@@ -1876,7 +1877,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, suppress_ast)
+        t = Table(name, self, stmt, _suppress_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2475,6 +2476,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
+        _suppress_ast: bool = False,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -2494,6 +2496,8 @@ class Session:
                 DataFrame will be inferred from the data across all rows. To improve
                 performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+
+            _suppress_ast: If true, will not trigger AST generation.
 
         Examples::
 
@@ -2761,6 +2765,9 @@ class Session:
             else:
                 project_columns.append(column(name))
 
+        # Create AST statement
+        stmt = self._ast_batch.assign() if not _suppress_ast else None
+
         if self.sql_simplifier_enabled:
             df = DataFrame(
                 self,
@@ -2771,11 +2778,14 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
-            ).select(project_columns)
+                ast_stmt=stmt,
+            ).select(project_columns, _suppress_ast=True)
         else:
             df = DataFrame(
-                self, SnowflakeValues(attrs, converted, schema_query=schema_query)
-            ).select(project_columns)
+                self,
+                SnowflakeValues(attrs, converted, schema_query=schema_query),
+                ast_stmt=stmt,
+            ).select(project_columns, _suppress_ast=True)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if (
@@ -2784,6 +2794,29 @@ class Session:
             and isinstance(self._conn, MockServerConnection)
         ):
             return _convert_dataframe_to_table(df, temp_table_name, self)
+
+        # AST.
+        if not _suppress_ast:
+            ast = with_src_position(stmt.expr.sp_create_dataframe)
+
+            if isinstance(origin_data, tuple):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        row, ast.data.sp_dataframe_data__tuple_of_values.vs.add()
+                    )
+            elif isinstance(origin_data, list):
+                for row in origin_data:
+                    build_expr_from_python_val(
+                        row, ast.data.sp_dataframe_data__list_of_values.vs.add()
+                    )
+            elif isinstance(origin_data, pd.DataFrame):
+                raise NotImplementedError("pandas dataframe not yet supported")
+            else:
+                raise TypeError(
+                    f"Unsupported type {type(origin_data)} in create_dataframe."
+                )
+
+            df._ast_id = stmt.var_id.bitfield1
 
         return df
 

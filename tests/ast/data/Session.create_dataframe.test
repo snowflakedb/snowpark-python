@@ -1,0 +1,9 @@
+## TEST CASE
+
+from snowflake.snowpark import Row
+
+df = session.create_dataframe([Row(a=1, b=2, c=3)])
+
+## EXPECTED OUTPUT
+
+res = session.create_dataframe([Row(a=1, b=2, c=3)])
