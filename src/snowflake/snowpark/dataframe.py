@@ -29,12 +29,16 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
     Except,
+    FullOuter,
+    Inner,
     Intersect,
     Join,
     JoinType,
     LeftAnti,
+    LeftOuter,
     LeftSemi,
     NaturalJoin,
+    RightOuter,
     Union as UnionPlan,
     UsingJoin,
     create_join_type,
@@ -272,14 +276,16 @@ def _disambiguate(
                 [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
             )
             for name in lhs_names
-        ]
+        ],
+        _suppress_ast=True,
     )
 
     rhs_remapped = rhs.select(
         [
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
-        ]
+        ],
+        _suppress_ast=True,
     )
     return lhs_remapped, rhs_remapped
 
@@ -1177,16 +1183,14 @@ class DataFrame:
             raise ValueError("The input of select() cannot be empty")
 
         # AST.
-        stmt = None
-        if not _suppress_ast:
-            if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
-                self.set_ast_ref(ast.df)
-                ast.variadic = is_variadic
-            else:
-                stmt = _ast_stmt
-                ast = None
+        stmt = _ast_stmt
+        ast = None
+
+        if not _suppress_ast and _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            self.set_ast_ref(ast.df)
+            ast.variadic = is_variadic
 
         names = []
         table_func = None
@@ -1200,7 +1204,7 @@ class DataFrame:
 
             elif isinstance(e, str):
                 col_expr_ast = None
-                if not _suppress_ast:
+                if ast:
                     col_expr_ast = ast.cols.add() if ast else proto.Expr()
                     fill_ast_for_column(col_expr_ast, e, None)
 
@@ -2403,14 +2407,30 @@ class DataFrame:
             --------------------
             <BLANKLINE>
         """
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         join_plan = Join(
             self._plan,
             right._plan,
-            NaturalJoin(create_join_type(join_type or "inner")),
+            NaturalJoin(join_type),
             None,
             None,
         )
+
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_natural_join, stmt)
+        self.set_ast_ref(ast.lhs)
+        right.set_ast_ref(ast.rhs)
+        if isinstance(join_type, Inner):
+            ast.join_type.sp_join_type__inner = True
+        elif isinstance(join_type, LeftOuter):
+            ast.join_type.sp_join_type__left_outer = True
+        elif isinstance(join_type, RightOuter):
+            ast.join_type.sp_join_type__right_outer = True
+        elif isinstance(join_type, FullOuter):
+            ast.join_type.sp_join_type__full_outer = True
+        else:
+            raise ValueError(f"Unsupported join type {join_type}")
+
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
                 from_=self._session._analyzer.create_select_snowflake_plan(
@@ -2419,8 +2439,8 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan)
-        return self._with_plan(join_plan)
+            return self._with_plan(select_plan, ast_stmt=stmt)
+        return self._with_plan(join_plan, ast_stmt=stmt)
 
     @df_api_usage
     def join(
@@ -2692,7 +2712,7 @@ class DataFrame:
             <BLANKLINE>
         """
         using_columns = kwargs.get("using_columns") or on
-        join_type = kwargs.get("join_type") or how
+        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
                 raise SnowparkClientExceptionMessages.DF_SELF_JOIN_NOT_SUPPORTED()
@@ -2745,13 +2765,44 @@ class DataFrame:
                     f"Invalid input type for join column: {type(using_columns)}"
                 )
 
+            # AST.
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_join, stmt)
+            self.set_ast_ref(ast.lhs)
+            right.set_ast_ref(ast.rhs)
+            if isinstance(join_type, Inner):
+                ast.join_type.sp_join_type__inner = True
+            elif isinstance(join_type, LeftOuter):
+                ast.join_type.sp_join_type__left_outer = True
+            elif isinstance(join_type, RightOuter):
+                ast.join_type.sp_join_type__right_outer = True
+            elif isinstance(join_type, FullOuter):
+                ast.join_type.sp_join_type__full_outer = True
+            elif isinstance(join_type, Cross):
+                ast.join_type.sp_join_type__cross = True
+            elif isinstance(join_type, LeftSemi):
+                ast.join_type.sp_join_type__left_semi = True
+            elif isinstance(join_type, LeftAnti):
+                ast.join_type.sp_join_type__left_anti = True
+            else:
+                raise ValueError(f"Unsupported join type {join_type}")
+            if on is not None:
+                build_expr_from_python_val(on, ast.join_expr)
+            if match_condition is not None:
+                build_expr_from_python_val(match_condition, ast.match_condition)
+            if lsuffix:
+                ast.lsuffix.value = lsuffix
+            if rsuffix:
+                ast.rsuffix.value = rsuffix
+
             return self._join_dataframes(
                 right,
                 using_columns,
-                create_join_type(join_type or "inner"),
+                join_type,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                ast_stmt=stmt,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -2952,12 +3003,21 @@ class DataFrame:
             If both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the result DataFrame.
             If either one is not empty, the overlapping columns won't have random names.
         """
+        stmt = self._session._ast_batch.assign()
+        ast = with_src_position(stmt.expr.sp_dataframe_cross_join, stmt)
+        self.set_ast_ref(ast.lhs)
+        right.set_ast_ref(ast.rhs)
+        if lsuffix:
+            ast.lsuffix.value = lsuffix
+        if rsuffix:
+            ast.rsuffix.value = rsuffix
         return self._join_dataframes_internal(
             right,
             create_join_type("cross"),
             None,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
+            ast_stmt=stmt,
         )
 
     def _join_dataframes(
@@ -2969,6 +3029,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -2978,6 +3039,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
+                ast_stmt=ast_stmt,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -2992,6 +3054,7 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
+                ast_stmt=ast_stmt,
             )
         else:
             lhs, rhs = _disambiguate(
@@ -3020,9 +3083,10 @@ class DataFrame:
                             join_logical_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                    )
+                    ),
+                    ast_stmt=ast_stmt,
                 )
-            return self._with_plan(join_logical_plan)
+            return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
 
     def _join_dataframes_internal(
         self,
@@ -3033,6 +3097,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
+        ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -3056,9 +3121,10 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                ast_stmt=ast_stmt,
             )
-        return self._with_plan(join_logical_plan)
+        return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
 
     @df_api_usage
     def with_column(
