@@ -5415,6 +5415,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
+            # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+            result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
         return result
 
     def insert(
@@ -7797,7 +7799,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Result is basically a series with the column labels as index and the distinct count as values
         # for each data column
         # frame holds rows with nunique values, but result must be a series so transpose single row
-        return self._nunique_columns(dropna).transpose_single_row()
+        result = self._nunique_columns(dropna).transpose_single_row()
+        # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
+        return result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
 
     def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
