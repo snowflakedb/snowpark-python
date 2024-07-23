@@ -231,7 +231,7 @@ def test_selectentity(session):
         select_plan = df._plan.children_plan_nodes[0]
         copied_select = copy.deepcopy(select_plan)
         verify_logical_plan_node(copied_select, select_plan)
-        assert copied_select.entity_name == select_plan.entity_name
+        assert copied_select.entity.name == select_plan.entity.name
     else:
         copied_plan = copy.deepcopy(df._plan)
         check_copied_plan(copied_plan, df._plan)
