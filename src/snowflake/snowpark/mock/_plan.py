@@ -2123,8 +2123,10 @@ def calculate_expression(
                             calculated_sf_type = calc_expr.sf_type
                         # the result calculated upon a windows can be None, this is still valid and we can keep
                         # the calculation
-                        elif not isinstance(calc_expr.sf_type.datatype, NullType):
-                            analyzer.session._conn.log_not_supported_error(
+                        elif not isinstance(  # pragma: no cover
+                            calc_expr.sf_type.datatype, NullType
+                        ):
+                            analyzer.session._conn.log_not_supported_error(  # pragma: no cover
                                 external_feature_name=f"Coercion of detected type"
                                 f" {type(calculated_sf_type.datatype).__name__}"
                                 f" and type {type(calc_expr.sf_type.datatype).__name__}",
