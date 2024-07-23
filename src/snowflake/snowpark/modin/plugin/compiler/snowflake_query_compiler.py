@@ -7205,11 +7205,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns
         -------
         bool
-            Return True if QueryCompiler has a single column or single row, False
-             otherwise.
+            Return True if QueryCompiler has a single column, False otherwise.
         """
-        # TODO SNOW-864083: look into why len(self.index) == 1 is also considered as series-like
-        return self.get_axis_len(axis=1) == 1 or self.get_axis_len(axis=0) == 1
+        return self.get_axis_len(axis=0) == 1
 
     def pivot(
         self,
