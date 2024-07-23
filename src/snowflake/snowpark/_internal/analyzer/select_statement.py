@@ -381,7 +381,7 @@ class SelectableEntity(Selectable):
         self.entity = entity
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
-        copied = SelectableEntity(self.entity_name, analyzer=self.analyzer)
+        copied = SelectableEntity(deepcopy(self.entity), analyzer=self.analyzer)
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
 
         return copied
