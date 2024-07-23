@@ -44,9 +44,26 @@ def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
         TypeError: Raised if the Python constant/literal is not supported by the Snowpark client.
     """
     from snowflake.snowpark.column import Column
+    from snowflake.snowpark.row import Row
 
     if obj is None:
         set_src_position(expr_builder.null_val.src)
+
+    # Keep objects most high up in the class hierarchy first, i.e. a Row is a tuple.
+    elif isinstance(obj, Column):
+        expr_builder.CopyFrom(obj._ast)
+
+    elif isinstance(obj, Row):
+        set_src_position(expr_builder.sp_row.src)
+        if hasattr(obj, "_named_values") and obj._named_values is not None:
+            for field in obj._fields:
+                expr_builder.sp_row.names.list.append(field)
+                build_expr_from_python_val(
+                    obj._named_values[field], expr_builder.sp_row.vs.add()
+                )
+        else:
+            for field in obj:
+                build_expr_from_python_val(field, expr_builder.sp_row.vs.add())
 
     elif isinstance(obj, bool):
         set_src_position(expr_builder.bool_val.src)
@@ -144,9 +161,6 @@ def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
         set_src_position(expr_builder.tuple_val.src)
         for v in obj:
             build_expr_from_python_val(v, expr_builder.tuple_val.vs.add())
-
-    elif isinstance(obj, Column):
-        expr_builder.CopyFrom(obj._ast)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
