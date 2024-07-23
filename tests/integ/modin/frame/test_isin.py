@@ -197,7 +197,7 @@ def test_isin_with_Dataframe(df, other):
         else:
             values = other
         #  3 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case
-        return _test_isin_with_snowflake_logic(df, values, query_count=3)
+        return _test_isin_with_snowflake_logic(df, values, query_count=2)
 
     eval_snowpark_pandas_result(
         snow_df,
@@ -228,7 +228,7 @@ def test_isin_with_dict(df, values):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_isin_duplicate_columns_negative():
     with pytest.raises(ValueError, match="cannot compute isin with a duplicate axis."):
         df = pd.DataFrame({"A": [1, 2, 3]})
