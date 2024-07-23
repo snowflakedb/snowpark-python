@@ -1,0 +1,17 @@
+## TEST CASE
+
+df1 = session.table("test_table")
+
+df2 = session.table("test_table")
+
+df3 = df1.join(df2, ["num", "str"]).select('*')
+
+## EXPECTED OUTPUT
+
+res1 = session.table("test_table")
+
+res2 = session.table("test_table")
+
+res3 = res1.join(res2, on=["num", "str"], how="inner")
+
+res4 = res3.select("*")
