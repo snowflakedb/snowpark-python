@@ -1,0 +1,52 @@
+problem: we build an expression col('a') - col('b') that has no type at any level.
+
+it only becomes typed once we select it into a Selectable (like "SELECT [...] FROM [...]), at which point it's not an expression but a Selectable.
+
+something like a Selectable could deduce the new types and also rewrite the expressions into the correct form.
+
+2a. Could do it in SelectStatement, which deals with Expression. but then we cannot make any sense of the myriad snowpark function calls
+
+2b. Could do it in Snowpark DataFrame, which deals with Column.
+    - problem: dataframe.select also gets expressions. how can the dataframe even identify what it's selecting, let alone tell us how to translate the types?
+        chicken and egg: i'm trying to select f(g(h("A"))), but i can't tell how to invoke h without knowing the type of "A" itself.
+        How did we solve this problem in our prototype? we didn't. we never really successfully propagated the snowpark type up to the pandas layer,
+        and we were probably not tracking the snowpark type correctly.
+        We did the SQL translation in the pandas layer, and to convert to pandas, we did "don't count on our type tracking to tell us which columns consist of native_pd.Interval."
+        we guessed from the JSON values themselves that we were dealing with timedelta / interval rather than the correct type.
+
+functions, which deal with Column objects, need to be able to tell snowpark what the result types are.
+
+what I prototyped for Option 2 wasn't really what I wrote about for Option 2 in the design doc.
+
+pd.DataFrame([[pd.Timestamp(year=2020,month=11,day=11,second=30), pd.Timestamp(year=2019,month=10,day=10,second=1)]])
+
+makes something like
+
+Select(
+    Column("__index__"),
+    Column(alias to "0",
+        FunctionExpression(
+            'to_timestamp',
+            UnresolvedAttribute("0"),
+        )
+    )
+    Column(alias to "1",
+        FunctionExpression(
+            'to_timestamp',
+            UnresolvedAttribute("1"),
+        )
+    )    
+)
+
+currently we get the schema for that by generating the SQL and asking snowflake.
+
+but if we knew the schema of what we're querying, shouldn't we be able to deduce the schema of the result without asking snowflake again?
+
+on SelectStatement:
+
+self.input_schema = self.input_data.schema
+
+say I call SelectStatement.select(), then for each thing I'm selecting, I use its lazy type inference code to deduce its type based on the input types.
+
+
+select_statement.select(h(f(g(A + B)), 3))

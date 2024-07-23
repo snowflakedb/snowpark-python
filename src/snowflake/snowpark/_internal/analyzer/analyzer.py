@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark.column import TimestampType, TimedeltaType
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     alias_expression,
     binary_arithmetic_expression,
@@ -45,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
+    Subtract
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -688,7 +690,22 @@ class Analyzer:
                 expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
         if isinstance(expr, BinaryArithmeticExpression):
+            # TODO: it doesn't seem appropriate to rewrite the expression at this stage,
+            # but on the other hand Column and Expression themselves do not have access
+            # to types.
+            # WRONG-- we still don't have datatypes here.
+            if isinstance(expr, Subtract) and isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimestampType):
+                return f'datediff("ns", {left_sql_expr}, {right_sql_expr})'
+
+            # from .functions import datediff
+            # right_expression = Column._to_expr(other)
+            # if isinstance(self._expression.datatype, TimestampType) and isinstance(right_expression.datatype, TimestampType):
+            #     result = datediff("ns", self._expression, right_expression)
+            #     result.return_type = TimedeltaType
+            #     return result
+            # return Column(Subtract(self._expression, right_expression))            
             return binary_arithmetic_expression(
+
                 expr.sql_operator,
                 left_sql_expr,
                 right_sql_expr,

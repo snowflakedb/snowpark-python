@@ -456,12 +456,14 @@ class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
 
     def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
+        # First, we get a snowflake_plan that is the SnowflakeValues object here.
         super().__init__(analyzer)
         self._snowflake_plan: SnowflakePlan = (
             snowflake_plan
             if isinstance(snowflake_plan, SnowflakePlan)
             else analyzer.resolve(snowflake_plan)
         )
+        # now we can look at self.snowflake_plan.attributes
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
         self.df_aliased_col_name_to_real_col_name.update(
             self._snowflake_plan.df_aliased_col_name_to_real_col_name
@@ -502,6 +504,11 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
+    
+    
+    # def attributes(self) -> List[Attribute]:
+    #     # override the usual SnowflakePlan
+    #     input_attributes = self.from_.snowflake_plan.attributes    
 
 
 class SelectStatement(Selectable):
