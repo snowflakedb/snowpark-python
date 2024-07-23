@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     iff,
     lit,
     min as min_,
+    object_construct_keep_null,
     row_number,
     seq1,
     sql_expr,
@@ -1331,3 +1332,19 @@ def test_data_generator_with_filter(session):
         df.with_column("B", seq1()).with_column("C", min_("B").over()).filter(df.A == 1)
     )
     Utils.check_answer(df, [Row(1, 1, 0)])
+
+
+def test_star_column(session):
+    # convert to a table
+    df = session.create_dataframe(
+        [[0, "a"], [1, "b"]], schema=["a", "b"]
+    ).cache_result()
+    # select a column and rename it twice
+    df1 = df.select(col("a").as_("x"), "b").select(col("x").as_("y"), "b")
+    df2 = df1.select(object_construct_keep_null("*"))
+    # expect that no subquery is flattened
+    query = df2.queries["queries"][0]
+    assert query.count("SELECT") == 3
+    Utils.check_answer(
+        df2, [Row('{\n  "B": "a",\n  "Y": 0\n}'), Row('{\n  "B": "b",\n  "Y": 1\n}')]
+    )
