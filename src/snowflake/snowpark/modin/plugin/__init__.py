@@ -21,11 +21,16 @@ install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-supported_pandas_version = "2.2.1"
-if pandas.__version__ != supported_pandas_version:
+supported_pandas_major_version = 2
+supported_pandas_minor_version = 2
+actual_pandas_version = version.parse(pandas.__version__)
+if (
+    actual_pandas_version.major != supported_pandas_major_version
+    and actual_pandas_version.minor != supported_pandas_minor_version
+):
     raise RuntimeError(
         f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
-        + f" Snowpark pandas ({supported_pandas_version}). "
+        + f" Snowpark pandas ({supported_pandas_major_version}.{supported_pandas_minor_version}.x). "
         + install_msg
     )  # pragma: no cover
 
@@ -36,7 +41,7 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.28.1"
+supported_modin_version = "0.30.1"
 if version.parse(modin.__version__) != version.parse(supported_modin_version):
     raise ImportError(
         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
