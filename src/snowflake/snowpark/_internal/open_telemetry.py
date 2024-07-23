@@ -33,16 +33,6 @@ except ImportError:
     open_telemetry_found = False
 
 
-def enable_open_telemetry():
-    global open_telemetry_enabled
-    open_telemetry_enabled = True
-
-
-def disable_open_telemetry():
-    global open_telemetry_enabled
-    open_telemetry_enabled = False
-
-
 @contextmanager
 def open_telemetry_context_manager(func, dataframe):
 
