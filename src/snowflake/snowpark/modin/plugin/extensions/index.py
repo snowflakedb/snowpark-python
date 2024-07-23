@@ -320,7 +320,6 @@ class Index:
         # TODO: SNOW-1458134 implement is_monotonic_decreasing
 
     @property
-    @is_lazy_check
     def is_unique(self) -> bool:
         """
         Return if the index has unique values.
@@ -354,9 +353,9 @@ class Index:
         >>> idx.is_unique
         True
         """
-        # TODO: SNOW-1458131 implement is_unique
-        WarningMessage.index_to_pandas_warning("is_unique")
-        return self.to_pandas().is_unique
+        if not self.is_lazy:
+            return self._index.is_unique
+        return self._query_compiler._modin_frame.has_unique_index()
 
     @property
     @is_lazy_check
@@ -393,7 +392,6 @@ class Index:
         >>> idx.has_duplicates
         False
         """
-        # TODO: SNOW-1458131 implement has_duplicates
         return not self.is_unique
 
     @is_lazy_check

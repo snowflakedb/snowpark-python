@@ -7,7 +7,11 @@ import pytest
 from numpy.testing import assert_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.index.conftest import NATIVE_INDEX_TEST_DATA, TEST_DFS
+from tests.integ.modin.index.conftest import (
+    NATIVE_INDEX_TEST_DATA,
+    NATIVE_INDEX_UNIQUE_TEST_DATA,
+    TEST_DFS,
+)
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
@@ -347,3 +351,19 @@ def test_df_index_columns_dtype(native_df):
     # do not check columns type for empty df
     if not native_df.empty:
         assert snow_df.columns.dtype == native_df.columns.dtype
+
+
+@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_is_unique(index, is_lazy):
+    with SqlCounter(query_count=int(is_lazy)):
+        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+        assert index.is_unique == snow_index.is_unique
+
+
+@pytest.mark.parametrize("index", NATIVE_INDEX_UNIQUE_TEST_DATA)
+@pytest.mark.parametrize("is_lazy", [True, False])
+def test_has_duplicates(index, is_lazy):
+    with SqlCounter(query_count=int(is_lazy)):
+        snow_index = pd.Index(index, convert_to_lazy=is_lazy)
+        assert index.has_duplicates == snow_index.has_duplicates
