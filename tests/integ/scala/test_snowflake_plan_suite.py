@@ -3,6 +3,7 @@
 #
 
 import sys
+from typing import Dict, List
 
 import pytest
 
@@ -130,32 +131,51 @@ def test_execution_queries_and_queries(session):
     # create a df where cte optimization can be applied
     df2 = df1.union(df1)
     original_cte_enabled_value = session.cte_optimization_enabled
+
+    plan_queries = {
+        PlanQueryType.QUERIES: df2._plan.queries,
+        PlanQueryType.POST_ACTIONS: df2._plan.post_actions,
+    }
+
+    def check_plan_queries(
+        cte_applied: bool, exec_queries: Dict[PlanQueryType, List["Query"]]
+    ) -> None:
+        assert (
+            exec_queries[PlanQueryType.POST_ACTIONS]
+            == plan_queries[PlanQueryType.POST_ACTIONS]
+            == []
+        )
+        if cte_applied:
+            assert (
+                exec_queries[PlanQueryType.QUERIES][-1].sql
+                != plan_queries[PlanQueryType.QUERIES][-1].sql
+            )
+            assert exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+            assert not plan_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+        else:
+            assert (
+                exec_queries[PlanQueryType.QUERIES]
+                == plan_queries[PlanQueryType.QUERIES]
+            )
+            assert not (exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH"))
+
     try:
         # when cte is disabled, verify that the execution query got is the same as
         # the plan queries and post actions
         session.cte_optimization_enabled = False
-        execution_queries = df2._plan.execution_queries
-        assert execution_queries[PlanQueryType.QUERIES] == df2._plan.queries
-        assert not (execution_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH"))
-        assert (
-            execution_queries[PlanQueryType.POST_ACTIONS]
-            == df2._plan.post_actions
-            == []
-        )
+        check_plan_queries(cte_applied=False, exec_queries=df2._plan.execution_queries)
+
         # when cte is enabled, verify that the execution query got is different
         # from the original plan queries
         session.cte_optimization_enabled = True
-        execution_queries = df2._plan.execution_queries
-        assert (
-            execution_queries[PlanQueryType.QUERIES][-1].sql
-            != df2._plan.queries[-1].sql
-        )
-        assert execution_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
-        assert not df2._plan.queries[-1].sql.startswith("WITH")
-        assert (
-            execution_queries[PlanQueryType.POST_ACTIONS]
-            == df2._plan.post_actions
-            == []
+        check_plan_queries(
+            # the cte optimization is not kicking in when sql simplifier disabled, because
+            # the cte_optimization_enabled is set to False when constructing the plan for df2,
+            # and place_holder is not propogated.
+            # TODO (SNOW-1541096): revisit this test once the cte optimization is switched to the
+            #   new compilation infra.
+            cte_applied=session.sql_simplifier_enabled,
+            exec_queries=df2._plan.execution_queries,
         )
 
     finally:
