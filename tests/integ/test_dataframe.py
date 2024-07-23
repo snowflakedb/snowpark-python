@@ -3965,7 +3965,9 @@ def test_create_empty_dataframe(session):
     assert not session.create_dataframe(data=[], schema=schema).collect()
 
 
-def test_dataframe_to_local_iterator_with_to_pandas_isolation(session):
+def test_dataframe_to_local_iterator_with_to_pandas_isolation(
+    session, local_testing_mode
+):
     df = session.create_dataframe(
         [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
     )
@@ -3980,4 +3982,7 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(session):
         # column name should remain unchanged
         assert tuple(pdf.columns) == ("A1", "B1")
         batch_count += 1
-    assert batch_count > 1
+        print(batch_count)
+    # local testing always give 1 chunk
+    if not local_testing_mode:
+        assert batch_count > 1
