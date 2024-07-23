@@ -282,6 +282,16 @@ class UnresolvedAttribute(Expression, NamedExpression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
 
+    def resolve(self, input_attributes) -> Attribute:
+        # copied from DataFrame._resolve        
+        normalized_col_name = snowflake.snowpark._internal.utils.quote_name(self.name)
+        cols = list(filter(lambda attr: attr.name == normalized_col_name, input_attributes))
+        if len(cols) == 1:
+            return cols[0].with_name(self.name)
+        else:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+                self.name
+            )
 
 class Literal(Expression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None) -> None:

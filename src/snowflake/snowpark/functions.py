@@ -212,6 +212,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructType,
     TimestampType,
+    LongType
 )
 from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
 from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
@@ -697,11 +698,13 @@ def count(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "count")
-    return (
+    return_expression  = (
         builtin("count")(Literal(1))
         if isinstance(c._expression, Star)
         else builtin("count")(c._expression)
     )
+    return_expression.return_type = LongType
+    return return_expression
 
 
 def count_distinct(*cols: ColumnOrName) -> Column:
@@ -3181,11 +3184,13 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         [Row(ANS=datetime.datetime(1970, 1, 1, 0, 0, 20)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0)), Row(ANS=datetime.datetime(1971, 1, 1, 0, 0))]
     """
     c = _to_col_if_str(e, "to_timestamp")
-    return (
+    return_value = (
         builtin("to_timestamp")(c, fmt)
         if fmt is not None
         else builtin("to_timestamp")(c)
     )
+    return_value._expression.return_type = TimestampType()
+    return return_value
 
 
 def to_timestamp_ntz(
