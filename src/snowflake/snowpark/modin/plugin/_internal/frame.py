@@ -15,7 +15,15 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, last_value
+from snowflake.snowpark.functions import (
+    array_construct,
+    col,
+    count,
+    count_distinct,
+    iff,
+    last_value,
+    max as max_,
+)
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -609,16 +617,25 @@ class InternalFrame:
         if axis == 1:
             return self.data_columns_index.is_unique
         else:
-            # Note: We can't use 'count_distinct' because it ignores null values.
-            total_rows = self.num_rows
-            distinct_rows = count_rows(
-                get_distinct_rows(
-                    self.ordered_dataframe.select(
-                        self.index_column_snowflake_quoted_identifiers
+            if self.num_index_columns == 1:
+                index_col = col(self.index_column_snowflake_quoted_identifiers[0])
+                # COUNT(DISTINCT) ignores NULL values, so if there is a NULL value in the column,
+                # we include it via IFF(MAX(<col> IS NULL), 1, 0) which will return 1 if there is
+                # at least one NULL contained within a column, and 0 if there are no NULL values.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    (count_distinct(index_col) + iff(max_(index_col.is_null()), 1, 0))
+                    == count("*")
+                ).collect()[0][0]
+            else:
+                # Note: We can't use 'count_distinct' directly on columns because it
+                # ignores null values. As a workaround we first create an ARRAY and
+                # call 'count_distinct' on ARRAY column.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    count_distinct(
+                        array_construct(*self.index_column_snowflake_quoted_identifiers)
                     )
-                )
-            )
-            return total_rows == distinct_rows
+                    == count("*"),
+                ).collect()[0][0]
 
     def validate_no_duplicated_data_columns_mapped_for_labels(
         self,
