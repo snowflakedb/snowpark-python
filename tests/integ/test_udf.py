@@ -99,7 +99,6 @@ def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
@@ -1034,6 +1033,7 @@ def return_all_datatypes(
     final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
     return final_str
 """
+    session.add_packages("snowflake-snowpark-python")
     if register_from_file:
         file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
         with open(file_path, "w") as f:
