@@ -1462,6 +1462,25 @@ def test_df_col(session):
     assert isinstance(c._expression, Star)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_cache_result_query(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    with session.query_history() as history:
+        df.cache_result()
+
+    assert len(history.queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    assert (
+        "INSERT  INTO" in history.queries[1].sql_text
+        and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
+        in history.queries[1].sql_text
+    )
+
+
 def test_create_dataframe_with_basic_data_types(session):
     data1 = [
         1,

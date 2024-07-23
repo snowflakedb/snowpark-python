@@ -95,14 +95,18 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SaveMode,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -217,6 +221,13 @@ class MockExecutionPlan(LogicalPlan):
     def post_actions(self):
         return []
 
+    @property
+    def execution_queries(self) -> Dict[PlanQueryType, List[Query]]:
+        return {
+            PlanQueryType.QUERIES: self.queries,
+            PlanQueryType.POST_ACTIONS: self.post_actions,
+        }
+
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
@@ -253,6 +264,7 @@ def handle_order_by_clause(
     result_df: TableEmulator,
     analyzer: "MockAnalyzer",
     expr_to_alias: Optional[Dict[str, str]],
+    keep_added_columns: bool = False,
 ) -> TableEmulator:
     """Given an input dataframe `result_df` and a list of SortOrder expressions `order_by`, return the sorted dataframe."""
     sort_columns_array = []
@@ -276,7 +288,11 @@ def handle_order_by_clause(
     ):
         comparator = partial(custom_comparator, ascending, null_first)
         result_df = result_df.sort_values(by=column, key=comparator)
-    result_df = result_df.drop(columns=added_columns)
+
+    result_df.sorted_by = sort_columns_array
+    if not keep_added_columns:
+        result_df = result_df.drop(columns=added_columns)
+
     return result_df
 
 
@@ -1076,18 +1092,14 @@ def execute_mock_plan(
     if isinstance(source_plan, MockFileOperation):
         return execute_file_operation(source_plan, analyzer)
     if isinstance(source_plan, SnowflakeCreateTable):
-        if source_plan.column_names is not None:
-            analyzer.session._conn.log_not_supported_error(
-                external_feature_name="Inserting data into table by matching columns",
-                internal_feature_name=type(source_plan).__name__,
-                parameters_info={"source_plan.column_names": "True"},
-                raise_error=NotImplementedError,
-            )
         res_df = execute_mock_plan(source_plan.query, expr_to_alias)
         return entity_registry.write_table(
-            source_plan.table_name, res_df, source_plan.mode
+            source_plan.table_name,
+            res_df,
+            source_plan.mode,
+            column_names=source_plan.column_names,
         )
-    if isinstance(source_plan, UnresolvedRelation):
+    if isinstance(source_plan, SnowflakeTable):
         entity_name = source_plan.name
         if entity_registry.is_existing_table(entity_name):
             return entity_registry.read_table(entity_name)
@@ -1122,9 +1134,11 @@ def execute_mock_plan(
             )
 
         return res_df.sample(
-            n=None
-            if source_plan.row_count is None
-            else min(source_plan.row_count, len(res_df)),
+            n=(
+                None
+                if source_plan.row_count is None
+                else min(source_plan.row_count, len(res_df))
+            ),
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
@@ -1544,9 +1558,10 @@ def describe(plan: MockExecutionPlan) -> List[Attribute]:
                 data_type = LongType()
             elif isinstance(data_type, StringType):
                 data_type.length = (
-                    StringType._MAX_LENGTH
-                    if data_type.length is None
-                    else data_type.length
+                    data_type.length or plan.session._conn.max_string_size
+                )
+                data_type._is_max_size = (
+                    data_type.length == plan.session._conn.max_string_size
                 )
 
             ret.append(
@@ -1891,16 +1906,23 @@ def calculate_expression(
 
         # Process order by clause
         if window_spec.order_spec:
-            res = handle_order_by_clause(
-                window_spec.order_spec, input_data, analyzer, expr_to_alias
+            # If the window function is a function expression then any intermediate
+            # columns that are used for ordering may be needed later and should be retained.
+            ordered = handle_order_by_clause(
+                window_spec.order_spec,
+                input_data,
+                analyzer,
+                expr_to_alias,
+                isinstance(window_function, (FunctionExpression)),
             )
         elif is_rank_related_window_function(window_function):
             raise SnowparkLocalTestingException(
                 f"Window function type [{str(window_function)}] requires ORDER BY in window specification"
             )
         else:
-            res = input_data
+            ordered = input_data
 
+        res = ordered
         res_index = res.index  # List of row indexes of the result
 
         # Process partition_by clause
@@ -1931,8 +1953,8 @@ def calculate_expression(
                 )
             else:
                 indexer = EntireWindowIndexer()
-                res = res.rolling(indexer)
-                windows = [input_data.loc[w.index] for w in res]
+                rolling = res.rolling(indexer)
+                windows = [ordered.loc[w.index] for w in rolling]
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
