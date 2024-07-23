@@ -8536,3 +8536,15 @@ def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
     _substr = lit(expr1)
     _str = _to_col_if_str(expr2, "locate")
     return builtin("charindex")(_substr, _str, lit(start_pos))
+
+
+def enable_open_telemetry():
+    from snowflake.snowpark._internal import open_telemetry
+
+    open_telemetry.open_telemetry_enabled = True
+
+
+def disable_open_telemetry():
+    from snowflake.snowpark._internal import open_telemetry
+
+    open_telemetry.open_telemetry_enabled = False
