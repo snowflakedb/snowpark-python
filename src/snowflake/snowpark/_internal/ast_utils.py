@@ -288,11 +288,11 @@ def build_expr_from_snowpark_column(
     """Copy from a Column object's AST into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (snowflake.snowpark.Column): The value from which to populate the provided ast parameter.
 
     Raises:
-        NotImplementedError: Raised if the Column object does not have an AST set.
+        NotImplementedError: Raised if the Column object does not have an AST set and FAIL_ON_MISSING_AST is True.
     """
     if value._ast is None and FAIL_ON_MISSING_AST:
         raise NotImplementedError(
@@ -308,11 +308,11 @@ def build_expr_from_snowpark_column_or_sql_str(
     """Copy from a Column object's AST, or copy a SQL expression into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (ColumnOrSqlExpr): The value from which to populate the provided ast parameter.
 
     Raises:
-        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid SQL expression
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a SQL string
     """
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
@@ -331,11 +331,11 @@ def build_expr_from_snowpark_column_or_python_val(
     """Copy from a Column object's AST, or copy a literal value into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
 
     Raises:
-        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a literal value
     """
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
@@ -354,11 +354,11 @@ def build_expr_from_snowpark_column_or_table_fn(
     """Copy from a Column object's AST, or TableFunctionCall object's AST, into an AST expression.
 
     Args:
-        expr_builder (proto.Expr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
-        value (Union[ColumnOrName, TableFunctionCall]): The value from which to populate the provided ast parameter.
+        expr_builder (proto.Expr): A previously created Expr() IR entity intance to be filled
+        value (Union[Column, TableFunctionCall]): The value from which to populate the provided ast parameter.
     
     Raises:
-        TypeError: An Expr here can only be populated from another Expr or a TableFunctionCall object.
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a TableFunctionCall object
     """
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
