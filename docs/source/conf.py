@@ -133,7 +133,12 @@ class ModinAccessorDocumenter(PropertyDocumenter):
     Generates documentation for properties of Modin objects like Series.str and Series.dt that
     are themselves accessor classes.
     This class is necessary because we need to monkeypatch the Series.str/dt property objects
-    with the actual classes in order for autosummary-generate to produce stubs for them.
+    with the actual classes (StringMethods/DatetimeProperties) in order for autosummary-generate
+    to produce stubs for them. We override sphinx's `import_object` hook here to ensure it can
+    resolve these classes correctly.
+
+    TODO SNOW-1063347: check whether this is still needed after removing series.py since upstream
+    modin uses CachedAccessor wrapper for str/dt
 
     This class is not responsible for properties of those accessors like Series.str.capitalize.
 
@@ -301,6 +306,9 @@ def setup(app):
     # Because we're replacing the `property` object, we also need to set the __doc__ of the new
     # values of Series.str/dt to make sure autodoc can pick them up. The custom ModinAttributeDocumenter
     # class allows the top-level Series.str/dt objects to be properly documented.
+    #
+    # TODO SNOW-1063347: check whether this is still needed after removing series.py since upstream
+    # modin uses CachedAccessor wrapper for str/dt rather than a property
     old_series_dt = pd.Series.dt
     old_series_str = pd.Series.str
     pd.Series.dt = pd.series_utils.DatetimeProperties
