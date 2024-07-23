@@ -293,14 +293,11 @@ class Selectable(LogicalPlan, ABC):
         """Convert to a SnowflakePlan"""
         return self.get_snowflake_plan(skip_schema_query=False)
 
-    def get_snowflake_plan(self, skip_schema_query):
+    def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
             query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
-            if skip_schema_query is True:
-                schema_query = ""
-            else:
-                schema_query = self.schema_query
+            schema_query = None if skip_schema_query else self.schema_query
             self._snowflake_plan = SnowflakePlan(
                 queries,
                 schema_query,
@@ -565,7 +562,7 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan._id
 
     @property
-    def schema_query(self) -> str:
+    def schema_query(self) -> Optional[str]:
         return self.snowflake_plan.schema_query
 
     @property
