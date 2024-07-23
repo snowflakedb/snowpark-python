@@ -12,6 +12,6 @@ res1 = session.table("test_table")
 
 res2 = session.table("test_table")
 
-res3 = res1.join(res2, on=(res1["num"] < res2["num"] & res1["str"] == res2["str"]), how="inner")
+res3 = res1.join(res2, on=res1["num"] < res2["num"] & res1["str"] == res2["str"], how="inner")
 
 res4 = res3.select(res1["num"].as_("num_1"), res1["str"].as_("str_1"))
