@@ -58,11 +58,24 @@ if version.parse(modin.__version__) != version.parse(supported_modin_version):
 from snowflake.snowpark.modin import pandas  # isort: skip  # noqa: E402,F401
 from snowflake.snowpark.modin.config import DocModule  # isort: skip  # noqa: E402
 from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E402
-from modin.config import DocModule as ModinDocModule  # isort: skip  # noqa: E402
 
 DocModule.put(docstrings.__name__)
-ModinDocModule.put(docstrings.__name__)
 
+# We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
+# that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
+# See https://github.com/modin-project/modin/issues/7122 (available in modin 0.31.0)
+import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
+import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.StringMethods,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.StringMethods)
+
+modin.utils._inherit_docstrings(
+    docstrings.series_utils.CombinedDatetimelikeProperties,
+    overwrite_existing=True,
+)(modin.pandas.series_utils.DatetimeProperties)
 
 # Don't warn the user about our internal usage of private preview pivot
 # features. The user should have already been warned that Snowpark pandas
