@@ -3979,7 +3979,9 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name)
+        cached_df = snowflake.snowpark.table.Table(
+            temp_table_name, self._session, is_temp_table_for_cleanup=True
+        )
         cached_df.is_cached = True
         return cached_df
 
