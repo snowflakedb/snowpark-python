@@ -36,7 +36,8 @@ class QueryGenerator(Analyzer):
         super().__init__(session)
         # overwrite the plan_builder initiated in the super to skip the building of schema query
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
-        # map between the Snowflake tabel created and its child attributes
+        # map between the Snowflake table created and its child attributes, which is used resolve
+        # the SnowflakeCreateTable node
         self.table_create_child_attribute_map: Dict[
             str, List[Attribute]
         ] = table_create_child_attribute_map

@@ -208,7 +208,9 @@ class SnowflakePlan(LogicalPlan):
     def __init__(
         self,
         queries: List["Query"],
-        schema_query: str,
+        # schema_query will be None for the SnowflakePlan node build
+        # during the compilation stage.
+        schema_query: Optional[str],
         post_actions: Optional[List["Query"]] = None,
         expr_to_alias: Optional[Dict[uuid.UUID, str]] = None,
         source_plan: Optional[LogicalPlan] = None,
@@ -341,9 +343,9 @@ class SnowflakePlan(LogicalPlan):
             for query in plan.queries[:-1]:
                 if query not in pre_queries:
                     pre_queries.append(query)
-            # when self.schema_query is empty, that means no schema query is propogated during
+            # when self.schema_query is None, that means no schema query is propogated during
             # the process, there is no need to update the schema query.
-            if self.schema_query != "":
+            if (self.schema_query is not None) and (plan.schema_query is not None):
                 new_schema_query = new_schema_query.replace(
                     plan.queries[-1].sql, plan.schema_query
                 )
@@ -509,8 +511,8 @@ class SnowflakePlanBuilder:
             )
         ]
 
-        if self._skip_schema_query is True:
-            new_schema_query = ""
+        if self._skip_schema_query:
+            new_schema_query = None
         else:
             new_schema_query = (
                 schema_query if schema_query else sql_generator(child.schema_query)
@@ -560,8 +562,8 @@ class SnowflakePlanBuilder:
                 )
             ]
         )
-        if self._skip_schema_query is True:
-            schema_query = ""
+        if self._skip_schema_query:
+            schema_query = None
         else:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
@@ -640,8 +642,8 @@ class SnowflakePlanBuilder:
         )
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
-        if self._skip_schema_query is True:
-            schema_query = ""
+        if self._skip_schema_query:
+            schema_query = None
         else:
             schema_query = schema_query or schema_value_statement(attributes)
         queries = [
@@ -776,7 +778,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_scoped_temp_objects: bool,
         is_generated: bool,  # true if the table is generated internally
-        child_attribute: List[Attribute],
+        child_attributes: List[Attribute],
     ) -> SnowflakePlan:
         if is_generated and mode != SaveMode.ERROR_IF_EXISTS:
             raise ValueError(
@@ -790,7 +792,7 @@ class SnowflakePlanBuilder:
         # in save as table. So we rename ${number} with COL{number}.
         hidden_column_pattern = r"\"\$(\d+)\""
         column_definition_with_hidden_columns = attribute_to_schema_string(
-            child_attribute
+            child_attributes
         )
         column_definition = re.sub(
             hidden_column_pattern,
