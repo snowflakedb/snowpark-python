@@ -2039,7 +2039,7 @@ class Session:
         for col_name in col_names:
             ast.columns.append(col_name._ast)
         ast.row_count = rowcount
-        ast.time_limit = timelimit
+        ast.time_limit_seconds = timelimit
         ast.variadic = is_variadic
 
         if self._conn._suppress_not_implemented_error:
