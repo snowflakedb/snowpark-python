@@ -7,7 +7,7 @@ import logging
 
 from parameters import CONNECTION_PARAMETERS
 
-from snowflake.snowpark import Session
+from snowflake.snowpark import Row, Session
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -52,5 +52,9 @@ session = Session.builder.configs(CONNECTION_PARAMETERS).getOrCreate()
 # TODO: Once column expr PR is in, add filter. This requires to modify above SQL statements to include
 # a VARCHAR column as well.
 
-df = session.table("test_table")
+df = session.create_dataframe([Row(a=1, b=2, c=3)])
+
 df.show()
+
+# df = session.table("test_table")
+# df.show()

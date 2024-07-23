@@ -523,6 +523,7 @@ class DataFrame:
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
         ast_stmt: Optional[proto.Assign] = None,
+        _supress_ast: bool = False,
     ) -> None:
         """
         :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
@@ -530,7 +531,8 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if not _supress_ast:
+            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -4435,7 +4437,7 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name, suppress_ast=True)
+        cached_df = self._session.table(temp_table_name, _suppress_ast=True)
         cached_df.is_cached = True
         cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
