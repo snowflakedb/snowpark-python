@@ -862,6 +862,11 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
     import_body = """
