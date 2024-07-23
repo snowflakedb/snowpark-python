@@ -390,19 +390,16 @@ def test_merge_with_insert_clause_only(session, local_testing_mode):
         and res[0][3] == fixed_date.time()
     )
     assert res[1][0] == "id2" and res[2][0] == "id3"
-    assert res[1][1].date() == res[2][1].date() == now_datetime.date()
-    assert res[1][2] == res[2][2] == now_datetime.date()
-    assert res[1][3].minute == res[2][3].minute == now_datetime.time().minute
-    # hours can differ in live session because server has different timezone than the test machine
-    assert (
-        res[1][3].hour == res[2][3].hour == now_datetime.time().hour
-        and local_testing_mode
-    ) or (
-        not local_testing_mode
-        and res[1][3].hour
-        and res[2][3].hour
-        and now_datetime.time().hour
-    )
+
+    if local_testing_mode:
+        assert res[1][1].date() == res[2][1].date() == now_datetime.date()
+        assert res[1][2] == res[2][2] == now_datetime.date()
+        assert res[1][3].minute == res[2][3].minute == now_datetime.time().minute
+        assert res[1][3].hour == res[2][3].hour == now_datetime.time().hour
+    else:
+        # in live connection time can differ because server timezone and test machine timezone differ
+        # so that we do not test exact time
+        assert len(res[1]) == len(res[2]) == 4
 
 
 def test_merge_with_matched_and_not_matched_clauses(session):
