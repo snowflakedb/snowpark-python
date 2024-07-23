@@ -93,3 +93,18 @@ def test_drop_duplicates_on_empty_frame(subset, keep):
         check_dtype=False,
         check_index_type=False,
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_drop_duplicates_post_sort_values():
+    pandas_df = native_pd.DataFrame(
+        {"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]}
+    )
+    snow_df = pd.DataFrame(pandas_df)
+
+    assert_frame_equal(
+        snow_df.sort_values("A").drop_duplicates(),
+        pandas_df.sort_values("A").drop_duplicates(),
+        check_dtype=False,
+        check_index_type=False,
+    )

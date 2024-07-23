@@ -12822,7 +12822,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[
-                frame.row_position_snowflake_quoted_identifier
+                row_position_post_dedup.row_position_snowflake_quoted_identifier
             ],
         )
 
