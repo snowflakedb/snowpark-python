@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added the `vector_cosine_similarity` built-in function.
+
 #### Improvements
 - Added support server side string size limitations.
 
