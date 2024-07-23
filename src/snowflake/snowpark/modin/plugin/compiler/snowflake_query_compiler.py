@@ -277,6 +277,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UNPIVOT_NULL_REPLACE_VALUE,
+    StackOperation,
     unpivot,
     unpivot_empty_df,
 )
@@ -15680,53 +15681,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support multiindex columns in stack API"
             )
 
-        index_names = self.get_index_names()
-        does_index_names_contain_none = None in index_names
-
-        if does_index_names_contain_none:
-            # Index name defaults to "index" after reset_index() operation if index name is None
-            index_cols = ["index"]
-        else:
-            index_cols = index_names  # type: ignore
-
-        # Stack is equivalent to doing df.melt() with index reset, sorting the values, then setting the index
-        # Note that we always use sort_rows_by_column_values even if sort is False
-        col_label = (
-            "index_second_level" if self.columns.name is None else self.columns.name
+        qc = self._stack_helper(
+            index_names=self.get_index_names(), operation=StackOperation.STACK
         )
-
-        qc = (
-            self.reset_index()
-            .melt(
-                id_vars=index_cols,
-                value_vars=self.columns,
-                var_name=col_label,
-                value_name=MODIN_UNNAMED_SERIES_LABEL,
-                ignore_index=False,
-            )
-            .sort_rows_by_column_values(
-                columns=index_cols,  # type: ignore
-                ascending=[True],
-                kind="stable",
-                na_position="last",
-                ignore_index=False,
-            )
-            # TODO: SNOW-1524695: Fix `NULL_REPLACE` values in output of `melt`
-            .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
-            .set_index_from_columns(index_cols + [col_label])  # type: ignore
-        )
-
-        index_cols_replace_none = [
-            None if index_cols[i] == "index" else index_cols[i]
-            for i in range(len(index_cols))
-        ]
-        # Set the correct index names based on column and index names
-        if self.columns.name is None and not does_index_names_contain_none:
-            qc = qc.set_index_names(index_cols_replace_none + [None])  # type: ignore
-        elif self.columns.name is None and does_index_names_contain_none:
-            qc = qc.set_index_names([None, None])
-        elif does_index_names_contain_none:
-            qc = qc.set_index_names([col_label, None])
 
         if dropna:
             return qc.dropna(axis=0, how="any", thresh=None)
@@ -15774,7 +15731,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level = level if is_list_like(level) else [level]
 
         index_names = self.get_index_names()
-        does_index_names_contain_none = None in index_names
+
         # Check to see if we have a MultiIndex, if we do, make sure we remove
         # the appropriate level(s), and we pivot accordingly.
         if len(index_names) > 1:
@@ -15831,47 +15788,72 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     qc.columns.set_names(output_column_names_replace_level_with_none)
                 )
         else:
-            # N.B. normally non-MultiIndex cases would throw an error in pandas
-            # for series objects. However, pandas seems to handle this for DFs
-            # by doing a transposed stack! Strange behavior, but since we throw
-            # an error in the modin API layer for Series without MultiIndex indices,
-            # we can assume that this must be a DataFrame. This assumption might
-            # change in the future, so this code should be changed along with it.
-
-            # Index name defaults to "index" after reset_index() operation if index name is None
-            index_cols = ["index"] if does_index_names_contain_none else index_names
-
-            col_label = (
-                "index_second_level" if self.columns.name is None else self.columns.name
+            qc = self._stack_helper(
+                index_names=index_names, operation=StackOperation.UNSTACK
             )
-            qc = (
-                self.reset_index(names=index_cols)
-                .melt(
-                    id_vars=index_cols,  # type: ignore
-                    value_vars=self.columns,
-                    var_name=col_label,
-                    value_name=MODIN_UNNAMED_SERIES_LABEL,
-                    ignore_index=False,
-                )
-                # TODO: SNOW-1524695: Fix `NULL_REPLACE` values in output of `melt`
-                .replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
-                .set_index_from_columns([col_label] + index_cols)  # type: ignore
-            )
-
-            # Set the correct index names based on index names
-            output_index_names = qc.get_index_names()
-            output_index_names = [
-                None
-                if isinstance(output_index_names[i], str)
-                and output_index_names[i] in ("index", "index_second_level")
-                else output_index_names[i]
-                for i in range(len(output_index_names))
-            ]
-            qc = qc.set_index_names(output_index_names)
 
         if is_series_input and qc.columns.nlevels > 1:
             # If input is Series and output is MultiIndex, drop the top level of the MultiIndex
             qc = qc.set_columns(qc.columns.droplevel())
+        return qc
+
+    def _stack_helper(
+        self,
+        index_names: list[Hashable],
+        operation: StackOperation,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Helper function that performs stacking or unstacking operation on single index dataframe/series.
+
+        Parameters
+        ----------
+        index_names : list[Hashable]
+            The list of index names.
+        operation : StackOperation.STACK or StackOperation.UNSTACK
+            The operation being performed.
+        """
+        # Index name defaults to "index" after reset_index() operation if index name is None
+        index_cols = ["index"] if None in index_names else index_names
+        col_label = (
+            "index_second_level" if self.columns.name is None else self.columns.name
+        )
+
+        qc = self.reset_index(names=index_cols).melt(
+            id_vars=index_cols,  # type: ignore
+            value_vars=self.columns,
+            var_name=col_label,
+            value_name=MODIN_UNNAMED_SERIES_LABEL,
+            ignore_index=False,
+        )
+
+        if operation == StackOperation.STACK:
+            # Only sort rows by column values in case of 'stack'
+            qc = qc.sort_rows_by_column_values(
+                columns=index_cols,  # type: ignore
+                ascending=[True],
+                kind="stable",
+                na_position="last",
+                ignore_index=False,
+            )
+
+        # TODO: SNOW-1524695: Remove the following replace once "NULL_REPLACE" values are fixed for 'melt'
+        qc = qc.replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
+
+        if operation == StackOperation.STACK:
+            qc = qc.set_index_from_columns(index_cols + [col_label])  # type: ignore
+        else:
+            qc = qc.set_index_from_columns([col_label] + index_cols)  # type: ignore
+
+        # Set the correct index names based on index names
+        output_index_names = qc.get_index_names()
+        output_index_names = [
+            None
+            if isinstance(output_index_names[i], str)
+            and output_index_names[i] in ("index", "index_second_level")
+            else output_index_names[i]
+            for i in range(len(output_index_names))
+        ]
+        qc = qc.set_index_names(output_index_names)
         return qc
 
     def corr(
