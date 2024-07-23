@@ -2,20 +2,16 @@
 
 from snowflake.snowpark.functions import seq1, seq8, uniform
 
-df1 = session.table("test_table")
+df1 = session.generator(col("A"), col("B"))
 
-df2 = session.generator(col("A"), col("B"))
+df2 = session.generator(seq1(1), uniform(1, 10, 2), rowcount=3)
 
-df3 = session.generator(seq1(1), uniform(1, 10, 2), rowcount=3)
-
-df4 = df.generator(seq8(0), uniform(1, 10, 2), timelimit=1)
+df3 = session.generator(seq8(0), uniform(1, 10, 2), timelimit=1)
 
 ## EXPECTED OUTPUT
 
-res1 = session.table("test_table")
+res1 = session.generator(col("A"), col("B"), rowcount=0, timelimit=0)
 
-res2 = res1.generator(col("A"), col("B")
+res2 = session.generator(seq1(1), uniform(lit(1), lit(10), lit(2)), rowcount=3, timelimit=0)
 
-res3 = res1.generator(seq1(1), uniform(1, 10, 2), rowcount=3)
-
-res4 = res1.generator(seq8(0), uniform(1, 10, 2), timelimit=1)
+res3 = session.generator(seq8(0), uniform(lit(1), lit(10), lit(2)), rowcount=0, timelimit=1)
