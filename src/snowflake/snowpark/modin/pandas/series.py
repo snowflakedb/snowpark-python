@@ -831,7 +831,6 @@ class Series(BasePandasDataset):
             pandas.Series.between, left, right, inclusive=inclusive
         )
 
-    @series_not_implemented()
     def compare(
         self,
         other: Series,
@@ -847,7 +846,9 @@ class Series(BasePandasDataset):
         if not isinstance(other, Series):
             raise TypeError(f"Cannot compare Series to {type(other)}")
         result = self.to_frame().compare(
-            other.to_frame(),
+            # TODO(https://github.com/modin-project/modin/issues/7334):
+            # upstream this fix for differently named Series.
+            other.rename(self.name).to_frame(),
             align_axis=align_axis,
             keep_shape=keep_shape,
             keep_equal=keep_equal,
@@ -856,7 +857,19 @@ class Series(BasePandasDataset):
         if align_axis == "columns" or align_axis == 1:
             # pandas.DataFrame.Compare returns a dataframe with a multidimensional index object as the
             # columns so we have to change column object back.
-            result.columns = pandas.Index(["self", "other"])
+            if len(result.columns) == 2:
+                result.columns = pandas.Index(result_names)
+            else:
+                # even if the DataFrame.compare() result has no columns, the
+                # Series.compare() result always has the `result_names` as two
+                # columns.
+                # TODO(https://github.com/modin-project/modin/issues/5697):
+                # upstream this fix to modin.
+
+                # we have compared only one column, so DataFrame.compare()
+                # should only produce 0 or 2 columns.
+                assert len(result.columns) == 0
+                result = pd.DataFrame([], columns=result_names, index=result.index)
         else:
             result = result.squeeze().rename(None)
         return result
@@ -1070,17 +1083,31 @@ class Series(BasePandasDataset):
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
         return super().eq(other, level=level, axis=axis)
 
-    @series_not_implemented()
-    def equals(self, other):  # noqa: PR01, RT01, D200
+    def equals(self, other) -> bool:  # noqa: PR01, RT01, D200
         """
         Test whether two objects contain the same elements.
         """
         # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        return (
-            self.name == other.name
-            and self.index.equals(other.index)
-            and self.eq(other).all()
-        )
+        if isinstance(other, pandas.Series):
+            # Copy into a Modin Series to simplify logic below
+            other = self.__constructor__(other)
+
+        if type(self) is not type(other) or not self.index.equals(other.index):
+            return False
+
+        old_name_self = self.name
+        old_name_other = other.name
+        try:
+            self.name = "temp_name_for_equals_op"
+            other.name = "temp_name_for_equals_op"
+            # this function should return only scalar
+            res = self.__constructor__(
+                query_compiler=self._query_compiler.equals(other._query_compiler)
+            )
+        finally:
+            self.name = old_name_self
+            other.name = old_name_other
+        return res.all()
 
     @series_not_implemented()
     def explode(self, ignore_index: bool = False):  # noqa: PR01, RT01, D200
@@ -1670,10 +1697,12 @@ class Series(BasePandasDataset):
     def reindex(self, *args, **kwargs):
         if args:
             if len(args) > 1:
-                raise TypeError("Only one positional argument ('index') is allowed")
+                raise TypeError(
+                    "Series.reindex() takes from 1 to 2 positional arguments but 3 were given"
+                )
             if "index" in kwargs:
                 raise TypeError(
-                    "'index' passed as both positional and keyword argument"
+                    "Series.reindex() got multiple values for argument 'index'"
                 )
             kwargs.update({"index": args[0]})
         index = kwargs.pop("index", None)
@@ -1683,10 +1712,11 @@ class Series(BasePandasDataset):
         limit = kwargs.pop("limit", None)
         tolerance = kwargs.pop("tolerance", None)
         fill_value = kwargs.pop("fill_value", None)
+        kwargs.pop("axis", None)
         if kwargs:
             raise TypeError(
-                "reindex() got an unexpected keyword "
-                + f'argument "{list(kwargs.keys())[0]}"'
+                "Series.reindex() got an unexpected keyword "
+                + f"argument '{list(kwargs.keys())[0]}'"
             )
         return super().reindex(
             index=index,

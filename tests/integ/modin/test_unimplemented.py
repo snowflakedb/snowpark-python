@@ -117,7 +117,7 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
     "func, func_name",
     UNSUPPORTED_BINARY_METHODS,
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_unsupported_series_binary_methods(func, func_name, caplog) -> None:
     native_se1 = native_pd.Series([1, 2, 3, 0, 2])
     native_se2 = native_pd.Series([2, 3, 10, 0, 1])
@@ -201,7 +201,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.where(),
     lambda idx: idx.take(),
     lambda idx: idx.putmask(),
-    lambda idx: idx.nunique(),
     lambda idx: idx.droplevel(),
     lambda idx: idx.fillna(),
     lambda idx: idx.dropna(),
