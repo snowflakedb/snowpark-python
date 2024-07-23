@@ -23,6 +23,12 @@
     - datediff
 
 ### Snowpark pandas API Updates
+
+### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for `pandas` 2.2.2.
+
 #### New Features
 - Added support for `Index.is_unique` and `Index.has_duplicates`.
 
