@@ -4,6 +4,7 @@
 #
 
 import datetime
+import decimal  # noqa: F401
 import json
 import logging
 import math
@@ -98,6 +99,7 @@ def setup(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        session.add_packages("snowflake-snowpark-python")
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_udf_py_file, compress=False
     )
@@ -986,10 +988,13 @@ def return_dict(v: dict) -> Dict[str, str]:
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
-    source = """
+    import_body = """
 import datetime
-from typing import List, Optional
-
+import decimal
+from snowflake.snowpark.types import Variant, Geometry, Geography
+from typing import Dict, List, Optional
+"""
+    func_body = """
 def add(x: int = 0, y: int = 0) -> int:
     return x + y
 
@@ -1009,11 +1014,32 @@ def return_arr(
 ) -> List[int]:
     base_arr.extend(extra_arr)
     return base_arr
+
+def return_all_datatypes(
+    a: int = 1,
+    b: float = 1.0,
+    c: str = "one",
+    d: List[int] = [],
+    e: Dict[str, int] = {"s": 1},
+    f: Variant = {"key": "val"},
+    g: Geometry = "POINT(-122.35 37.55)",
+    h: Geography = "POINT(-122.35 37.55)",
+    i: datetime.datetime = datetime.datetime(2021, 1, 1, 0, 0, 0),
+    j: datetime.date = datetime.date(2021, 1, 1),
+    k: datetime.time = datetime.time(0, 0, 0),
+    l: bytes = b"123",
+    m: bool = True,
+    n: decimal.Decimal = decimal.Decimal(1.0),
+) -> str:
+    final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
+    return final_str
 """
     if register_from_file:
         file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
         with open(file_path, "w") as f:
+            source = f"{import_body}\n{func_body}"
             f.write(source)
+
         add_udf = session.udf.register_from_file(file_path, "add")
         snow_udf = session.udf.register_from_file(file_path, "snow")
         double_str_list_udf = session.udf.register_from_file(
@@ -1021,33 +1047,19 @@ def return_arr(
         )
         return_date_udf = session.udf.register_from_file(file_path, "return_date")
         return_arr_udf = session.udf.register_from_file(file_path, "return_arr")
+        return_all_datatypes_udf = session.udf.register_from_file(
+            file_path, "return_all_datatypes"
+        )
     else:
+        d = {}
+        exec(func_body, {**globals(), **locals()}, d)
 
-        def add(x: int = 0, y: int = 0) -> int:
-            return x + y
-
-        def snow(x: int = 1) -> Optional[str]:
-            return "snow" if x % 2 == 0 else None
-
-        def double_str_list(x: str = "a") -> List[str]:
-            return [x, x]
-
-        def return_date(
-            dt: datetime.date = datetime.date(2017, 1, 1)  # noqa: B008
-        ) -> datetime.date:
-            return dt
-
-        def return_arr(
-            base_arr: List[int], extra_arr: List[int] = [4]  # noqa: B006
-        ) -> List[int]:
-            base_arr.extend(extra_arr)
-            return base_arr
-
-        add_udf = session.udf.register(add)
-        snow_udf = session.udf.register(snow)
-        double_str_list_udf = session.udf.register(double_str_list)
-        return_date_udf = session.udf.register(return_date)
-        return_arr_udf = session.udf.register(return_arr)
+        add_udf = session.udf.register(d["add"])
+        snow_udf = session.udf.register(d["snow"])
+        double_str_list_udf = session.udf.register(d["double_str_list"])
+        return_date_udf = session.udf.register(d["return_date"])
+        return_arr_udf = session.udf.register(d["return_arr"])
+        return_all_datatypes_udf = session.udf.register(d["return_all_datatypes"])
 
     df = session.create_dataframe([[1, 4], [2, 3]]).to_df("a", "b")
     Utils.check_answer(
@@ -1099,6 +1111,19 @@ def return_arr(
         [
             Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
             Row("[\n  1,\n  2,\n  3,\n  4,\n  5\n]", "[\n  1,\n  2,\n  3,\n  4\n]"),
+        ],
+    )
+
+    default_row = "1, 1.0, one, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, b'123', True, 1.000000000000000000"
+    custom_row = "2, 2.0, two, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, b'123', True, 1.000000000000000000"
+    Utils.check_answer(
+        df.select(
+            return_all_datatypes_udf(),
+            return_all_datatypes_udf(lit(2), lit(2.0), lit("two")),
+        ),
+        [
+            Row(default_row, custom_row),
+            Row(default_row, custom_row),
         ],
     )
 
