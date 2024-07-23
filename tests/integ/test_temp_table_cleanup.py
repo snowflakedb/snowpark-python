@@ -9,6 +9,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
+from tests.utils import IS_IN_STORED_PROC
 
 pytestmark = [
     pytest.mark.skipif(
@@ -78,6 +79,7 @@ def test_reference_count_map_copy(session, copy_function):
     assert table_name not in session._temp_table_ref_count_map
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_reference_count_map_multiple_sessions(db_parameters, session):
     new_session = Session.builder.configs(db_parameters).create()
     try:
