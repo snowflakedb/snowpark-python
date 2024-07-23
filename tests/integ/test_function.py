@@ -84,8 +84,8 @@ from snowflake.snowpark.functions import (
     desc,
     desc_nulls_first,
     desc_nulls_last,
-    disable_open_telemetry,
-    enable_open_telemetry,
+    disable_span_record,
+    enable_span_record,
     exp,
     floor,
     format_number,
@@ -2248,7 +2248,7 @@ def test_enable_disable_open_telemetry(monkeypatch):
 
     monkeypatch.setattr(open_telemetry, "open_telemetry_enabled", True)
     assert open_telemetry.open_telemetry_enabled is True
-    disable_open_telemetry()
+    disable_span_record()
     assert open_telemetry.open_telemetry_enabled is False
-    enable_open_telemetry()
+    enable_span_record()
     assert open_telemetry.open_telemetry_enabled is True

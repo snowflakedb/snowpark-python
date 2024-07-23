@@ -88,10 +88,10 @@ api_calls = [
 
 def test_disable_open_telemetry(monkeypatch, dict_exporter):
     from snowflake.snowpark._internal import open_telemetry
-    from snowflake.snowpark.functions import disable_open_telemetry
+    from snowflake.snowpark.functions import disable_span_record
 
     monkeypatch.setattr(open_telemetry, "open_telemetry_enabled", True)
-    disable_open_telemetry()
+    disable_span_record()
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
