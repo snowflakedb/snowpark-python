@@ -2,8 +2,12 @@
 
 from snowflake.snowpark import Row
 
-df = session.create_dataframe([Row(a=1, b=2, c=3)])
+df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
+
+df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
 
 ## EXPECTED OUTPUT
 
-res = session.create_dataframe([Row(a=1, b=2, c=3)])
+res1 = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
+
+res2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
