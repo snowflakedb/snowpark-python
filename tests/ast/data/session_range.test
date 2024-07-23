@@ -1,0 +1,23 @@
+## TEST CASE
+
+r = session.range(10)
+
+r = session.range(1, 10)
+
+r = session.range(1, 10, 2)
+
+r = session.range(1, None)
+
+r = session.range(1, None, 2)
+
+## EXPECTED OUTPUT
+
+res1 = session.range(10)
+
+res2 = session.range(1, 10)
+
+res3 = session.range(1, 10, 2)
+
+res4 = session.range(1, None)
+
+res5 = session.range(1, None, 2)
