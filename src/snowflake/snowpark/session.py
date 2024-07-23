@@ -1946,11 +1946,11 @@ class Session:
             expr.fn.udtf.name = ".".join(func_name)
 
         for arg in func_arguments:
-            build_expr_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(expr.pos_args.add(), arg)
         for k in func_named_arguments:
             entry = expr.named_args.add()
             entry._1 = k
-            build_expr_from_python_val(func_named_arguments[k], entry._2)
+            build_expr_from_python_val(entry._2, func_named_arguments[k])
 
         if isinstance(self._conn, MockServerConnection):
             if not self._conn._suppress_not_implemented_error:
@@ -2105,7 +2105,7 @@ class Session:
             expr.query = query
             if params is not None:
                 for p in params:
-                    build_expr_from_python_val(p, expr.params.add())
+                    build_expr_from_python_val(expr.params.add(), p)
         else:
             stmt = _ast_stmt
 
@@ -3174,12 +3174,12 @@ class Session:
         expr = with_src_position(stmt.expr.apply_expr)
         expr.fn.stored_procedure.name = sproc_name
         for arg in args:
-            build_expr_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(expr.pos_args.add(), arg)
         if statement_params is not None:
             for k in statement_params:
                 entry = expr.named_args.list.add()
                 entry._1 = k
-                build_expr_from_python_val(statement_params[k], entry._2)
+                build_expr_from_python_val(entry._2, statement_params[k])
         expr.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
@@ -3277,7 +3277,7 @@ class Session:
         # AST.
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_flatten, stmt)
-        build_expr_from_python_val(input, expr.input)
+        build_expr_from_python_val(expr.input, input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer

@@ -6711,7 +6711,7 @@ def in_(
         if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
             val.set_ast_ref(val_ast)
         else:
-            build_expr_from_python_val(val, val_ast)
+            build_expr_from_python_val(val_ast, val)
         values_args.append(val_ast)
 
     vals = parse_positional_args_to_list(*vals)

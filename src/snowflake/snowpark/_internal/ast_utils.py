@@ -33,7 +33,7 @@ from snowflake.snowpark._internal.type_utils import (
 FAIL_ON_MISSING_AST = True
 
 
-def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
+def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
     Args:
@@ -132,18 +132,18 @@ def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
         set_src_position(expr_builder.seq_map_val.src)
         for key, value in obj.items():
             kv_tuple_ast = expr_builder.seq_map_val.kvs.add()
-            build_expr_from_python_val(key, kv_tuple_ast.vs.add())
-            build_expr_from_python_val(value, kv_tuple_ast.vs.add())
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), key)
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), value)
 
     elif isinstance(obj, list):
         set_src_position(expr_builder.list_val.src)
         for v in obj:
-            build_expr_from_python_val(v, expr_builder.list_val.vs.add())
+            build_expr_from_python_val(expr_builder.list_val.vs.add(), v)
 
     elif isinstance(obj, tuple):
         set_src_position(expr_builder.tuple_val.src)
         for v in obj:
-            build_expr_from_python_val(v, expr_builder.tuple_val.vs.add())
+            build_expr_from_python_val(expr_builder.tuple_val.vs.add(), v)
 
     elif isinstance(obj, Column):
         expr_builder.CopyFrom(obj._ast)
@@ -184,7 +184,7 @@ def build_fn_apply(
             expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
-            build_expr_from_python_val(arg, pos_arg)
+            build_expr_from_python_val(pos_arg, arg)
             expr.pos_args.append(pos_arg)
 
     for name, arg in kwargs.items():
@@ -196,7 +196,7 @@ def build_fn_apply(
             assert arg._ast, f"Column object {name}={arg} has no _ast member set."
             kwarg._2.CopyFrom(arg._ast)
         else:
-            build_expr_from_python_val(arg, kwarg._2)
+            build_expr_from_python_val(kwarg._2, arg)
         expr.named_args.append(kwarg)
 
 
@@ -340,7 +340,7 @@ def build_expr_from_snowpark_column_or_python_val(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-        build_expr_from_python_val(value, expr_builder)
+        build_expr_from_python_val(expr_builder, value)
     elif isinstance(value, Expression):
         # Expressions must be handled by caller.
         pass
@@ -442,7 +442,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         return create_ast_for_column(expr.name, None)
     elif isinstance(expr, Literal):
         ast = proto.Expr()
-        build_expr_from_python_val(expr.value, ast)
+        build_expr_from_python_val(ast, expr.value)
         return ast
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.

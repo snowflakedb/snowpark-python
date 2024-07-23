@@ -2789,9 +2789,9 @@ class DataFrame:
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
             if on is not None:
-                build_expr_from_python_val(on, ast.join_expr)
+                build_expr_from_python_val(ast.join_expr, on)
             if match_condition is not None:
-                build_expr_from_python_val(match_condition, ast.match_condition)
+                build_expr_from_python_val(ast.match_condition, match_condition)
             if lsuffix:
                 ast.lsuffix.value = lsuffix
             if rsuffix:
@@ -3441,7 +3441,7 @@ class DataFrame:
             for k in format_type_options:
                 entry = expr.format_type_options.add()
                 entry._1 = k
-                build_expr_from_python_val(format_type_options[k], entry._2)
+                build_expr_from_python_val(entry._2, format_type_options[k])
         if statement_params is not None:
             for k in statement_params:
                 entry = expr.statement_params.add()
@@ -3451,7 +3451,7 @@ class DataFrame:
             for k in copy_options:
                 entry = expr.copy_options.add()
                 entry._1 = k
-                build_expr_from_python_val(copy_options[k], entry._2)
+                build_expr_from_python_val(entry._2, copy_options[k])
 
         if self._session._conn._suppress_not_implemented_error:
             return None
@@ -4362,7 +4362,7 @@ class DataFrame:
         for col, new_name in col_or_mapper.items():
             kv_tuple_ast = expr.col_or_mapper.seq_map_val.kvs.add()
             build_expr_from_snowpark_column_or_python_val(kv_tuple_ast.vs.add(), col)
-            build_expr_from_python_val(new_name, kv_tuple_ast.vs.add())
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), new_name)
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
