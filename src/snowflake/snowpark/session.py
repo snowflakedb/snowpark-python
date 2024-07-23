@@ -2036,10 +2036,14 @@ class Session:
         stmt = self._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_generator)
         col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
-        ast.columns.extend(col_names)
+        for col_name in col_names:
+            ast.columns.append(col_name._ast)
         ast.row_count = rowcount
         ast.time_limit = timelimit
         ast.variadic = is_variadic
+
+        if self._conn._suppress_not_implemented_error:
+            return None
 
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -2824,8 +2828,9 @@ class Session:
         stmt = self._ast_batch.assign()
         ast = with_src_position(stmt.expr.sp_range)
         ast.start = start
-        ast.end = end
-        ast.step = step
+        if end:
+            ast.end.value = end
+        ast.step.value = step
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
