@@ -1585,10 +1585,6 @@ class DataFrame(BasePandasDataset):
         if not is_list_like(id_vars):
             id_vars = [id_vars]
         if value_vars is None:
-            # Behavior of Index.difference changed in 2.2.x
-            # https://github.com/pandas-dev/pandas/pull/55113
-            # This change needs upstream to Modin:
-            # https://github.com/modin-project/modin/issues/7206
             value_vars = self.columns.drop(id_vars)
         if var_name is None:
             columns_name = self._query_compiler.get_index_name(axis=1)
