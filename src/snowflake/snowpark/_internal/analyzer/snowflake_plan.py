@@ -490,46 +490,6 @@ class SnowflakePlanBuilder:
         )
 
     @SnowflakePlan.Decorator.wrap_exception
-    def build_from_multiple_queries(
-        self,
-        multi_sql_generator: Callable[["Query"], List["Query"]],
-        child: SnowflakePlan,
-        source_plan: Optional[LogicalPlan],
-        schema_query: str,
-        is_ddl_on_temp_object: bool = False,
-    ) -> SnowflakePlan:
-        select_child = self.add_result_scan_if_not_select(child)
-        queries = select_child.queries[0:-1] + [
-            Query(
-                query.sql,
-                is_ddl_on_temp_object=is_ddl_on_temp_object,
-                params=query.params,
-            )
-            for query in multi_sql_generator(select_child.queries[-1])
-        ]
-        new_schema_query = (
-            schema_query
-            if schema_query is not None
-            else multi_sql_generator(Query(select_child.schema_query))[-1].sql
-        )
-        placeholder_query = (
-            multi_sql_generator(Query(select_child._id))[-1].sql
-            if self.session._cte_optimization_enabled and select_child._id is not None
-            else None
-        )
-
-        return SnowflakePlan(
-            queries,
-            new_schema_query,
-            select_child.post_actions,
-            select_child.expr_to_alias,
-            source_plan,
-            api_calls=select_child.api_calls,
-            session=self.session,
-            placeholder_query=placeholder_query,
-        )
-
-    @SnowflakePlan.Decorator.wrap_exception
     def build_binary(
         self,
         sql_generator: Callable[[str, str], str],
