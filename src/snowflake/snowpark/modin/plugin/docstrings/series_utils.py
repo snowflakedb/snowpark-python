@@ -1318,7 +1318,7 @@ class CombinedDatetimelikeProperties:
         0    0
         1    1
         2    2
-        dtype: int32
+        dtype: int64
         """
 
     @property
@@ -1340,7 +1340,7 @@ class CombinedDatetimelikeProperties:
         0    0
         1    1
         2    2
-        dtype: int32
+        dtype: int64
         """
 
     @property
