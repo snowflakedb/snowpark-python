@@ -298,7 +298,7 @@ class Selectable(LogicalPlan, ABC):
             query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             if skip_schema_query is True:
-                schema_query = None
+                schema_query = ""
             else:
                 schema_query = self.schema_query
             self._snowflake_plan = SnowflakePlan(
@@ -566,10 +566,6 @@ class SelectSnowflakePlan(Selectable):
 
     @property
     def schema_query(self) -> str:
-        assert (
-            self.snowflake_plan.schema_query is not None
-        ), "No schema query found for the SelectSnowflakePlan"
-
         return self.snowflake_plan.schema_query
 
     @property
