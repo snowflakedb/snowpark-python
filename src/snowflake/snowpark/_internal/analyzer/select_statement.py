@@ -1143,7 +1143,7 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.placeholder_query
 
     @property
-    def schema_query(self) -> str:
+    def schema_query(self) -> Optional[str]:
         return self._snowflake_plan.schema_query
 
     @property

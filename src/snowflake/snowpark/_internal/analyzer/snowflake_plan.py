@@ -345,7 +345,7 @@ class SnowflakePlan(LogicalPlan):
                     pre_queries.append(query)
             # when self.schema_query is None, that means no schema query is propogated during
             # the process, there is no need to update the schema query.
-            if (self.schema_query is not None) and (plan.schema_query is not None):
+            if (new_schema_query is not None) and (plan.schema_query is not None):
                 new_schema_query = new_schema_query.replace(
                     plan.queries[-1].sql, plan.schema_query
                 )
@@ -367,6 +367,9 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def attributes(self) -> List[Attribute]:
+        assert (
+            self.schema_query is not None
+        ), "No schema query is available for the SnowflakePlan"
         output = analyze_attributes(self.schema_query, self.session)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
@@ -514,6 +517,9 @@ class SnowflakePlanBuilder:
         if self._skip_schema_query:
             new_schema_query = None
         else:
+            assert (
+                child.schema_query is not None
+            ), "No schema query available for the child"
             new_schema_query = (
                 schema_query if schema_query else sql_generator(child.schema_query)
             )

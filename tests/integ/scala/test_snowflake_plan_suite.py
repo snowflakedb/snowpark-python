@@ -260,7 +260,7 @@ def test_create_scoped_temp_table(session):
                 None,
                 use_scoped_temp_objects=True,
                 is_generated=True,
-                child_attribute=df._plan.attributes,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
