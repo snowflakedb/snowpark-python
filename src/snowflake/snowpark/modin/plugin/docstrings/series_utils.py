@@ -1315,9 +1315,9 @@ class CombinedDatetimelikeProperties:
         2   2000-01-01 00:00:00.000002
         dtype: datetime64[ns]
         >>> datetime_series.dt.microsecond
-        0       0
-        1       1
-        2       2
+        0    0
+        1    1
+        2    2
         dtype: int32
         """
 
@@ -1337,9 +1337,9 @@ class CombinedDatetimelikeProperties:
         2   2000-01-01 00:00:00.000000002
         dtype: datetime64[ns]
         >>> datetime_series.dt.nanosecond
-        0       0
-        1       1
-        2       2
+        0    0
+        1    1
+        2    2
         dtype: int32
         """
 
