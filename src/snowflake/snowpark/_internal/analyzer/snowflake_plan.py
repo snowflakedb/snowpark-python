@@ -561,7 +561,7 @@ class SnowflakePlanBuilder:
             ]
         )
         if self._skip_schema_query is True:
-            schema_query = None
+            schema_query = ""
         else:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
@@ -641,7 +641,7 @@ class SnowflakePlanBuilder:
         select_stmt = project_statement([], temp_table_name)
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
         if self._skip_schema_query is True:
-            schema_query = None
+            schema_query = ""
         else:
             schema_query = schema_query or schema_value_statement(attributes)
         queries = [
