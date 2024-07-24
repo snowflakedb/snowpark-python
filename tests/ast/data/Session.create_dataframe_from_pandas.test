@@ -1,0 +1,13 @@
+## TEST CASE
+
+# Separate test file for pandas support.
+
+from snowflake.snowpark import Row
+
+from snowflake.snowpark.types import IntegerType, StringType, StructField
+
+import pandas as pd
+
+df = session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+
+## EXPECTED OUTPUT
