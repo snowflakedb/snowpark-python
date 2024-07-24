@@ -695,7 +695,7 @@ class Analyzer:
             # to types.
             # WRONG-- we still don't have datatypes here.
             if isinstance(expr, Subtract) and isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimestampType):
-                return f'datediff("ns", {left_sql_expr}, {right_sql_expr})'
+                return f'datediff("ns", {right_sql_expr}, {left_sql_expr})'
 
             # from .functions import datediff
             # right_expression = Column._to_expr(other)

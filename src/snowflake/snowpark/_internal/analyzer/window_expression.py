@@ -134,7 +134,6 @@ class WindowExpression(Expression):
         super().__init__()
         self.window_function = window_function
         self.window_spec = window_spec
-        self.return_type = window_function.return_type
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.window_function, self.window_spec)
@@ -151,6 +150,10 @@ class WindowExpression(Expression):
             self.window_function.cumulative_node_complexity,
             self.window_spec.cumulative_node_complexity,
         )
+
+    def resolve_datatype(self, input_datatypes):
+        self.window_function.resolve_datatype(input_datatypes)
+        self.datatype = self.window_function.datatype
 
 class RankRelatedFunctionExpression(Expression):
     sql: str

@@ -370,55 +370,15 @@ class SnowflakePlan(LogicalPlan):
             # first is 'select *' from another SelectStatement whose projection has the goods            
             if self.source_plan.projection is None:
                 return self.source_plan.from_.snowflake_plan.attributes
-            input_attributes = self.source_plan.from_.snowflake_plan.attributes         
-            input_names = [c.name for c in input_attributes]           
             my_attributes = []
-            # We have real projections. resolve each of self.projection against self.source_plan.
-            #
-            # TODO:
-            # We want methods like resolve() on each of the expression objects so that they can
-            # recursively do this resolution on their own. We shouldn't have to unroll expression objects
-            # as we are doing here with projction.child.return_type.
-            from .analyzer import Alias
-            for projection in self.source_plan.projection:
-                if isinstance(projection, Attribute):
-                    # Attribute already has a DataType.
-                    my_attributes.append(projection)
-                elif isinstance(projection, Alias):
-                    # get return type from function. but return type depends on input types.
-                    # here have a hack for t_timestamp.
-                    # TODO: add a method to functions called resolve() that will resolve
-                    # the output types given the input schema.
-                    # functions like sum() can initialize functions with a `resolver` attribute
-                    # that tells how they should resolve types.
-                
-                    # copied from DataFrame._resolve
-                    from .binary_expression import Subtract
-
-                    if isinstance(projection.child, UnresolvedAttribute):
-                        my_attributes.append(projection.child.resolve(input_attributes).with_name(projection.name))
-                    elif (
-                        isinstance(projection.child, Subtract) and
-                        isinstance(projection.child.children[0], UnresolvedAttribute) and
-                        isinstance(projection.child.children[1], UnresolvedAttribute) and 
-                        isinstance(projection.child.children[0].resolve(input_attributes).datatype, TimestampType) and
-                        isinstance(projection.child.children[1].resolve(input_attributes).datatype, TimestampType)
-                    ):
-                        my_attributes.append(Attribute(name=projection.name, datatype=TimedeltaType))
-                    else:
-                        breakpoint()
-                        if not hasattr(projection.child, "return_type"):
-                            breakpoint()
-                            raise NotImplementedError(f'cannot handle projection.child')
-                        my_attributes.append(Attribute(name=projection.name, datatype=projection.child.return_type))
-                elif isinstance(projection, UnresolvedAttribute):
-                    my_attributes.append(projection.resolve(input_attributes))
-                else:
-                    raise NotImplementedError(f'cannot handle projection type {type(projection)}')
-            # only return if we found all the attributes, including their types
-            # otherwise fall back to getting types from Snowflake.
+            # TODO: what if we don't know the name?
+            for each_projection in self.source_plan.projection:
+                if not hasattr(each_projection, 'name'):
+                    raise NotImplementedError('cannot find name of projection')                
+                my_attributes.append(Attribute(name=each_projection.name, datatype=each_projection.datatype))
             return my_attributes
 
+        # otherwise, fall back to snowflake
 
         output = analyze_attributes(self.schema_query, self.session)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.

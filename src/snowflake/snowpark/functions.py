@@ -703,7 +703,7 @@ def count(e: ColumnOrName) -> Column:
         if isinstance(c._expression, Star)
         else builtin("count")(c._expression)
     )
-    return_expression.return_type = LongType
+    return_expression._expression.return_type = LongType
     return return_expression
 
 
