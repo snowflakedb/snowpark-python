@@ -4501,7 +4501,7 @@ class DataFrame:
                     SKIP_LEVELS_TWO,
                 ),
             )
-        cached_df = self._session.table(temp_table_name, emit_ast=False)
+        cached_df = self._session.table(temp_table_name, _emit_ast=False)
         cached_df.is_cached = True
         cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df

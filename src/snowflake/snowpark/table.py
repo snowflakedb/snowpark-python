@@ -273,9 +273,9 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         ast_stmt: Optional[proto.Assign] = None,
-        emit_ast: bool = True,
+        _emit_ast: bool = True,
     ) -> None:
-        if ast_stmt is None and session is not None and emit_ast:
+        if ast_stmt is None and session is not None and _emit_ast:
             ast_stmt = session._ast_batch.assign()
             ast = with_src_position(ast_stmt.expr.sp_table)
             ast.name.sp_table_name_flat.name = table_name
