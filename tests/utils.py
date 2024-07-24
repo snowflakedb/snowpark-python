@@ -392,6 +392,15 @@ class Utils:
         return session.sql("SELECT CURRENT_TRANSACTION()").collect()[0][0] is not None
 
     @staticmethod
+    def get_parameter(
+        session: Session, parameter_name: str, default_val: str = None
+    ) -> Optional[str]:
+        results = session.sql(f"SHOW PARAMETERS LIKE '{parameter_name}'").collect()
+        if results:
+            return results[0][1]
+        return default_val
+
+    @staticmethod
     def assert_table_type(session: Session, table_name: str, table_type: str) -> None:
         table_info = session.sql(f"show tables like '{table_name}'").collect()
         if not table_type:
