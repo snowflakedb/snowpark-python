@@ -22,7 +22,6 @@ from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
 
 import cloudpickle
-import pandas as pd
 import pkg_resources
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -2574,6 +2573,12 @@ class Session:
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
                 set_api_call_source(t, "Session.create_dataframe[pandas]")
+
+                if not _suppress_ast:
+                    raise NotImplementedError(
+                        "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
+                    )
+
                 return t
 
         # infer the schema based on the data
@@ -2794,6 +2799,11 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
+            if not _suppress_ast:
+                raise NotImplementedError(
+                    "TODO SNOW-1554591: Support pandas.DataFrame with MockServerConnection."
+                )
+
             return _convert_dataframe_to_table(df, temp_table_name, self)
 
         # AST.
@@ -2810,8 +2820,7 @@ class Session:
                     build_expr_from_python_val(
                         row, ast.data.sp_dataframe_data__list_of_values.vs.add()
                     )
-            elif isinstance(origin_data, pd.DataFrame):
-                raise NotImplementedError("pandas dataframe not yet supported")
+            # Note: pandas.DataFrame handled above.
             else:
                 raise TypeError(
                     f"Unsupported type {type(origin_data)} in create_dataframe."
