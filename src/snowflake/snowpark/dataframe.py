@@ -538,6 +538,7 @@ class DataFrame:
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
         ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> None:
         """
         :param int ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
@@ -545,7 +546,8 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
+        if _emit_ast:
+            self._ast_id = ast_stmt.var_id.bitfield1 if ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -1417,7 +1419,7 @@ class DataFrame:
         self,
         expr: ColumnOrSqlExpr,
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1441,7 +1443,7 @@ class DataFrame:
         """
         # AST.
         stmt = None
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
@@ -1836,7 +1838,7 @@ class DataFrame:
 
     @df_api_usage
     def distinct(
-        self, _ast_stmt: proto.Assign = None, _supress_ast: bool = False
+        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1845,7 +1847,7 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
@@ -1858,7 +1860,7 @@ class DataFrame:
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df
@@ -1867,7 +1869,7 @@ class DataFrame:
         self,
         *subset: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -1887,7 +1889,7 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
             else:
@@ -1906,7 +1908,7 @@ class DataFrame:
             self.set_ast_ref(ast.df)
 
         if not subset:
-            df = self.distinct(_supress_ast=True)
+            df = self.distinct(_emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
@@ -1919,13 +1921,13 @@ class DataFrame:
         rownum_name = generate_random_alphanumeric()
         df = (
             self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _supress_ast=True)
+            .where(col(rownum_name) == 1, _emit_ast=False)
             .select(output_cols, _emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df
@@ -2807,14 +2809,18 @@ class DataFrame:
                 ast.join_type.sp_join_type__left_anti = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
-            
+
             join_cols = kwargs.get("using_columns", on)
             if join_cols is not None:
                 if isinstance(join_cols, (Column, str)):
-                    build_expr_from_snowpark_column_or_col_name(ast.join_expr, join_cols)
+                    build_expr_from_snowpark_column_or_col_name(
+                        ast.join_expr, join_cols
+                    )
                 elif isinstance(join_cols, Iterable):
                     for c in join_cols:
-                        build_expr_from_snowpark_column_or_col_name(ast.join_expr.list_val.vs.add(), c)
+                        build_expr_from_snowpark_column_or_col_name(
+                            ast.join_expr.list_val.vs.add(), c
+                        )
                 else:
                     raise TypeError(
                         f"Invalid input type for join column: {type(join_cols)}"
@@ -4445,8 +4451,12 @@ class DataFrame:
 
         if new_column is not None:
             expr.new_column.value = new_column
-            build_expr_from_snowpark_column_or_col_name(expr.col_or_mapper, col_or_mapper)
-            return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False)
+            build_expr_from_snowpark_column_or_col_name(
+                expr.col_or_mapper, col_or_mapper
+            )
+            return self.with_column_renamed(
+                col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False
+            )
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
@@ -4489,8 +4499,8 @@ class DataFrame:
 
     @df_api_usage
     def with_column_renamed(
-        self, 
-        existing: ColumnOrName, 
+        self,
+        existing: ColumnOrName,
         new: str,
         _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
@@ -4559,7 +4569,9 @@ class DataFrame:
         # AST.
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
+            expr = with_src_position(
+                _ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt
+            )
             self.set_ast_ref(expr.df)
             expr.new_name = new
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
