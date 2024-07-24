@@ -52,8 +52,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
         (lambda s: s.dt.round(freq="1D"), "round"),
         (lambda s: s.dt.floor(freq="1D"), "floor"),
         (lambda s: s.dt.ceil(freq="1D"), "ceil"),
-        (lambda s: s.dt.month_name(), "month_name"),
-        (lambda s: s.dt.day_name(), "day_name"),
         (lambda s: s.dt.total_seconds(), "total_seconds"),
         (lambda s: s.dt.seconds, "seconds"),
         (lambda s: s.dt.days, "days"),

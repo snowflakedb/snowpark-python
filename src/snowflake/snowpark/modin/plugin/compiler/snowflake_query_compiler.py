@@ -15294,7 +15294,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.normalize'"
         )
 
-    def dt_month_name(self, locale: Optional[str] = None) -> None:
+    def dt_month_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -15302,11 +15302,58 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing month name.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.month_name'"
+        if locale is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.month_name' method doesn't yet support 'locale' parameter"
+            )
+        internal_frame = self._modin_frame
+        snowpark_column = builtin("decode")(
+            builtin("extract")(
+                "month", col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+            ),
+            1,
+            "January",
+            2,
+            "February",
+            3,
+            "March",
+            4,
+            "April",
+            5,
+            "May",
+            6,
+            "June",
+            7,
+            "July",
+            8,
+            "August",
+            9,
+            "September",
+            10,
+            "October",
+            11,
+            "November",
+            12,
+            "December",
+        )
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_snowflake_quoted_identifiers[0], snowpark_column
         )
 
-    def dt_day_name(self, locale: Optional[str] = None) -> None:
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
+        )
+
+    def dt_day_name(self, locale: Optional[str] = None) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -15314,8 +15361,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing day name.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.day_name'"
+        if locale is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'Series.dt.day_name' method doesn't yet support 'locale' parameter"
+            )
+        internal_frame = self._modin_frame
+        snowpark_column = builtin("decode")(
+            builtin("dayofweekiso")(
+                col(internal_frame.data_column_snowflake_quoted_identifiers[0])
+            ),
+            1,
+            "Monday",
+            2,
+            "Tuesday",
+            3,
+            "Wednesday",
+            4,
+            "Thursday",
+            5,
+            "Friday",
+            6,
+            "Saturday",
+            7,
+            "Sunday",
+        )
+
+        internal_frame = internal_frame.append_column(
+            internal_frame.data_column_pandas_labels[0], snowpark_column
+        )
+
+        return SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=internal_frame.ordered_dataframe,
+                data_column_pandas_labels=[None],
+                data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers[
+                    -1:
+                ],
+                index_column_pandas_labels=internal_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+            )
         )
 
     def dt_total_seconds(self) -> None:
