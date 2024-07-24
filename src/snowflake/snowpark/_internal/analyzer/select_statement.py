@@ -456,14 +456,12 @@ class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
 
     def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
-        # First, we get a snowflake_plan that is the SnowflakeValues object here.
         super().__init__(analyzer)
         self._snowflake_plan: SnowflakePlan = (
             snowflake_plan
             if isinstance(snowflake_plan, SnowflakePlan)
             else analyzer.resolve(snowflake_plan)
         )
-        # now we can look at self.snowflake_plan.attributes
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
         self.df_aliased_col_name_to_real_col_name.update(
             self._snowflake_plan.df_aliased_col_name_to_real_col_name
@@ -504,22 +502,10 @@ class SelectSnowflakePlan(Selectable):
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         return self.snowflake_plan.individual_node_complexity
-    
-    
-    # def attributes(self) -> List[Attribute]:
-    #     # override the usual SnowflakePlan
-    #     input_attributes = self.from_.snowflake_plan.attributes    
-
 
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
     It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
-
-    # def __getattribute__(self, key):
-    #     if key not in ('projection',) and self.projection is not None and any(a.datatype is None for a in self.projection):
-    #         breakpoint()
-    #     else:
-    #         return super().__getattribute__(key)
 
     def __init__(
         self,
@@ -558,7 +544,6 @@ class SelectStatement(Selectable):
         # try to add datatypes onto our projections.
         input_attributes = from_.snowflake_plan.attributes
 
-
         if projection is None:
             # TODO: formerly we had a "*", but having multiple datatypes
             # in the star expression gets into sketchy semantic territory.
@@ -569,10 +554,6 @@ class SelectStatement(Selectable):
         
         if any(a.datatype is None for a in self.projection):
             raise RuntimeError(f"{any(a.datatype is None for a in self.projection)}, {any(a.datatype is None for a in from_.projection)}")
-
-            x = 3 + 4 
-            if x:
-                x
 
 
     def __copy__(self):

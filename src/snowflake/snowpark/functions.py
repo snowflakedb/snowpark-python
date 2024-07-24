@@ -698,13 +698,13 @@ def count(e: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "count")
-    return_expression  = (
+    return_column  = (
         builtin("count")(Literal(1))
         if isinstance(c._expression, Star)
         else builtin("count")(c._expression)
     )
-    return_expression._expression.return_type = LongType
-    return return_expression
+    return_column._expression.datatype = LongType
+    return return_column
 
 
 def count_distinct(*cols: ColumnOrName) -> Column:
@@ -3189,7 +3189,7 @@ def to_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         if fmt is not None
         else builtin("to_timestamp")(c)
     )
-    return_value._expression.return_type = TimestampType()
+    return_value._expression.datatype = TimestampType()
     return return_value
 
 

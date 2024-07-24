@@ -375,7 +375,7 @@ class SnowflakePlan(LogicalPlan):
             for each_projection in self.source_plan.projection:
                 if not hasattr(each_projection, 'name'):
                     raise NotImplementedError('cannot find name of projection')                
-                my_attributes.append(Attribute(name=each_projection.name, datatype=each_projection.datatype))
+                my_attributes.append(Attribute(name=each_projection.name, datatype=each_projection.datatype, nullable=each_projection.nullable))
             return my_attributes
 
         # otherwise, fall back to snowflake

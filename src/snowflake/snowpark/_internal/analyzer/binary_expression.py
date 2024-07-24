@@ -101,6 +101,11 @@ class Subtract(BinaryArithmeticExpression):
         self.children[1].resolve_datatype(input_attributes)
         if isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimestampType):
             self.datatype = TimedeltaType()
+        elif isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimedeltaType):
+            self.datatype = TimestampType
+        elif isinstance(self.children[0].datatype, TimedeltaType) and isinstance(self.children[1].datatype, TimedeltaType):
+            self.datatype = TimedeltaType
+
         if self.datatype is None:
             raise RuntimeError
 
