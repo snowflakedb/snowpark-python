@@ -25,7 +25,7 @@ target_modules = [
 registration_modules = ["udf.py", "udtf.py", "udaf.py", "stored_procedure.py"]
 # this parameter make sure no error when open telemetry is not installed
 open_telemetry_found = True
-open_telemetry_enabled = True
+open_span_record_enabled = True
 try:
     from opentelemetry import trace
 
@@ -37,7 +37,7 @@ except ImportError:
 def open_telemetry_context_manager(func, dataframe):
 
     # trace when required package is installed
-    if open_telemetry_found and open_telemetry_enabled:
+    if open_telemetry_found and open_span_record_enabled:
         class_name = func.__qualname__
         name = func.__name__
         tracer = trace.get_tracer(extract_tracer_name(class_name))
@@ -72,7 +72,7 @@ def open_telemetry_udf_context_manager(
     file_path=None,
 ):
     # trace when required package is installed
-    if open_telemetry_found and open_telemetry_enabled:
+    if open_telemetry_found and open_span_record_enabled:
         class_name = registration_function.__qualname__
         span_name = registration_function.__name__
         tracer = trace.get_tracer(extract_tracer_name(class_name))
