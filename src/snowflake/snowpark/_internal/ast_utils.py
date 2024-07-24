@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrName,
     ColumnOrSqlExpr,
 )
 
@@ -33,7 +34,7 @@ from snowflake.snowpark._internal.type_utils import (
 FAIL_ON_MISSING_AST = True
 
 
-def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
+def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
     Args:
@@ -149,18 +150,18 @@ def build_expr_from_python_val(obj: Any, expr_builder: proto.Expr) -> None:
         set_src_position(expr_builder.seq_map_val.src)
         for key, value in obj.items():
             kv_tuple_ast = expr_builder.seq_map_val.kvs.add()
-            build_expr_from_python_val(key, kv_tuple_ast.vs.add())
-            build_expr_from_python_val(value, kv_tuple_ast.vs.add())
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), key)
+            build_expr_from_python_val(kv_tuple_ast.vs.add(), value)
 
     elif isinstance(obj, list):
         set_src_position(expr_builder.list_val.src)
         for v in obj:
-            build_expr_from_python_val(v, expr_builder.list_val.vs.add())
+            build_expr_from_python_val(expr_builder.list_val.vs.add(), v)
 
     elif isinstance(obj, tuple):
         set_src_position(expr_builder.tuple_val.src)
         for v in obj:
-            build_expr_from_python_val(v, expr_builder.tuple_val.vs.add())
+            build_expr_from_python_val(expr_builder.tuple_val.vs.add(), v)
 
     else:
         raise NotImplementedError("not supported type: %s" % type(obj))
@@ -213,7 +214,7 @@ def build_fn_apply(
             expr.pos_args.append(arg._ast)
         else:
             pos_arg = proto.Expr()
-            build_expr_from_python_val(arg, pos_arg)
+            build_expr_from_python_val(pos_arg, arg)
             expr.pos_args.append(pos_arg)
 
     for name, arg in kwargs.items():
@@ -225,7 +226,7 @@ def build_fn_apply(
             assert arg._ast, f"Column object {name}={arg} has no _ast member set."
             kwarg._2.CopyFrom(arg._ast)
         else:
-            build_expr_from_python_val(arg, kwarg._2)
+            build_expr_from_python_val(kwarg._2, arg)
         expr.named_args.append(kwarg)
 
 
@@ -317,11 +318,11 @@ def build_expr_from_snowpark_column(
     """Copy from a Column object's AST into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (snowflake.snowpark.Column): The value from which to populate the provided ast parameter.
 
     Raises:
-        NotImplementedError: Raised if the Column object does not have an AST set.
+        NotImplementedError: Raised if the Column object does not have an AST set and FAIL_ON_MISSING_AST is True.
     """
     if value._ast is None and FAIL_ON_MISSING_AST:
         raise NotImplementedError(
@@ -331,17 +332,40 @@ def build_expr_from_snowpark_column(
         expr_builder.CopyFrom(value._ast)
 
 
+def build_expr_from_snowpark_column_or_col_name(
+    expr_builder: proto.Expr, value: ColumnOrName
+) -> None:
+    """Copy from a Column object's AST, or copy a column name into an AST expression.
+
+    Args:
+        expr_builder (proto.Expr): A previously created Expr() IR entity intance to be filled
+        value (ColumnOrName): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a column name
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        build_expr_from_snowpark_column(expr_builder, value)
+    elif isinstance(value, str):
+        expr = with_src_position(expr_builder.string_val)
+        expr.v = value
+    else:
+        raise TypeError(
+            f"{type(value)} is not a valid type for Column or column name AST."
+        )
+
+
 def build_expr_from_snowpark_column_or_sql_str(
     expr_builder: proto.Expr, value: ColumnOrSqlExpr
 ) -> None:
     """Copy from a Column object's AST, or copy a SQL expression into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (ColumnOrSqlExpr): The value from which to populate the provided ast parameter.
 
     Raises:
-        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid SQL expression
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a SQL string
     """
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
@@ -360,21 +384,49 @@ def build_expr_from_snowpark_column_or_python_val(
     """Copy from a Column object's AST, or copy a literal value into an AST expression.
 
     Args:
-        ast (proto.SpColumnExpr): A previously created Expr() or SpColumnExpr() IR entity intance to be filled
+        ast (proto.Expr): A previously created Expr() IR entity intance to be filled
         value (ColumnOrLiteral): The value from which to populate the provided ast parameter.
 
     Raises:
-        TypeError: An SpColumnExpr can only be populated from another SpColumnExpr or a valid Literal type
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a literal value
     """
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-        build_expr_from_python_val(value, expr_builder)
+        build_expr_from_python_val(expr_builder, value)
     elif isinstance(value, Expression):
         # Expressions must be handled by caller.
         pass
     else:
         raise TypeError(f"{type(value)} is not a valid type for Column or literal AST.")
+
+
+def build_expr_from_snowpark_column_or_table_fn(
+    expr_builder: proto.Expr,
+    value: Union[
+        "snowflake.snowpark.Column",
+        "snowflake.snowpark.table_function.TableFunctionCall",
+    ],
+) -> None:
+    """Copy from a Column object's AST, or TableFunctionCall object's AST, into an AST expression.
+
+    Args:
+        expr_builder (proto.Expr): A previously created Expr() IR entity intance to be filled
+        value (Union[Column, TableFunctionCall]): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a TableFunctionCall object
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        build_expr_from_snowpark_column(expr_builder, value)
+    elif isinstance(value, snowflake.snowpark.table_function.TableFunctionCall):
+        raise NotImplementedError(
+            "SNOW-1509198: No support for TableFunctionCall AST generation"
+        )
+    else:
+        raise TypeError(
+            f"{type(value)} is not a valid type for Column or TableFunctionCall AST generation."
+        )
 
 
 def fill_ast_for_column(
@@ -449,7 +501,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         return create_ast_for_column(expr.name, None)
     elif isinstance(expr, Literal):
         ast = proto.Expr()
-        build_expr_from_python_val(expr.value, ast)
+        build_expr_from_python_val(ast, expr.value)
         return ast
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
