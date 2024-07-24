@@ -30,6 +30,7 @@
 - Added support for `Series.dt.microsecond` and `Series.dt.nanosecond`.
 - Added support for `Index.is_unique` and `Index.has_duplicates`.
 - Added support for `Index.equals`.
+- Added support for passing `INFER_SCHEMA` options to `DataFrameReader` via `INFER_SCHEMA_OPTIONS`.
 
 #### Improvements
 - Removed the public preview warning message upon importing Snowpark pandas.
