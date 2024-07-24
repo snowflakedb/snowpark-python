@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
+from snowflake.snowpark.column import TimestampType, TimedeltaType
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     alias_expression,
     binary_arithmetic_expression,
@@ -45,6 +46,8 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
+    Subtract,
+    Add
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -688,7 +691,20 @@ class Analyzer:
                 expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
         if isinstance(expr, BinaryArithmeticExpression):
+            # TODO: it doesn't seem appropriate to rewrite the expression at this stage,
+            # but on the other hand Column and Expression themselves do not have access
+            # to types.
+            if isinstance(expr, Subtract) and isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimestampType):
+                return f'datediff("ns", {right_sql_expr}, {left_sql_expr})'
+
+            if isinstance(expr, Add):
+                if isinstance(expr.left.datatype, TimestampType) and isinstance(expr.right.datatype, TimedeltaType):
+                    return f'dateadd("ns", {right_sql_expr}, {left_sql_expr})'
+                if isinstance(expr.left.datatype, TimedeltaType) and isinstance(expr.right.datatype, TimestampType):
+                    return f'dateadd("ns", {left_sql_expr}, {right_sql_expr})'
+
             return binary_arithmetic_expression(
+
                 expr.sql_operator,
                 left_sql_expr,
                 right_sql_expr,

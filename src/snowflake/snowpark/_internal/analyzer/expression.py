@@ -216,6 +216,11 @@ class Attribute(Expression, NamedExpression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
 
+    def resolve_datatype(self, input_attributes):
+        # We already have a datatype. Nothing to do.
+        pass
+        if self.datatype is None:
+            raise RuntimeError    
 
 class Star(Expression):
     def __init__(
@@ -281,6 +286,18 @@ class UnresolvedAttribute(Expression, NamedExpression):
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
+        
+    def resolve_datatype(self, input_attributes):
+        normalized_col_name = snowflake.snowpark._internal.utils.quote_name(self.name)
+        cols = list(filter(lambda attr: attr.name == normalized_col_name, input_attributes))
+        if len(cols) == 1:
+            self.datatype = cols[0].datatype
+        else:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+                self.name
+            ) 
+        if self.datatype is None:
+            raise RuntimeError
 
 
 class Literal(Expression):
@@ -507,7 +524,11 @@ class FunctionExpression(Expression):
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
-
+    
+    def resolve_datatype(self, input_attributes):
+        # function clal should have already assigned a datatype.
+        if self.datatype is None:
+            raise RuntimeError
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:

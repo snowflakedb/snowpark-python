@@ -151,6 +151,11 @@ class WindowExpression(Expression):
             self.window_spec.cumulative_node_complexity,
         )
 
+    def resolve_datatype(self, input_datatypes):
+        self.window_function.resolve_datatype(input_datatypes)
+        self.datatype = self.window_function.datatype
+        if self.datatype is None:
+            raise RuntimeError        
 
 class RankRelatedFunctionExpression(Expression):
     sql: str

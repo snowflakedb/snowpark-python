@@ -812,6 +812,11 @@ class DataFrame:
                 ),
                 **kwargs,
             )
+            from snowflake.snowpark.types import TimedeltaType
+            import pandas            
+            for i, attribute in enumerate(self.schema):
+                if isinstance(attribute.datatype, TimedeltaType):
+                    result.iloc[:, i] = result.iloc[:, i].apply(lambda v: pandas.Timedelta(v, "ns"))
 
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands

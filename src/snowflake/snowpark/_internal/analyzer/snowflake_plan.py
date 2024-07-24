@@ -8,7 +8,10 @@ import sys
 import uuid
 from collections import defaultdict
 from enum import Enum
+from .expression import FunctionExpression, UnresolvedAttribute
+from snowflake.snowpark._internal.utils import quote_name
 from functools import cached_property
+from snowflake.snowpark.column import TimestampType, TimedeltaType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -360,6 +363,23 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def attributes(self) -> List[Attribute]:
+        # first time we get here, self.source_plan is a SnowflakeValues here. don't want to touch attributes.
+        # second time we get here, self.source_plan is a SelectStatement selecting function calls and aliases from innner node.
+        from .select_statement import SelectStatement
+        if isinstance(self.source_plan, SelectStatement):
+            # first is 'select *' from another SelectStatement whose projection has the goods            
+            if self.source_plan.projection is None:
+                return self.source_plan.from_.snowflake_plan.attributes
+            my_attributes = []
+            # TODO: what if we don't know the name?
+            for each_projection in self.source_plan.projection:
+                if not hasattr(each_projection, 'name'):
+                    raise NotImplementedError('cannot find name of projection')                
+                my_attributes.append(Attribute(name=each_projection.name, datatype=each_projection.datatype, nullable=each_projection.nullable))
+            return my_attributes
+
+        # otherwise, fall back to snowflake
+
         output = analyze_attributes(self.schema_query, self.session)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:

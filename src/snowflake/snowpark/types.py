@@ -460,6 +460,8 @@ class GeometryType(DataType):
 
     pass
 
+class TimedeltaType(DataType):
+    pass
 
 class _PandasType(DataType):
     pass
