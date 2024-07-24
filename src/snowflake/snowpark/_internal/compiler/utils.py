@@ -20,6 +20,8 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
     table_create_child_attribute_map: Dict[str, List[Attribute]] = {}
     # When the root node of source plan is SnowflakeCreateTable, we need to extract the
     # child attributes for the table that is used for later query generation process.
+    # This relies on the fact that SnowflakeCreateTable is an eager evaluation, and
+    # SnowflakeCreateTable is always the root node of the logical plan.
     if plan.source_plan is not None and isinstance(
         plan.source_plan, SnowflakeCreateTable
     ):
