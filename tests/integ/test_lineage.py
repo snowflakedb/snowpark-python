@@ -60,7 +60,6 @@ def remove_created_on_field(df):
     return df
 
 
-@pytest.mark.xfail(reason="SNOW-1437475", strict=False)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_lineage_trace(session):
     """
@@ -247,6 +246,37 @@ def test_lineage_trace(session):
         "DISTANCE": [1, 2],
     }
 
+    expected_df = pd.DataFrame(expected_data)
+    # TODO Enable the check after SNOW-1437475 is fixed.
+    # assert_frame_equal(df, expected_df, check_dtype=False)
+
+    # CASE 7 : Column lineage
+    session.sql(
+        f'CREATE OR REPLACE VIEW {db}.{schema}."v7" AS SELECT * FROM {db}.{schema}.V2'
+    ).collect()
+
+    df = session.lineage.trace(
+        f"{db}.{schema}.V2.C1", "COLUMN", direction=LineageDirection.UPSTREAM
+    )
+
+    # Removing 'creadtedOn' field since the value can not be predicted.
+    df = remove_created_on_field(df.to_pandas())
+
+    expected_data = {
+        "SOURCE_OBJECT": [
+            {"domain": "COLUMN", "name": f"{db}.{schema}.V1.C1", "status": "ACTIVE"},
+            {"domain": "COLUMN", "name": f"{db}.{schema}.T1.C1", "status": "ACTIVE"},
+        ],
+        "TARGET_OBJECT": [
+            {"domain": "COLUMN", "name": f"{db}.{schema}.V2.C1", "status": "ACTIVE"},
+            {"domain": "COLUMN", "name": f"{db}.{schema}.V1.C1", "status": "ACTIVE"},
+        ],
+        "DIRECTION": [
+            "Upstream",
+            "Upstream",
+        ],
+        "DISTANCE": [1, 2],
+    }
     expected_df = pd.DataFrame(expected_data)
     assert_frame_equal(df, expected_df, check_dtype=False)
 
