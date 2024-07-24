@@ -2781,13 +2781,13 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 ast_stmt=stmt,
-            ).select(project_columns, _suppress_ast=True)
+            ).select(project_columns, _emit_ast=False)
         else:
             df = DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),
                 ast_stmt=stmt,
-            ).select(project_columns, _suppress_ast=True)
+            ).select(project_columns, _emit_ast=False)
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if (
@@ -2809,12 +2809,12 @@ class Session:
             if isinstance(origin_data, tuple):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        row, ast.data.sp_dataframe_data__tuple_of_values.vs.add()
+                        ast.data.sp_dataframe_data__tuple_of_values.vs.add(), row
                     )
             elif isinstance(origin_data, list):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        row, ast.data.sp_dataframe_data__list_of_values.vs.add()
+                        ast.data.sp_dataframe_data__list_of_values.vs.add(), row
                     )
             # Note: pandas.DataFrame handled above.
             else:
