@@ -2159,9 +2159,7 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(
-        self, name: Union[str, Iterable[str]], suppress_ast: bool = False
-    ) -> Table:
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -2169,7 +2167,7 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-            suppress_ast: Skips AST generation if True.
+            _emit_ast: Whether to emit AST statements.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2187,7 +2185,7 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        if not suppress_ast:
+        if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table)
             if isinstance(name, str):
@@ -2201,7 +2199,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, suppress_ast)
+        t = Table(name, self, stmt, _emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
