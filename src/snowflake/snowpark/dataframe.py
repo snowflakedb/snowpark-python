@@ -1177,6 +1177,7 @@ class DataFrame:
             *cols: A :class:`Column`, :class:`str`, :class:`table_function.TableFunctionCall`, or a list of those. Note that at most one
                    :class:`table_function.TableFunctionCall` object is supported within a select call.
             _ast_stmt: when invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit AST statements.
         """
         exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
         if not exprs:
