@@ -8538,13 +8538,21 @@ def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
     return builtin("charindex")(_substr, _str, lit(start_pos))
 
 
-def enable_span_record():
+def enable_span_record() -> None:
+    """
+    This function enable open telemetry span recording in action functions. If opentelemetry libraries exist in the environment, span will be recorded.
+
+    """
     from snowflake.snowpark._internal import open_telemetry
 
-    open_telemetry.open_telemetry_enabled = True
+    open_telemetry.open_span_record_enabled = True
 
 
-def disable_span_record():
+def disable_span_record() -> None:
+    """
+    This function disable open telemetry span recording in action functions. No span will be recorded even if opentelemetry libraries exist in environment.
+
+    """
     from snowflake.snowpark._internal import open_telemetry
 
-    open_telemetry.open_telemetry_enabled = False
+    open_telemetry.open_span_record_enabled = False

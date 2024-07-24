@@ -2246,9 +2246,9 @@ def test_negative_function_call(session):
 def test_enable_disable_open_telemetry(monkeypatch):
     from snowflake.snowpark._internal import open_telemetry
 
-    monkeypatch.setattr(open_telemetry, "open_telemetry_enabled", True)
-    assert open_telemetry.open_telemetry_enabled is True
+    monkeypatch.setattr(open_telemetry, "open_span_record_enabled", True)
+    assert open_telemetry.open_span_record_enabled is True
     disable_span_record()
-    assert open_telemetry.open_telemetry_enabled is False
+    assert open_telemetry.open_span_record_enabled is False
     enable_span_record()
-    assert open_telemetry.open_telemetry_enabled is True
+    assert open_telemetry.open_span_record_enabled is True
