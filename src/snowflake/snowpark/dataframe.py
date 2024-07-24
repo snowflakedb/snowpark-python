@@ -3295,7 +3295,7 @@ class DataFrame:
             if field.name not in new_column_names
         ]
 
-        #AST.
+        # AST.
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(ast_stmt.expr.sp_dataframe_with_columns, ast_stmt)
@@ -4340,7 +4340,7 @@ class DataFrame:
             col_or_mapper: The old column instance or column name to be renamed, or the dictionary mapping from column instances or columns names to their new names (string)
             new_column: The new column name (string value), if a single old column is given
         """
-        # AST
+        # AST.
         _ast_stmt = self._session._ast_batch.assign()
         expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
         self.set_ast_ref(expr.df)
@@ -4372,7 +4372,7 @@ class DataFrame:
         rename_map = {k: v for k, v in zip(normalized_name_list, rename_list)}
         rename_plan = Rename(rename_map, self._plan)
 
-        # AST
+        # AST.
         for col, new_name in col_or_mapper.items():
             kv_tuple_ast = expr.col_or_mapper.seq_map_val.kvs.add()
             build_expr_from_snowpark_column_or_col_name(kv_tuple_ast.vs.add(), col)
@@ -4458,7 +4458,7 @@ class DataFrame:
             for att in self._output
         ]
 
-        # AST
+        # AST.
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
