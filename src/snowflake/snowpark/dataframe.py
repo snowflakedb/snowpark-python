@@ -96,7 +96,8 @@ from snowflake.snowpark._internal.ast import (
 from snowflake.snowpark._internal.ast_utils import (
     FAIL_ON_MISSING_AST,
     build_expr_from_python_val,
-    build_expr_from_snowpark_column_or_python_val,
+    build_expr_from_snowpark_column,
+    build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     fill_ast_for_column,
@@ -1353,7 +1354,7 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
         self.set_ast_ref(ast.df)
         for c in exprs:
-            build_expr_from_snowpark_column_or_python_val(ast.cols.add(), c)
+            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
         ast.variadic = is_variadic
 
         names = []
@@ -1513,7 +1514,7 @@ class DataFrame:
         ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
         self.set_ast_ref(ast.df)
         for c in _cols:
-            build_expr_from_snowpark_column_or_python_val(ast.cols.add(), c)
+            build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
         ast.cols_variadic = is_variadic
 
         orders = []
@@ -2788,10 +2789,20 @@ class DataFrame:
                 ast.join_type.sp_join_type__left_anti = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
-            if on is not None:
-                build_expr_from_python_val(ast.join_expr, on)
+            
+            join_cols = kwargs.get("using_columns", on)
+            if join_cols is not None:
+                if isinstance(join_cols, (Column, str)):
+                    build_expr_from_snowpark_column_or_col_name(ast.join_expr, join_cols)
+                elif isinstance(join_cols, Iterable):
+                    for c in join_cols:
+                        build_expr_from_snowpark_column_or_col_name(ast.join_expr.list_val.vs.add(), c)
+                else:
+                    raise TypeError(
+                        f"Invalid input type for join column: {type(join_cols)}"
+                    )
             if match_condition is not None:
-                build_expr_from_python_val(ast.match_condition, match_condition)
+                build_expr_from_snowpark_column(ast.match_condition, match_condition)
             if lsuffix:
                 ast.lsuffix.value = lsuffix
             if rsuffix:
@@ -3436,7 +3447,7 @@ class DataFrame:
             expr.target_columns.extend(target_columns)
         if transformations is not None:
             for t in transformations:
-                build_expr_from_snowpark_column_or_python_val(expr.transformations.add(), t)
+                build_expr_from_python_val(expr.transformations.add(), t)
         if format_type_options is not None:
             for k in format_type_options:
                 entry = expr.format_type_options.add()
@@ -3642,7 +3653,7 @@ class DataFrame:
         stmt = self._session._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
         self.set_ast_ref(expr.df)
-        build_expr_from_snowpark_column_or_python_val(expr.input, input)
+        build_expr_from_python_val(expr.input, input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
@@ -4333,7 +4344,7 @@ class DataFrame:
 
         if new_column is not None:
             expr.new_column.value = new_column
-            build_expr_from_snowpark_column_or_python_val(expr.col_or_mapper, col_or_mapper)
+            build_expr_from_snowpark_column_or_col_name(expr.col_or_mapper, col_or_mapper)
             return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _suppress_ast=True)
 
         if not isinstance(col_or_mapper, dict):
@@ -4361,7 +4372,7 @@ class DataFrame:
         # AST
         for col, new_name in col_or_mapper.items():
             kv_tuple_ast = expr.col_or_mapper.seq_map_val.kvs.add()
-            build_expr_from_snowpark_column_or_python_val(kv_tuple_ast.vs.add(), col)
+            build_expr_from_snowpark_column_or_col_name(kv_tuple_ast.vs.add(), col)
             build_expr_from_python_val(kv_tuple_ast.vs.add(), new_name)
 
         if self._select_statement:
@@ -4450,7 +4461,7 @@ class DataFrame:
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
             self.set_ast_ref(expr.df)
             expr.new_name = new
-            build_expr_from_snowpark_column_or_python_val(expr.col, existing)
+            build_expr_from_snowpark_column_or_col_name(expr.col, existing)
         return self.select(new_columns, _ast_stmt=_ast_stmt, _suppress_ast=True)
 
     @df_collect_api_telemetry

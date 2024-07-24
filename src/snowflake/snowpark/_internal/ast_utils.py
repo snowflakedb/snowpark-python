@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
+    ColumnOrName,
     ColumnOrSqlExpr,
 )
 
@@ -300,6 +301,29 @@ def build_expr_from_snowpark_column(
         )
     elif value._ast is not None:
         expr_builder.CopyFrom(value._ast)
+
+
+def build_expr_from_snowpark_column_or_col_name(
+    expr_builder: proto.Expr, value: ColumnOrName
+) -> None:
+    """Copy from a Column object's AST, or copy a column name into an AST expression.
+
+    Args:
+        expr_builder (proto.Expr): A previously created Expr() IR entity intance to be filled
+        value (ColumnOrName): The value from which to populate the provided ast parameter.
+
+    Raises:
+        TypeError: The Expr provided should only be populated from a Snowpark Column with a valid _ast field or a column name
+    """
+    if isinstance(value, snowflake.snowpark.Column):
+        build_expr_from_snowpark_column(expr_builder, value)
+    elif isinstance(value, str):
+        expr = with_src_position(expr_builder.string_val)
+        expr.v = value
+    else:
+        raise TypeError(
+            f"{type(value)} is not a valid type for Column or column name AST."
+        )
 
 
 def build_expr_from_snowpark_column_or_sql_str(
