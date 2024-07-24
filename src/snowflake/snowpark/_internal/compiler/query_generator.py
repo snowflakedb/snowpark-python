@@ -5,6 +5,7 @@
 from typing import DefaultDict, Dict, List
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+from snowflake.snowpark._internal.analyzer.analyzer_utils import get_full_table_name
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -87,7 +88,7 @@ class QueryGenerator(Analyzer):
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
-            full_table_name = ".".join(logical_plan.table_name)
+            full_table_name = get_full_table_name(logical_plan.table_name)
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,

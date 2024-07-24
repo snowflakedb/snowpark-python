@@ -172,6 +172,10 @@ ANY = " ANY "
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
 
+def get_full_table_name(table_name: Iterable[str]) -> str:
+    return ".".join(table_name)
+
+
 def result_scan_statement(uuid_place_holder: str) -> str:
     return (
         SELECT

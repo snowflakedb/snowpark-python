@@ -5,6 +5,7 @@
 
 from typing import Dict, List
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import get_full_table_name
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -32,7 +33,7 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
         # NOTE that here we rely on the fact that the SnowflakeCreateTable node is the root
         # of a source plan. Test will fail if that assumption is broken.
         resolved_child = plan.session._analyzer.resolve(create_table_node.query)
-        full_table_name = ".".join(create_table_node.table_name)
+        full_table_name = get_full_table_name(create_table_node.table_name)
         table_create_child_attribute_map[full_table_name] = resolved_child.attributes
 
     return QueryGenerator(plan.session, table_create_child_attribute_map)
