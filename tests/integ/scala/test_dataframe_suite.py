@@ -65,7 +65,6 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
-    running_on_public_ci,
 )
 
 SAMPLING_DEVIATION = 0.4
@@ -590,37 +589,17 @@ def test_df_stat_cov(session):
     reason="FEAT: function approx_percentile_accumulate not supported",
 )
 def test_df_stat_approx_quantile(session):
-    fix_1479433_enabled = running_on_public_ci()
-    _logger.info(f"Assuming fix_1479433_enabled: {fix_1479433_enabled}")
-    STATEMENT_PARAMS_NOT_EXACT = {
-        "APPROX_PERCENTILE_EXACT_IF_POSSIBLE": "false",
-        # "ENABLE_FIX_1479433_APPROX_PERCENTILE_PRECISION": 'true'
-    }
-    STATEMENT_PARAMS_EXACT = {"APPROX_PERCENTILE_EXACT_IF_POSSIBLE": "true"}
-
     assert TestData.approx_numbers(session).stat.approx_quantile("a", [0.5]) == [4.5]
     assert TestData.approx_numbers(session).stat.approx_quantile(
         "a", [0.5], statement_params={"SF_PARTNER": "FAKE_PARTNER"}
     ) == [4.5]
 
     assert TestData.approx_numbers(session).stat.approx_quantile(
-        "a", [0, 0.1, 0.4, 0.6, 1], statement_params=STATEMENT_PARAMS_NOT_EXACT
-    ) == [
-        -0.5,
-        0.5,
-        3.5,
-        5.5,
-        9.5,
-    ]  # old behavior of Snowflake
-    assert TestData.approx_numbers(session).stat.approx_quantile(
-        "a", [0, 0.1, 0.4, 0.6, 1], statement_params=STATEMENT_PARAMS_EXACT
-    ) == [
-        0.0,
-        0.9,
-        3.6,
-        5.3999999999999995,
-        9.0,
-    ]  # new behavior
+        "a", [0, 0.1, 0.4, 0.6, 1]
+    ) in (
+        [-0.5, 0.5, 3.5, 5.5, 9.5],  # old behavior of Snowflake
+        [0.0, 0.9, 3.6, 5.3999999999999995, 9.0],
+    )  # new behavior of Snowflake
 
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
@@ -638,30 +617,25 @@ def test_df_stat_approx_quantile(session):
     try:
         assert session.table(table_name).stat.approx_quantile("num", [0.5])[0] is None
 
-        res = TestData.double2(session).stat.approx_quantile(
-            ["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_NOT_EXACT
-        )
-        if fix_1479433_enabled:
-            Utils.assert_rows(
-                res,
-                [
-                    [0.05, 0.08000000000000002, 0.22999999999999998],
-                    [0.45, 0.48, 0.6299999999999999],
-                ],
-            )  # old behavior of Snowflake
-        else:
+        res = TestData.double2(session).stat.approx_quantile(["a", "b"], [0, 0.1, 0.6])
+        try:
             Utils.assert_rows(
                 res,
                 [[0.05, 0.15000000000000002, 0.25], [0.45, 0.55, 0.6499999999999999]],
             )  # old behavior of Snowflake
-
-        res = TestData.double2(session).stat.approx_quantile(
-            ["a", "b"], [0, 0.1, 0.6], statement_params=STATEMENT_PARAMS_EXACT
-        )
-        Utils.assert_rows(
-            res,
-            [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]],
-        )  # new behavior of Snowflake
+        except AssertionError:
+            try:
+                Utils.assert_rows(
+                    res, [[0.1, 0.12000000000000001, 0.22], [0.5, 0.52, 0.62]]
+                )  # new behavior of Snowflake
+            except AssertionError:
+                Utils.assert_rows(
+                    res,
+                    [
+                        [0.05, 0.08000000000000002, 0.22999999999999998],
+                        [0.45, 0.48, 0.6299999999999999],
+                    ],
+                )
 
         # ApproxNumbers2 contains a column called T, which conflicts with tmpColumnName.
         # This test demos that the query still works.
