@@ -219,6 +219,8 @@ class Attribute(Expression, NamedExpression):
     def resolve_datatype(self, input_attributes):
         # We already have a datatype. Nothing to do.
         pass
+        if self.datatype is None:
+            raise RuntimeError    
 
 class Star(Expression):
     def __init__(
@@ -305,6 +307,8 @@ class UnresolvedAttribute(Expression, NamedExpression):
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 self.name
             ) 
+        if self.datatype is None:
+            raise RuntimeError
 
 
 class Literal(Expression):
@@ -535,7 +539,8 @@ class FunctionExpression(Expression):
     def resolve_datatype(self, input_attributes):
         # TODO: Column class should tell this class what its return type is.
         self.datatype = self.return_type
-
+        if self.datatype is None:
+            raise RuntimeError
 
 class WithinGroup(Expression):
     def __init__(self, expr: Expression, order_by_cols: List[Expression]) -> None:

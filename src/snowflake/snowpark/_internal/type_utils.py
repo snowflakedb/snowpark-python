@@ -67,6 +67,7 @@ from snowflake.snowpark.types import (
     VariantType,
     VectorType,
     _NumericType,
+    TimedeltaType
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
