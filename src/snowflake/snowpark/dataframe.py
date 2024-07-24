@@ -3304,7 +3304,7 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
 
         # Put it all together
-        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _suppress_ast=True)
+        return self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _emit_ast=False)
 
     @overload
     def count(
@@ -4346,7 +4346,7 @@ class DataFrame:
         if new_column is not None:
             expr.new_column.value = new_column
             build_expr_from_snowpark_column_or_col_name(expr.col_or_mapper, col_or_mapper)
-            return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _suppress_ast=True)
+            return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
@@ -4393,7 +4393,7 @@ class DataFrame:
         existing: ColumnOrName, 
         new: str,
         _ast_stmt: Optional[proto.Assign] = None,
-        _suppress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -4457,13 +4457,13 @@ class DataFrame:
         ]
 
         # AST
-        if _ast_stmt is None and not _suppress_ast:
+        if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
             self.set_ast_ref(expr.df)
             expr.new_name = new
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
-        return self.select(new_columns, _ast_stmt=_ast_stmt, _suppress_ast=True)
+        return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=True)
 
     @df_collect_api_telemetry
     def cache_result(
