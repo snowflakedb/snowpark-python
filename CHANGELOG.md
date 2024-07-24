@@ -6,6 +6,7 @@
 
 #### Improvements
 - Added support server side string size limitations.
+- Added support for column lineage in the DataFrame.lineage.trace API.
 
 #### Bug Fixes
 - Fixed a bug where SQL generated for selecting `*` column has an incorrect subquery.
