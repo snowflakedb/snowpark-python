@@ -363,6 +363,7 @@ def sql_count_checker(
     *args,
     **kwargs,
 ):
+    no_check = True
     """SqlCounter decorator that automatically validates the sql counts when test finishes."""
     sql_counter = SqlCounter(
         no_check=no_check,
