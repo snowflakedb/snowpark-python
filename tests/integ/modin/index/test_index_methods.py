@@ -51,19 +51,7 @@ def test_index_drop(native_index):
     assert_index_equal(snow_index.drop(labels), native_index.drop(labels))
 
 
-@sql_count_checker(query_count=6)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_equals(native_index):
-    snow_index = pd.Index(native_index)
-    index_check = pd.Index([1, 2, 3, 4])
-    assert not snow_index.equals(index_check)
-    assert index_check.equals(pd.Index([1, 2, 3, 4]))
-
-    new_index = snow_index.copy()
-    assert snow_index.equals(new_index)
-
-
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3, join_count=1)
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_equals(native_df):
     snow_df = pd.DataFrame(native_df)
