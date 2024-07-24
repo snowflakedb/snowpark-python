@@ -814,7 +814,6 @@ class DataFrame:
             )
             from snowflake.snowpark.types import TimedeltaType
             import pandas            
-            breakpoint()
             for i, attribute in enumerate(self.schema):
                 if isinstance(attribute.datatype, TimedeltaType):
                     result.iloc[:, i] = result.iloc[:, i].apply(lambda v: pandas.Timedelta(v, "ns"))

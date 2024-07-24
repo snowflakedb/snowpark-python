@@ -515,6 +515,12 @@ class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
     It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
 
+    # def __getattribute__(self, key):
+    #     if key not in ('projection',) and self.projection is not None and any(a.datatype is None for a in self.projection):
+    #         breakpoint()
+    #     else:
+    #         return super().__getattribute__(key)
+
     def __init__(
         self,
         *,
@@ -549,8 +555,9 @@ class SelectStatement(Selectable):
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
 
-        # try to append datatypes onto our projections
+        # try to add datatypes onto our projections.
         input_attributes = from_.snowflake_plan.attributes
+
 
         if projection is None:
             # TODO: formerly we had a "*", but having multiple datatypes
@@ -560,6 +567,14 @@ class SelectStatement(Selectable):
             for each_projection in projection:
                 each_projection.resolve_datatype(input_attributes)
         
+        if any(a.datatype is None for a in self.projection):
+            raise RuntimeError(f"{any(a.datatype is None for a in self.projection)}, {any(a.datatype is None for a in from_.projection)}")
+
+            x = 3 + 4 
+            if x:
+                x
+
+
     def __copy__(self):
         new = SelectStatement(
             projection=self.projection,
@@ -880,6 +895,7 @@ class SelectStatement(Selectable):
                     final_projection.append(
                         copy(self.column_states[col].expression)
                     )  # add subquery's expression for this column name
+                final_projection[-1].resolve_datatype(self.from_.snowflake_plan.attributes)
 
             new.projection = final_projection
             new.from_ = self.from_.to_subqueryable()
