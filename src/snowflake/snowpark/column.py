@@ -989,20 +989,19 @@ class Column:
         expr = proto.Expr()
         ast = with_src_position(expr.sp_column_within_group)
         ast.col.CopyFrom(self._ast)
-        ast.variadic = len(cols) > 1 or not isinstance(cols[0], (list, tuple, set))
+        ast.variadic = not (len(cols) == 1 and isinstance(cols[0], (list, tuple, set)))
 
         # populate columns to order aggregate expression results by
         order_by_cols = []
         for col in parse_positional_args_to_list(*cols):
             if isinstance(col, Column):
                 assert col._ast is not None
-                ast.sp_column_within_group.cols.append(col._ast)
+                ast.cols.append(col._ast)
                 order_by_cols.append(col)
             elif isinstance(col, str):
-                col_ast = ast.sp_column_within_group.cols.add()
-                col_ast.sp_column.name = col
-                new_col = Column(col, ast=col_ast)
-                order_by_cols.append(new_col)
+                col_ast = ast.cols.add()
+                col_ast.string_val.v = col
+                order_by_cols.append(Column(col))
             else:
                 raise TypeError(
                     f"'WITHIN_GROUP' expected Column or str, got: {type(col)}"

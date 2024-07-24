@@ -1722,6 +1722,8 @@ class DataFrame:
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -1757,12 +1759,17 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
-        stmt = self._session._ast_batch.assign()
-        expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
-        self.set_ast_ref(expr.df)
-        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
-        for c in col_list:
-            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.assign()
+                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                self.set_ast_ref(expr.df)
+                col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+                for c in col_list:
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+            else:
+                stmt = _ast_stmt
         
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
@@ -1871,8 +1878,8 @@ class DataFrame:
                 ast = None
 
         df = self.group_by(
-            [self.col(quote_name(f.name)) for f in self.schema.fields]
-        ).agg()
+            [self.col(quote_name(f.name)) for f in self.schema.fields], _emit_ast=False
+        ).agg(_emit_ast=False)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -1903,23 +1910,22 @@ class DataFrame:
         """
 
         # AST.
-        if not _emit_ast:
+        stmt = None
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                for arg in subset:
+                    if isinstance(arg, str):
+                        ast.cols.append(arg)
+                        ast.variadic = True
+                    else:
+                        for sub_arg in arg:
+                            ast.cols.append(sub_arg)
+                            ast.variadic = False
+                self.set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
-
-            ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
-            for arg in subset:
-                if isinstance(arg, str):
-                    ast.cols.append(arg)
-                    ast.variadic = True
-                else:
-                    for sub_arg in arg:
-                        ast.cols.append(sub_arg)
-                        ast.variadic = False
-
-            self.set_ast_ref(ast.df)
 
         if not subset:
             df = self.distinct(_emit_ast=False)

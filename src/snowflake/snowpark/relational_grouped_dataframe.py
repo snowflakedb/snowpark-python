@@ -114,14 +114,11 @@ class GroupingSets:
     =============================================================  ==================================
     """
 
-    def __init__(self, *sets: Union[Column, List[Column]], ast: Optional[proto.Expr] = None) -> None:
-        self._ast = ast
-        if self._ast is None:
-            self._ast = proto.Expr()
-            expr = with_src_position(self._ast.sp_grouping_sets)
-            set_list, expr.variadic = parse_positional_args_to_list_variadic(*sets)
-            for s in set_list:
-                build_expr_from_python_val(expr.sets.add(), s)
+    def __init__(self, *sets: Union[Column, List[Column]]) -> None:
+        self._ast = with_src_position(proto.SpGroupingSets())
+        set_list, self._ast.variadic = parse_positional_args_to_list_variadic(*sets)
+        for s in set_list:
+            build_expr_from_python_val(self._ast.sets.add(), s)
 
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (
@@ -217,7 +214,7 @@ class RelationalGroupedDataFrame:
 
     @relational_group_df_api_usage
     def agg(
-        self, *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]], _ast_stmt: Optional[proto.Assign], _emit_ast: bool = True
+        self, *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]], _ast_stmt: Optional[proto.Assign] = None, _emit_ast: bool = True
     ) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
 
@@ -257,7 +254,7 @@ class RelationalGroupedDataFrame:
             if _ast_stmt is None:
                 stmt = self._df._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_relational_grouped_dataframe_agg, stmt)
-                self._set_ast_ref(ast.df)
+                self._set_ast_ref(ast.rgdf)
                 ast.variadic = is_variadic
                 for e in exprs:
                     build_expr_from_python_val(ast.exprs.add(), e)
