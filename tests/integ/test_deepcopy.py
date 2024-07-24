@@ -3,10 +3,14 @@
 #
 
 import copy
-from typing import List, Callable, Optional
+from typing import Callable, List, Optional
 
 import pytest
 
+from snowflake.snowpark import functions as F, types as T
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string,
+)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -33,13 +37,8 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import col, lit, seq1, uniform
-
-from snowflake.snowpark import functions as F
-from snowflake.snowpark import types as T
 from snowflake.snowpark.column import CaseExpr, Column
-from snowflake.snowpark._internal.analyzer.analyzer_utils import attribute_to_schema_string
-from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.functions import col, lit, seq1, uniform
 
 pytestmark = [
     pytest.mark.xfail(
@@ -127,7 +126,11 @@ def verify_snowflake_plan_attribute(
         assert copied_attribute.nullable == original_attribute.nullable
 
 
-def check_copied_plan(copied_plan: SnowflakePlan, original_plan: SnowflakePlan) -> None:
+def check_copied_plan(
+    copied_plan: SnowflakePlan,
+    original_plan: SnowflakePlan,
+    skip_attribute: bool = False,
+) -> None:
     # verify the instance type is the same
     assert type(copied_plan) == type(original_plan)
     assert copied_plan.queries == original_plan.queries
@@ -148,7 +151,10 @@ def check_copied_plan(copied_plan: SnowflakePlan, original_plan: SnowflakePlan) 
     assert copied_plan.api_calls == original_plan.api_calls
     assert copied_plan.expr_to_alias == original_plan.expr_to_alias
     assert copied_plan.schema_query == original_plan.schema_query
-    # verify_snowflake_plan_attribute(copied_plan.attributes, original_plan.attributes)
+    if not skip_attribute:
+        verify_snowflake_plan_attribute(
+            copied_plan.attributes, original_plan.attributes
+        )
 
     # verify changes in the copied plan doesn't impact original plan
     original_sql = original_plan.queries[-1].sql
@@ -303,3 +309,52 @@ def test_create_or_replace_view(session):
     # make another copy to check for logical plan copy
     copied_logical_plan = copy.deepcopy(create_view_logical_plan)
     verify_logical_plan_node(copied_logical_plan, create_view_logical_plan)
+
+
+def test_deep_nested_select(session):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    # create a tabel with 11 columns (1 int columns and 10 string columns) for testing
+    struct_fields = [T.StructField("intCol", T.IntegerType(), True)]
+    for i in range(1, 11):
+        struct_fields.append(T.StructField(f"col{i}", T.StringType(), True))
+    schema = T.StructType(struct_fields)
+    session.sql(
+        f"create temp table {temp_table_name}({attribute_to_schema_string(schema)})"
+    ).collect()
+    df = session.table(temp_table_name)
+
+    def get_col_ref_expression(iter_num: int, col_func: Callable) -> Column:
+        ref_cols = [F.lit(str(iter_num))]
+        for i in range(1, 5):
+            col_name = f"col{i}"
+            ref_col = col_func(df[col_name])
+            ref_cols.append(ref_col)
+        return F.concat(*ref_cols)
+
+    for i in range(1, 20):
+        int_col = df["intCol"]
+        col1_base = get_col_ref_expression(i, F.initcap)
+        case_expr: Optional[CaseExpr] = None
+        # generate the condition expression based on the number of conditions
+        for j in range(1, 3):
+            if j == 1:
+                cond_col = int_col < 100
+                col_ref_expr = get_col_ref_expression(i, F.upper)
+            else:
+                cond_col = int_col < 300
+                col_ref_expr = get_col_ref_expression(i, F.lower)
+            case_expr = (
+                F.when(cond_col, col_ref_expr)
+                if case_expr is None
+                else case_expr.when(cond_col, col_ref_expr)
+            )
+
+        col1 = case_expr.otherwise(col1_base)
+
+        df = df.with_columns(["col1"], [col1])
+
+    # make a copy of the final df plan
+    copied_plan = copy.deepcopy(df._plan)
+    # skip the checking of plan attribute for this plan, because the plan is complicated for
+    # compilation, and attribute issues describing call which will timeout during server compilation.
+    check_copied_plan(copied_plan, df._plan, skip_attribute=True)
