@@ -26,7 +26,9 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import avg, col
+from snowflake.snowpark.functions import avg, col, lit
+from tests.integ.scala.test_dataframe_reader_suite import get_reader
+from tests.utils import TestFiles, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -106,6 +108,20 @@ def test_selectable_query_generation(session, action):
 
 
 @pytest.mark.parametrize(
+    "query",
+    [
+        "select 1 as a, 2 as b",
+        "show tables in schema limit 10",
+    ],
+)
+def test_sql_select(session, query):
+    df = session.sql(query)
+    check_generated_plan_queries(df._plan)
+    df_filtered = session.sql(query).filter(lit(True))
+    check_generated_plan_queries(df_filtered._plan)
+
+
+@pytest.mark.parametrize(
     "mode", [SaveMode.APPEND, SaveMode.TRUNCATE, SaveMode.ERROR_IF_EXISTS]
 )
 def test_table_create(session, mode):
@@ -181,6 +197,33 @@ def test_window_function(session):
     )
     df_result = df.union_all(df).select("*")
     check_generated_plan_queries(df_result._plan)
+
+
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_df_reader(session, mode, resources_path):
+    reader = get_reader(session, mode)
+    session_stage = session.get_session_stage()
+    test_files = TestFiles(resources_path)
+    test_file_on_stage = f"{session_stage}/testCSV.csv"
+    Utils.upload_to_stage(
+        session, session_stage, test_files.test_file_csv, compress=False
+    )
+    df = reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
+    check_generated_plan_queries(df._plan)
+
+
+def test_dataframe_creation_with_multiple_queries(session):
+    # multiple queries and
+    df = session.create_dataframe([1] * 20000)
+    queries, post_actions = df.queries["queries"], df.queries["post_actions"]
+    assert len(queries) == 3
+    assert queries[0].startswith("CREATE")
+    assert queries[1].startswith("INSERT")
+    assert queries[2].startswith("SELECT")
+    assert len(post_actions) == 1
+    assert post_actions[0].startswith("DROP")
+
+    check_generated_plan_queries(df._plan)
 
 
 def test_multiple_plan_query_generation(session):
