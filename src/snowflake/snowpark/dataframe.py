@@ -3146,6 +3146,7 @@ class DataFrame:
         col_name: str,
         col: Union[Column, TableFunctionCall],
         ast_stmt: proto.Expr = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -3187,14 +3188,14 @@ class DataFrame:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
         """
-        if ast_stmt is None:
+        if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
             self.set_ast_ref(expr.df)
             expr.col_name = col_name
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
 
-        return self.with_columns([col_name], [col], ast_stmt=ast_stmt)
+        return self.with_columns([col_name], [col], ast_stmt=ast_stmt, _emit_ast=False)
 
     @df_api_usage
     def with_columns(
@@ -3202,6 +3203,7 @@ class DataFrame:
         col_names: List[str],
         values: List[Union[Column, TableFunctionCall]],
         ast_stmt: proto.Expr = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3293,8 +3295,8 @@ class DataFrame:
             if field.name not in new_column_names
         ]
 
-        # AST
-        if ast_stmt is None:
+        #AST.
+        if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(ast_stmt.expr.sp_dataframe_with_columns, ast_stmt)
             self.set_ast_ref(expr.df)
