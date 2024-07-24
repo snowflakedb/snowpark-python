@@ -60,11 +60,11 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
             for field in obj._fields:
                 expr_builder.sp_row.names.list.append(field)
                 build_expr_from_python_val(
-                    obj._named_values[field], expr_builder.sp_row.vs.add()
+                    expr_builder.sp_row.vs.add(), obj._named_values[field]
                 )
         else:
             for field in obj:
-                build_expr_from_python_val(field, expr_builder.sp_row.vs.add())
+                build_expr_from_python_val(expr_builder.sp_row.vs.add(), field)
 
     elif isinstance(obj, bool):
         set_src_position(expr_builder.bool_val.src)
