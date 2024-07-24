@@ -567,7 +567,7 @@ class Column:
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val.set_ast_ref(val_ast)
             else:
-                build_expr_from_python_val(val, val_ast)
+                build_expr_from_python_val(val_ast, val)
 
         return Column(InExpression(self._expression, value_expressions), ast=ast)
 
