@@ -1401,7 +1401,7 @@ class DataFrame:
         self,
         expr: ColumnOrSqlExpr,
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1425,7 +1425,7 @@ class DataFrame:
         """
         # AST.
         stmt = None
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
@@ -1703,11 +1703,19 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+        
         rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
             snowflake.snowpark.relational_grouped_dataframe._RollupType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1749,11 +1757,19 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+        
         grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1793,10 +1809,18 @@ class DataFrame:
         Args:
             grouping_sets: The list of :class:`GroupingSets` to group by.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_group_by_grouping_sets, stmt)
+        self.set_ast_ref(expr.df)
+        grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(*grouping_sets)
+        for gs in grouping_set_list:
+            expr.grouping_sets.append(gs._ast)
+
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [gs._to_expression for gs in parse_positional_args_to_list(*grouping_sets)],
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
+            ast_stmt=stmt,
         )
 
     @df_to_relational_group_df_api_usage
@@ -1811,16 +1835,24 @@ class DataFrame:
         Args:
             cols: The columns to group by cube.
         """
+        stmt = self._session._ast_batch.assign()
+        expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+        self.set_ast_ref(expr.df)
+        col_list, expr.variadic = parse_positional_args_to_list_variadic(*cols)
+        for c in col_list:
+            build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+        
         cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+            ast_stmt=stmt,
         )
 
     @df_api_usage
     def distinct(
-        self, _ast_stmt: proto.Assign = None, _supress_ast: bool = False
+        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1829,7 +1861,7 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
@@ -1842,7 +1874,7 @@ class DataFrame:
             [self.col(quote_name(f.name)) for f in self.schema.fields]
         ).agg()
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df
@@ -1851,7 +1883,7 @@ class DataFrame:
         self,
         *subset: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
-        _supress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -1871,7 +1903,7 @@ class DataFrame:
         """
 
         # AST.
-        if not _supress_ast:
+        if not _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
             else:
@@ -1890,7 +1922,7 @@ class DataFrame:
             self.set_ast_ref(ast.df)
 
         if not subset:
-            df = self.distinct(_supress_ast=True)
+            df = self.distinct(_emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
             return df
         subset = parse_positional_args_to_list(*subset)
@@ -1903,13 +1935,13 @@ class DataFrame:
         rownum_name = generate_random_alphanumeric()
         df = (
             self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _supress_ast=True)
+            .where(col(rownum_name) == 1, _emit_ast=False)
             .select(output_cols, _emit_ast=False)
         )
         # Reformat the extra API calls
         adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
 
-        if not _supress_ast:
+        if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
 
         return df
