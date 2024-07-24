@@ -15991,16 +15991,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         >>> other = df2._query_compiler
         """
 
-        # TODO(SNOW-1478684): Stop calling to_pandas() to work around Index.equals() bug.
-        def pandas_index(index: Union[native_pd.Index, pd.Index]) -> native_pd.Index:
-            if isinstance(index, native_pd.Index):
-                return index
-            return index.to_pandas()
-
-        if not (
-            pandas_index(self.columns).equals(pandas_index(other.columns))
-            and pandas_index(self.index).equals(pandas_index(other.index))
-        ):
+        if not (self.columns.equals(other.columns) and self.index.equals(other.index)):
             raise ValueError("Can only compare identically-labeled objects")
 
         # align the two frames on index values, which should be equal. We don't
