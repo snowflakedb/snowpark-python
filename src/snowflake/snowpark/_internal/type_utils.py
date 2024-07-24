@@ -710,6 +710,9 @@ def python_type_to_snow_type(
             )
         return TimestampType(timezone), False
 
+    if tp == object:
+        return VariantType(), False
+
     raise TypeError(f"invalid type {tp}")
 
 
