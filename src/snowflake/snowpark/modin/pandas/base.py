@@ -1158,6 +1158,26 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         indexer = pandas.Series(index=idx).at_time(time, asof=asof).index
         return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
 
+    def backfill(
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
+        """
+        Synonym for `DataFrame.fillna` with ``method='bfill'``.
+        """
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        warnings.warn(
+            "Series/DataFrame.backfill is deprecated. Use Series/DataFrame.bfill instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+        return self.fillna(
+            method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
+        )
+
     @base_not_implemented()
     @_inherit_docstrings(
         pandas.DataFrame.between_time, apilink="pandas.DataFrame.between_time"
@@ -1183,10 +1203,13 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
 
-    @base_not_implemented()
     def bfill(
-        self, axis=None, inplace=False, limit=None, downcast=None
-    ):  # noqa: PR01, RT01, D200
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
         """
         Synonym for `DataFrame.fillna` with ``method='bfill'``.
         """
@@ -1194,8 +1217,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         return self.fillna(
             method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
-
-    backfill = bfill
 
     @base_not_implemented()
     def bool(self):  # noqa: RT01, D200
@@ -1786,8 +1807,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method="ffill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
 
-    pad = ffill
-
     def fillna(
         self,
         self_is_series,
@@ -2372,6 +2391,26 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             result.name = None
         return result
 
+    def pad(
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
+        """
+        Synonym for `DataFrame.fillna` with ``method='ffill'``.
+        """
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        warnings.warn(
+            "Series/DataFrame.pad is deprecated. Use Series/DataFrame.ffill instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+        return self.fillna(
+            method="ffill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
+        )
+
     def pct_change(
         self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
     ):  # noqa: PR01, RT01, D200
@@ -2584,7 +2623,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 pass
         return ensure_index(index_like)
 
-    @base_not_implemented()
     def reindex(
         self,
         index=None,
@@ -2596,7 +2634,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Conform `BasePandasDataset` to new index with optional filling logic.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-
+        if kwargs.get("limit", None) is not None and kwargs.get("method", None) is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
         new_query_compiler = None
         if index is not None:
             if not isinstance(index, pandas.Index) or not index.equals(self.index):
