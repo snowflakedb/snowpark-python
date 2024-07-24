@@ -400,16 +400,22 @@ def test_read_csv_with_infer_schema(session, mode, parse_header):
     reason="SNOW-1435112: csv infer schema option is not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_csv_with_infer_schema_options(session, mode):
+@pytest.mark.parametrize("ignore_case", [True, False])
+def test_read_csv_with_infer_schema_options(session, mode, ignore_case):
     reader = get_reader(session, mode)
     df = (
         reader.option("INFER_SCHEMA", True)
-        .option(
-            "INFER_SCHEMA_OPTIONS", {"MAX_FILE_COUNT": 1, "MAX_RECORDS_PER_FILE": 10}
-        )
-        .csv(f"@{tmp_stage_name1}/{test_file_csv}")
+        .option("PARSE_HEADER", True)
+        .option("INFER_SCHEMA_OPTIONS", {"IGNORE_CASE": ignore_case})
+        .csv(f"@{tmp_stage_name1}/{test_file_csv_header}")
     )
     Utils.check_answer(df, [Row(1, "one", 1.2), Row(2, "two", 2.2)])
+    headers = ["id", "name", "rating"]
+    if ignore_case:
+        expected_cols = [c.upper() for c in headers]
+    else:
+        expected_cols = [f'"{c}"' for c in headers]
+    assert df.columns == expected_cols
 
 
 @pytest.mark.skipif(
