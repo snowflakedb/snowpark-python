@@ -134,6 +134,7 @@ class _SnowflakeDomain:
     MODULE = "MODULE"
     DATASET = "DATASET"
     VIEW = "VIEW"
+    COLUMN = "COLUMN"
 
 
 class _DGQLQueryBuilder:
@@ -452,6 +453,17 @@ class Lineage:
                     f"missing name/version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
                 )
 
+        if (
+            user_domain == _SnowflakeDomain.COLUMN
+            and _ObjectField.PROPERTIES in graph_entity
+            and _ObjectField.PARENT_NAME in graph_entity[_ObjectField.PROPERTIES]
+        ):
+            properties = graph_entity[_ObjectField.PROPERTIES]
+            return (
+                f"{db}.{schema}.{properties[_ObjectField.PARENT_NAME]}.{name}",
+                None,
+            )
+
         return (f"{db}.{schema}.{name}", None)
 
     def _get_user_entity(self, graph_entity: Dict[str, Any]) -> str:
@@ -527,16 +539,18 @@ class Lineage:
         )
         return self._session.create_dataframe(transformed_results, schema=schema)
 
-    def _check_valid_object_name(self, object_name: str) -> None:
+    def _check_valid_object_name(self, object_name: str, object_domain: str) -> None:
         """
         Checks if the object name is one of the below allowed format
-            Non-Case-sensitive: "database.schema.object"
-            Case-sensitive: "\"database\".\"schema\".\"object\""
+            Non-Case-sensitive: "database.schema.object" or "database.schema.object.column_name"
+            Case-sensitive: "\"database\".\"schema\".\"object\"" or "\"database\".\"schema\".\"object\"".\"column_name\"
         """
         parts = _DGQLQueryBuilder.split_fully_qualified_name(object_name)
 
-        # Check if the object name has three parts separated by dots
-        if len(parts) != 3:
+        is_column_domain = object_domain.upper() == _SnowflakeDomain.COLUMN
+        if (is_column_domain and len(parts) != 4) or (
+            not is_column_domain and len(parts) != 3
+        ):
             raise ValueError(f"Invalid object name: {object_name}")
 
         for part in parts:
@@ -607,7 +621,7 @@ class Lineage:
                 f"Distance must be between {_MIN_TRACE_DISTANCE} and {_MAX_TRACE_DISTANCE}."
             )
 
-        self._check_valid_object_name(object_name)
+        self._check_valid_object_name(object_name, object_domain)
 
         if isinstance(direction, str):
             direction = LineageDirection.value_of(direction)
