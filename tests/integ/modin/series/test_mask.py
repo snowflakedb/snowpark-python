@@ -114,17 +114,20 @@ def test_series_mask_with_np_array_cond():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda df: df.mask(cond))
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_series_mask_with_series_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
 
     snow_ser = pd.Series(data, index=pd.Index(["a", "b", "c"], name="Y"))
-    native_ser = native_pd.Series(data, index=pd.Index(["a", "b", "c"], name="Y"))
+    native_ser = native_pd.Series(
+        data, index=native_pd.Index(["a", "b", "c"], name="Y")
+    )
 
     cond_snow_ser = pd.Series(cond, index=pd.Index(["a", "b", "c"], name="X"))
-    cond_native_ser = native_pd.Series(cond, index=pd.Index(["a", "b", "c"], name="X"))
-
+    cond_native_ser = native_pd.Series(
+        cond, index=native_pd.Index(["a", "b", "c"], name="X")
+    )
     eval_snowpark_pandas_result(
         snow_ser,
         native_ser,
@@ -135,17 +138,18 @@ def test_series_mask_with_series_cond_single_index_different_names():
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_series_mask_with_duplicated_index_aligned():
     data = [1, 2, 3]
     cond = [False, True, False]
     index = pd.Index(["a", "a", "c"], name="index")
+    native_index = native_pd.Index(["a", "a", "c"], name="index")
 
     snow_ser = pd.Series(data, index=index)
-    native_ser = native_pd.Series(data, index=index)
+    native_ser = native_pd.Series(data, index=native_index)
 
     cond_snow_ser = pd.Series(cond, index=index)
-    cond_native_ser = native_pd.Series(cond, index=index)
+    cond_native_ser = native_pd.Series(cond, index=native_index)
 
     eval_snowpark_pandas_result(
         snow_ser,
@@ -156,7 +160,7 @@ def test_series_mask_with_duplicated_index_aligned():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_series_mask_with_lambda_cond():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])
@@ -171,7 +175,7 @@ def test_series_mask_with_lambda_cond():
     )
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=2)
 def test_series_mask_with_lambda_returns_singleton_should_fail():
     data = [1, 6, 7, 4]
     index = pd.Index(["a", "b", "c", "d"])

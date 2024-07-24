@@ -44,6 +44,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "cachetools",  # used in UDF doctest
     "pytest-timeout",
     "pytest-xdist",
+    "openpyxl",  # used in read_excel test, not a requirement for distribution
+    "matplotlib",  # used in plot tests
     "pre-commit",
 ]
 
@@ -85,6 +87,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.compiler",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
@@ -96,8 +99,6 @@ setup(
         "snowflake.snowpark.modin.plugin",
         "snowflake.snowpark.modin.plugin._internal",
         "snowflake.snowpark.modin.plugin.compiler",
-        "snowflake.snowpark.modin.plugin.docstrings",
-        "snowflake.snowpark.modin.plugin.default2pandas",
         "snowflake.snowpark.modin.plugin.docstrings",
         "snowflake.snowpark.modin.plugin.extensions",
         "snowflake.snowpark.modin.plugin.io",
@@ -126,7 +127,6 @@ setup(
         ],
         "localtest": [
             "pandas",
-            "pyarrow",
             "requests",
         ],
         "opentelemetry": [

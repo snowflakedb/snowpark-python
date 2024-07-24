@@ -533,12 +533,20 @@ def pivot_table(
 
     Notes
     -----
-    Raise NotImplementedError if
+    - Raise NotImplementedError if
 
-        * margins, observed, or sort is given;
-        * or index, columns, or values is not str;
+        * observed or sort is given;
+        * or index, columns, or values is not str, a list of str, or None;
         * or DataFrame contains MultiIndex;
-        * or any argfunc is not "count", "mean", "min", "max", or "sum"
+        * or any aggfunc is not "count", "mean", "min", "max", or "sum"
+        * index is None, and aggfunc is a dictionary containing lists.
+
+    - Computing margins with no index has limited support:
+        * when aggfunc is "count" or "mean" the result has discrepancies with pandas -
+          Snowpark pandas computes the aggfunc over the data grouped by the first pivot
+          column, while pandas computes the aggfunc over the result of the aggfunc from
+          the initial pivot.
+        * aggfunc as a dictionary is not supported.
 
     See Also
     --------
@@ -640,11 +648,100 @@ def pivot_table(
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator
-@pandas_module_level_function_not_implemented()
-@_inherit_docstrings(pandas.pivot, apilink="pandas.pivot")
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     """
     Return reshaped DataFrame organized by given index / column values.
+
+    Reshape data (produce a “pivot” table) based on column values. Uses unique values from
+    specified index / columns to form axes of the resulting DataFrame. This function does not
+    support data aggregation, multiple values will result in a MultiIndex in the columns.
+
+    Parameters
+    ----------
+    data : :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+    columns : str or object or a list of str
+        Column to use to make new frame’s columns.
+    index : str or object or a list of str, optional
+        Column to use to make new frame’s index. If not given, uses existing index.
+    values : str, object or a list of the previous, optional
+        Column(s) to use for populating new frame’s values. If not specified, all remaining columns
+        will be used and the result will have hierarchically indexed columns.
+
+    Returns
+    -------
+    :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+
+    Notes
+    -----
+    Calls pivot_table with columns, values, index and aggregation "min".
+
+    See Also
+    --------
+    DataFrame.pivot_table : Generalization of pivot that can handle
+        duplicate values for one index/column pair.
+    DataFrame.unstack: Pivot based on the index values instead
+        of a column.
+    wide_to_long : Wide panel to long format. Less flexible but more
+        user-friendly than melt.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({'foo': ['one', 'one', 'one', 'two', 'two',
+    ...                   'two'],
+    ...           'bar': ['A', 'B', 'C', 'A', 'B', 'C'],
+    ...           'baz': [1, 2, 3, 4, 5, 6],
+    ...           'zoo': ['x', 'y', 'z', 'q', 'w', 't']})
+    >>> df
+       foo bar  baz zoo
+    0  one   A    1   x
+    1  one   B    2   y
+    2  one   C    3   z
+    3  two   A    4   q
+    4  two   B    5   w
+    5  two   C    6   t
+    >>> pd.pivot(data=df, index='foo', columns='bar', values='baz')  # doctest: +NORMALIZE_WHITESPACE
+    bar  A  B  C
+    foo
+    one  1  2  3
+    two  4  5  6
+    >>> pd.pivot(data=df, index='foo', columns='bar')['baz']  # doctest: +NORMALIZE_WHITESPACE
+    bar  A  B  C
+    foo
+    one  1  2  3
+    two  4  5  6
+    >>> pd.pivot(data=df, index='foo', columns='bar', values=['baz', 'zoo'])  # doctest: +NORMALIZE_WHITESPACE
+        baz       zoo
+    bar   A  B  C   A  B  C
+    foo
+    one   1  2  3   x  y  z
+    two   4  5  6   q  w  t
+    >>> df = pd.DataFrame({
+    ...     "lev1": [1, 1, 1, 2, 2, 2],
+    ...     "lev2": [1, 1, 2, 1, 1, 2],
+    ...     "lev3": [1, 2, 1, 2, 1, 2],
+    ...     "lev4": [1, 2, 3, 4, 5, 6],
+    ...     "values": [0, 1, 2, 3, 4, 5]})
+    >>> df
+       lev1  lev2  lev3  lev4  values
+    0     1     1     1     1       0
+    1     1     1     2     2       1
+    2     1     2     1     3       2
+    3     2     1     2     4       3
+    4     2     1     1     5       4
+    5     2     2     2     6       5
+    >>> pd.pivot(data=df, index="lev1", columns=["lev2", "lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+    lev2  1       2
+    lev3  1  2    1    2
+    lev1
+    1     0  1  2.0  NaN
+    2     4  3  NaN  5.0
+    >>> pd.pivot(data=df, index=["lev1", "lev2"], columns=["lev3"], values="values")  # doctest: +NORMALIZE_WHITESPACE
+    lev3         1    2
+    lev1 lev2
+    1    1     0.0  1.0
+         2     2.0  NaN
+    2    1     4.0  3.0
+         2     NaN  5.0
     """
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
     if not isinstance(data, DataFrame):
@@ -658,7 +755,6 @@ def to_numeric(
     errors: Literal["ignore", "raise", "coerce"] = "raise",
     downcast: Literal["integer", "signed", "unsigned", "float"] | None = None,
 ) -> Series | Scalar | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to a numeric type.
 
@@ -719,12 +815,6 @@ def to_numeric(
     2   -3.0
     dtype: float64
     >>> s = pd.Series(['apple', '1.0', '2', -3])
-    >>> pd.to_numeric(s, errors='ignore')  # doctest: +SKIP
-    0    apple
-    1      1.0
-    2        2
-    3       -3
-    dtype: object
     >>> pd.to_numeric(s, errors='coerce')
     0    NaN
     1    1.0
@@ -1076,7 +1166,6 @@ def concat(
 
     >>> pd.concat([s1, s2], axis=1, keys=['x', 'y'])
        x  y
-       0  1
     0  a  c
     1  b  d
 
@@ -1193,7 +1282,17 @@ def concat(
                 "only Series and DataFrame objs are valid"
             )
 
-    # Assign names to unnamed series
+    # Assign names to unnamed series - the names function as column labels for Series.
+    # If all Series have no name, use the keys as names.
+    if (
+        axis == 1
+        and keys is not None
+        and all(isinstance(obj, Series) and obj.name is None for obj in objs)
+    ):
+        for i, obj in enumerate(objs):
+            objs[i] = obj.rename(keys[i])
+
+    # If only some Series have names, give them temporary names.
     series_name = 0
     for i, obj in enumerate(objs):
         if isinstance(obj, pd.Series) and obj.name is None:
@@ -1215,6 +1314,10 @@ def concat(
             argument="copy",
             message="copy parameter has been ignored with Snowflake execution engine",
         )
+
+    # For the edge case where concatenation is done on the columns where all the objects are series,
+    # need to prevent a second column level from being created - therefore, keys is None.
+    keys = None if axis == 1 and all(isinstance(obj, Series) for obj in objs) else keys
 
     result = objs[0]._query_compiler.concat(
         axis,
@@ -1250,7 +1353,6 @@ def to_datetime(
     origin: Any = "unix",
     cache: bool = True,
 ) -> Series | DatetimeScalar | NaTType | None:
-    # TODO: SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda
     """
     Convert argument to datetime.
 
@@ -1486,11 +1588,6 @@ def to_datetime(
     Passing ``errors='coerce'`` will force an out-of-bounds date to :const:`NaT`,
     in addition to forcing non-dates (or non-parseable dates) to :const:`NaT`.
 
-    >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='ignore')  # doctest: +SKIP
-    0    13000101
-    1         abc
-    dtype: object
-
     >>> pd.to_datetime(['13000101', 'abc'], format='%Y%m%d', errors='coerce')
     0   NaT
     1   NaT
@@ -1581,7 +1678,7 @@ def to_datetime(
         else:
             name = None
             # keep index name
-            if isinstance(arg, pandas.Index):
+            if isinstance(arg, pd.Index):
                 name = arg.name
             arg = Series(arg)
             arg.name = name
@@ -2058,14 +2155,6 @@ def date_range(
     4   2019-01-31
     dtype: datetime64[ns]
 
-    Specify `tz` to set the timezone.
-
-    >>> pd.date_range(start='1/1/2018', periods=5, tz='Asia/Tokyo')  # doctest: +SKIP
-    DatetimeIndex(['2018-01-01 00:00:00+09:00', '2018-01-02 00:00:00+09:00',
-                   '2018-01-03 00:00:00+09:00', '2018-01-04 00:00:00+09:00',
-                   '2018-01-05 00:00:00+09:00'],
-                  dtype='datetime64[ns, Asia/Tokyo]', freq='D')
-
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
 
@@ -2145,7 +2234,6 @@ def date_range(
     return s
 
 
-@_inherit_docstrings(pandas.qcut, apilink="pandas.qcut")
 @snowpark_pandas_telemetry_standalone_function_decorator
 def qcut(
     x: np.ndarray | Series,
@@ -2154,14 +2242,46 @@ def qcut(
     retbins: bool = False,
     precision: int = 3,
     duplicates: Literal["raise"] | Literal["drop"] = "raise",
-):  # noqa: PR01, RT01, D200
+) -> Series:
     """
-    Quantile-based discretization function. Inherits docstrings from Pandas.
-    retbins=True is not supported in Snowpark pandas.
+    Quantile-based discretization function.
 
-    labels=False will run binning computation in Snowflake, whereas if labels is an array
-    the data will be fetched to the client and the binning run client-side, as Snowpark pandas API does
-    not yet support pd.Categorical in its ORM mapper.
+    Discretize variable into equal-sized buckets based on rank or based
+    on sample quantiles.
+
+    Parameters
+    ----------
+    x : 1-D ndarray or Series
+        The data across which to compute buckets. If a Snowpark pandas Series is passed, the computation
+        is distributed. Otherwise, if a numpy array or list is provided, the computation is performed
+        client-side instead.
+
+    q : int or list-like of float
+        Number of quantiles. 10 for deciles, 4 for quartiles, etc. Alternately array of quantiles,
+        e.g. [0, .25, .5, .75, 1.] for quartiles.
+
+    labels : array or False, default None
+        Used as labels for the resulting bin. Must be of the same length as the resulting bins. If False,
+        return only integer indicators of the bins. If True, raise an error.
+
+        ``labels=False`` will run binning computation in Snowflake; other values are not yet supported
+        in Snowpark pandas.
+
+    retbins : bool, default False
+        Whether to return the (bins, labels) or not. Can be useful if bins is given as a scalar.
+        ``retbins=True`` is not yet supported in Snowpark pandas.
+
+    precision : int, optional
+        The precision at which to store and display the bins labels.
+
+    duplicates : {default 'raise', 'drop'}, optional
+        If bin edges are not unique, raise ValueError or drop non-uniques.
+
+    Returns
+    -------
+    Series
+        Since Snowpark pandas does not yet support the ``pd.Categorical`` type, unlike native pandas, the
+        return value is always a Series.
     """
 
     kwargs = {
@@ -2192,27 +2312,29 @@ def qcut(
 
     if labels is not False:
         # Labels require categorical, not yet supported. Use native pandas conversion here to compute result.
-        return pandas.qcut(x.to_pandas(), q, **kwargs)
+        ErrorMessage.not_implemented(
+            "Snowpark pandas API qcut method supports only labels=False, if you need support"
+            " for labels consider calling pandas.qcut(x.to_pandas(), q, ...)"
+        )
 
     ans = x._qcut(q, retbins, duplicates)
 
-    # Within Snowpark Pandas, we avoid issuing a count query. However, for qcut if q !=1 and x is a Series/list-like containing
-    # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
-    #                You can drop duplicate edges by setting the 'duplicates' kwarg.
-    # With q qcut being an API that requires conversion, we can mimick this behavior here.
-    ret = ans.to_pandas().to_numpy()
-
-    if len(ret) == 1 and isinstance(q, int) and q != 1:
+    if isinstance(q, int) and q != 1 and len(ans) == 1:
         if duplicates == "raise":
+            # We issue a count query since if q !=1 and x is a Series/list-like containing
+            # a single element, an error will be produced  ValueError: Bin edges must be unique: array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]).
+            #                You can drop duplicate edges by setting the 'duplicates' kwarg.
+            # With qcut being an API that requires conversion, we can mimick this behavior here.
+
             # Produce raising error.
             raise ValueError(
                 f"Bin edges must be unique: {repr(np.array([0.] * q))}.\nYou can drop duplicate edges by setting the 'duplicates' kwarg."
             )
         else:
-            # The result will be always NaN because no unique bin could be found.
-            return np.array([np.nan])
+            # The result will always be NaN because no unique bin could be found.
+            return pd.Series([np.nan])
 
-    return ret
+    return ans
 
 
 @snowpark_pandas_telemetry_standalone_function_decorator

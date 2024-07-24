@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, labeled, unlabeled]
     branches:
-      - pandas-main
+      - main
     paths:
       - 'src/snowflake/snowpark/modin/**'
 

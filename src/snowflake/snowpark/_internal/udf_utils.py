@@ -41,6 +41,7 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import (
     STAGE_PREFIX,
     TempObjectType,
+    escape_single_quotes,
     get_udf_upload_prefix,
     is_single_quoted,
     normalize_remote_file_or_dir,
@@ -1264,7 +1265,7 @@ HANDLER='{handler}'{execute_as_sql}
 
     if comment is not None:
         object_signature_sql = f"{object_name}({','.join(input_sql_types)})"
-        comment = comment.replace("'", "\\'")  # escaping single quotes
+        comment = escape_single_quotes(comment)
         comment_query = f"COMMENT ON {object_type.value.split('_')[-1]} {object_signature_sql} IS '{comment}'"
         session._run_query(
             comment_query,

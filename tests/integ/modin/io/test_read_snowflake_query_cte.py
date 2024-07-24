@@ -13,7 +13,7 @@ from tests.integ.modin.utils import (
 from tests.utils import Utils
 
 
-@sql_count_checker(query_count=5, union_count=4)
+@sql_count_checker(query_count=4, union_count=2)
 def test_read_snowflake_query_basic_cte(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -30,7 +30,7 @@ def test_read_snowflake_query_basic_cte(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
 
 
-@sql_count_checker(query_count=4, union_count=2)
+@sql_count_checker(query_count=3, union_count=1)
 def test_read_snowflake_query_recursive_cte():
     SQL_QUERY = """WITH RECURSIVE current_f (current_val, previous_val) AS
                     (
@@ -54,7 +54,7 @@ def test_read_snowflake_query_recursive_cte():
     )
 
 
-@sql_count_checker(query_count=5, join_count=2, union_count=2)
+@sql_count_checker(query_count=4, join_count=1, union_count=1)
 def test_read_snowflake_query_complex_recursive_cte(session):
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -126,7 +126,7 @@ def test_read_snowflake_query_complex_recursive_cte(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6, sproc_count=2)
+@sql_count_checker(query_count=5, sproc_count=1)
 def test_read_snowflake_query_cte_with_cross_language_sproc(session):
     # create table name
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -164,7 +164,7 @@ def test_read_snowflake_query_cte_with_cross_language_sproc(session):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6, sproc_count=2)
+@sql_count_checker(query_count=5, sproc_count=1)
 def test_read_snowflake_query_cte_with_python_anonymous_sproc(session):
     # create table name
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

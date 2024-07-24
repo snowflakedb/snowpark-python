@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Callable, NamedTuple, Optional, Union
 
-import pandas as pd
+import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_object_dtype
 
@@ -15,7 +15,16 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import col, last_value
+from snowflake.snowpark.functions import (
+    array_construct,
+    col,
+    count,
+    count_distinct,
+    iff,
+    last_value,
+    max as max_,
+)
+from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
@@ -27,6 +36,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
     assert_duplicate_free,
+    cache_result,
     count_rows,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
@@ -368,14 +378,13 @@ class InternalFrame:
         )
 
     @property
-    def data_columns_index(self) -> pd.Index:
+    def data_columns_index(self) -> "pd.Index":
         """
-        Returns pandas Index object for column index (df.columns).
-        We can't do the same thing for df.index here because it requires pulling
-        the data from snowflake and filing a query to snowflake.
+        Returns Snowpark pandas Index object for column index (df.columns).
+        Note this object will still hold an internal pandas index (i.e., not lazy) to avoid unnecessary pulling data from Snowflake.
         """
         if self.is_multiindex(axis=1):
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 self.data_column_pandas_labels,
                 names=self.data_column_pandas_index_names,
             )
@@ -387,10 +396,12 @@ class InternalFrame:
                 # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
                 # a MultiIndex will be created incorrectly
                 tupleize_cols=False,
+                # setting is_lazy as false because we want to store the columns locally
+                convert_to_lazy=False,
             )
 
     @property
-    def index_columns_index(self) -> pd.Index:
+    def index_columns_pandas_index(self) -> native_pd.Index:
         """
         Get pandas index. The method eagerly pulls the values from Snowflake because index requires the values to be
         filled
@@ -398,7 +409,6 @@ class InternalFrame:
         Returns:
             The index (row labels) of the DataFrame.
         """
-
         index_values = snowpark_to_pandas_helper(
             self.ordered_dataframe.select(
                 self.index_column_snowflake_quoted_identifiers
@@ -406,7 +416,7 @@ class InternalFrame:
         ).values
         if self.is_multiindex(axis=0):
             value_tuples = [tuple(row) for row in index_values]
-            return pd.MultiIndex.from_tuples(
+            return native_pd.MultiIndex.from_tuples(
                 value_tuples, names=self.index_column_pandas_labels
             )
         else:
@@ -415,7 +425,7 @@ class InternalFrame:
             index_type = TypeMapper.to_pandas(
                 self.quoted_identifier_to_snowflake_type()[index_identifier]
             )
-            ret = pd.Index(
+            ret = native_pd.Index(
                 [row[0] for row in index_values],
                 name=self.index_column_pandas_labels[0],
                 # setting tupleize_cols=False to avoid creating a MultiIndex
@@ -607,16 +617,25 @@ class InternalFrame:
         if axis == 1:
             return self.data_columns_index.is_unique
         else:
-            # Note: We can't use 'count_distinct' because it ignores null values.
-            total_rows = self.num_rows
-            distinct_rows = count_rows(
-                get_distinct_rows(
-                    self.ordered_dataframe.select(
-                        self.index_column_snowflake_quoted_identifiers
+            if self.num_index_columns == 1:
+                index_col = col(self.index_column_snowflake_quoted_identifiers[0])
+                # COUNT(DISTINCT) ignores NULL values, so if there is a NULL value in the column,
+                # we include it via IFF(MAX(<col> IS NULL), 1, 0) which will return 1 if there is
+                # at least one NULL contained within a column, and 0 if there are no NULL values.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    (count_distinct(index_col) + iff(max_(index_col.is_null()), 1, 0))
+                    == count("*")
+                ).collect()[0][0]
+            else:
+                # Note: We can't use 'count_distinct' directly on columns because it
+                # ignores null values. As a workaround we first create an ARRAY and
+                # call 'count_distinct' on ARRAY column.
+                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                    count_distinct(
+                        array_construct(*self.index_column_snowflake_quoted_identifiers)
                     )
-                )
-            )
-            return total_rows == distinct_rows
+                    == count("*"),
+                ).collect()[0][0]
 
     def validate_no_duplicated_data_columns_mapped_for_labels(
         self,
@@ -684,6 +703,22 @@ class InternalFrame:
         """
         return InternalFrame.create(
             ordered_dataframe=self.ordered_dataframe.ensure_row_count_column(),
+            data_column_pandas_labels=self.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=self.data_column_pandas_index_names,
+            index_column_pandas_labels=self.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self.index_column_snowflake_quoted_identifiers,
+        )
+
+    def persist_to_temporary_table(self) -> "InternalFrame":
+        """
+        Persists the OrderedDataFrame backing this InternalFrame to a temporary table for the duration of the session.
+
+        Returns:
+            A new InternalFrame with the backing OrderedDataFrame persisted to a temporary table.
+        """
+        return InternalFrame.create(
+            ordered_dataframe=cache_result(self.ordered_dataframe),
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,

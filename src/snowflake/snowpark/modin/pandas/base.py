@@ -66,7 +66,7 @@ from pandas.core.dtypes.common import (
     pandas_dtype,
 )
 from pandas.core.dtypes.inference import is_integer
-from pandas.core.indexes.api import ensure_index
+from pandas.errors import SpecificationError
 from pandas.util._validators import (
     validate_ascending,
     validate_bool_kwarg,
@@ -75,7 +75,8 @@ from pandas.util._validators import (
 
 from snowflake.snowpark.modin import pandas as pd
 from snowflake.snowpark.modin.pandas.utils import (
-    _doc_binary_op,
+    ensure_index,
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     is_scalar,
     raise_if_native_pandas_objects,
@@ -156,9 +157,6 @@ _DEFAULT_BEHAVIOUR = {
     "__reduce_ex__",
     "_init",
 } | _ATTRS_NO_LOOKUP
-
-
-_doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
 
 @_inherit_docstrings(
@@ -703,16 +701,45 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             # native pandas raise error with message "no result", here we raise a more readable error.
             raise ValueError("No column to aggregate on.")
 
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func,
-            obj=self,
-            allow_duplication=False,
-            axis=axis,
-        )
+        # If we are using named kwargs, then we do not clear the kwargs (need them in the QC for processing
+        # order, as well as formatting error messages.)
+        uses_named_kwargs = False
+        # If aggregate is called on a Series, named aggregations can be passed in via a dictionary
+        # to func.
+        if func is None or (is_dict_like(func) and not self._is_dataframe):
+            if axis == 1:
+                raise ValueError(
+                    "`func` must not be `None` when `axis=1`. Named aggregations are not supported with `axis=1`."
+                )
+            if func is not None:
+                # If named aggregations are passed in via a dictionary to func, then we
+                # ignore the kwargs.
+                if any(is_dict_like(value) for value in func.values()):
+                    # We can only get to this codepath if self is a Series, and func is a dictionary.
+                    # In this case, if any of the values of func are themselves dictionaries, we must raise
+                    # a Specification Error, as that is what pandas does.
+                    raise SpecificationError("nested renamer is not supported")
+                kwargs = func
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                self, allow_duplication=False, axis=axis, **kwargs
+            )
+            uses_named_kwargs = True
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=False,
+                axis=axis,
+            )
 
         # This is to stay consistent with pandas result format, when the func is single
         # aggregation function in format of callable or str, reduce the result dimension to
         # convert dataframe to series, or convert series to scalar.
+        # Note: When named aggregations are used, the result is not reduced, even if there
+        # is only a single function.
+        # needs_reduce_dimension cannot be True if we are using named aggregations, since
+        # the values for func in that case are either NamedTuples (AggFuncWithLabels) or
+        # lists of NamedTuples, both of which are list like.
         need_reduce_dimension = (
             (callable(func) or isinstance(func, str))
             # A Series should be returned when a single scalar string/function aggregation function, or a
@@ -767,7 +794,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # dtype: int8
         # >>> pd.DataFrame([[np.nan], [0]]).count(skipna=True, axis=0)
         # TypeError: got an unexpected keyword argument 'skipna'
-        if is_dict_like(func):
+        if is_dict_like(func) and not uses_named_kwargs:
             kwargs.clear()
 
         result = self.__constructor__(
@@ -1110,16 +1137,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         new_query_compiler = self._query_compiler.astype(col_dtypes, errors=errors)
         return self._create_or_update_from_compiler(new_query_compiler, not copy)
 
-    @base_not_implemented()
     @property
     def at(self, axis=None):  # noqa: PR01, RT01, D200
         """
         Get a single value for a row/column label pair.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from .indexing import _LocIndexer
+        from .indexing import _AtIndexer
 
-        return _LocIndexer(self)
+        return _AtIndexer(self)
 
     @base_not_implemented()
     def at_time(self, time, asof=False, axis=None):  # noqa: PR01, RT01, D200
@@ -1131,6 +1157,26 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         idx = self.index if axis == 0 else self.columns
         indexer = pandas.Series(index=idx).at_time(time, asof=asof).index
         return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
+
+    def backfill(
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
+        """
+        Synonym for `DataFrame.fillna` with ``method='bfill'``.
+        """
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        warnings.warn(
+            "Series/DataFrame.backfill is deprecated. Use Series/DataFrame.bfill instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+        return self.fillna(
+            method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
+        )
 
     @base_not_implemented()
     @_inherit_docstrings(
@@ -1157,10 +1203,13 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         )
         return self.loc[indexer] if axis == 0 else self.loc[:, indexer]
 
-    @base_not_implemented()
     def bfill(
-        self, axis=None, inplace=False, limit=None, downcast=None
-    ):  # noqa: PR01, RT01, D200
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
         """
         Synonym for `DataFrame.fillna` with ``method='bfill'``.
         """
@@ -1168,8 +1217,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         return self.fillna(
             method="bfill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
-
-    backfill = bfill
 
     @base_not_implemented()
     def bool(self):  # noqa: RT01, D200
@@ -1529,6 +1576,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         else:
             return result
 
+    @base_not_implemented()
+    def map(self, func, na_action: str | None = None, **kwargs):
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        if not callable(func):
+            raise ValueError(f"'{type(func)}' object is not callable")
+        return self.__constructor__(
+            query_compiler=self._query_compiler.map(func, na_action=na_action, **kwargs)
+        )
+
     def mask(
         self,
         cond: BasePandasDataset | Callable | AnyArrayLike,
@@ -1699,16 +1755,38 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             method=method,
         )
 
-    @base_not_implemented()
     def expanding(
         self, min_periods=1, axis=0, method="single"
     ):  # noqa: PR01, RT01, D200
         """
         Provide expanding window calculations.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "expanding",
+        from .window import Expanding
+
+        if axis is not lib.no_default:
+            axis = self._get_axis_number(axis)
+            name = "expanding"
+            if axis == 1:
+                warnings.warn(
+                    f"Support for axis=1 in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + f"Use obj.T.{name}(...) instead",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+            else:
+                warnings.warn(
+                    f"The 'axis' keyword in {type(self).__name__}.{name} is "
+                    + "deprecated and will be removed in a future version. "
+                    + "Call the method without the axis keyword instead.",
+                    FutureWarning,
+                    stacklevel=1,
+                )
+        else:
+            axis = 0
+
+        return Expanding(
+            self,
             min_periods=min_periods,
             axis=axis,
             method=method,
@@ -1728,8 +1806,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         return self.fillna(
             method="ffill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
         )
-
-    pad = ffill
 
     def fillna(
         self,
@@ -1912,16 +1988,15 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         """
         return self.iloc[:n]
 
-    @base_not_implemented()
     @property
     def iat(self, axis=None):  # noqa: PR01, RT01, D200
         """
         Get a single value for a row/column pair by integer position.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        from .indexing import _iLocIndexer
+        from .indexing import _iAtIndexer
 
-        return _iLocIndexer(self)
+        return _iAtIndexer(self)
 
     def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
         """
@@ -1977,6 +2052,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             )
         )
 
+    @base_not_implemented()
     def infer_objects(
         self, copy: bool | None = None
     ) -> BasePandasDataset:  # pragma: no cover # noqa: RT01, D200
@@ -1984,8 +2060,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Attempt to infer better dtypes for object columns.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        # This method is currently overriden in dataframe_overrides.py and series_overrides.py
-        # and raises NotImplementedError
         new_query_compiler = self._query_compiler.infer_objects()
         return self._create_or_update_from_compiler(
             new_query_compiler, inplace=False if copy is None else not copy
@@ -2317,21 +2391,78 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             result.name = None
         return result
 
-    @base_not_implemented()
+    def pad(
+        self,
+        axis: Axis | None = None,
+        inplace: bool = False,
+        limit: int | None = None,
+        downcast: dict | None = None,
+    ):
+        """
+        Synonym for `DataFrame.fillna` with ``method='ffill'``.
+        """
+        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        warnings.warn(
+            "Series/DataFrame.pad is deprecated. Use Series/DataFrame.ffill instead.",
+            FutureWarning,
+            stacklevel=1,
+        )
+        return self.fillna(
+            method="ffill", axis=axis, limit=limit, downcast=downcast, inplace=inplace
+        )
+
     def pct_change(
-        self, periods=1, fill_method="pad", limit=None, freq=None, **kwargs
+        self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
     ):  # noqa: PR01, RT01, D200
         """
         Percentage change between the current and a prior element.
         """
-        # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-        return self._default_to_pandas(
-            "pct_change",
-            periods=periods,
-            fill_method=fill_method,
-            limit=limit,
-            freq=freq,
-            **kwargs,
+        if fill_method not in (lib.no_default, None) or limit is not lib.no_default:
+            warnings.warn(
+                "The 'fill_method' keyword being not None and the 'limit' keyword in "
+                + f"{type(self).__name__}.pct_change are deprecated and will be removed "
+                + "in a future version. Either fill in any non-leading NA values prior "
+                + "to calling pct_change or specify 'fill_method=None' to not fill NA "
+                + "values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+        if fill_method is lib.no_default:
+            warnings.warn(
+                f"The default fill_method='pad' in {type(self).__name__}.pct_change is "
+                + "deprecated and will be removed in a future version. Either fill in any "
+                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
+                + "to not fill NA values.",
+                FutureWarning,
+                stacklevel=1,
+            )
+            fill_method = "pad"
+
+        if limit is lib.no_default:
+            limit = None
+
+        if "axis" in kwargs:
+            kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+
+        # Attempting to match pandas error behavior here
+        if not isinstance(periods, int):
+            raise TypeError(f"periods must be an int. got {type(periods)} instead")
+
+        # Attempting to match pandas error behavior here
+        for dtype in self._get_dtypes():
+            if not is_numeric_dtype(dtype):
+                raise TypeError(
+                    f"cannot perform pct_change on non-numeric column with dtype {dtype}"
+                )
+
+        return self.__constructor__(
+            query_compiler=self._query_compiler.pct_change(
+                periods=periods,
+                fill_method=fill_method,
+                limit=limit,
+                freq=freq,
+                **kwargs,
+            )
         )
 
     @base_not_implemented()
@@ -2492,7 +2623,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
                 pass
         return ensure_index(index_like)
 
-    @base_not_implemented()
     def reindex(
         self,
         index=None,
@@ -2504,7 +2634,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         Conform `BasePandasDataset` to new index with optional filling logic.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-
+        if kwargs.get("limit", None) is not None and kwargs.get("method", None) is None:
+            raise ValueError(
+                "limit argument only valid if doing pad, backfill or nearest reindexing"
+            )
         new_query_compiler = None
         if index is not None:
             if not isinstance(index, pandas.Index) or not index.equals(self.index):
@@ -2974,10 +3107,11 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     def shift(
         self,
-        periods: int = 1,
+        periods: int | Sequence[int] = 1,
         freq=None,
         axis: Axis = 0,
         fill_value: Hashable = no_default,
+        suffix: str | None = None,
     ) -> BasePandasDataset:
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         if periods == 0 and freq is None:
@@ -2997,7 +3131,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         if fill_value == no_default:
             fill_value = None
 
-        new_query_compiler = self._query_compiler.shift(periods, freq, axis, fill_value)
+        new_query_compiler = self._query_compiler.shift(
+            periods, freq, axis, fill_value, suffix
+        )
         return self._create_or_update_from_compiler(new_query_compiler, False)
 
     def skew(
@@ -3040,7 +3176,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             axis=axis,
             level=level,
             ascending=ascending,
-            inplace=inplace,
             kind=kind,
             na_position=na_position,
             sort_remaining=sort_remaining,
@@ -3229,7 +3364,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._default_to_pandas("to_clipboard", excel=excel, sep=sep, **kwargs)
 
-    @base_not_implemented()
     def to_csv(
         self,
         path_or_buf=None,
@@ -3254,7 +3388,7 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         errors: str = "strict",
         storage_options: StorageOptions = None,
     ):  # pragma: no cover
-        from snowflake.snowpark.modin.pandas.core.execution.dispatching.factories.dispatcher import (
+        from snowflake.snowpark.modin.core.execution.dispatching.factories.dispatcher import (
             FactoryDispatcher,
         )
 
@@ -3743,16 +3877,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.abs()
 
-    @_doc_binary_op(
-        operation="union", bin_op="and", right="other", **_doc_binary_op_kwargs
-    )
     def __and__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__and__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="union", bin_op="rand", right="other", **_doc_binary_op_kwargs
-    )
     def __rand__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__rand__", other, axis=0)
@@ -3772,6 +3900,12 @@ class BasePandasDataset(metaclass=TelemetryMeta):
             NumPy representation of Modin object.
         """
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
+        WarningMessage.single_warning(
+            "Calling __array__ on a modin object materializes all data into local memory.\n"
+            + "Since this can be called by 3rd party libraries silently, it can lead to \n"
+            + "unexpected delays or high memory usage. Use to_pandas() or to_numpy() to do \n"
+            + "this once explicitly.",
+        )
         arr = self.to_numpy(dtype)
         return arr
 
@@ -3834,12 +3968,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.copy(deep=True)
 
-    @_doc_binary_op(
-        operation="equality comparison",
-        bin_op="eq",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __eq__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.eq(other)
@@ -3867,12 +3995,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._default_to_pandas("__finalize__", other, method=method, **kwargs)
 
-    @_doc_binary_op(
-        operation="greater than or equal comparison",
-        bin_op="ge",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __ge__(self, right):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.ge(right)
@@ -3927,12 +4049,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     __hash__ = None
 
-    @_doc_binary_op(
-        operation="greater than comparison",
-        bin_op="gt",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __gt__(self, right):
         return self.gt(right)
 
@@ -3948,12 +4064,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.__constructor__(query_compiler=self._query_compiler.invert())
 
-    @_doc_binary_op(
-        operation="less than or equal comparison",
-        bin_op="le",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __le__(self, right):
         return self.le(right)
 
@@ -3968,12 +4078,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._query_compiler.get_axis_len(axis=0)
 
-    @_doc_binary_op(
-        operation="less than comparison",
-        bin_op="lt",
-        right="right",
-        **_doc_binary_op_kwargs,
-    )
     def __lt__(self, right):
         return self.lt(right)
 
@@ -3993,12 +4097,6 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self.dot(other)
 
-    @_doc_binary_op(
-        operation="not equal comparison",
-        bin_op="ne",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __ne__(self, other):
         return self.ne(other)
 
@@ -4032,21 +4130,9 @@ class BasePandasDataset(metaclass=TelemetryMeta):
 
     __bool__ = __nonzero__
 
-    @_doc_binary_op(
-        operation="disjunction",
-        bin_op="or",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __or__(self, other):
         return self._binary_op("__or__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="disjunction",
-        bin_op="ror",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __ror__(self, other):
         return self._binary_op("__ror__", other, axis=0)
 
@@ -4074,22 +4160,10 @@ class BasePandasDataset(metaclass=TelemetryMeta):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return repr(self)
 
-    @_doc_binary_op(
-        operation="exclusive disjunction",
-        bin_op="xor",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __xor__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__xor__", other, axis=0)
 
-    @_doc_binary_op(
-        operation="exclusive disjunction",
-        bin_op="rxor",
-        right="other",
-        **_doc_binary_op_kwargs,
-    )
     def __rxor__(self, other):
         # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
         return self._binary_op("__rxor__", other, axis=0)

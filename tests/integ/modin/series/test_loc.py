@@ -15,6 +15,7 @@ from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_loc import (
     diff2native_negative_row_inputs,
     negative_snowpark_pandas_input_keys,
@@ -31,7 +32,7 @@ from tests.integ.modin.utils import (
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
-    pd.Index([]),
+    native_pd.Index([]),
     np.array([]),
     native_pd.Series([]),
 ]
@@ -230,7 +231,7 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         index = None
     else:
         # index can have null values and duplicates
-        index = pd.Index(["a", "a", None, "b", "b"], name="index")
+        index = native_pd.Index(["a", "a", None, "b", "b"], name="index")
     native_series = native_pd.Series([1, 2, 3, 4, 5], index=index)
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
@@ -250,20 +251,23 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     key, use_default_index
 ):
     # unaligned and distinct indices: e.g., [1,2,3,4,5] vs [5,4,3,2,1]
     if use_default_index:
         index = None
-        key_index = np.random.permutation(range(5))
+        native_key_index = native_pd.Index(np.random.permutation(range(5)))
+        key_index = pd.Index(native_key_index)
+
     else:
         index_value = ["a", "b", "c", "d", "e"]
-        index = pd.Index(index_value, name="index")
-        key_index = pd.Index(
+        index = native_pd.Index(index_value, name="index")
+        native_key_index = native_pd.Index(
             generate_a_random_permuted_list_exclude_self(index_value), name="index"
         )
+        key_index = pd.Index(native_key_index)
     native_series = native_pd.Series([1, 2, 3, 4, 5], index=index)
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
@@ -271,7 +275,7 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
         native_series,
         lambda s: s.loc[pd.Series(key, index=key_index, dtype="bool")]
         if isinstance(s, pd.Series)
-        else s.loc[native_pd.Series(key, index=key_index, dtype="bool")],
+        else s.loc[native_pd.Series(key, index=native_key_index, dtype="bool")],
     )
 
 
@@ -298,7 +302,11 @@ def test_series_loc_get_key_bool(key, key_type, default_index_native_series):
 
         # Convert key to the required type.
         if key_type == "index":
-            _key = pd.Index(_key, dtype=bool)
+            _key = (
+                pd.Index(_key, dtype=bool)
+                if isinstance(_ser, pd.Series)
+                else native_pd.Index(_key, dtype=bool)
+            )
         elif key_type == "ndarray":
             _key = np.array(_key, dtype=bool)
         elif key_type == "series":
@@ -311,7 +319,7 @@ def test_series_loc_get_key_bool(key, key_type, default_index_native_series):
         return _ser.loc[_key]
 
     default_index_series = pd.Series(default_index_native_series)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_series,
             default_index_native_series,
@@ -335,19 +343,20 @@ def test_df_loc_get_callable_key(row):
     )
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     # index can have null values and duplicates
     key = [True] * 5
     index_value = ["a", "a", None, "b", "b"]
-    index = pd.Index(index_value, name="index")
+    index = native_pd.Index(index_value, name="index")
     native_series = native_pd.Series([1, 2, 3, 4, 5], index=index)
 
     permuted_index_value = generate_a_random_permuted_list_exclude_self(index_value)
     key_index = pd.Index(permuted_index_value, dtype="string")
+    native_key_index = native_pd.Index(permuted_index_value, dtype="string")
     snow_series = pd.Series(native_series)
     series_key = pd.Series(key, index=key_index, dtype="bool")
-    native_series_key = native_pd.Series(key, index=key_index, dtype="bool")
+    native_series_key = native_pd.Series(key, index=native_key_index, dtype="bool")
 
     # Note:
     # pandas: always raise IndexingError when indices with duplicates are not aligned
@@ -359,7 +368,7 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         snow_series.loc[series_key],
         native_pd.Series(
             [1, 1, 2, 2, 3, 4, 4, 5, 5],
-            index=pd.Index(
+            index=native_pd.Index(
                 ["a", "a", "a", "a", None, "b", "b", "b", "b"], name="index"
             ),
         ),
@@ -379,20 +388,22 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=2, join_count=1)
 def test_series_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
     if use_default_index:
         index = None
         key_index = np.random.permutation(len(key))
     else:
         index = ["a", "b", "c", "d", "e", "a1", "b1", "c1", "d1", "e1"]
-        key_index = pd.Index(np.random.permutation(index[: len(key)]), dtype="string")
+        key_index = native_pd.Index(
+            np.random.permutation(index[: len(key)]), dtype="string"
+        )
         index = np.random.permutation(index[:5])
     native_series = native_pd.DataFrame([1, 2, 3, 4, 5], index=index)
     snow_series = pd.DataFrame(native_series)
     native_series_key = native_pd.Series(key, index=key_index, dtype="bool")
 
-    series_key = pd.Series(key, index=key_index, dtype="bool")
+    series_key = pd.Series(key, index=pd.Index(key_index), dtype="bool")
     if len(key) < 5:
         # Native pandas raises error if any index from native_df is not in the key; when no missing index exists, native
         # pandas will perform as expected even though the key includes out-of-bound index
@@ -457,7 +468,11 @@ def test_series_loc_get_key_non_boolean_series(
             elif key_type == "index":
                 # native pandas has a bug to overwrite loc result's index name to the key's index name
                 # so for testing, we overwrite the index name to be the same as the index name in the main frame
-                return pd.Index(key.to_list(), name=index_name)
+                return (
+                    pd.Index(key.to_list(), name=index_name)
+                    if is_snow_type
+                    else native_pd.Index(key.to_list(), name=index_name)
+                )
 
         return s.loc[type_convert(native_series_key, isinstance(s, pd.Series))]
 
@@ -465,7 +480,7 @@ def test_series_loc_get_key_non_boolean_series(
     # Note: here number of queries are 2 due to the data type of the series is variant and to_pandas needs to call
     # typeof to get the value types
     # TODO: SNOW-933782 optimize to_pandas for variant columns to only fire one query
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,
@@ -482,7 +497,7 @@ def test_series_loc_get_key_non_boolean_series(
     non_default_index_snowpark_pandas_series = pd.Series(
         non_default_index_native_series
     )
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             non_default_index_snowpark_pandas_series,
             non_default_index_native_series,
@@ -499,7 +514,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -524,7 +539,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -755,16 +770,27 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
                 else _row_key
             )
             _item = pd.Series(_item) if isinstance(_item, native_pd.Series) else _item
-
+        else:
+            _row_key = try_convert_index_to_native(_row_key)
+            _item = try_convert_index_to_native(_item)
         s.loc[_row_key] = _item
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    query_count = 1
+    # 6 extra queries: sum of two cases below
+    if item_type.startswith("index") and key_type.startswith("index"):
+        query_count = 7
+    # 4 extra queries: 1 query to convert item index to pandas in loc_set_helper, 2 for iter, and 1 for to_list
+    elif item_type.startswith("index"):
+        query_count = 5
+    # 2 extra queries: 1 query to convert key index to pandas in loc_set_helper and 1 to convert to series to setitem
+    elif key_type.startswith("index"):
+        query_count = 3
+    with SqlCounter(query_count=query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             pd.Series(series), series, loc_set_helper, inplace=True
         )
 
 
-@sql_count_checker(query_count=0, join_count=0)
 def test_series_loc_set_dataframe_item_negative(key_type):
     series = native_pd.Series([1, 2, 3])
     row_key = [
@@ -786,7 +812,11 @@ def test_series_loc_set_dataframe_item_negative(key_type):
         _row_key = row_key
         # Convert key to the required type.
         if key_type == "index":
-            _row_key = pd.Index(_row_key)
+            _row_key = (
+                pd.Index(_row_key)
+                if isinstance(s, pd.Series)
+                else native_pd.Index(_row_key)
+            )
         elif key_type == "ndarray":
             _row_key = np.array(_row_key)
         elif key_type == "series":
@@ -800,19 +830,24 @@ def test_series_loc_set_dataframe_item_negative(key_type):
     def loc_set_helper(s):
         row_key = key_converter(s)
         if isinstance(s, native_pd.Series):
-            s.loc[row_key] = item
+            s.loc[try_convert_index_to_native(row_key)] = item
         else:
             s.loc[pd.Series(row_key)] = pd.DataFrame(item)
 
-    eval_snowpark_pandas_result(
-        pd.Series(series),
-        series,
-        loc_set_helper,
-        inplace=True,
-        expect_exception=True,
-        expect_exception_type=ValueError,
-        expect_exception_match="Incompatible indexer with DataFrame",
-    )
+    qc = 0
+    if key_type == "index":
+        qc = 1
+
+    with SqlCounter(query_count=qc):
+        eval_snowpark_pandas_result(
+            pd.Series(series),
+            series,
+            loc_set_helper,
+            inplace=True,
+            expect_exception=True,
+            expect_exception_type=ValueError,
+            expect_exception_match="Incompatible indexer with DataFrame",
+        )
 
 
 @pytest.mark.parametrize(
@@ -933,7 +968,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
 @pytest.mark.parametrize(
     "start, stop, step, pandas_fail", [[1, -1, None, True], [10, None, None, False]]
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=2, join_count=4)
 def test_series_loc_set_key_slice_with_series_item_pandas_bug(
     start, stop, step, pandas_fail
 ):
@@ -1016,7 +1051,9 @@ def test_series_loc_set_with_empty_key_and_empty_item_negative(
 
     err_msg = "The length of the value/item to set is empty"
     with pytest.raises(ValueError, match=err_msg):
-        native_ser.loc[key] = item
+        native_ser.loc[try_convert_index_to_native(key)] = try_convert_index_to_native(
+            item
+        )
         snowpark_ser.loc[
             pd.Series(key) if isinstance(key, native_pd.Series) else key
         ] = item
@@ -1047,7 +1084,7 @@ def test_series_loc_set_with_empty_key_and_empty_series_item(
     snowpark_ser = pd.Series(native_ser)
     item = native_pd.Series([])
 
-    native_ser.loc[key] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = pd.Series(item)
@@ -1088,7 +1125,7 @@ def test_series_loc_set_with_empty_key_and_scalar_item(
     snowpark_ser = pd.Series(native_ser)
     item = 32
 
-    native_ser.loc[key] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[
         pd.Series(key) if isinstance(key, native_pd.Series) else key
     ] = item
@@ -1171,7 +1208,7 @@ def test_series_loc_set_with_empty_key_and_series_item(
     native_ser = default_index_native_series.copy()
     snowpark_ser = pd.Series(native_ser)
 
-    native_ser.loc[key] = item
+    native_ser.loc[try_convert_index_to_native(key)] = item
     snowpark_ser.loc[pd.Series(key) if isinstance(key, native_pd.Series) else key] = (
         pd.Series(item) if isinstance(item, native_pd.Series) else item
     )

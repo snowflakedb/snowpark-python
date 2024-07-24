@@ -87,7 +87,11 @@ def _pandas_groupby_indices_workaround(df, **groupby_kwargs) -> dict:
         param(
             dict(by="col1", dropna=False),
             PrettyDict(
-                {0.0: pd.Index([3, 5]), 1.0: pd.Index([1, 2]), np.nan: pd.Index([0, 4])}
+                {
+                    0.0: native_pd.Index([3, 5]),
+                    1.0: native_pd.Index([1, 2]),
+                    np.nan: native_pd.Index([0, 4]),
+                }
             ),
             id="pandas_issue_35202",
         ),
@@ -95,9 +99,9 @@ def _pandas_groupby_indices_workaround(df, **groupby_kwargs) -> dict:
             dict(by=["col1", "col2"], dropna=True),
             PrettyDict(
                 {
-                    (0.0, 5.0): pd.Index([5]),
-                    (0.0, 7.0): pd.Index([3]),
-                    (1.0, 5.0): pd.Index([1]),
+                    (0.0, 5.0): native_pd.Index([5]),
+                    (0.0, 7.0): native_pd.Index([3]),
+                    (1.0, 5.0): native_pd.Index([1]),
                 }
             ),
             id="pandas_issue_55919",
@@ -106,11 +110,11 @@ def _pandas_groupby_indices_workaround(df, **groupby_kwargs) -> dict:
             dict(by=["col1", "col2"], dropna=False),
             PrettyDict(
                 {
-                    (0.0, 5.0): pd.Index([5]),
-                    (0.0, 7.0): pd.Index([3]),
-                    (1.0, 5.0): pd.Index([1]),
-                    (1.0, np.nan): pd.Index([2]),
-                    (np.nan, 4.0): pd.Index([0, 4]),
+                    (0.0, 5.0): native_pd.Index([5]),
+                    (0.0, 7.0): native_pd.Index([3]),
+                    (1.0, 5.0): native_pd.Index([1]),
+                    (1.0, np.nan): native_pd.Index([2]),
+                    (np.nan, 4.0): native_pd.Index([0, 4]),
                 }
             ),
             id="pandas_issue_56851",
@@ -119,9 +123,9 @@ def _pandas_groupby_indices_workaround(df, **groupby_kwargs) -> dict:
             dict(by=["col1", "col2"], sort=False),
             PrettyDict(
                 {
-                    (1.0, 5.0): pd.Index([1]),
-                    (0.0, 7.0): pd.Index([3]),
-                    (0.0, 5.0): pd.Index([5]),
+                    (1.0, 5.0): native_pd.Index([1]),
+                    (0.0, 7.0): native_pd.Index([3]),
+                    (0.0, 5.0): native_pd.Index([5]),
                 }
             ),
             id="pandas_issue_56966",
@@ -269,22 +273,40 @@ def test_groups_grouping_by_single_index_column_with_sort_false(
         PrettyDict(
             {
                 3.1: pd.MultiIndex.from_arrays(
-                    [pd.Index([3.1], name="col3"), pd.Index([17.0], name="col4")]
+                    [
+                        native_pd.Index([3.1], name="col3"),
+                        native_pd.Index([17.0], name="col4"),
+                    ]
                 ),
                 8.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([8.0], name="col3"), pd.Index([3.0], name="col4")]
+                    [
+                        native_pd.Index([8.0], name="col3"),
+                        native_pd.Index([3.0], name="col4"),
+                    ]
                 ),
                 12.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([12.0], name="col3"), pd.Index([16.0], name="col4")]
+                    [
+                        native_pd.Index([12.0], name="col3"),
+                        native_pd.Index([16.0], name="col4"),
+                    ]
                 ),
                 10.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([10.0], name="col3"), pd.Index([15.0], name="col4")]
+                    [
+                        native_pd.Index([10.0], name="col3"),
+                        native_pd.Index([15.0], name="col4"),
+                    ]
                 ),
                 4.0: pd.MultiIndex.from_arrays(
-                    [pd.Index([4.0], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        native_pd.Index([4.0], name="col3"),
+                        native_pd.Index([np.nan], name="col4"),
+                    ]
                 ),
                 np.nan: pd.MultiIndex.from_arrays(
-                    [pd.Index([np.nan], name="col3"), pd.Index([np.nan], name="col4")]
+                    [
+                        native_pd.Index([np.nan], name="col3"),
+                        native_pd.Index([np.nan], name="col4"),
+                    ]
                 ),
             }
         ),

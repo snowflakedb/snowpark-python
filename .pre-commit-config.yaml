@@ -92,7 +92,6 @@ repos:
             src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
             src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
             src/snowflake/snowpark/modin/plugin/compiler/snowflake_query_compiler.py|
-            src/snowflake/snowpark/modin/plugin/default2pandas/.*\.py|
             src/snowflake/snowpark/modin/plugin/utils/.*\.py|
           )$
         args:

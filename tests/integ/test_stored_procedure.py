@@ -53,13 +53,20 @@ from snowflake.snowpark.types import (
     StructType,
     VectorType,
 )
+
+# flake8: noqa
+from tests.integ.scala.test_datatype_suite import (
+    structured_type_session,
+    structured_type_support,
+)
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
-    IS_STRUCTURED_TYPES_SUPPORTED,
     TempObjectType,
     TestFiles,
     Utils,
+    structured_types_enabled_session,
+    structured_types_supported,
 )
 
 pytestmark = [
@@ -80,6 +87,11 @@ def setup(session, resources_path, local_testing_mode):
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
@@ -123,6 +135,11 @@ def test_add_packages_failures(packages, should_fail, db_parameters):
             assert return1_sproc(session=new_session) == "1"
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
@@ -168,7 +185,6 @@ def test__do_register_sp_submits_correct_packages(
         )
 
 
-@pytest.mark.localtest
 def test_basic_stored_procedure(session, local_testing_mode):
     def return1(session_):
         return session_.create_dataframe([["1"]]).collect()[0][0]
@@ -230,7 +246,6 @@ def test_basic_stored_procedure(session, local_testing_mode):
     assert pow_sp(2, 10, session=session) == 1024
 
 
-@pytest.mark.localtest
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
     expected_err = Exception if local_testing_mode else SnowparkSQLException
 
@@ -242,18 +257,19 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(col("a"))
-    assert local_testing_mode or "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(current_date())
-    assert local_testing_mode or "Invalid argument types for function" in str(ex_info)
+    assert "Invalid argument types for function" in str(
+        ex_info
+    ) or "Unexpected type" in str(ex_info)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(lit(""))
-    assert local_testing_mode or "not recognized" in str(ex_info)
+    assert "not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
 
 
-@pytest.mark.localtest
 def test_stored_procedure_with_column_datatype(session, local_testing_mode):
     def add(session_, x, y):
         return x + y
@@ -282,11 +298,14 @@ def test_stored_procedure_with_column_datatype(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="Named temporary procedure is not supported in stored proc",
 )
-def test_call_named_stored_procedure(session, temp_schema, db_parameters):
+def test_call_named_stored_procedure(
+    session, temp_schema, db_parameters, local_testing_mode
+):
     sproc_name = f"test_mul_{Utils.random_alphanumeric_str(3)}"
-    session._run_query(f"drop procedure if exists {sproc_name}(int, int)")
+    if not local_testing_mode:
+        session._run_query(f"drop procedure if exists {sproc_name}(int, int)")
     sproc(
-        lambda session_, x, y: session_.sql(f"select {x} * {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x * y]]).collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         name=sproc_name,
@@ -296,51 +315,55 @@ def test_call_named_stored_procedure(session, temp_schema, db_parameters):
         session.call(session.get_fully_qualified_name_if_possible(sproc_name), 13, 19)
         == 13 * 19
     )
-
-    # create a stored procedure when the session doesn't have a schema
-    new_session = (
-        Session.builder.configs(db_parameters)._remove_config("schema").create()
-    )
-    new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-    new_session.add_packages("snowflake-snowpark-python")
-    try:
-        assert not new_session.get_current_schema()
-        tmp_stage_name_in_temp_schema = (
-            f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
+    if not local_testing_mode:
+        # create a stored procedure when the session doesn't have a schema
+        new_session = (
+            Session.builder.configs(db_parameters)._remove_config("schema").create()
         )
-        new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
-        full_sp_name = f"{temp_schema}.test_add"
-        new_session._run_query(f"drop procedure if exists {full_sp_name}(int, int)")
-        new_session.sproc.register(
-            lambda session_, x, y: session_.sql(f"select {x} + {y}").collect()[0][0],
-            return_type=IntegerType(),
-            input_types=[IntegerType(), IntegerType()],
-            name=[*temp_schema.split("."), "test_add"],
-            stage_location=unwrap_stage_location_single_quote(
-                tmp_stage_name_in_temp_schema
-            ),
-            is_permanent=True,
-        )
-        assert new_session.call(full_sp_name, 13, 19) == 13 + 19
-        # oen result in the temp schema
-        assert (
-            len(
-                new_session.sql(
-                    f"show procedures like '%test_add%' in schema {temp_schema}"
-                ).collect()
+        new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        new_session.add_packages("snowflake-snowpark-python")
+        try:
+            assert not new_session.get_current_schema()
+            tmp_stage_name_in_temp_schema = f"{temp_schema}.{Utils.random_name_for_temp_object(TempObjectType.STAGE)}"
+            new_session._run_query(f"create temp stage {tmp_stage_name_in_temp_schema}")
+            full_sp_name = f"{temp_schema}.test_add"
+            new_session._run_query(f"drop procedure if exists {full_sp_name}(int, int)")
+            new_session.sproc.register(
+                lambda session_, x, y: session_.sql(f"select {x} + {y}").collect()[0][
+                    0
+                ],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+                name=[*temp_schema.split("."), "test_add"],
+                stage_location=unwrap_stage_location_single_quote(
+                    tmp_stage_name_in_temp_schema
+                ),
+                is_permanent=True,
             )
-            == 1
-        )
-    finally:
-        new_session.close()
-        # restore active session
+            assert new_session.call(full_sp_name, 13, 19) == 13 + 19
+            # oen result in the temp schema
+            assert (
+                len(
+                    new_session.sql(
+                        f"show procedures like '%test_add%' in schema {temp_schema}"
+                    ).collect()
+                )
+                == 1
+            )
+        finally:
+            new_session.close()
+            # restore active session
 
 
 @pytest.mark.skipif(
-    not IS_STRUCTURED_TYPES_SUPPORTED,
-    reason="Structured types not enabled in this account.",
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
 )
-def test_stored_procedure_with_structured_returns(session):
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
+        pytest.skip("Structured types not enabled in this account.")
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
         ("MAP", "map<string(16777216),bigint>"),
@@ -372,8 +395,8 @@ def test_stored_procedure_with_structured_returns(session):
 
     sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
 
-    def test_sproc(session: Session) -> DataFrame:
-        return session.sql(
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
             """
         select
           [1,2,3,4,5] :: vector(int, 5) as vec,
@@ -384,17 +407,16 @@ def test_stored_procedure_with_structured_returns(session):
         """
         )
 
-    session.sproc.register(
+    structured_type_session.sproc.register(
         test_sproc,
         name=sproc_name,
         replace=True,
     )
-    df = session.call(sproc_name)
+    df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_call_table_sproc_triggers_action(session, anonymous):
     """Here we create a table sproc which creates a table. we call the table sproc using
@@ -424,7 +446,6 @@ def test_call_table_sproc_triggers_action(session, anonymous):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.localtest
 def test_recursive_function(session):
     # Test recursive function
     def factorial(session_, n):
@@ -436,7 +457,6 @@ def test_recursive_function(session):
     assert factorial_sp(3) == factorial(session, 3)
 
 
-@pytest.mark.localtest
 def test_nested_function(session):
     def outer_func(session_):
         def inner_func():
@@ -466,7 +486,6 @@ def test_nested_function(session):
     assert square_sp(2) == 4
 
 
-@pytest.mark.localtest
 def test_decorator_function(session):
     def decorator_do_twice(func):
         def wrapper(*args, **kwargs):
@@ -489,7 +508,6 @@ def test_decorator_function(session):
     assert square_twice_sp(2) == 16
 
 
-@pytest.mark.localtest
 def test_annotation_syntax(session):
     @sproc(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
     def add_sp(session_, x, y):
@@ -504,7 +522,6 @@ def test_annotation_syntax(session):
     assert snow() == "snow"
 
 
-@pytest.mark.localtest
 def test_register_sp_from_file(session, resources_path, tmpdir):
     test_files = TestFiles(resources_path)
 
@@ -548,7 +565,6 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
 
 
-@pytest.mark.localtest
 def test_session_register_sp(session, local_testing_mode):
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
@@ -574,7 +590,6 @@ def test_session_register_sp(session, local_testing_mode):
     Utils.assert_executed_with_query_tag(session, query_tag, local_testing_mode)
 
 
-@pytest.mark.localtest
 def test_add_import_local_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -621,7 +636,6 @@ def test_add_import_local_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_local_directory(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -665,7 +679,6 @@ def test_add_import_local_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_add_import_stage_file(session, resources_path):
     test_files = TestFiles(resources_path)
 
@@ -691,7 +704,6 @@ def test_add_import_stage_file(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.localtest
 def test_sp_level_import(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
@@ -721,16 +733,16 @@ def test_sp_level_import(session, resources_path, local_testing_mode):
         input_types=[IntegerType()],
     )
 
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        plus4_then_mod5_sp(3)
+
     if local_testing_mode:
-        with pytest.raises(ModuleNotFoundError) as ex_info:
-            plus4_then_mod5_sp(3)
+        # Local testing nests the error, but pytest only provides the top level error message
+        assert "Python Interpreter Error" in ex_info.value.message
     else:
-        with pytest.raises(SnowparkSQLException) as ex_info:
-            plus4_then_mod5_sp(3)
         assert "No module named" in ex_info.value.message
 
 
-@pytest.mark.localtest
 def test_type_hints(session):
     @sproc()
     def add_sp(session_: Session, x: int, y: int) -> int:
@@ -783,7 +795,6 @@ def test_type_hints(session):
     assert get_sp({"0": "snow", "1": "flake"}, "0") == "snow"
 
 
-@pytest.mark.localtest
 def test_type_hint_no_change_after_registration(session):
     def add(session_: Session, x: int, y: int) -> int:
         return (
@@ -798,7 +809,6 @@ def test_type_hint_no_change_after_registration(session):
     assert annotations == add.__annotations__
 
 
-@pytest.mark.localtest
 def test_register_sp_from_file_type_hints(session, tmpdir):
     source = """
 import datetime
@@ -848,6 +858,11 @@ def return_datetime(_: Session) -> datetime.datetime:
     assert return_datetime_sp() == dt
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Database objects do not persist across sessions in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -876,6 +891,11 @@ def test_permanent_sp(session, db_parameters):
             Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Database objects do not persist across sessions in Local Testing",
+    run=False,
+)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_sp_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -908,7 +928,7 @@ def test_permanent_sp_negative(session, db_parameters):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
-def test_sp_negative(session):
+def test_sp_negative(session, local_testing_mode):
     def f(_, x):
         return x
 
@@ -936,11 +956,8 @@ def test_sp_negative(session):
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
-        session.sql("call f(1)").collect()
-    assert "Unknown function" in str(ex_info)
+        session.call("f", 1).collect()
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        session.call("f", 1)
     assert "Unknown function" in str(ex_info)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
@@ -954,11 +971,11 @@ def test_sp_negative(session):
 
     # incorrect data type
     int_sp = sproc(
-        lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
+        lambda _, x: int(x), return_type=IntegerType(), input_types=[IntegerType()]
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "Numeric value" in str(ex_info) and "is not recognized" in str(ex_info)
+    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
@@ -1037,6 +1054,10 @@ def test_sp_negative(session):
     assert "pandas stored procedure is not supported" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table sproc is not supported in Local Testing",
+)
 @pytest.mark.parametrize("is_permanent", [True, False])
 @pytest.mark.parametrize("anonymous", [True, False])
 @pytest.mark.parametrize(
@@ -1152,6 +1173,10 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         Utils.drop_stage(session, stage_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-952138 Table sproc is not supported in Local Testing",
+)
 def test_table_sproc_negative(session, caplog):
     temp_sp_name1 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     temp_sp_name2 = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
@@ -1192,6 +1217,10 @@ def test_table_sproc_negative(session, caplog):
         session._run_query(f"drop procedure if exists {temp_sp_name2}(string, bigint)")
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-952138 Table sproc is not supported in Local Testing",
+)
 def test_table_sproc_with_type_none_argument(session):
     temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     try:
@@ -1216,7 +1245,9 @@ def test_table_sproc_with_type_none_argument(session):
         Utils.drop_procedure(session, f"{temp_sp_name}(string, bigint)")
 
 
-def test_temp_sp_with_import_and_upload_stage(session, resources_path):
+def test_temp_sp_with_import_and_upload_stage(
+    session, resources_path, local_testing_mode
+):
     """We want temporary stored procs to be able to do the following:
     - Do not upload packages to permanent stage locations
     - Can import packages from permanent stage locations
@@ -1225,17 +1256,26 @@ def test_temp_sp_with_import_and_upload_stage(session, resources_path):
     work
     """
     stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, stage_name, is_temporary=False)
+    if not local_testing_mode:
+        Utils.create_stage(session, stage_name, is_temporary=False)
     test_files = TestFiles(resources_path)
     # upload test_sp_dir.test_sp_file (mod5) to permanent stage and use mod3
     # file for temporary stage import correctness
-    session._conn.upload_file(
-        path=test_files.test_sp_py_file,
-        stage_location=unwrap_stage_location_single_quote(stage_name),
-        compress_data=False,
-        overwrite=True,
-        skip_upload_on_content_match=True,
-    )
+    if local_testing_mode:
+        session.file.put(
+            test_files.test_sp_py_file,
+            unwrap_stage_location_single_quote(stage_name),
+            auto_compress=False,
+            overwrite=True,
+        )
+    else:
+        session._conn.upload_file(
+            path=test_files.test_sp_py_file,
+            stage_location=unwrap_stage_location_single_quote(stage_name),
+            compress_data=False,
+            overwrite=True,
+            skip_upload_on_content_match=True,
+        )
     try:
         # Can import packages from permanent stage locations
         def mod5_(session_, x):
@@ -1284,11 +1324,11 @@ def test_temp_sp_with_import_and_upload_stage(session, resources_path):
 
         assert mod3_of_mod5_sproc(4) == 1
     finally:
-        Utils.drop_stage(session, stage_name)
-    pass
+        if not local_testing_mode:
+            Utils.drop_stage(session, stage_name)
 
 
-def test_add_import_negative(session, resources_path):
+def test_add_import_negative(session, resources_path, local_testing_mode):
     test_files = TestFiles(resources_path)
 
     def plus4_then_mod5(_, x):
@@ -1306,9 +1346,10 @@ def test_add_import_negative(session, resources_path):
         plus4_then_mod5_sp = sproc(
             plus4_then_mod5, return_type=IntegerType(), input_types=[IntegerType()]
         )
-        with pytest.raises(SnowparkSQLException) as ex_info:
+        expected_exc = SnowparkSQLException
+        with pytest.raises(expected_exc) as ex_info:
             plus4_then_mod5_sp(1)
-        assert "No module named 'test.resources'" in ex_info.value.message
+        assert "No module named 'test.resources'" in str(ex_info.value)
     session.clear_imports()
 
     with pytest.raises(TypeError) as ex_info:
@@ -1331,7 +1372,7 @@ def test_add_import_negative(session, resources_path):
 def test_sp_replace(session):
     # Register named sp and expect that it works.
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -1341,7 +1382,7 @@ def test_sp_replace(session):
 
     # Replace named sp with different one and expect that data is changed.
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y} + 1").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y + 1]]).collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -1364,7 +1405,7 @@ def test_sp_replace(session):
 
     # Register via sproc() in functions.py and expect that it works.
     add_sp = sproc(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         name="test_sp_replace_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -1380,7 +1421,7 @@ def test_sp_replace(session):
 def test_sp_if_not_exists(session):
     # Register named sp and expect that it works.
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         name="test_sp_if_not_exists_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -1390,7 +1431,7 @@ def test_sp_if_not_exists(session):
 
     # if_not_exists named sp with different one and expect that data is changed.
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y} + 1").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y + 1]]).collect()[0][0],
         name="test_sp_if_not_exists_add",
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
@@ -1401,7 +1442,9 @@ def test_sp_if_not_exists(session):
     # Try to register sp without if-exists check and expect failure.
     with pytest.raises(SnowparkSQLException, match="already exists"):
         add_sp = session.sproc.register(
-            lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+            lambda session_, x, y: session_.create_dataframe([[x + y + 1]]).collect()[
+                0
+            ][0],
             name="test_sp_if_not_exists_add",
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -1414,7 +1457,9 @@ def test_sp_if_not_exists(session):
         match="options replace and if_not_exists are incompatible",
     ):
         add_sp = session.sproc.register(
-            lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+            lambda session_, x, y: session_.create_dataframe([[x + y + 1]]).collect()[
+                0
+            ][0],
             name="test_sp_if_not_exists_add",
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
@@ -1426,7 +1471,12 @@ def test_sp_if_not_exists(session):
     assert add_sp(1, 2) == 3
 
 
-def test_sp_parallel(session):
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing doesn't PUT the files, so parallel is trivial",
+    run=False,
+)
+def test_sp_parallel():
     for i in [1, 50, 99]:
         sproc(
             lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
@@ -1454,6 +1504,11 @@ def test_sp_parallel(session):
     assert "Supported values of parallel are from 1 to 99" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Comment is a SQL feature",
+    run=False,
+)
 @pytest.mark.parametrize(
     "prefix",
     ["simple", "'single quotes'", '"double quotes"', "\nnew line", "\\backslash"],
@@ -1473,6 +1528,10 @@ def test_create_sproc_with_comment(session, prefix):
     assert suffix in ddl
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="StoredProcedure.describe is not supported in Local Testing",
+)
 @pytest.mark.parametrize("source_code_display", [(True,), (False,)])
 def test_describe_sp(session, source_code_display):
     def return1(session_: Session) -> str:
@@ -1513,6 +1572,11 @@ def test_describe_sp(session, source_code_display):
             )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is testing SQL feature",
+    run=False,
+)
 def test_register_sp_no_commit(session):
     def plus1(_: Session, x: int) -> int:
         return x + 1
@@ -1559,7 +1623,6 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
@@ -1594,7 +1657,6 @@ def test_execute_as_options_while_registering_from_file(
     assert mod5_sp_stage(3) == 3
 
 
-@pytest.mark.localtest
 def test_call_sproc_with_session_as_first_argument(session):
     @sproc
     def return1(_: Session) -> int:
@@ -1626,9 +1688,13 @@ def test_strict_stored_procedure(session):
     assert echo(None) is None
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
+)
 def test_anonymous_stored_procedure(session):
     add_sp = session.sproc.register(
-        lambda session_, x, y: session_.sql(f"SELECT {x} + {y}").collect()[0][0],
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
         return_type=IntegerType(),
         input_types=[IntegerType(), IntegerType()],
         anonymous=True,
@@ -1637,6 +1703,11 @@ def test_anonymous_stored_procedure(session):
     assert add_sp(1, 2) == 3
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Query tag is a SQL only feature",
+    run=False,
+)
 @pytest.mark.parametrize("anonymous", [True, False])
 def test_stored_procedure_call_with_statement_params(session, anonymous):
     query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
@@ -1681,6 +1752,11 @@ def test_sp_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is a SQL test",
+    run=False,
+)
 def test_force_inline_code(session):
     large_str = "snow" * 10000
 
@@ -1703,15 +1779,14 @@ def test_stored_proc_register_with_module(session):
     # use pandas module here
     session.custom_package_usage_config["enabled"] = True
     packages = list(session.get_packages().values())
-    assert "pd" "pd" not in packages
+    assert "pd" not in packages
     packages = [pd] + packages
 
-    def proc_function(session: Session) -> str:
+    def proc_function(session_: Session) -> str:
         return "test response"
 
     session.sproc.register(
         proc_function,
-        name="test_proc",
         source_code_display=False,
         packages=packages,
     )

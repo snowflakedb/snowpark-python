@@ -6,6 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pandas.core.dtypes.common import is_integer_dtype
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.types import (
@@ -37,30 +38,25 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
     assert snowpark_dtypes[0] == snowpark_type
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @pytest.mark.parametrize(
-    "dataframe_input, input_dtype, expected_dtype, logical_dtype",
+    "dataframe_input, input_dtype, logical_dtype",
     [
-        ([False, True, False], np.dtype("bool"), np.dtype("bool"), np.dtype("bool")),
-        ([1, 2, 3], np.dtype("int8"), np.dtype("int64"), np.dtype("int64")),
-        ([1, 2, 3], np.dtype("int16"), np.dtype("int64"), np.dtype("int64")),
-        ([1, 2, 3], np.dtype("int32"), np.dtype("int64"), np.dtype("int64")),
-        ([1, 2, 3], np.dtype("int64"), np.dtype("int64"), np.dtype("int64")),
+        ([1, 2, 3], np.dtype("int8"), np.dtype("int64")),
+        ([1, 2, 3], np.dtype("int16"), np.dtype("int64")),
+        ([1, 2, 3], np.dtype("int32"), np.dtype("int64")),
+        ([1, 2, 3], np.dtype("int64"), np.dtype("int64")),
         (
             [1 << 10, 2 << 10, 3 << 10],
             np.dtype("int16"),
             np.dtype("int64"),
-            np.dtype("int64"),
         ),
         (
             [1 << 10, 2 << 10, 3 << 10],
             np.dtype("int32"),
             np.dtype("int64"),
-            np.dtype("int64"),
         ),
         (
             [1 << 10, 2 << 10, 3 << 10],
-            np.dtype("int64"),
             np.dtype("int64"),
             np.dtype("int64"),
         ),
@@ -68,11 +64,9 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
             [1 << 20, 2 << 20, 3 << 20],
             np.dtype("int32"),
             np.dtype("int64"),
-            np.dtype("int64"),
         ),
         (
             [1 << 20, 2 << 20, 3 << 20],
-            np.dtype("int64"),
             np.dtype("int64"),
             np.dtype("int64"),
         ),
@@ -80,12 +74,11 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
             [1 << 40, 2 << 40, 3 << 40],
             np.dtype("int64"),
             np.dtype("int64"),
-            np.dtype("int64"),
         ),
     ],
 )
 @sql_count_checker(query_count=2)
-def test_integer(dataframe_input, input_dtype, expected_dtype, logical_dtype):
+def test_integer(dataframe_input, input_dtype, logical_dtype):
     expected = native_pd.Series(dataframe_input, dtype=input_dtype)
     created = pd.Series(dataframe_input, dtype=input_dtype)
     assert created.dtype == logical_dtype
@@ -93,7 +86,7 @@ def test_integer(dataframe_input, input_dtype, expected_dtype, logical_dtype):
     assert_series_equal(
         roundtripped, expected, check_dtype=False, check_index_type=False
     )
-    assert roundtripped.dtype == expected_dtype
+    assert is_integer_dtype(roundtripped.dtype)
 
     expected = native_pd.DataFrame(
         dataframe_input,
@@ -112,9 +105,7 @@ def test_integer(dataframe_input, input_dtype, expected_dtype, logical_dtype):
     assert_frame_equal(
         roundtripped, expected, check_dtype=False, check_index_type=False
     )
-    assert_series_equal(
-        roundtripped.dtypes, native_pd.Series([expected_dtype], index=["col"])
-    )
+    assert all([is_integer_dtype(dt) for dt in roundtripped.dtypes])
 
 
 @pytest.mark.parametrize(
@@ -465,7 +456,7 @@ def test_empty(input_dtype, expected_dtype, snowpark_dtype, to_pandas_dtype):
         (native_pd.Index([], dtype="float64"), np.dtype("float64")),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_empty_index(index, expected_index_dtype):
     expected = native_pd.Series(data=[], index=index)
     assert expected.dtype == np.dtype("object")

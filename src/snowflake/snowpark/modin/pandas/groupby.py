@@ -22,7 +22,7 @@
 """Implement GroupBy public API as pandas does."""
 
 from collections.abc import Hashable
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import numpy as np  # noqa: F401
 import numpy.typing as npt
@@ -35,12 +35,13 @@ from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
 from pandas.util._validators import validate_bool_kwarg
 
-# following import are used in doctest
+# the following import is used in doctests
 from snowflake.snowpark.modin import pandas as pd  # noqa: F401
 
 # Snowpark pandas API version
 from snowflake.snowpark.modin.pandas.series import Series
 from snowflake.snowpark.modin.pandas.utils import (
+    extract_validate_and_try_convert_named_aggs_from_kwargs,
     raise_if_native_pandas_objects,
     validate_and_try_convert_agg_func_arg_func_to_str,
 )
@@ -123,6 +124,31 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         }
         self._kwargs.update(kwargs)
 
+    def _override(self, **kwargs):
+        """
+        Override groupby parameters.
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Parameters to override.
+
+        Returns
+        -------
+        DataFrameGroupBy
+            A groupby object with new parameters.
+        """
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        new_kw = dict(
+            df=self._df,
+            by=self._by,
+            axis=self._axis,
+            idx_name=self._idx_name,
+            **self._kwargs,
+        )
+        new_kw.update(kwargs)
+        return type(self)(**new_kw)
+
     def __getattr__(self, key):
         """
         Alter regular attribute access, looks up the name in the columns.
@@ -187,9 +213,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=dict(numeric_only=numeric_only),
         )
 
-    def any(self, skipna=True):
+    def any(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="any", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_any,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     @property
     def plot(self):  # pragma: no cover
@@ -221,7 +251,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # TODO: since python 3.9:
     # @cached_property
     @property
-    def groups(self) -> PrettyDict[Hashable, pd.Index]:
+    def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._query_compiler.groupby_groups(
             self._by,
@@ -317,9 +347,22 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         return 2  # ndim is always 2 for DataFrames
 
     def shift(
-        self, periods: int = 1, freq: int = None, axis: Axis = 0, fill_value: Any = None
+        self,
+        periods: Union[int, Sequence[int]] = 1,
+        freq: int = None,
+        axis: Axis = 0,
+        fill_value: Any = None,
+        suffix: Optional[str] = None,
     ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        if isinstance(periods, Sequence):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.shift does not yet support `periods` that are sequences. Only int `periods` are supported."
+            )
+        if suffix is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas GroupBy.shift does not yet support the `suffix` parameter"
+            )
         if not isinstance(periods, int):
             raise TypeError(
                 f"Periods must be integer, but {periods} is {type(periods)}."
@@ -404,9 +447,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="dtypes", class_="GroupBy")
 
-    def first(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="first", class_="GroupBy")
+    def first(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_first,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     _internal_by_cache = no_default
 
@@ -570,10 +616,46 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             ErrorMessage.not_implemented(
                 "axis other than 0 is not supported"
             )  # pragma: no cover
-
-        func = validate_and_try_convert_agg_func_arg_func_to_str(
-            agg_func=func, obj=self, allow_duplication=True, axis=self._axis
-        )
+        if func is None:
+            # When func is None, we assume that the aggregation functions have been passed in via named aggregations,
+            # which can be of the form named_agg=('col_name', 'agg_func') or named_agg=pd.NamedAgg('col_name', 'agg_func').
+            # We need to parse out the following three things:
+            # 1. The new label to apply to the result of the aggregation.
+            # 2. The column to apply the aggregation over.
+            # 3. The aggregation to apply.
+            # This function checks that:
+            # 1. The kwargs contain named aggregations.
+            # 2. The kwargs do not contain anything besides named aggregations. (for pandas compatibility - see function for more details.)
+            # If both of these things are true, it then extracts the named aggregations from the kwargs, and returns a dictionary that contains
+            # a mapping from the column pandas labels to apply the aggregation over (2 above) to a tuple containing the aggregation to apply
+            # and the new label to assign it (1 and 3 above). Take for example, the following call:
+            # df.groupby(...).agg(new_col1=('A', 'min'), new_col2=('B', 'max'), new_col3=('A', 'max'))
+            # After this function returns, func will look like this:
+            # {
+            #   "A": [AggFuncWithLabel(func="min", pandas_label="new_col1"), AggFuncWithLabel(func="max", pandas_label="new_col3")],
+            #   "B": AggFuncWithLabel(func="max", pandas_label="new_col2")
+            # }
+            # This remapping causes an issue with ordering though - the dictionary above will be processed in the following order:
+            # 1. apply "min" to "A" and name it "new_col1"
+            # 2. apply "max" to "A" and name it "new_col3"
+            # 3. apply "max" to "B" and name it "new_col2"
+            # In other words - the order is slightly shifted so that named aggregations on the same column are contiguous in the ordering
+            # although the ordering of the kwargs is used to determine the ordering of named aggregations on the same columns. Since
+            # the reordering for groupby agg is a reordering of columns, its relatively cheap to do after the aggregation is over,
+            # rather than attempting to preserve the order of the named aggregations internally.
+            func = extract_validate_and_try_convert_named_aggs_from_kwargs(
+                obj=self,
+                allow_duplication=True,
+                axis=self._axis,
+                **kwargs,
+            )
+        else:
+            func = validate_and_try_convert_agg_func_arg_func_to_str(
+                agg_func=func,
+                obj=self,
+                allow_duplication=True,
+                axis=self._axis,
+            )
 
         if isinstance(func, str):
             # Using "getattr" here masks possible AttributeError which we throw
@@ -594,13 +676,17 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             how="axis_wise",
             is_result_dataframe=is_result_dataframe,
         )
+
         return result
 
     agg = aggregate
 
-    def last(self, **kwargs):
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="last", class_="GroupBy")
+    def last(self, numeric_only=False, min_count=-1, skipna=True):
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_last,
+            agg_kwargs=dict(min_count=min_count, skipna=skipna),
+            numeric_only=numeric_only,
+        )
 
     def rank(
         self,
@@ -674,19 +760,45 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
 
     def get_group(self, name, obj=None):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="get_group", class_="GroupBy")
+        work_object = self._override(
+            df=obj if obj is not None else self._df, as_index=True
+        )
+
+        return work_object._wrap_aggregation(
+            qc_method=type(work_object._query_compiler).groupby_get_group,
+            numeric_only=False,
+            agg_kwargs=dict(name=name),
+        )
 
     def __len__(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="__len__", class_="GroupBy")
 
-    def all(self, skipna=True):
+    def all(self, skipna: bool = True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="all", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_all,
+            numeric_only=False,
+            agg_kwargs=dict(skipna=skipna),
+        )
 
     def size(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="size", class_="GroupBy")
+        result = self._wrap_aggregation(
+            type(self._query_compiler).groupby_size,
+            numeric_only=False,
+        )
+        if not isinstance(result, Series):
+            result = result.squeeze(axis=1)
+        if not self._kwargs.get("as_index") and not isinstance(result, Series):
+            result = (
+                result.rename(columns={MODIN_UNNAMED_SERIES_LABEL: "index"})
+                if MODIN_UNNAMED_SERIES_LABEL in result.columns
+                else result
+            )
+        elif isinstance(self._df, Series):
+            result.name = self._df.name
+        return result
 
     def sum(
         self,
@@ -1139,6 +1251,10 @@ class SeriesGroupBy(DataFrameGroupBy):
             name="is_monotonic_increasing", class_="GroupBy"
         )
 
+    def size(self):
+        # TODO: Remove this once SNOW-1478924 is fixed
+        return super().size().rename(self._df.columns[-1])
+
     def aggregate(
         self,
         func: Optional[AggFuncType] = None,
@@ -1149,9 +1265,7 @@ class SeriesGroupBy(DataFrameGroupBy):
     ):
         # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         if is_dict_like(func):
-            raise SpecificationError(
-                "Value for func argument in dict format is not allowed for SeriesGroupBy."
-            )
+            raise SpecificationError("nested renamer is not supported")
 
         return super().aggregate(
             func, *args, engine=engine, engine_kwargs=engine_kwargs, **kwargs
@@ -1194,6 +1308,11 @@ class SeriesGroupBy(DataFrameGroupBy):
             # https://github.com/modin-project/modin/issues/7097
             return dataframe_result.squeeze(axis=1).rename(self._df.columns[-1])
         return dataframe_result
+
+    def get_group(self, name, obj=None):
+        ErrorMessage.method_not_implemented_error(
+            name="get_group", class_="SeriesGroupBy"
+        )
 
 
 def validate_groupby_args(

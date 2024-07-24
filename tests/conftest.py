@@ -13,13 +13,8 @@ from snowflake.snowpark._internal.utils import warning_dict
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
-# TODO: SNOW-1305522: Enable Modin doctests for the below frontend files
 excluded_frontend_files = [
     "accessor.py",
-    "groupby.py",
-    "resample.py",
-    "series_utils.py",
-    "window.py",
 ]
 
 
@@ -40,7 +35,6 @@ def pytest_collection_modifyitems(items) -> None:
     """Applies tags to tests based on folders that they are in."""
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
-    modin_doctest_dir = top_doctest_dir.joinpath("modin/pandas")
     for item in items:
         item_path = Path(str(item.fspath)).parent
         try:
@@ -54,7 +48,7 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
-            elif str(item_path).startswith(str(modin_doctest_dir)):
+            elif "modin" in str(item_path):
                 if not is_excluded_frontend_file(item.fspath):
                     item.add_marker("doctest")
                     item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
@@ -101,3 +95,29 @@ def clear_warning_dict():
     # clear the warning dict so that warnings from one test don't affect
     # warnings from other tests.
     warning_dict.clear()
+
+
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+    opentelemetry_installed = True
+
+except ModuleNotFoundError:
+    opentelemetry_installed = False

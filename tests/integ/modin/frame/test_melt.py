@@ -25,7 +25,7 @@ from tests.integ.modin.utils import (
 )
 
 data = [
-    {"frame": {"abc": ["A", np.NaN, "C"], "123": ["1", "2", np.NaN]}, "kargs": {}},
+    {"frame": {"abc": ["A", np.nan, "C"], "123": ["1", "2", np.nan]}, "kargs": {}},
     {"frame": {"abc": ["A", "B", "C"], "123": ["1", "2", "3"]}, "kargs": {}},
     {"frame": {"abc": ["A", "B", "C"], "123": [1, 2, 3]}, "kargs": {}},
     {"frame": {"123": [1, 2, 3], "456": [4, 5, 6]}, "kargs": {}},
@@ -91,8 +91,8 @@ data = [
         },
         "kargs": {},
     },
-    {"frame": {"abc": ["A", np.NaN, np.NaN], "123": [np.NaN, "2", "3"]}, "kargs": {}},
-    {"frame": {"abc": ["A", np.NaN, np.NaN], "123": [np.NaN, 2, 3]}, "kargs": {}},
+    {"frame": {"abc": ["A", np.nan, np.nan], "123": [np.nan, "2", "3"]}, "kargs": {}},
+    {"frame": {"abc": ["A", np.nan, np.nan], "123": [np.nan, 2, 3]}, "kargs": {}},
 ]
 
 
@@ -286,8 +286,8 @@ def test_everything():
         [("one", "there"), ("two", "be"), ("two", "dragons")], names=["L1", "L2"]
     )
     data = {
-        "abc": ["A", "B", np.NaN],
-        "123": [1, np.NaN, 3],
+        "abc": ["A", "B", np.nan],
+        "123": [1, np.nan, 3],
         "state": ["CA", "WA", "NY"],
     }
     native_df = npd.DataFrame(data, index=index)

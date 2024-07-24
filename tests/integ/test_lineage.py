@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+
 import json
 import uuid
 
@@ -17,6 +18,15 @@ try:
     is_pandas_available = True
 except ImportError:
     is_pandas_available = False
+
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Lineage is a SQL feature",
+        run=False,
+    )
+]
 
 
 def create_objects_for_test(session, db, schema) -> None:
@@ -50,6 +60,7 @@ def remove_created_on_field(df):
     return df
 
 
+@pytest.mark.xfail(reason="SNOW-1437475", strict=False)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_lineage_trace(session):
     """

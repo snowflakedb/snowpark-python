@@ -114,7 +114,7 @@ def test_moving_agg_custom_formatting(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-def test_moving_agg_invalid_inputs(session):
+def test_moving_agg_invalid_inputs(session, local_testing_mode):
     """Tests df.analytics.moving_agg() with invalid window sizes."""
 
     df = get_sample_dataframe(session)
@@ -209,14 +209,15 @@ def test_moving_agg_invalid_inputs(session):
         ).collect()
     assert "window_sizes must not be empty" in str(exc)
 
-    with pytest.raises(SnowparkSQLException) as exc:
-        df.analytics.moving_agg(
-            aggs={"SALESAMOUNT": ["INVALID_FUNC"]},
-            window_sizes=[1],
-            order_by=["ORDERDATE"],
-            group_by=["PRODUCTKEY"],
-        ).collect()
-    assert "Sliding window frame unsupported for function" in str(exc)
+    if not local_testing_mode:  # Local Testing raises NotImplementedError instead
+        with pytest.raises(SnowparkSQLException) as exc:
+            df.analytics.moving_agg(
+                aggs={"SALESAMOUNT": ["INVALID_FUNC"]},
+                window_sizes=[1],
+                order_by=["ORDERDATE"],
+                group_by=["PRODUCTKEY"],
+            ).collect()
+        assert "Sliding window frame unsupported for function" in str(exc)
 
     def bad_formatter(input_col, agg):
         return f"{agg}_{input_col}"
@@ -416,6 +417,10 @@ def test_lead_lag_invalid_inputs(session):
     assert "lags must be a list of integers > 0" in str(exc)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1375417: bug in calculate_type raises TypeError for Long division",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg(session):
     """Tests time_series_agg_fixed function with various window sizes."""
@@ -517,6 +522,10 @@ def test_time_series_aggregation_grouping_bug_fix(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: add_month not supported",
+)
 def test_time_series_agg_month_sliding_window(session):
     """Tests time_series_agg_fixed function with month window sizes."""
 
@@ -584,6 +593,10 @@ def test_time_series_agg_month_sliding_window(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: add_month function not supported",
+)
 def test_time_series_agg_year_sliding_window(session):
     """Tests time_series_agg_fixed function with year window sizes."""
 

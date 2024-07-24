@@ -21,7 +21,6 @@ from snowflake.snowpark.types import (
 from tests.utils import TestData, Utils
 
 
-@pytest.mark.localtest
 def test_create_view(session, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
@@ -45,7 +44,25 @@ def test_create_view(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
-@pytest.mark.localtest
+@pytest.mark.parametrize("is_temp", [True, False])
+def test_comment_on_view(session, local_testing_mode, is_temp):
+    df = session.create_dataframe([(1,), (2,)], schema=["a"])
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+    try:
+        if is_temp:
+            df.create_or_replace_temp_view(view_name, comment=comment)
+        else:
+            df.create_or_replace_view(view_name, comment=comment)
+
+        if not local_testing_mode:
+            ddl_sql = f"select get_ddl('VIEW', '{view_name}')"
+            assert comment in session.sql(ddl_sql).collect()[0][0]
+    finally:
+        if not local_testing_mode:
+            Utils.drop_view(session, view_name)
+
+
 def test_view_name_with_special_character(session, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
@@ -59,6 +76,11 @@ def test_view_name_with_special_character(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL is not supported in Local Testing",
+    run=False,
+)
 def test_view_with_with_sql_statement(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     try:
@@ -72,13 +94,17 @@ def test_view_with_with_sql_statement(session):
         Utils.drop_view(session, view_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="This is a SQL test",
+    run=False,
+)
 def test_only_works_on_select(session):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     with pytest.raises(SnowparkCreateViewException):
         session.sql("show tables").create_or_replace_view(view_name)
 
 
-@pytest.mark.localtest
 def test_consistent_view_name_behaviors(session, local_testing_mode):
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     sc = session.get_current_schema()
@@ -145,7 +171,6 @@ def test_consistent_view_name_behaviors(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
-@pytest.mark.localtest
 def test_create_temp_view_on_functions(session, local_testing_mode):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)

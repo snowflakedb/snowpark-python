@@ -9,9 +9,9 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.conftest import running_on_public_ci
 from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.utils import running_on_public_ci
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -35,20 +35,18 @@ def snow_series():
 )
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_cat.py
 @pytest.mark.parametrize(
-    "sep, na_rep, expected, query_count, fallback_count, sproc_count",
+    "sep, na_rep, expected, query_count, sproc_count",
     [
-        (None, None, "aabbc", 8, 1, 1),
-        (None, "-", "aabbc-", 8, 1, 1),
-        ("_", "NA", "a_a_b_b_c_NA", 8, 1, 1),
+        (None, None, "aabbc", 8, 1),
+        (None, "-", "aabbc-", 8, 1),
+        ("_", "NA", "a_a_b_b_c_NA", 8, 1),
     ],
 )
 def test_str_cat_single_array(
-    snow_series, sep, na_rep, expected, query_count, fallback_count, sproc_count
+    snow_series, sep, na_rep, expected, query_count, sproc_count
 ):
     # "str.cat" Series/Index to ndarray/list
-    with SqlCounter(
-        query_count=query_count, fallback_count=fallback_count, sproc_count=sproc_count
-    ):
+    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
         result = snow_series.str.cat(sep=sep, na_rep=na_rep)
         assert result == expected
 
@@ -63,11 +61,11 @@ def test_str_cat_series_with_array(snow_series):
     expected = native_pd.Series(["aa", "a-", "bb", "bd", "cfoo", "--"])
 
     # Series/Index with array
-    with SqlCounter(query_count=8, fallback_count=1, sproc_count=1):
+    with SqlCounter(query_count=8, sproc_count=1):
         result = snow_series.str.cat(t, na_rep="-")
         assert_snowpark_pandas_equal_to_pandas(result, expected)
     # Series/Index with list
-    with SqlCounter(query_count=8, fallback_count=1, sproc_count=1):
+    with SqlCounter(query_count=8, sproc_count=1):
         result = snow_series.str.cat(list(t), na_rep="-")
         assert_snowpark_pandas_equal_to_pandas(result, expected)
 

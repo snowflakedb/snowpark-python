@@ -103,7 +103,7 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE() -> SnowparkDataframeReaderException:
         return SnowparkDataframeReaderException(
-            "You must call DataFrameReader.schema() and specify the schema for the file.",
+            'No schema specified in DataFrameReader.schema(). Please specify the schema or set session.read.options({"infer_schema":True})',
             error_code="1106",
         )
 
@@ -176,7 +176,7 @@ class SnowparkClientExceptionMessages:
         return SnowparkPandasException(
             f"Cannot write pandas DataFrame to table {location} "
             f"because it does not exist. Create table before "
-            f"trying to write a pandas DataFrame",
+            f"trying to write a pandas DataFrame or set auto_create_table=True.",
             error_code="1114",
         )
 

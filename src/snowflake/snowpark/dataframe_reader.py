@@ -26,7 +26,9 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -375,6 +377,11 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
+        if isinstance(self._session._conn, MockServerConnection):
+            self._session._conn.log_not_supported_error(
+                external_feature_name="DataFrameReader.with_metadata",
+                raise_error=NotImplementedError,
+            )
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
@@ -393,15 +400,23 @@ class DataFrameReader:
         self._file_path = path
         self._file_type = "CSV"
 
-        # infer schema is set to false by default
-        if "INFER_SCHEMA" not in self._cur_options:
-            self._cur_options["INFER_SCHEMA"] = False
         schema_to_cast, transformations = None, None
 
         if not self._user_schema:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
+            if isinstance(self._session._conn, MockServerConnection):
+                self._session._conn.log_not_supported_error(
+                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
+                    internal_feature_name="DataFrameReader.csv",
+                    parameters_info={
+                        "format": "csv",
+                        "option": "INFER_SCHEMA",
+                        "option_value": "TRUE",
+                    },
+                    raise_error=NotImplementedError,
+                )
             (
                 schema,
                 schema_to_cast,
@@ -421,6 +436,7 @@ class DataFrameReader:
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
         else:
+            self._cur_options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
@@ -625,7 +641,13 @@ class DataFrameReader:
                 new_schema.append(
                     Attribute(
                         name,
-                        convert_sf_to_sp_type(data_type, precision, scale, 0),
+                        convert_sf_to_sp_type(
+                            data_type,
+                            precision,
+                            scale,
+                            0,
+                            self._session._conn.max_string_size,
+                        ),
                         r[2],
                     )
                 )
@@ -649,18 +671,19 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT
-        ):
-            self._session._conn.log_not_supported_error(
-                external_feature_name=f"Read semi structured {format} file",
-                internal_feature_name="DataFrameReader._read_semi_structured_file",
-                parameters_info={"format": str(format)},
-                raise_error=NotImplementedError,
-            )
+        if isinstance(self._session._conn, MockServerConnection):
+            if self._session._conn.is_closed():
+                raise SnowparkSessionException(
+                    "Cannot perform this operation because the session has been closed.",
+                    error_code="1404",
+                )
+            if format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT:
+                self._session._conn.log_not_supported_error(
+                    external_feature_name=f"Read semi structured {format} file",
+                    internal_feature_name="DataFrameReader._read_semi_structured_file",
+                    parameters_info={"format": str(format)},
+                    raise_error=NotImplementedError,
+                )
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")

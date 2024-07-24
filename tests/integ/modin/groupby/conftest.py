@@ -115,6 +115,17 @@ def basic_snowpark_pandas_df():
 
 
 @pytest.fixture(scope="function")
+def basic_df_data():
+    return {
+        "col1": [2, 1, 1, 0, 2, 0],
+        "col2": [4, 5, 36, 7, 4, 5],
+        "col3": [3.1, 8.0, 12, 10, 4, 1.1],
+        "col4": [17, 3, 16, 15, 5, 6],
+        "col5": [-1, 3, -1, 3, -2, -1],
+    }
+
+
+@pytest.fixture(scope="function")
 def basic_snowpark_pandas_df_with_missing_values():
     return pd.DataFrame(
         {

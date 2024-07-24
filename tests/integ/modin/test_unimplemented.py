@@ -10,12 +10,6 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark import Session
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.plugin.default2pandas.stored_procedure_utils import (
-    PACKAGING_REQUIREMENT,
-    SNOWPARK_PANDAS_IMPORT,
-)
 from tests.integ.modin.sql_counter import sql_count_checker
 
 
@@ -123,7 +117,7 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
     "func, func_name",
     UNSUPPORTED_BINARY_METHODS,
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_unsupported_series_binary_methods(func, func_name, caplog) -> None:
     native_se1 = native_pd.Series([1, 2, 3, 0, 2])
     native_se2 = native_pd.Series([2, 3, 10, 0, 1])
@@ -158,7 +152,7 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
 # The full set of DateTimeAccessor test is under tests/integ/modin/series/test_dt_accessor.py
 UNSUPPORTED_DT_METHODS = [
     (lambda ds: ds.dt.is_month_start, "property fget:is_month_start"),
-    (lambda ds: ds.dt.dayofweek, "property fget:dayofweek"),
+    (lambda ds: ds.dt.is_year_end, "property fget:is_year_end"),
 ]
 
 
@@ -174,86 +168,66 @@ def test_unsupported_dt_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
 
 
-# Negative test for SNOW-972740 - Apply on a series changes causes errors in a later transpose
-@sql_count_checker(query_count=3, fallback_count=0, sproc_count=0)
-def test_fallback_transpose_after_apply_in_stored_proc_negative(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([1, 2, 3])
-        # apply followed with transpose inside stored procedure fails to resolve
-        # the target path today. This is likely due to how Snowpark pandas is
-        # installed today, should be resolved once Snowpark pandas is installed as
-        # standard conda library. More investigation is needed.
-        # Apply is not an inplace update, here we call df[0] = ... to make sure the
-        # final df have the apply subquery.
-        df[0] = df[0].apply(lambda x: x)
-        df.transpose()
-        return 42
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        assert func_proc() == 42
-    assert "Python Interpreter Error" in str(ex_info)
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=SnowparkSQLException,
-)
-@sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
-def test_sum_in_stored_proc(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([9, 8, 7])
-        return df.sum()[0]
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-    assert func_proc() == 24
+# unsupported methods for Index
+UNSUPPORTED_INDEX_METHODS = [
+    lambda idx: idx.is_monotonic_increasing(),
+    lambda idx: idx.is_monotonic_decreasing(),
+    lambda idx: idx.nbytes(),
+    lambda idx: idx.memory_usage(),
+    lambda idx: idx.all(),
+    lambda idx: idx.any(),
+    lambda idx: idx.all(),
+    lambda idx: idx.argmin(),
+    lambda idx: idx.argmax(),
+    lambda idx: idx.delete(),
+    lambda idx: idx.all(),
+    lambda idx: idx.drop_duplicates(),
+    lambda idx: idx.factorize(),
+    lambda idx: idx.identical(),
+    lambda idx: idx.insert(),
+    lambda idx: idx.is_(),
+    lambda idx: idx.is_boolean(),
+    lambda idx: idx.is_categorical(),
+    lambda idx: idx.is_floating(),
+    lambda idx: idx.is_integer(),
+    lambda idx: idx.is_interval(),
+    lambda idx: idx.is_numeric(),
+    lambda idx: idx.is_object(),
+    lambda idx: idx.min(),
+    lambda idx: idx.max(),
+    lambda idx: idx.reindex(),
+    lambda idx: idx.rename(),
+    lambda idx: idx.repeat(),
+    lambda idx: idx.where(),
+    lambda idx: idx.take(),
+    lambda idx: idx.putmask(),
+    lambda idx: idx.droplevel(),
+    lambda idx: idx.fillna(),
+    lambda idx: idx.dropna(),
+    lambda idx: idx.isna(),
+    lambda idx: idx.notna(),
+    lambda idx: idx.map(),
+    lambda idx: idx.ravel(),
+    lambda idx: idx.argsort(),
+    lambda idx: idx.searchsorted(),
+    lambda idx: idx.shift(),
+    lambda idx: idx.append(),
+    lambda idx: idx.join(),
+    lambda idx: idx.symmetric_difference(),
+    lambda idx: idx.asof(),
+    lambda idx: idx.asof_locs(),
+    lambda idx: idx.get_indexer(),
+    lambda idx: idx.get_indexer_non_unique(),
+    lambda idx: idx.get_loc(),
+    lambda idx: idx.get_slice_bound(),
+    lambda idx: idx.isin(),
+    lambda idx: idx.slice_locs(),
+]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=SnowparkSQLException,
-)
-@sql_count_checker(query_count=4, fallback_count=0, sproc_count=1)
-def test_transpose_in_stored_proc(session):
-    def func(session: Session) -> int:
-        df = pd.DataFrame([9, 8, 7])
-        return df.transpose()[2][0]
-
-    packages = list(session.get_packages().values())
-    if "pandas" not in packages:
-        packages = [native_pd] + packages
-    if "snowflake-snowpark-python" not in packages:
-        packages = packages + ["snowflake-snowpark-python"]
-    if PACKAGING_REQUIREMENT not in packages:
-        packages.append(PACKAGING_REQUIREMENT)
-    func_proc = session.sproc.register(
-        func,
-        imports=[SNOWPARK_PANDAS_IMPORT],
-        packages=packages,
-    )
-    assert func_proc() == 7
+@pytest.mark.parametrize("func", UNSUPPORTED_INDEX_METHODS)
+@sql_count_checker(query_count=0)
+def test_unsupported_index_methods(func) -> None:
+    index = pd.Index([5, 4, 0, 6, 6, 4])
+    with pytest.raises(NotImplementedError):
+        func(index)

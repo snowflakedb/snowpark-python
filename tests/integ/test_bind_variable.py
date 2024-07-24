@@ -29,6 +29,14 @@ try:
 except ImportError:
     is_pandas_available = False
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Variable binding is a SQL feature",
+        run=False,
+    )
+]
+
 
 @pytest.mark.parametrize("copy_df", [True, False])
 def test_basic_query(session, copy_df):

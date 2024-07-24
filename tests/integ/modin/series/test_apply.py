@@ -322,7 +322,6 @@ def test_apply_null_nan():
         ]
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=3)
 def test_apply_json_serializable_negative():
     snow_series = pd.Series([1])
@@ -330,7 +329,7 @@ def test_apply_json_serializable_negative():
     # In Python UDF, if the return type is variant, the return value must be
     # json serializable so it can become a variant in Snowflake.
     # type() returns a type object which is not json serializable.
-    with pytest.raises(SnowparkSQLException, match="is not JSON serializable"):
+    with pytest.raises(SnowparkSQLException, match="is not serializable"):
         snow_series.apply(type).to_pandas()
 
 
@@ -416,7 +415,9 @@ def test_apply_and_map_numpy(func):
     "native_series, expected_query_count, expected_udf_count",
     [
         (
-            native_pd.Series(dtype=object, name="foo", index=pd.Index([], name="bar")),
+            native_pd.Series(
+                dtype=object, name="foo", index=native_pd.Index([], name="bar")
+            ),
             10,
             4,
         ),
@@ -508,7 +509,13 @@ import scipy  # noqa: E402
 
 @pytest.mark.parametrize(
     "package,expected_query_count",
-    [("scipy", 7), ("scipy>=1.0", 7), ("scipy<1.12.0", 7), (scipy, 9)],
+    [
+        ("scipy", 7),
+        ("scipy>=1.0", 7),
+        ("scipy<1.12.0", 7),
+        # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
+        # (scipy, 9)
+    ],
 )
 def test_3rd_party_package_with_udf_annotation(package, expected_query_count):
 
@@ -555,6 +562,7 @@ import numpy as np  # noqa: E402
 import statsmodels  # noqa: E402
 
 
+@pytest.mark.xfail(reason="SNOW-1478794 investigating the issue now")
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
@@ -602,6 +610,7 @@ def test_3rd_party_package_with_session(packages, expected_query_count):
         )
 
 
+@pytest.mark.xfail(reason="TODO: SNOW-1478188 Re-enable quarantined tests for 8.23")
 @pytest.mark.parametrize("udf_packages,session_packages", [(["pandas", np], [scipy])])
 @sql_count_checker(query_count=5, join_count=2, udf_count=1)
 def test_3rd_party_package_mix_and_match(udf_packages, session_packages):

@@ -11,7 +11,7 @@ from pandas._testing import assert_almost_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 
 NUMERIC_DATA = [-5, -2, -1, 0, 1, 3, 4, 5]
 DATETIME_DATA = [
@@ -23,24 +23,27 @@ DATETIME_DATA = [
 
 
 @pytest.mark.parametrize(
-    "q",
+    "q, expected_union_count",
     [
-        [0.1, 0.2, 0.8],
-        [0.2, 0.8, 0.1],  # output will not be sorted by quantile
+        ([0.1, 0.2, 0.8], 0),
+        (
+            [0.2, 0.8, 0.1],
+            2,
+        ),  # output will not be sorted by quantile, and thus cannot use the no-union code
     ],
 )
-@sql_count_checker(query_count=1, union_count=2)
-def test_quantile_basic(q):
+def test_quantile_basic(q, expected_union_count):
     snow_ser = pd.Series(NUMERIC_DATA)
     native_ser = native_pd.Series(NUMERIC_DATA)
-    eval_snowpark_pandas_result(
-        snow_ser,
-        native_ser,
-        lambda df: df.quantile(q),
-    )
+    with SqlCounter(query_count=1, union_count=expected_union_count):
+        eval_snowpark_pandas_result(
+            snow_ser,
+            native_ser,
+            lambda df: df.quantile(q),
+        )
 
 
-@sql_count_checker(query_count=1, union_count=4)
+@sql_count_checker(query_count=1)
 def test_quantile_withna():
     # nans in the data do not affect the quantile
     data = [np.nan, 25, 0, 75, 50, 100, np.nan]
@@ -137,18 +140,13 @@ def test_quantile_datetime_negative():
         snow_ser.quantile()
 
 
-@pytest.mark.xfail(
-    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442"
-)
+@sql_count_checker(query_count=6)
 def test_quantile_large():
-    snow_series = pd.Series(range(1000))
     q = np.linspace(0, 1, 16)
-
-    # actual query count for this 81. This seems like a bug.
-    with SqlCounter(query_count=1):
-        ans = snow_series.quantile(q, "linear").to_pandas()
-
-    assert len(ans) == len(q)
+    eval_snowpark_pandas_result(
+        *create_test_series(range(1000)),
+        lambda df: df.quantile(q, "linear"),
+    )
 
 
 @pytest.mark.parametrize("q", [-10.0, 8.3])

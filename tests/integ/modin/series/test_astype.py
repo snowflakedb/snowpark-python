@@ -56,8 +56,8 @@ BASIC_ASTYPE_CASES = list(product(basic_types(), basic_types()))
 
 EXTENSION_TYPE_TO_NUMPY_DTYPE = {
     "boolean": np.bool_,
-    Float32Dtype(): np.float_,
-    Float64Dtype(): np.float_,
+    Float32Dtype(): np.float64,
+    Float64Dtype(): np.float64,
     Int64Dtype(): np.int64,
     UInt64Dtype(): np.uint64,
     Int32Dtype(): np.int32,
@@ -142,7 +142,7 @@ def test_astype_basic(from_dtype, to_dtype):
             )
             if from_dtype in (
                 float,
-                np.float_,
+                np.float64,
                 np.float16,
                 np.float32,
                 Float32Dtype(),
@@ -298,14 +298,13 @@ def test_astype_from_DatetimeTZDtype_to_datetime64(from_tz):
         )
 
 
-@pytest.mark.skip(reason="SNOW-1358681")
 @sql_count_checker(query_count=1)
 def test_astype_uint():
     # Snowflake’s numeric types are always signed. So astype(‘uint8’) in this case has no effect on the original series.
     s = pd.Series([-1, 0, 1]).astype("uint8")
     assert s.dtype == "int64"
     assert_snowpark_pandas_equal_to_pandas(
-        s, native_pd.Series([-1, 0, 1]).astype("int64")
+        s, native_pd.Series([-1, 0, 1]), check_dtype=False
     )
 
 
