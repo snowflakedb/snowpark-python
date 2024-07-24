@@ -3,6 +3,7 @@
 #
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 from numpy.testing import assert_equal
 
@@ -239,7 +240,9 @@ def test_df_index_columns_to_list(native_df):
     assert_equal(native_df.columns.to_list(), snow_df.columns.to_list())
 
 
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize(
+    "name", [None, "name", True, 1, native_pd._libs.lib.no_default]
+)
 @pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_series(native_index, generate_extra_index, name):
@@ -256,7 +259,9 @@ def test_index_to_series(native_index, generate_extra_index, name):
         )
 
 
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize(
+    "name", [None, "name", True, 1, native_pd._libs.lib.no_default]
+)
 @pytest.mark.parametrize("generate_extra_index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_series(native_df, generate_extra_index, name):
@@ -291,7 +296,9 @@ def test_df_index_columns_to_series(native_df, generate_extra_index, name):
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize(
+    "name", [None, "name", True, 1, native_pd._libs.lib.no_default]
+)
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_to_frame(native_index, name, index):
@@ -305,7 +312,9 @@ def test_index_to_frame(native_index, name, index):
 
 
 @sql_count_checker(query_count=2)
-@pytest.mark.parametrize("name", [None, "name", True, 1])
+@pytest.mark.parametrize(
+    "name", [None, "name", True, 1, native_pd._libs.lib.no_default]
+)
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_df", TEST_DFS)
 def test_df_index_columns_to_frame(native_df, index, name):

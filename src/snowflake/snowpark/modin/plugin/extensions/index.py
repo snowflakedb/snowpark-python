@@ -27,6 +27,7 @@ from typing import Any, Callable, Hashable, Iterator, Literal
 
 import numpy as np
 import pandas as native_pd
+from pandas._libs import lib
 from pandas._typing import ArrayLike, DtypeObj, NaPosition
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
@@ -1597,7 +1598,9 @@ class Index:
         return ser
 
     @is_lazy_check
-    def to_frame(self, index: bool = True, name: Hashable | None = None) -> DataFrame:
+    def to_frame(
+        self, index: bool = True, name: Hashable | None = lib.no_default
+    ) -> DataFrame:
         """
         Create a DataFrame with a column containing the Index.
 
@@ -1619,6 +1622,32 @@ class Index:
         --------
         Index.to_series : Convert an Index to a Series.
         Series.to_frame : Convert Series to DataFrame.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['Ant', 'Bear', 'Cow'], name='animal')
+        >>> idx.to_frame()
+               animal
+        animal
+        Ant       Ant
+        Bear     Bear
+        Cow       Cow
+
+        By default, the original Index is reused. To enforce a new Index:
+
+        >>> idx.to_frame(index=False)
+            animal
+        0   Ant
+        1  Bear
+        2   Cow
+
+        To override the name of the resulting column, specify `name`:
+
+        >>> idx.to_frame(index=False, name='zoo')
+            zoo
+        0   Ant
+        1  Bear
+        2   Cow
         """
         # Do a reset index to convert the index column to a data column,
         # the index column becomes the pandas default index of row position
@@ -1633,17 +1662,26 @@ class Index:
         #       0               100
         #       1               200
         #       2               300
+        # If `name` is specified, use it as new column name; otherwise, set new column name to the original index name.
+        # Note there is one exception case: when the original index name is None, the new column name should be 0.
+        if name != native_pd._libs.lib.no_default:
+            new_col_name = name
+        else:
+            new_col_name = self._query_compiler.get_index_name()
+            if new_col_name is None:
+                new_col_name = 0
+
         # if index is true, we want self to be in the index and data columns of the df,
         # so set the index as the data column and set the name of the index
         if index:
             new_qc = self._query_compiler.reset_index()
             new_qc = (
                 new_qc.set_index([new_qc.columns[0]], drop=False)
-                .set_columns([name])
-                .set_index_names([self.name])
+                .set_columns([new_col_name])
+                .set_index_names([self._query_compiler.get_index_name()])
             )
         else:
-            new_qc = self._query_compiler.reset_index(names=[name])
+            new_qc = self._query_compiler.reset_index(names=[new_col_name])
 
         return DataFrame(query_compiler=new_qc)
 
