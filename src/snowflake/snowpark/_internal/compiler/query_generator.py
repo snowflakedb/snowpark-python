@@ -2,10 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import DefaultDict, Dict, List
+from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.analyzer_utils import get_full_table_name
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -21,6 +20,15 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark.session import Session
 
 
+class SnowflakeCreateTablePlanInfo(NamedTuple):
+    """
+    Cached information that can be used resolve the plan for SnowflakeCreateTable.
+    """
+
+    table_name: Iterable[str]
+    child_attributes: List[Attribute]
+
+
 class QueryGenerator(Analyzer):
     """
     Query Generation class that is used re-build the sql query for given logical plans
@@ -32,16 +40,15 @@ class QueryGenerator(Analyzer):
     def __init__(
         self,
         session: Session,
-        table_create_child_attribute_map: Dict[str, List[Attribute]],
+        snowflake_create_table_plan_info: Optional[SnowflakeCreateTablePlanInfo] = None,
     ) -> None:
         super().__init__(session)
         # overwrite the plan_builder initiated in the super to skip the building of schema query
         self.plan_builder = SnowflakePlanBuilder(self.session, skip_schema_query=True)
-        # map between the Snowflake table created and its child attributes, which is used resolve
-        # the SnowflakeCreateTable node
-        self.table_create_child_attribute_map: Dict[
-            str, List[Attribute]
-        ] = table_create_child_attribute_map
+        # cached information that can be used resolve the SnowflakeCreateTable node
+        self._snowflake_create_table_plan_info: Optional[
+            SnowflakeCreateTablePlanInfo
+        ] = snowflake_create_table_plan_info
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -88,7 +95,17 @@ class QueryGenerator(Analyzer):
             # overwrite the SnowflakeCreateTable resolving, because the child
             # attribute will be pulled directly from the cache
             resolved_child = resolved_children[logical_plan.children[0]]
-            full_table_name = get_full_table_name(logical_plan.table_name)
+            # when the plan is for SnowflakeCreateTable, there must be a snowflake_create_table_plan_info
+            # associated with the current query generator.
+            # TODO: this check need to be relaxed when large query breakdown with temp table
+            #       is implemented, because the child attributes are not necessary to create
+            #       the temp table
+            assert self._snowflake_create_table_plan_info is not None
+            assert (
+                self._snowflake_create_table_plan_info.table_name
+                == logical_plan.table_name
+            )
+
             return self.plan_builder.save_as_table(
                 logical_plan.table_name,
                 logical_plan.column_names,
@@ -103,7 +120,7 @@ class QueryGenerator(Analyzer):
                 logical_plan,
                 self.session._use_scoped_temp_objects,
                 logical_plan.is_generated,
-                self.table_create_child_attribute_map[full_table_name],
+                self._snowflake_create_table_plan_info.child_attributes,
             )
 
         if isinstance(logical_plan, Selectable):

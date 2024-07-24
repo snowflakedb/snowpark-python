@@ -57,7 +57,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
     file_operation_statement,
     filter_statement,
-    get_full_table_name,
     insert_into_statement,
     join_statement,
     join_table_function_statement,
@@ -790,7 +789,7 @@ class SnowflakePlanBuilder:
                 "Internally generated tables must be called with mode ERROR_IF_EXISTS"
             )
 
-        full_table_name = get_full_table_name(table_name)
+        full_table_name = ".".join(table_name)
         is_temp_table_type = table_type in TEMPORARY_STRING_SET
         # here get the column definition from the child attributes. In certain cases we have
         # the attributes set to ($1, VariantType()) which cannot be used as valid column name
