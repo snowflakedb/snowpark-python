@@ -1835,9 +1835,7 @@ class Session:
                     f"Expected query tag to be valid json. Current query tag: {tag_str}"
                 )
 
-    def table(
-        self, name: Union[str, Iterable[str]], _suppress_ast: bool = False
-    ) -> Table:
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -1845,7 +1843,7 @@ class Session:
             name: A string or list of strings that specify the table name or
                 fully-qualified object identifier (database name, schema name, and table name).
 
-            _suppress_ast: Skips AST generation if True.
+            _emit_ast: Whether to emit AST statements.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -1863,7 +1861,7 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
-        if not _suppress_ast:
+        if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table)
             if isinstance(name, str):
@@ -1877,7 +1875,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, _suppress_ast)
+        t = Table(name, self, stmt, _emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -1947,11 +1945,11 @@ class Session:
             expr.fn.udtf.name = ".".join(func_name)
 
         for arg in func_arguments:
-            build_expr_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(expr.pos_args.add(), arg)
         for k in func_named_arguments:
             entry = expr.named_args.add()
             entry._1 = k
-            build_expr_from_python_val(func_named_arguments[k], entry._2)
+            build_expr_from_python_val(entry._2, func_named_arguments[k])
 
         if isinstance(self._conn, MockServerConnection):
             if not self._conn._suppress_not_implemented_error:
@@ -2106,7 +2104,7 @@ class Session:
             expr.query = query
             if params is not None:
                 for p in params:
-                    build_expr_from_python_val(p, expr.params.add())
+                    build_expr_from_python_val(expr.params.add(), p)
         else:
             stmt = _ast_stmt
 
@@ -2476,7 +2474,7 @@ class Session:
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
-        _suppress_ast: bool = False,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -2496,8 +2494,6 @@ class Session:
                 DataFrame will be inferred from the data across all rows. To improve
                 performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
-
-            _suppress_ast: If true, will not trigger AST generation.
 
         Examples::
 
@@ -2574,7 +2570,7 @@ class Session:
                 )
                 set_api_call_source(t, "Session.create_dataframe[pandas]")
 
-                if not _suppress_ast:
+                if _emit_ast:
                     raise NotImplementedError(
                         "TODO SNOW-1554591: Support pandas.DataFrame ServerConnection."
                     )
@@ -2771,8 +2767,8 @@ class Session:
             else:
                 project_columns.append(column(name))
 
-        # Create AST statement
-        stmt = self._ast_batch.assign() if not _suppress_ast else None
+        # Create AST statement.
+        stmt = self._ast_batch.assign() if _emit_ast else None
 
         if self.sql_simplifier_enabled:
             df = DataFrame(
@@ -2799,7 +2795,7 @@ class Session:
             and isinstance(origin_data, pandas.DataFrame)
             and isinstance(self._conn, MockServerConnection)
         ):
-            if not _suppress_ast:
+            if _emit_ast:
                 raise NotImplementedError(
                     "TODO SNOW-1554591: Support pandas.DataFrame with MockServerConnection."
                 )
@@ -2807,7 +2803,7 @@ class Session:
             return _convert_dataframe_to_table(df, temp_table_name, self)
 
         # AST.
-        if not _suppress_ast:
+        if _emit_ast:
             ast = with_src_position(stmt.expr.sp_create_dataframe)
 
             if isinstance(origin_data, tuple):
@@ -3226,12 +3222,12 @@ class Session:
         expr = with_src_position(stmt.expr.apply_expr)
         expr.fn.stored_procedure.name = sproc_name
         for arg in args:
-            build_expr_from_python_val(arg, expr.pos_args.add())
+            build_expr_from_python_val(expr.pos_args.add(), arg)
         if statement_params is not None:
             for k in statement_params:
                 entry = expr.named_args.list.add()
                 entry._1 = k
-                build_expr_from_python_val(statement_params[k], entry._2)
+                build_expr_from_python_val(entry._2, statement_params[k])
         expr.log_on_exception.value = log_on_exception
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
@@ -3329,7 +3325,7 @@ class Session:
         # AST.
         stmt = self._ast_batch.assign()
         expr = with_src_position(stmt.expr.sp_flatten, stmt)
-        build_expr_from_python_val(input, expr.input)
+        build_expr_from_python_val(expr.input, input)
         if path is not None:
             expr.path.value = path
         expr.outer = outer
