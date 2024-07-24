@@ -286,17 +286,6 @@ class UnresolvedAttribute(Expression, NamedExpression):
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
-
-    def resolve(self, input_attributes) -> Attribute:
-        # copied from DataFrame._resolve        
-        normalized_col_name = snowflake.snowpark._internal.utils.quote_name(self.name)
-        cols = list(filter(lambda attr: attr.name == normalized_col_name, input_attributes))
-        if len(cols) == 1:
-            return cols[0].with_name(self.name)
-        else:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                self.name
-            )
         
     def resolve_datatype(self, input_attributes):
         normalized_col_name = snowflake.snowpark._internal.utils.quote_name(self.name)
@@ -537,8 +526,7 @@ class FunctionExpression(Expression):
         return PlanNodeCategory.FUNCTION
     
     def resolve_datatype(self, input_attributes):
-        # TODO: Column class should tell this class what its return type is.
-        self.datatype = self.return_type
+        # function clal should have already assigned a datatype.
         if self.datatype is None:
             raise RuntimeError
 
