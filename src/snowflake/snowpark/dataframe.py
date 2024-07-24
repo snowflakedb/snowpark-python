@@ -2790,14 +2790,18 @@ class DataFrame:
                 ast.join_type.sp_join_type__left_anti = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
-            
+
             join_cols = kwargs.get("using_columns", on)
             if join_cols is not None:
                 if isinstance(join_cols, (Column, str)):
-                    build_expr_from_snowpark_column_or_col_name(ast.join_expr, join_cols)
+                    build_expr_from_snowpark_column_or_col_name(
+                        ast.join_expr, join_cols
+                    )
                 elif isinstance(join_cols, Iterable):
                     for c in join_cols:
-                        build_expr_from_snowpark_column_or_col_name(ast.join_expr.list_val.vs.add(), c)
+                        build_expr_from_snowpark_column_or_col_name(
+                            ast.join_expr.list_val.vs.add(), c
+                        )
                 else:
                     raise TypeError(
                         f"Invalid input type for join column: {type(join_cols)}"
@@ -4347,8 +4351,12 @@ class DataFrame:
 
         if new_column is not None:
             expr.new_column.value = new_column
-            build_expr_from_snowpark_column_or_col_name(expr.col_or_mapper, col_or_mapper)
-            return self.with_column_renamed(col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False)
+            build_expr_from_snowpark_column_or_col_name(
+                expr.col_or_mapper, col_or_mapper
+            )
+            return self.with_column_renamed(
+                col_or_mapper, new_column, _ast_stmt=_ast_stmt, _emit_ast=False
+            )
 
         if not isinstance(col_or_mapper, dict):
             raise ValueError(
@@ -4391,8 +4399,8 @@ class DataFrame:
 
     @df_api_usage
     def with_column_renamed(
-        self, 
-        existing: ColumnOrName, 
+        self,
+        existing: ColumnOrName,
         new: str,
         _ast_stmt: Optional[proto.Assign] = None,
         _emit_ast: bool = True,
@@ -4461,7 +4469,9 @@ class DataFrame:
         # AST.
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(_ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt)
+            expr = with_src_position(
+                _ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt
+            )
             self.set_ast_ref(expr.df)
             expr.new_name = new
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
