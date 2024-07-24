@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
 )
+from snowflake.snowpark.types import TimestampType, TimedeltaType
 
 
 class BinaryExpression(Expression):
@@ -80,6 +81,12 @@ class Add(BinaryArithmeticExpression):
 
 class Subtract(BinaryArithmeticExpression):
     sql_operator = "-"
+
+    def resolve_datatype(self, input_attributes):
+        self.children[0].resolve_datatype(input_attributes)
+        self.children[1].resolve_datatype(input_attributes)
+        if isinstance(self.children[0].datatype, TimestampType) and isinstance(self.children[1].datatype, TimestampType):
+            self.datatype = TimedeltaType()
 
 
 class Multiply(BinaryArithmeticExpression):

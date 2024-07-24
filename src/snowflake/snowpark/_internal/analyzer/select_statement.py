@@ -549,6 +549,17 @@ class SelectStatement(Selectable):
         )  # will be replaced by new api calls if any operation.
         self._placeholder_query = None
 
+        # try to append datatypes onto our projections
+        input_attributes = from_.snowflake_plan.attributes
+
+        if projection is None:
+            # TODO: formerly we had a "*", but having multiple datatypes
+            # in the star expression gets into sketchy semantic territory.
+            self.projection = input_attributes
+        else:        
+            for each_projection in projection:
+                each_projection.resolve_datatype(input_attributes)
+        
     def __copy__(self):
         new = SelectStatement(
             projection=self.projection,

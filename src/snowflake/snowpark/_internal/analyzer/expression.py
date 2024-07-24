@@ -216,6 +216,9 @@ class Attribute(Expression, NamedExpression):
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.COLUMN
 
+    def resolve_datatype(self, input_attributes):
+        # We already have a datatype. Nothing to do.
+        pass
 
 class Star(Expression):
     def __init__(
@@ -292,6 +295,17 @@ class UnresolvedAttribute(Expression, NamedExpression):
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 self.name
             )
+        
+    def resolve_datatype(self, input_attributes):
+        normalized_col_name = snowflake.snowpark._internal.utils.quote_name(self.name)
+        cols = list(filter(lambda attr: attr.name == normalized_col_name, input_attributes))
+        if len(cols) == 1:
+            self.datatype = cols[0].datatype
+        else:
+            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+                self.name
+            ) 
+
 
 class Literal(Expression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None) -> None:
@@ -517,6 +531,10 @@ class FunctionExpression(Expression):
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
+    
+    def resolve_datatype(self, input_attributes):
+        # TODO: Column class should tell this class what its return type is.
+        self.datatype = self.return_type
 
 
 class WithinGroup(Expression):

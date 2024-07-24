@@ -92,6 +92,9 @@ class Alias(UnaryExpression, NamedExpression):
         # do not add additional complexity for alias
         return {}
 
+    def resolve_datatype(self, input_attributes):
+        self.child.resolve_datatype(input_attributes)
+        self.datatype = self.child.datatype
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
