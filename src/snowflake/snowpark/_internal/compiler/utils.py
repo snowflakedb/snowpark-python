@@ -3,22 +3,23 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List
+from typing import Optional
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import get_full_table_name
-from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
 )
-from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.query_generator import (
+    QueryGenerator,
+    SnowflakeCreateTablePlanInfo,
+)
 
 
 def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
     """
     Helper function to construct the query generator for a given valid SnowflakePlan.
     """
-    table_create_child_attribute_map: Dict[str, List[Attribute]] = {}
+    snowflake_create_table_plan_info: Optional[SnowflakeCreateTablePlanInfo] = None
     # When the root node of source plan is SnowflakeCreateTable, we need to extract the
     # child attributes for the table that is used for later query generation process.
     # This relies on the fact that SnowflakeCreateTable is an eager evaluation, and
@@ -33,7 +34,8 @@ def create_query_generator(plan: SnowflakePlan) -> QueryGenerator:
         # NOTE that here we rely on the fact that the SnowflakeCreateTable node is the root
         # of a source plan. Test will fail if that assumption is broken.
         resolved_child = plan.session._analyzer.resolve(create_table_node.query)
-        full_table_name = get_full_table_name(create_table_node.table_name)
-        table_create_child_attribute_map[full_table_name] = resolved_child.attributes
+        snowflake_create_table_plan_info = SnowflakeCreateTablePlanInfo(
+            create_table_node.table_name, resolved_child.attributes
+        )
 
-    return QueryGenerator(plan.session, table_create_child_attribute_map)
+    return QueryGenerator(plan.session, snowflake_create_table_plan_info)
