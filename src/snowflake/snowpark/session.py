@@ -2809,12 +2809,12 @@ class Session:
             if isinstance(origin_data, tuple):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__tuple_of_values.vs.add(), row
+                        ast.data.sp_dataframe_data__tuple.vs.add(), row
                     )
             elif isinstance(origin_data, list):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__list_of_values.vs.add(), row
+                        ast.data.sp_dataframe_data__list.vs.add(), row
                     )
             # Note: pandas.DataFrame handled above.
             else:
