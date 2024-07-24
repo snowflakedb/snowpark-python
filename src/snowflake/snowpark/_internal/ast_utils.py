@@ -176,7 +176,7 @@ def build_proto_from_struct_type(
     expr.structured = schema.structured
     for field in schema.fields:
         ast_field = expr.fields.add()
-        ast_field.column_identifier.name = field.column_identifier.name
+        field.column_identifier._fill_ast(ast_field.column_identifier)
         field.datatype._fill_ast(ast_field.data_type)
         ast_field.nullable = field.nullable
 
