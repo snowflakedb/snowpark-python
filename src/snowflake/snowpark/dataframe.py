@@ -4463,7 +4463,7 @@ class DataFrame:
             self.set_ast_ref(expr.df)
             expr.new_name = new
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
-        return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=True)
+        return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=False)
 
     @df_collect_api_telemetry
     def cache_result(
